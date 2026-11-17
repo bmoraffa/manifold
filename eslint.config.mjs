@@ -11,6 +11,8 @@ const sharedGlobals = {
     'TC',
     '$',
     'clamp',
+    'escapeHTML',
+    'lgam',
     'f2',
     'f3',
     'RM',
@@ -64,7 +66,7 @@ const sharedGlobals = {
   'language-models.js': ['LML'],
   'neural-networks.js': ['ACT', 'NNet', 'sci', 'NNL'],
   'probabilistic.js': ['PML'],
-  'regression.js': ['lgam', 'solve', 'lsq', 'legendre', 'dot', 'parseXY', 'Orbit', 'REG'],
+  'regression.js': ['solve', 'lsq', 'legendre', 'dot', 'parseXY', 'Orbit', 'REG'],
   'reinforcement.js': ['gwClick', 'RLL'],
   'unsupervised.js': [
     'UC',
@@ -83,6 +85,7 @@ const sharedGlobals = {
 export default [
   { ignores: ['node_modules/**', '.codegraph/**', 'coverage/**', 'dist/**'] },
   js.configs.recommended,
+  { files: ['tests/**/*.mjs'], languageOptions: { globals: globals.node } },
   {
     files: ['js/**/*.js'],
     languageOptions: {

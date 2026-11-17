@@ -4175,39 +4175,43 @@ const UNS = [
         };
       };
       const parse = (text) => {
-        const lines = String(text)
-          .split(/\r?\n/)
-          .filter((l) => l.trim())
-          .map((l) => l.split(/[,;\t]/).map((v) => v.trim().replace(/^"|"$/g, '')));
-        if (lines.length < 11)
-          return 'This file has fewer than 10 data rows. PCA needs more rows than that to say anything. Add rows and upload again.';
-        const isNum = (v) => v !== '' && isFinite(+v),
-          head = lines[0].some((v) => !isNum(v)),
-          body = head ? lines.slice(1) : lines,
-          nc = Math.max(...lines.map((l) => l.length)),
-          cols = [];
-        for (let j = 0; j < nc && cols.length < 12; j++) {
-          let ok = 0;
-          for (const r of body) if (isNum(r[j] || '')) ok++;
-          if (ok / body.length > 0.9) cols.push(j);
+        try {
+          const lines = String(text)
+            .split(/\r?\n/)
+            .filter((l) => l.trim())
+            .map((l) => l.split(/[,;\t]/).map((v) => v.trim().replace(/^"|"$/g, '').trim()));
+          if (lines.length < 11)
+            return 'This file has fewer than 10 data rows. PCA needs more rows than that to say anything. Add rows and upload again.';
+          const isNum = (v) => v !== '' && isFinite(+v),
+            head = lines[0].some((v) => !isNum(v)),
+            body = head ? lines.slice(1) : lines,
+            nc = lines.reduce((n, l) => Math.max(n, l.length), 0),
+            cols = [];
+          for (let j = 0; j < nc && cols.length < 12; j++) {
+            let ok = 0;
+            for (const r of body) if (isNum(r[j] || '')) ok++;
+            if (ok / body.length > 0.9) cols.push(j);
+          }
+          if (cols.length < 3)
+            return 'Fewer than three numeric columns were found. PCA on a table needs at least three. Check that the file is comma-separated and upload again.';
+          const rows = [];
+          for (const r of body) {
+            const v = cols.map((j) => +(r[j] || NaN));
+            if (v.every(isFinite)) rows.push(v);
+            if (rows.length >= 2000) break;
+          }
+          if (rows.length < 10)
+            return 'Fewer than 10 complete rows were found after dropping rows with gaps. Fill the gaps and upload again.';
+          return {
+            names: cols.map((j, i) =>
+              head && lines[0][j] ? lines[0][j].slice(0, 18) : 'column ' + (i + 1),
+            ),
+            X: rows,
+            skipped: nc - cols.length,
+          };
+        } catch {
+          return 'That file could not be parsed. Try a smaller plain CSV file.';
         }
-        if (cols.length < 3)
-          return 'Fewer than three numeric columns were found. PCA on a table needs at least three. Check that the file is comma-separated and upload again.';
-        const rows = [];
-        for (const r of body) {
-          const v = cols.map((j) => +(r[j] || NaN));
-          if (v.every(isFinite)) rows.push(v);
-          if (rows.length >= 2000) break;
-        }
-        if (rows.length < 10)
-          return 'Fewer than 10 complete rows were found after dropping rows with gaps. Fill the gaps and upload again.';
-        return {
-          names: cols.map((j, i) =>
-            head && lines[0][j] ? lines[0][j].slice(0, 18) : 'column ' + (i + 1),
-          ),
-          X: rows,
-          skipped: nc - cols.length,
-        };
       };
       const comp = () => {
         const D = custom || sim(S.ds);
@@ -5106,13 +5110,13 @@ const UNS = [
       gen();
       calcP();
       reset();
-      while (!fin()) iter();
+      if (RM) while (!fin()) iter();
       say();
       scl = 1e-9;
       const anim = Anim(() => {
         fr++;
         if (it < 12 && fr % 6) return;
-        for (let i = 0; i < (it < 40 ? 1 : 3) && !fin(); i++) iter();
+        for (let i = 0; i < (it < 40 ? 1 : 3) && !fin() && chk.remaining() > 0; i++) iter();
         say();
         draw();
         chk();
@@ -5586,7 +5590,7 @@ const UNS = [
       graph();
       fitAB();
       reset();
-      all();
+      if (RM) all();
       const anim = Anim(() => {
         fr++;
         if (fr % (ep < 10 ? 8 : 2)) return;

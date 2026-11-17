@@ -130,37 +130,6 @@ select {
   transition: transform 0.2s;
   margin-right: 4px;
 }
-.topic-b[aria-expanded='true']::after {
-  transform: rotate(45deg);
-}
-.sub {
-  display: flex;
-  flex-direction: column;
-  margin: 2px 0 10px;
-  border-left: 1px solid var(--line);
-}
-.sub button {
-  border: 0;
-  background: none;
-  text-align: left;
-  padding: 4px 0 4px 14px;
-  cursor: pointer;
-  font-size: 0.88rem;
-  color: var(--muted);
-  margin-left: -1px;
-  border-left: 1px solid transparent;
-}
-.sub button:hover {
-  color: var(--ink);
-}
-.sub button.live {
-  color: var(--ink);
-}
-.sub button[aria-current='true'] {
-  border-left-color: var(--gold);
-  color: var(--ink);
-  font-weight: 600;
-}
 .topbar {
   display: none;
 }

@@ -321,7 +321,7 @@ function clfLesson(o) {
       };
       let chk = () => false;
       const anim = Anim(() => {
-        if (M.tick() !== false) draw();
+        if (M.tick(chk.remaining()) !== false) draw();
         if (chk()) draw();
       });
       pb = playBtn($('#' + id + '-play', root), anim);
@@ -1549,11 +1549,11 @@ const CLF = [
     title: 'The widest street between the classes',
     ds: ['blobs', 'overlap', 'moons'],
     play: 'Train',
-    S: { C: 1 },
+    S: { C: 0 },
     n: 80,
     lede: 'Many lines separate two clouds. The support vector machine picks the one in the middle of the widest possible street between them. Only the points on the kerbs of the street matter: move any other point and nothing changes.',
     capR: 'How far each point is on the correct side, and what it costs',
-    ctl: slider('svm-c', 'Cost of a violation, C (log scale)', -2, 2, 0.05, 0),
+    ctl: slider('svm-cost', 'Cost of a violation, C (log scale)', -2, 2, 0.05, 0),
     reads:
       rd('mw', 'Width of the street', 'hl') +
       rd('sv', 'Support vectors (ringed)', 'hl2') +
@@ -1597,7 +1597,7 @@ const CLF = [
         for (let j = 0; j < 3; j++) w[j] -= lr * g[j];
       };
       api.bind(
-        'c',
+        'cost',
         'C',
         (v) => (Math.pow(10, v) < 10 ? Math.pow(10, v).toFixed(2) : Math.pow(10, v).toFixed(0)),
         () => {
@@ -1641,9 +1641,9 @@ const CLF = [
         },
         p: (x, y) => sig(2.2 * (w[0] + w[1] * x + w[2] * y)),
         done: () => wait > 0,
-        tick() {
+        tick(budget = Infinity) {
           if (wait > 0) return false;
-          for (let k = 0; k < 12; k++) it();
+          for (let k = 0; k < Math.min(12, budget); k++) it();
           if (t0 > 2600) wait = 200;
           return true;
         },

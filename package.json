@@ -12,7 +12,8 @@
     "lint:html": "html-validate index.html",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "check": "npm run format:check && npm run lint"
+    "check": "npm run format:check && npm test && npm run lint",
+    "test": "node --test tests/*.test.mjs"
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",

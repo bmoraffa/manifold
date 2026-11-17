@@ -1,18 +1,6 @@
 /* Manifold — Regression.
    © 2026 Bahman Moraffah. All rights reserved. Load order matters: see index.html. */
 /* ============ regression: shared numerics ============ */
-function lgam(x) {
-  const cf = [
-    76.18009172947146, -86.50532032941677, 24.01409824083091, -1.231739572450155,
-    0.1208650973866179e-2, -0.5395239384953e-5,
-  ];
-  let y = x,
-    t = x + 5.5;
-  t -= (x + 0.5) * Math.log(t);
-  let s = 1.000000000190015;
-  for (let j = 0; j < 6; j++) s += cf[j] / ++y;
-  return -t + Math.log((2.5066282746310005 * s) / x);
-}
 function betacf(a, b, x) {
   const FP = 1e-30,
     qab = a + b,
@@ -131,34 +119,39 @@ const dot = (a, b) => {
   for (let i = 0; i < a.length; i++) s += a[i] * b[i];
   return s;
 };
-function parseXY(text) {
-  const rows = String(text)
-      .split(/\r?\n/)
-      .map((l) => l.split(/[,;\t]/).map((v) => v.trim())),
-    nc = Math.max(0, ...rows.map((r) => r.length)),
-    cols = [];
-  for (let j = 0; j < nc && cols.length < 2; j++) {
-    let ok = 0,
-      tot = 0;
-    for (const r of rows) {
-      if (r[j] === undefined || r[j] === '') continue;
-      tot++;
-      if (isFinite(parseFloat(r[j])) && /^[-+.\d]/.test(r[j])) ok++;
+function parseXY(text, limit = 2000) {
+  try {
+    const rows = String(text)
+        .split(/\r?\n/)
+        .map((l) => l.split(/[,;\t]/).map((v) => v.trim())),
+      nc = rows.reduce((n, r) => Math.max(n, r.length), 0),
+      cols = [];
+    for (let j = 0; j < nc && cols.length < 2; j++) {
+      let ok = 0,
+        tot = 0;
+      for (const r of rows) {
+        if (r[j] === undefined || r[j] === '') continue;
+        tot++;
+        if (isFinite(Number(r[j]))) ok++;
+      }
+      if (tot >= 5 && ok / tot > 0.8) cols.push(j);
     }
-    if (tot >= 5 && ok / tot > 0.8) cols.push(j);
+    if (cols.length < 2)
+      return 'This file needs at least two numeric columns with five or more rows. Check the file and upload again.';
+    const p = [];
+    for (const r of rows) {
+      if (cols.some((j) => r[j] === undefined || r[j] === '')) continue;
+      const a = Number(r[cols[0]]),
+        b = Number(r[cols[1]]);
+      if (isFinite(a) && isFinite(b)) p.push([a, b]);
+      if (p.length >= limit) break;
+    }
+    return p.length < 5
+      ? 'Fewer than five complete rows were found. Add more rows and upload again.'
+      : p;
+  } catch {
+    return 'That file could not be parsed. Try a smaller plain CSV file.';
   }
-  if (cols.length < 2)
-    return 'This file needs at least two numeric columns with five or more rows. Check the file and upload again.';
-  const p = [];
-  for (const r of rows) {
-    const a = parseFloat(r[cols[0]]),
-      b = parseFloat(r[cols[1]]);
-    if (isFinite(a) && isFinite(b)) p.push([a, b]);
-    if (p.length >= 2000) break;
-  }
-  return p.length < 5
-    ? 'Fewer than five complete rows were found. Add more rows and upload again.'
-    : p;
 }
 function Orbit(c, redraw, ctl, V0 = { az: -0.7, el: 0.42, zoom: 1 }) {
   const V = { ...V0 };

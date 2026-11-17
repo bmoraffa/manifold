@@ -1,6 +1,124 @@
 /* Manifold — Ensembles.
    © 2026 Bahman Moraffah. All rights reserved. Load order matters: see index.html. */
 /* ============ ensembles ============ */
+function parseXgbCSV(text) {
+  const lines = String(text)
+    .split(/\r?\n/)
+    .filter((l) => l.trim())
+    .map((l) => l.split(/[,;\t]/).map((v) => v.trim().replace(/^"|"$/g, '').trim()));
+  if (lines.length < 30)
+    return 'This file has fewer than 30 data rows. XGBoost needs more than that to hold some out. Add rows and upload again.';
+  const hasHead = lines[0].some((v) => v !== '' && !isFinite(Number(v))),
+    head = hasHead ? lines[0] : lines[0].map((_, j) => 'column ' + (j + 1)),
+    body = (hasHead ? lines.slice(1) : lines).slice(0, 4000),
+    nc = head.length,
+    keep = [];
+  for (let j = 0; j < nc; j++) {
+    let ok = 0;
+    for (const rw of body) if (rw[j] !== undefined && rw[j] !== '' && isFinite(Number(rw[j]))) ok++;
+    if (ok / body.length >= 0.9) keep.push(j);
+  }
+  if (keep.length < 2)
+    return 'This file needs at least two numeric columns: one to predict and one or more to predict it from. Text columns are skipped.';
+  const use = keep.slice(-13),
+    rows = [];
+  for (const rw of body) {
+    if (use.some((j) => rw[j] === undefined || rw[j] === '')) continue;
+    const v = use.map((j) => Number(rw[j]));
+    if (v.every((x) => rw.length && isFinite(x) && x === x)) rows.push(v);
+  }
+  if (rows.length < 30)
+    return 'Fewer than 30 rows have a number in every numeric column. Fill the gaps and upload again.';
+
+  return { names: use.map((j) => head[j] || 'column ' + (j + 1)), rows, skipped: nc - use.length };
+}
+function xgbBuildTree(X, order, g, h, rows, { depth, lam, gam }) {
+  const n = X.length,
+    where = new Int32Array(n).fill(-1),
+    all = [],
+    stat = (nd) => {
+      let G = 0,
+        H = 0;
+      for (const q of nd.rows) {
+        G += g[q];
+        H += h[q];
+      }
+      nd.G = G;
+      nd.H = H;
+      nd.n = nd.rows.length;
+      nd.w = -G / (H + lam);
+    },
+    rt = { id: 0, rows };
+  all.push(rt);
+  for (const q of rows) where[q] = 0;
+  stat(rt);
+  let front = [rt];
+  for (let d = 0; d < depth; d++) {
+    const next = [];
+    for (const nd of front) {
+      if (nd.n < 4) continue;
+      let best = null;
+      const b0 = (nd.G * nd.G) / (nd.H + lam);
+      for (let f = 0; f < X[0].length; f++) {
+        let GL = 0,
+          HL = 0,
+          cnt = 0,
+          prev = 0;
+        const ord = order[f];
+        for (let q = 0; q < ord.length; q++) {
+          const r = ord[q];
+          if (where[r] !== nd.id) continue;
+          const v = X[r][f];
+          if (cnt >= 2 && nd.n - cnt >= 2 && v !== prev) {
+            const gain =
+              0.5 * ((GL * GL) / (HL + lam) + ((nd.G - GL) * (nd.G - GL)) / (nd.H - HL + lam) - b0);
+            if (!best || gain > best.gain) {
+              const mid = (v + prev) / 2;
+              // Keep adjacent values separated if the midpoint rounds up or overflows.
+              best = { f, thr: mid >= prev && mid < v ? mid : prev, gain };
+            }
+          }
+          GL += g[r];
+          HL += h[r];
+          cnt++;
+          prev = v;
+        }
+      }
+      if (!best) continue;
+      const L = { id: all.length, rows: [] },
+        R = { id: all.length + 1, rows: [] };
+      all.push(L, R);
+      for (const q of nd.rows) {
+        if (X[q][best.f] <= best.thr) {
+          L.rows.push(q);
+          where[q] = L.id;
+        } else {
+          R.rows.push(q);
+          where[q] = R.id;
+        }
+      }
+      stat(L);
+      stat(R);
+      nd.sp = { f: best.f, thr: best.thr, gain: best.gain, L, R };
+      next.push(L, R);
+    }
+    front = next;
+  }
+  let np = 0;
+  const pr = (nd) => {
+    if (!nd.sp) return;
+    pr(nd.sp.L);
+    pr(nd.sp.R);
+    if (!nd.sp.L.sp && !nd.sp.R.sp && nd.sp.gain < gam) {
+      nd.cut = nd.sp;
+      nd.sp = null;
+      np++;
+    }
+  };
+  pr(rt);
+  for (const nd of all) nd.rows = null;
+  return { root: rt, np };
+}
 function growTree(P, o = {}) {
   const D = o.depth || 1,
     ML = o.minleaf || 1,
@@ -1151,7 +1269,7 @@ const ENS = [
         tsel.innerHTML = names
           .map(
             (nm, j) =>
-              `<option value="${j}"${j === t ? ' selected' : ''}>${nm.slice(0, 28)}</option>`,
+              `<option value="${j}"${j === t ? ' selected' : ''}>${escapeHTML(nm.slice(0, 28))}</option>`,
           )
           .join('');
         info.textContent =
@@ -1176,7 +1294,7 @@ const ENS = [
         tpBox.innerHTML = D.names
           .map(
             (nm, f) =>
-              `<label class="ctl" for="xgb-tp${f}"><span>${nm.slice(0, 24)}</span><input type="number" class="num" id="xgb-tp${f}" step="any" value="${+tpv[f].toFixed(2)}"></label>`,
+              `<label class="ctl" for="xgb-tp${f}"><span>${escapeHTML(nm.slice(0, 24))}</span><input type="number" class="num" id="xgb-tp${f}" step="any" value="${+tpv[f].toFixed(2)}"></label>`,
           )
           .join('');
         D.names.forEach((_, f) => {
@@ -1239,92 +1357,6 @@ const ENS = [
           f3(loss(D.te)) +
           '.';
       }
-      const build = (rows) => {
-        const n = D.X.length,
-          where = new Int32Array(n).fill(-1),
-          all = [],
-          stat = (nd) => {
-            let G = 0,
-              H = 0;
-            for (const q of nd.rows) {
-              G += g[q];
-              H += h[q];
-            }
-            nd.G = G;
-            nd.H = H;
-            nd.n = nd.rows.length;
-            nd.w = -G / (H + S.lam);
-          },
-          rt = { id: 0, rows };
-        all.push(rt);
-        for (const q of rows) where[q] = 0;
-        stat(rt);
-        let front = [rt];
-        for (let d = 0; d < S.depth; d++) {
-          const next = [];
-          for (const nd of front) {
-            if (nd.n < 4) continue;
-            let best = null;
-            const b0 = (nd.G * nd.G) / (nd.H + S.lam);
-            for (let f = 0; f < D.names.length; f++) {
-              let GL = 0,
-                HL = 0,
-                cnt = 0,
-                prev = 0;
-              const ord = D.order[f];
-              for (let q = 0; q < ord.length; q++) {
-                const r = ord[q];
-                if (where[r] !== nd.id) continue;
-                const v = D.X[r][f];
-                if (cnt >= 2 && nd.n - cnt >= 2 && v !== prev) {
-                  const gain =
-                    0.5 *
-                    ((GL * GL) / (HL + S.lam) +
-                      ((nd.G - GL) * (nd.G - GL)) / (nd.H - HL + S.lam) -
-                      b0);
-                  if (!best || gain > best.gain) best = { f, thr: (v + prev) / 2, gain };
-                }
-                GL += g[r];
-                HL += h[r];
-                cnt++;
-                prev = v;
-              }
-            }
-            if (!best || best.gain <= 1e-9) continue;
-            const L = { id: all.length, rows: [] },
-              R = { id: all.length + 1, rows: [] };
-            all.push(L, R);
-            for (const q of nd.rows) {
-              if (D.X[q][best.f] <= best.thr) {
-                L.rows.push(q);
-                where[q] = L.id;
-              } else {
-                R.rows.push(q);
-                where[q] = R.id;
-              }
-            }
-            stat(L);
-            stat(R);
-            nd.sp = { f: best.f, thr: best.thr, gain: best.gain, L, R };
-            next.push(L, R);
-          }
-          front = next;
-        }
-        let np = 0;
-        const pr = (nd) => {
-          if (!nd.sp) return;
-          pr(nd.sp.L);
-          pr(nd.sp.R);
-          if (!nd.sp.L.sp && !nd.sp.R.sp && nd.sp.gain < S.gam) {
-            nd.cut = nd.sp;
-            nd.sp = null;
-            np++;
-          }
-        };
-        pr(rt);
-        for (const nd of all) nd.rows = null;
-        return { root: rt, np };
-      };
       const lvs = (nd) => (nd.sp ? lvs(nd.sp.L) + lvs(nd.sp.R) : 1);
       const add = () => {
         const tr = D.tr;
@@ -1340,7 +1372,7 @@ const ENS = [
         }
         const rows = S.sub >= 1 ? tr.slice() : tr.filter(() => Math.random() < S.sub);
         if (rows.length < 8) return;
-        const bt = build(rows),
+        const bt = xgbBuildTree(D.X, D.order, g, h, rows, S),
           tq = { root: bt.root, eta: S.eta };
         trees.push(tq);
         last = tq;
@@ -1767,51 +1799,21 @@ const ENS = [
           st.textContent = 'That file could not be read. Try saving it again as plain CSV.';
         };
         rd2.onload = () => {
-          const lines = String(rd2.result)
-            .split(/\r?\n/)
-            .filter((l) => l.trim())
-            .map((l) => l.split(/[,;\t]/).map((v) => v.trim().replace(/^"|"$/g, '')));
-          if (lines.length < 31) {
-            st.textContent =
-              'This file has fewer than 30 data rows. XGBoost needs more than that to hold some out. Add rows and upload again.';
+          const parsed = parseXgbCSV(rd2.result);
+          if (typeof parsed === 'string') {
+            st.textContent = parsed;
             return;
           }
-          const hasHead = lines[0].some((v) => v !== '' && !isFinite(parseFloat(v))),
-            head = hasHead ? lines[0] : lines[0].map((_, j) => 'column ' + (j + 1)),
-            body = (hasHead ? lines.slice(1) : lines).slice(0, 4000),
-            nc = head.length,
-            keep = [];
-          for (let j = 0; j < nc; j++) {
-            let ok = 0;
-            for (const rw of body)
-              if (rw[j] !== undefined && rw[j] !== '' && isFinite(Number(rw[j]))) ok++;
-            if (ok / body.length >= 0.9) keep.push(j);
-          }
-          if (keep.length < 2) {
-            st.textContent =
-              'This file needs at least two numeric columns: one to predict and one or more to predict it from. Text columns are skipped.';
-            return;
-          }
-          const use = keep.slice(-13),
-            rows = [];
-          for (const rw of body) {
-            const v = use.map((j) => Number(rw[j]));
-            if (v.every((x) => rw.length && isFinite(x) && x === x)) rows.push(v);
-          }
-          if (rows.length < 30) {
-            st.textContent =
-              'Fewer than 30 rows have a number in every numeric column. Fill the gaps and upload again.';
-            return;
-          }
+          const { names, rows, skipped } = parsed;
           st.textContent =
             'Loaded ' +
             f.name.slice(0, 30) +
             ': ' +
             rows.length +
             ' rows.' +
-            (nc > use.length
+            (skipped > 0
               ? ' ' +
-                (nc - use.length) +
+                skipped +
                 ' columns were skipped (text, mostly empty, or beyond the 13-column limit).'
               : '') +
             ' The last numeric column is the target; change it in “Column to predict”.';
@@ -1825,11 +1827,7 @@ const ENS = [
           o.textContent = 'Your CSV: ' + f.name.slice(0, 24);
           $('#xgb-ds', root).value = 'csv';
           pb.stop();
-          setData(
-            use.map((j) => head[j] || 'column ' + (j + 1)),
-            rows,
-            use.length - 1,
-          );
+          setData(names, rows, names.length - 1);
           draw();
         };
         rd2.readAsText(f);

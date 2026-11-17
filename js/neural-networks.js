@@ -563,7 +563,7 @@ const NNL = [
           draw();
           return;
         }
-        for (let i = 0; i < (ep < 400 ? 1 : 3) && !conv; i++) epoch();
+        for (let i = 0; i < (ep < 400 ? 1 : 3) && !conv && chk.remaining() > 0; i++) epoch();
         draw();
         chk();
       });
@@ -2156,7 +2156,7 @@ const NNL = [
       const anim = Anim(() => {
         fr++;
         if (ep < 12 && fr % 8) return;
-        for (let i = 0; i < (ep < 12 ? 1 : 2) && ep < EPM; i++) epoch();
+        for (let i = 0; i < (ep < 12 ? 1 : 2) && ep < EPM && chk.remaining() > 0; i++) epoch();
         draw();
         chk();
       });
@@ -2933,12 +2933,13 @@ const NNL = [
       const anim = Anim(() => {
         fr++;
         if (ep < 40 && fr % 4) return;
-        train(ep < 40 ? 2 : ep < 400 ? 4 : 10);
+        train(Math.min(ep < 40 ? 2 : ep < 400 ? 4 : 10, chk.remaining()));
         if (conv && grow) {
           if (S.H < 12 && LL[ep - 1] > 3e-4) {
             S.H++;
             hb.set(S.H);
             run++;
+            chk.rebase(0);
             build();
             msg = 'Added a neuron: now ' + S.H + '. Training again from a fresh random start.';
           } else {
@@ -2947,7 +2948,7 @@ const NNL = [
           }
         }
         draw();
-        if (!grow) chk();
+        chk();
       });
       pb = playBtn($('#ua-play', root), anim);
       chk = runCtl(pb, root, 'ua', {

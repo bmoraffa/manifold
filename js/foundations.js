@@ -1489,8 +1489,9 @@ const FND = [
           S.d = sweep.d++;
           db.set(S.d);
           comp();
+          chk.rebase(0);
           reset();
-          for (let i = 0; i < 10; i++) add();
+          for (let i = 0; i < 10 && chk.remaining() > 0; i++) add();
           msg =
             'Degree ' +
             S.d +
@@ -1504,6 +1505,7 @@ const FND = [
             f3(tot(S.d)) +
             '.';
           draw();
+          chk();
           return;
         }
         if (fr % (k < 6 ? 40 : k < 20 ? 12 : 4)) return;

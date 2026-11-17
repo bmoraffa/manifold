@@ -572,7 +572,7 @@ const GEN = [
       const anim = Anim(() => {
         fr++;
         if (ts < 30 && fr % 4) return;
-        train(ts < 30 ? 1 : ts < 300 ? 2 : 5);
+        train(Math.min(ts < 30 ? 1 : ts < 300 ? 2 : 5, chk.remaining()));
         draw();
         chk();
       });
@@ -928,7 +928,7 @@ const GEN = [
       const anim = Anim(() => {
         fr++;
         if (ts < 40 && fr % 3) return;
-        train(ts < 40 ? 1 : 4);
+        train(Math.min(ts < 40 ? 1 : 4, chk.remaining()));
         draw();
         chk();
       });
@@ -2186,7 +2186,7 @@ const GEN = [
       const anim = Anim(() => {
         fr++;
         if (phase === 'train') {
-          train(ts < 60 ? 1 : 6);
+          train(Math.min(ts < 60 ? 1 : 6, chk.remaining()));
           draw();
           chk();
           return;
@@ -2761,7 +2761,7 @@ const GEN = [
           return;
         }
         if (phase === 'den') {
-          trainD(ds < 40 ? 1 : 6);
+          trainD(Math.min(ds < 40 ? 1 : 6, chk.remaining()));
           draw();
           chk();
           return;
@@ -3615,7 +3615,7 @@ GEN.push(
       const anim = Anim(() => {
         fr++;
         if (phase === 'train') {
-          train(ts < 60 ? 1 : 5);
+          train(Math.min(ts < 60 ? 1 : 5, chk.remaining()));
           draw();
           chk();
           return;
@@ -4059,7 +4059,7 @@ GEN.push(
       const anim = Anim(() => {
         fr++;
         if (phase === 'train') {
-          train(ts < 60 ? 1 : 5);
+          train(Math.min(ts < 60 ? 1 : 5, chk.remaining()));
           draw();
           chk();
           return;
@@ -4469,7 +4469,7 @@ GEN.push(
       const anim = Anim(() => {
         fr++;
         if (phase === 'train') {
-          train(ts < 60 ? 1 : 5);
+          train(Math.min(ts < 60 ? 1 : 5, chk.remaining()));
           draw();
           chk();
           return;
@@ -4892,7 +4892,7 @@ GEN.push(
       const anim = Anim(() => {
         fr++;
         if (phase === 'train') {
-          train(ts < 40 ? 1 : 4);
+          train(Math.min(ts < 40 ? 1 : 4, chk.remaining()));
           draw();
           chk();
           return;
@@ -5307,7 +5307,7 @@ GEN.push(
       const anim = Anim(() => {
         fr++;
         if (phase === 'train') {
-          train(ts < 30 ? 1 : 2);
+          train(Math.min(ts < 30 ? 1 : 2, chk.remaining()));
           draw();
           chk();
           return;
@@ -5961,7 +5961,7 @@ GEN.push(
       const anim = Anim(() => {
         fr++;
         if (phase === 'train') {
-          train(ts < 60 ? 1 : 5);
+          train(Math.min(ts < 60 ? 1 : 5, chk.remaining()));
           draw();
           chk();
           return;

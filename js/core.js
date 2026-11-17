@@ -48,6 +48,11 @@ const TC = (s) => {
 };
 /* ============ helpers ============ */
 const $ = (s, r = document) => r.querySelector(s);
+const escapeHTML = (value) =>
+  value.replace(
+    /[&<>"']/g,
+    (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c],
+  );
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const f2 = (x) => (+x).toFixed(2),
   f3 = (x) => (+x).toFixed(3);
@@ -58,6 +63,18 @@ const RM = (() => {
     return false;
   }
 })();
+function lgam(x) {
+  const cf = [
+    76.18009172947146, -86.50532032941677, 24.01409824083091, -1.231739572450155,
+    0.1208650973866179e-2, -0.5395239384953e-5,
+  ];
+  let y = x,
+    t = x + 5.5;
+  t -= (x + 0.5) * Math.log(t);
+  let s = 1.000000000190015;
+  for (let j = 0; j < 6; j++) s += cf[j] / ++y;
+  return -t + Math.log((2.5066282746310005 * s) / x);
+}
 function rng(seed) {
   let a = seed >>> 0;
   return () => {
@@ -255,6 +272,9 @@ function Anim(tick) {
 function playBtn(btn, anim) {
   const lab = btn.textContent,
     o = {
+      get on() {
+        return anim.on;
+      },
       stop() {
         anim.stop();
         btn.textContent = lab;
@@ -392,34 +412,44 @@ function runCtl(pb, root, id, o) {
   const st = pb.start,
     nt = $('#' + id + '-maxnote', root),
     wh = o.what || 'steps';
-  let c0 = 0;
+  let c0 = 0,
+    carried = 0;
+  const consumed = () => carried + (o.count ? o.count() - c0 : 0);
   pb.start = () => {
     if (nt) nt.textContent = '';
     if (o.done()) o.restart();
     c0 = o.count ? o.count() : 0;
+    carried = 0;
     st();
   };
-  return () => {
+  const check = () => {
     if (o.done()) {
       pb.stop();
       return true;
     }
     const m = maxOf(root, id);
-    if (o.count && o.count() - c0 >= m) {
+    if (pb.on && o.count && consumed() >= m) {
+      const used = consumed();
       pb.stop();
       if (nt)
         nt.textContent =
           'Stopped after ' +
-          m +
+          used +
           ' more ' +
-          (m === 1 ? wh.replace(/e?s$/, (m) => (wh.endsWith('passes') ? '' : '')) : wh) +
-          ', as you asked. It has not converged yet. Press the button again for ' +
+          (used === 1 ? wh.replace(/e?s$/, '') : wh) +
+          ', as you asked. Press the button again for ' +
           m +
-          ' more, or empty the box to run until it converges.';
+          ' more, or empty the box to run to completion.';
       return true;
     }
     return false;
   };
+  check.remaining = () => (pb.on && o.count ? Math.max(0, maxOf(root, id) - consumed()) : Infinity);
+  check.rebase = (nextCount) => {
+    carried = consumed();
+    c0 = nextCount;
+  };
+  return check;
 }
 function letterData(seed, flip) {
   const GL = {

@@ -1239,36 +1239,9 @@ const LESSONS = [
           st.textContent = 'That file could not be read. Try saving it again as plain CSV.';
         };
         fr.onload = () => {
-          const rows = String(fr.result)
-            .split(/\r?\n/)
-            .map((l) => l.split(/[,;\t]/).map((v) => v.trim()));
-          const nc = Math.max(0, ...rows.map((r) => r.length)),
-            cols = [];
-          for (let j = 0; j < nc && cols.length < 2; j++) {
-            let ok = 0,
-              tot = 0;
-            for (const r of rows) {
-              if (r[j] === undefined || r[j] === '') continue;
-              tot++;
-              if (isFinite(parseFloat(r[j])) && /^[-+.\d]/.test(r[j])) ok++;
-            }
-            if (tot >= 5 && ok / tot > 0.8) cols.push(j);
-          }
-          if (cols.length < 2) {
-            st.textContent =
-              'This file needs at least two numeric columns with five or more rows. Check the file and upload again.';
-            return;
-          }
-          const p = [];
-          for (const r of rows) {
-            const a = parseFloat(r[cols[0]]),
-              b = parseFloat(r[cols[1]]);
-            if (isFinite(a) && isFinite(b)) p.push([a, b]);
-            if (p.length >= 5000) break;
-          }
-          if (p.length < 5) {
-            st.textContent =
-              'Fewer than five complete rows were found. Add more rows and upload again.';
+          const p = parseXY(fr.result, 5000);
+          if (typeof p === 'string') {
+            st.textContent = p;
             return;
           }
           custom = p;
@@ -1346,18 +1319,6 @@ const LESSONS = [
         acc = 0,
         fr = 0,
         pb;
-      const lgam = (x) => {
-        const cf = [
-          76.18009172947146, -86.50532032941677, 24.01409824083091, -1.231739572450155,
-          0.1208650973866179e-2, -0.5395239384953e-5,
-        ];
-        let y = x,
-          t = x + 5.5;
-        t -= (x + 0.5) * Math.log(t);
-        let s = 1.000000000190015;
-        for (let j = 0; j < 6; j++) s += cf[j] / ++y;
-        return -t + Math.log((2.5066282746310005 * s) / x);
-      };
       const tpdf = (x, nu, loc, sc) => {
         const z = (x - loc) / sc;
         return (

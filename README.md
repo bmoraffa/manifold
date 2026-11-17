@@ -87,21 +87,22 @@ the live site within a minute or two.
 
 The only outside resources are MathJax, for typesetting formulas, and three typefaces from Google Fonts.
 
-### Formatting and linting
+### Tests, formatting and linting
 
 Development tooling requires Node.js 22.22 or newer on the 22.x release line, or Node.js 24.8 or newer.
 Install the locked development dependencies with `npm ci`. The website itself still runs directly in
 the browser without installing dependencies or running a build.
 
-| Command                | Purpose                                                        |
-| ---------------------- | -------------------------------------------------------------- |
-| `npm run format`       | Format supported project files with Prettier                   |
-| `npm run format:check` | Check formatting without changing files                        |
-| `npm run lint:js`      | Check JavaScript with ESLint's recommended rules               |
-| `npm run lint:css`     | Check CSS with Stylelint's recommended rules                   |
-| `npm run lint:html`    | Validate the HTML shell with HTML Validate's recommended rules |
-| `npm run lint`         | Run the three linters, stopping at the first failure           |
-| `npm run check`        | Check formatting, then run the linters                         |
+| Command                | Purpose                                                          |
+| ---------------------- | ---------------------------------------------------------------- |
+| `npm run format`       | Format supported project files with Prettier                     |
+| `npm run format:check` | Check formatting without changing files                          |
+| `npm test`             | Run focused upload, tree, markup, animation and math regressions |
+| `npm run lint:js`      | Check JavaScript with ESLint's recommended rules                 |
+| `npm run lint:css`     | Check CSS with Stylelint's recommended rules                     |
+| `npm run lint:html`    | Validate the HTML shell with HTML Validate's recommended rules   |
+| `npm run lint`         | Run the three linters, stopping at the first failure             |
+| `npm run check`        | Check formatting, run tests, then run the linters                |
 
 Prettier owns formatting: two-space indentation, semicolons, single quotes in JavaScript, trailing
 commas, a 100-column target, and LF line endings. `.editorconfig` and `.gitattributes` keep editor and
@@ -114,11 +115,14 @@ file owns each binding used by other scripts; update that map when adding a shar
 bindings are read-only in consuming files. Unused local variables and parameters are checked, while
 top-level bindings and caught exception parameters are allowed to be unused.
 
-The initial formatting pass preserves existing code issues: ESLint reports 86 errors (76 unused
-locals or parameters, six precision-loss warnings treated as errors, three empty blocks, and one
-constant condition), and Stylelint reports seven descending-specificity errors. HTML validation
-passes. Consequently `npm run check` currently fails on the existing lint debt. Fix those issues in
-a separate behavior-reviewed change; `npm run format` never runs linter fixes or reorders CSS rules.
+The Node tests load the classic scripts in page order and check production helpers, generated
+lesson markup, and selected frame callbacks. They do not emulate a browser. Rendered slider events,
+uploaded labels, autoplay and reduced-motion behavior still need real-browser smoke checks.
+
+Existing lint debt remains in unused locals, precision-loss literals, empty blocks, a constant
+condition, and CSS selector ordering. Consequently `npm run check` currently fails on lint debt
+after running the regression tests. Fix those issues in a separate behavior-reviewed change;
+`npm run format` never runs linter fixes or reorders CSS rules.
 
 ## Copyright
 

@@ -1509,7 +1509,7 @@ const LML = [
  <figure class="fig"><figcaption>Top, from the left: the old task as the adapted network now sees it; the change made to the middle weight matrix; how many independent directions that change uses. Bottom: accuracy on both tasks</figcaption><canvas class="short" id="lo-r" role="img" aria-label="Old task, the weight change, its singular values and accuracy curves"></canvas></figure></div>
  ${uHow('lo', ['Pretrain: the network learns the old task from scratch. All 1,218 weights are trained. Keep a copy of the result.', 'Switch to the new task. Decide which numbers are allowed to change.', 'Full fine-tuning: every weight may change. LoRA: the weights are frozen and each weight matrix W gets a correction A × B made of two thin matrices, and only those are trained. Last layer: only the final layer changes.', 'Train on the new task until the accuracy stops improving.', 'Compare: accuracy on the new task, what happened to the old task, and how many numbers had to be stored.'])}
  <div class="controls">${uBtns('lo', 'Run', 'One step', 'adaptation steps')}
- ${grp('LoRA', slider('lo-r', 'Rank r: the width of the thin matrices', 1, 8, 1, 2))}
+ ${grp('LoRA', slider('lo-rank', 'Rank r: the width of the thin matrices', 1, 8, 1, 2))}
  ${grp('The new task', `<label class="ctl" for="lo-task"><span>What the network must learn next</span><select id="lo-task"><option value="spiral">The two arms of a spiral</option><option value="stripes">Diagonal stripes</option><option value="ring">A blob inside a ring</option></select></label>`)}</div>
  <dl class="read">${rd('ph', 'Stage')}${rd('st', 'Adaptation steps')}${rd('tp', 'Numbers being trained', 'hl2')}${rd('an', 'Accuracy on the new task', 'hl')}${rd('ao', 'Accuracy on the old task, after adapting')}${rd('au', 'Accuracy on the old task with the original weights put back')}${rd('sv', 'Share of the weight change in its two strongest directions')}</dl>`,
     tryit:
@@ -2080,7 +2080,7 @@ const LML = [
       }
       const anim = Anim(() => {
         fr++;
-        train(phase === 'pre' ? 5 : as < 40 ? 1 : 4);
+        train(phase === 'pre' ? 5 : Math.min(as < 40 ? 1 : 4, chk.remaining()));
         draw();
         chk();
       });
@@ -2124,7 +2124,7 @@ const LML = [
       };
       bind(
         root,
-        'lo-r',
+        'lo-rank',
         (v) => {
           S.r = +v;
           if (S.m === 'lora') redo();
@@ -3124,7 +3124,7 @@ const LML = [
           pb.stop();
           return;
         }
-        train(ts < 120 ? 1 : ts < 600 ? 4 : 12);
+        train(Math.min(ts < 120 ? 1 : ts < 600 ? 4 : 12, chk.remaining()));
         draw();
         chk();
       });

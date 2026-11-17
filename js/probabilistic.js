@@ -1,18 +1,6 @@
 /* Manifold — Probabilistic methods.
    © 2026 Bahman Moraffah. All rights reserved. Load order matters: see index.html. */
 /* ============ probabilistic methods ============ */
-function pmLG(x) {
-  const cf = [
-    76.18009172947146, -86.50532032941677, 24.01409824083091, -1.231739572450155,
-    0.001208650973866179, -0.000005395239384953,
-  ];
-  let y = x,
-    t = x + 5.5;
-  t -= (x + 0.5) * Math.log(t);
-  let s = 1.000000000190015;
-  for (let j = 0; j < 6; j++) s += cf[j] / ++y;
-  return -t + Math.log((2.5066282746310005 * s) / x);
-}
 const PML = [
   {
     id: 'bayes-update',
@@ -67,7 +55,7 @@ const PML = [
         bn;
       const pdf = (a, b) => {
         const o = new Float64Array(NG + 1),
-          lb = pmLG(a) + pmLG(b) - pmLG(a + b);
+          lb = lgam(a) + lgam(b) - lgam(a + b);
         for (let i = 0; i <= NG; i++) {
           const x = clamp(i / NG, 1e-6, 1 - 1e-6);
           o[i] = Math.exp((a - 1) * Math.log(x) + (b - 1) * Math.log(1 - x) - lb);
@@ -1381,10 +1369,10 @@ const PML = [
           if (XS.length < 25 || hv) {
             if (fr % (hv && XS.length >= 25 ? 3 : 10)) return;
             step(false);
-          } else for (let i = 0; i < 10 && !fin; i++) step(i < 9);
+          } else for (let i = 0; i < 10 && !fin && chk.remaining() > 0; i++) step(i < 9);
         } else {
           const k = hv ? 10 : 40;
-          for (let i = 0; i < k && !fin; i++) step(i < k - 1);
+          for (let i = 0; i < k && !fin && chk.remaining() > 0; i++) step(i < k - 1);
         }
         draw();
         chk();

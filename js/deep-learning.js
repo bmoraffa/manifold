@@ -860,7 +860,7 @@ const DLL = [
  <figure class="fig"><figcaption>What one block computes</figcaption><canvas class="tall" id="rs-d" role="img" aria-label="Diagram of a plain block and a residual block"></canvas></figure></div>
  ${uHow('rs', ['Build two stacks from the same random weights: one plain, one where every block adds its output to its input.', 'Start a learning signal of strength 1 at the last layer of both.', 'Plain stack: stepping back one layer multiplies the signal by the weights and the slope of the activation. It usually shrinks.', 'Residual stack: the signal splits. One part goes back through the layer as before. The other takes the shortcut, unchanged. They add.', 'Compare what reaches the first layer.'])}
  <div class="controls">${grp('Animation', `<div class="row"><button class="btn go" id="rs-play" type="button">Send the signal back</button><button class="btn" id="rs-step" type="button">One layer</button><button class="btn" id="rs-reset" type="button">Start over</button></div>`)}
- ${grp('The network', slider('rs-d', 'Number of layers', 4, 60, 1, 20) + slider('rs-v', 'Size of the weights (1 = standard)', 0.3, 1.6, 0.05, 0.8) + `<label class="ctl" for="rs-act"><span>Activation</span><select id="rs-act"><option value="tanh">tanh</option><option value="relu">ReLU</option><option value="sigmoid">Sigmoid</option></select></label>`)}</div>
+ ${grp('The network', slider('rs-depth', 'Number of layers', 4, 60, 1, 20) + slider('rs-v', 'Size of the weights (1 = standard)', 0.3, 1.6, 0.05, 0.8) + `<label class="ctl" for="rs-act"><span>Activation</span><select id="rs-act"><option value="tanh">tanh</option><option value="relu">ReLU</option><option value="sigmoid">Sigmoid</option></select></label>`)}</div>
  <dl class="read">${rd('pl', 'Plain stack: signal at the first layer', 'hl2')}${rd('rs', 'With shortcuts: signal at the first layer', 'hl3')}${rd('pp', 'Plain: average change per layer')}${rd('rp', 'With shortcuts: average change per layer')}</dl>`,
     tryit:
       'Run it at 20 layers, then at 60. In the plain stack the dot shrinks to nothing; with shortcuts it arrives intact. Switch the activation to Sigmoid: the plain stack is hopeless, yet the shortcuts still deliver. Now raise the size of the weights to 1.6. What happens to the signal with shortcuts, and why do real residual networks also use normalisation?',
@@ -1236,7 +1236,7 @@ const DLL = [
       };
       bind(
         root,
-        'rs-d',
+        'rs-depth',
         (v) => {
           S.d = v;
           pb.stop();
@@ -1726,7 +1726,7 @@ const DLL = [
         fr++;
         if (!trained) {
           if (fr % (ep < 40 ? 4 : 2) === 0) {
-            learn(ep < 40 ? 1 : ep < 200 ? 2 : 5);
+            learn(Math.min(ep < 40 ? 1 : ep < 200 ? 2 : 5, chk.remaining()));
             draw();
             if (chk()) return;
           }
@@ -2556,7 +2556,7 @@ const DLL = [
       const anim = Anim(() => {
         fr++;
         if (ep < 30 && fr % 4) return;
-        train(ep < 30 ? 1 : ep < 300 ? 3 : 6);
+        train(Math.min(ep < 30 ? 1 : ep < 300 ? 3 : 6, chk.remaining()));
         draw();
         chk();
       });
@@ -4125,7 +4125,7 @@ const DLL = [
       const anim = Anim(() => {
         fr++;
         if (fr % (ts < 30 ? 5 : ts < 150 ? 2 : 1)) return;
-        train(ts < 150 ? 1 : 3);
+        train(Math.min(ts < 150 ? 1 : 3, chk.remaining()));
         draw();
         chk();
       });
@@ -4528,7 +4528,7 @@ const DLL = [
           draw();
           return;
         }
-        train(1);
+        train(Math.min(1, chk.remaining()));
         draw();
         chk();
       });
@@ -4911,12 +4911,13 @@ const DLL = [
         fr++;
         if (ep < PE) {
           if (ep < 30 && fr % 3) return;
-          train(ep < 30 ? 1 : 2);
+          train(Math.min(ep < 30 ? 1 : 2, chk.remaining()));
           draw();
+          chk();
           return;
         }
         if (fr % (fe < 6 ? 16 : 2)) return;
-        train(1);
+        train(Math.min(1, chk.remaining()));
         draw();
         chk();
       });

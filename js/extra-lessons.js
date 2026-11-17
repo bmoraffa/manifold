@@ -3057,7 +3057,7 @@ UNS.push({
       }
       const k = it < 12 ? 1 : it < 60 ? 3 : 8;
       if (it < 12 && ++fr % 8) return;
-      for (let i = 0; i < k && !fin; i++) step();
+      for (let i = 0; i < k && !fin && chk.remaining() > 0; i++) step();
       draw();
       chk();
     });
@@ -5128,7 +5128,7 @@ PML.push({
         step();
       } else {
         const k = S.sp === 2 ? 2 : 8;
-        for (let i = 0; i < k && !fin; i++) step();
+        for (let i = 0; i < k && !fin && chk.remaining() > 0; i++) step();
       }
       draw();
       chk();
@@ -5589,7 +5589,7 @@ CLF.push({
       } else {
         const k = it < 30 ? 1 : it < 120 ? 3 : it < 400 ? 10 : 30;
         if (it < 30 && fr % 3) return;
-        for (let i = 0; i < k && !fin; i++) step();
+        for (let i = 0; i < k && !fin && chk.remaining() > 0; i++) step();
       }
       draw();
       chk();
@@ -6212,7 +6212,7 @@ DLL.push({
         pb.stop();
         return;
       }
-      train(ep < 200 ? 4 : 10);
+      train(Math.min(ep < 200 ? 4 : 10, chk.remaining()));
       draw();
       chk();
     });

@@ -813,9 +813,9 @@ const RLL = [
           if (fr % 40) return;
           day(false);
         } else if (S.sp === 2) {
-          for (let i = 0; i < 3 && !fin; i++) day(i < 2);
+          for (let i = 0; i < 3 && !fin && chk.remaining() > 0; i++) day(i < 2);
         } else {
-          for (let i = 0; i < 15 && !fin; i++) day(i < 14);
+          for (let i = 0; i < 15 && !fin && chk.remaining() > 0; i++) day(i < 14);
         }
         draw();
         chk();
@@ -1761,11 +1761,11 @@ const RLL = [
           } else {
             if (fr % 3) return;
             const e0 = ep;
-            while (ep === e0 && !fin) step(false);
+            while (ep === e0 && !fin && chk.remaining() > 0) step(false);
           }
         } else {
           const e0 = ep;
-          while (ep < e0 + 2 && !fin) step(false);
+          while (ep < e0 + 2 && !fin && chk.remaining() > 0) step(false);
         }
         draw();
         chk();
@@ -2307,11 +2307,11 @@ const RLL = [
           if (fr % 7) return;
           one(false);
         } else if (S.sp === 3) {
-          for (let i = 0; i < 4 && !fin; i++) one(true);
+          for (let i = 0; i < 4 && !fin && chk.remaining() > 0; i++) one(true);
           if (lastL) eqShow(eq, lastL, 0);
         } else {
           const e0 = ep;
-          while (ep < e0 + 2 && !fin) one(true);
+          while (ep < e0 + 2 && !fin && chk.remaining() > 0) one(true);
           if (lastL) eqShow(eq, lastL, 0);
         }
         draw();
@@ -2763,16 +2763,16 @@ const RLL = [
           stepBoth(false);
         } else if (S.sp === 2) {
           if (ep < 1) {
-            for (let i = 0; i < 3 && ep < 1; i++) stepBoth(false);
+            for (let i = 0; i < 3 && ep < 1 && chk.remaining() > 0; i++) stepBoth(false);
           } else {
             const e0 = ep;
             let k = 0;
-            while (ep === e0 && !fin && k++ < 2 * CAP) stepBoth(true);
+            while (ep === e0 && !fin && k++ < 2 * CAP && chk.remaining() > 0) stepBoth(true);
           }
         } else {
           const e0 = ep;
           let k = 0;
-          while (ep < e0 + 5 && !fin && k++ < 12 * CAP) stepBoth(true);
+          while (ep < e0 + 5 && !fin && k++ < 12 * CAP && chk.remaining() > 0) stepBoth(true);
         }
         draw();
         chk();
@@ -3184,7 +3184,7 @@ const RLL = [
             episode(false);
           }
         } else {
-          for (let i = 0; i < 5 && !fin; i++) episode(i < 4);
+          for (let i = 0; i < 5 && !fin && chk.remaining() > 0; i++) episode(i < 4);
         }
         draw();
         chk();
@@ -3787,7 +3787,7 @@ const RLL = [
           return;
         }
         if (phase === 'demo') {
-          for (let i = 0; i < 2; i++)
+          for (let i = 0; i < 2 && chk.remaining() > 0; i++)
             if (demoStep()) {
               draw();
               pb.stop();
@@ -3797,7 +3797,7 @@ const RLL = [
           return;
         }
         const k = ep < 3 ? 2 : 14;
-        for (let i = 0; i < k && phase === 'train'; i++) envStep();
+        for (let i = 0; i < k && phase === 'train' && chk.remaining() > 0; i++) envStep();
         draw();
         chk();
       });
