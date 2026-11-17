@@ -12,3 +12,11 @@ authors:
 date-released: 2026-11-17
 url: "https://bmoraffa.github.io/manifold/"
 repository-code: "https://github.com/bmoraffa/manifold"
+
+@misc{moraffah2026manifold,
+  author       = {Moraffah, Bahman},
+  title        = {Manifold: Machine Learning You Can See Move},
+  year         = {2026},
+  howpublished = {\url{https://YOUR-ADDRESS-HERE/}},
+  note         = {Interactive website. Accessed: 2026-11-17}
+}
