@@ -24,11 +24,11 @@ will do when the data change.
 
 115 lessons across 12 topics:
 
-| | | |
-| --- | --- | --- |
-| The Gaussian | Foundations | Regression |
-| Classification | Ensembles | Unsupervised learning |
-| Neural networks | Deep learning | Generative AI |
+|                 |                        |                       |
+| --------------- | ---------------------- | --------------------- |
+| The Gaussian    | Foundations            | Regression            |
+| Classification  | Ensembles              | Unsupervised learning |
+| Neural networks | Deep learning          | Generative AI         |
 | Language models | Reinforcement learning | Probabilistic methods |
 
 The range runs from the bell curve and least squares to diffusion models, transformers, Q-learning and
@@ -43,7 +43,7 @@ Teachers are welcome to use it in lectures, assignments and office hours. Please
 
 ## How to cite
 
-> Moraffah, B. (2026). *Manifold: Machine Learning You Can See Move* [Interactive website].
+> Moraffah, B. (2026). _Manifold: Machine Learning You Can See Move_ [Interactive website].
 > https://bmoraffa.github.io/manifold/
 
 ```bibtex
@@ -71,21 +71,54 @@ Polytechnic Institute, for discussion and feedback throughout. The full note is 
 
 The site is plain HTML, CSS and JavaScript. There is no build step and no server code.
 
-| Path | Contents |
-| --- | --- |
-| `index.html` | The page shell, and the scripts in the order they must load |
-| `css/style.css` | All styling; light and dark themes follow the device |
-| `js/core.js` | Shared helpers: drawing, controls, animation, small maths |
-| `js/gaussian.js` … `js/probabilistic.js` | One file per topic |
-| `js/extra-lessons.js` | Lessons added later, appended to their topics |
-| `js/about.js` | References, Suggested Books, Acknowledgements, How to Cite |
-| `js/app.js` | Topic list, home-page animation, menu and routing |
-| `CITATION.cff` | Citation details for GitHub |
+| Path                                     | Contents                                                    |
+| ---------------------------------------- | ----------------------------------------------------------- |
+| `index.html`                             | The page shell, and the scripts in the order they must load |
+| `css/style.css`                          | All styling; light and dark themes follow the device        |
+| `js/core.js`                             | Shared helpers: drawing, controls, animation, small maths   |
+| `js/gaussian.js` … `js/probabilistic.js` | One file per topic                                          |
+| `js/extra-lessons.js`                    | Lessons added later, appended to their topics               |
+| `js/about.js`                            | References, Suggested Books, Acknowledgements, How to Cite  |
+| `js/app.js`                              | Topic list, home-page animation, menu and routing           |
+| `CITATION.cff`                           | Citation details for GitHub                                 |
 
 To preview a change, open `index.html` in a browser. To publish it, commit to `main`; GitHub Pages updates
 the live site within a minute or two.
 
 The only outside resources are MathJax, for typesetting formulas, and three typefaces from Google Fonts.
+
+### Formatting and linting
+
+Development tooling requires Node.js 22.22 or newer on the 22.x release line, or Node.js 24.8 or newer.
+Install the locked development dependencies with `npm ci`. The website itself still runs directly in
+the browser without installing dependencies or running a build.
+
+| Command                | Purpose                                                        |
+| ---------------------- | -------------------------------------------------------------- |
+| `npm run format`       | Format supported project files with Prettier                   |
+| `npm run format:check` | Check formatting without changing files                        |
+| `npm run lint:js`      | Check JavaScript with ESLint's recommended rules               |
+| `npm run lint:css`     | Check CSS with Stylelint's recommended rules                   |
+| `npm run lint:html`    | Validate the HTML shell with HTML Validate's recommended rules |
+| `npm run lint`         | Run the three linters, stopping at the first failure           |
+| `npm run check`        | Check formatting, then run the linters                         |
+
+Prettier owns formatting: two-space indentation, semicolons, single quotes in JavaScript, trailing
+commas, a 100-column target, and LF line endings. `.editorconfig` and `.gitattributes` keep editor and
+Git line endings consistent. Embedded-language formatting is disabled to preserve lesson strings,
+and HTML whitespace uses strict sensitivity. HTML Validate's Prettier preset disables conflicting
+formatting rules; CSS linting checks correctness rather than duplicating Prettier's style rules.
+
+ESLint treats `js/` files as classic browser scripts, not modules. `eslint.config.mjs` records which
+file owns each binding used by other scripts; update that map when adding a shared helper. Shared
+bindings are read-only in consuming files. Unused local variables and parameters are checked, while
+top-level bindings and caught exception parameters are allowed to be unused.
+
+The initial formatting pass preserves existing code issues: ESLint reports 86 errors (76 unused
+locals or parameters, six precision-loss warnings treated as errors, three empty blocks, and one
+constant condition), and Stylelint reports seven descending-specificity errors. HTML validation
+passes. Consequently `npm run check` currently fails on the existing lint debt. Fix those issues in
+a separate behavior-reviewed change; `npm run format` never runs linter fixes or reorders CSS rules.
 
 ## Copyright
 
