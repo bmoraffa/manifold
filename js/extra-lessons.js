@@ -1,411 +1,3531 @@
 /* Manifold — Lessons added later, appended to their modules: Gaussian processes, GLMs, robust regression, residual plots, VC dimension, kernel PCA, factor analysis, ICA, anomaly detection, batch normalization, variational Bayes, semi-supervised learning, few-shot learning.
    © 2026 Bahman Moraffah. All rights reserved. Load order matters: see index.html. */
 /* ============ helpers for the later lessons: small linear algebra, uploads ============ */
-const laChol=A=>{const n=A.length,L=A.map(r=>new Float64Array(n));for(let i=0;i<n;i++)for(let j=0;j<=i;j++){let s=A[i][j];for(let k=0;k<j;k++)s-=L[i][k]*L[j][k];if(i===j){if(s<=1e-12)s=1e-12;L[i][i]=Math.sqrt(s)}else L[i][j]=s/L[j][j]}return L};
-const laFwd=(L,b)=>{const n=L.length,y=new Float64Array(n);for(let i=0;i<n;i++){let s=b[i];for(let k=0;k<i;k++)s-=L[i][k]*y[k];y[i]=s/L[i][i]}return y};
-const laBck=(L,y)=>{const n=L.length,x=new Float64Array(n);for(let i=n-1;i>=0;i--){let s=y[i];for(let k=i+1;k<n;k++)s-=L[k][i]*x[k];x[i]=s/L[i][i]}return x};
-const laInv=A=>{const n=A.length,M=A.map((r,i)=>[...r,...r.map((_,j)=>i===j?1:0)]);for(let c=0;c<n;c++){let p=c;for(let r=c+1;r<n;r++)if(Math.abs(M[r][c])>Math.abs(M[p][c]))p=r;[M[c],M[p]]=[M[p],M[c]];const d=M[c][c]||1e-12;for(let j=0;j<2*n;j++)M[c][j]/=d;for(let r=0;r<n;r++)if(r!==c){const f=M[r][c];if(f)for(let j=0;j<2*n;j++)M[r][j]-=f*M[c][j]}}return M.map(r=>r.slice(n))};
-const laMul=(A,B)=>A.map(r=>B[0].map((_,j)=>{let s=0;for(let k=0;k<B.length;k++)s+=r[k]*B[k][j];return s}));
-const laT=A=>A[0].map((_,j)=>A.map(r=>r[j]));
-const laTop=(A,k,seed=3)=>{const n=A.length,r=randnFrom(rng(seed)),vals=[],vecs=[];for(let c=0;c<k;c++){let v=Array.from({length:n},r);for(let it=0;it<300;it++){const w=new Array(n).fill(0);for(let i=0;i<n;i++){let s=0;const Ai=A[i];for(let j=0;j<n;j++)s+=Ai[j]*v[j];w[i]=s}for(const u of vecs){let d=0;for(let i=0;i<n;i++)d+=w[i]*u[i];for(let i=0;i<n;i++)w[i]-=d*u[i]}let nm=Math.hypot(...w)||1e-12,df=0;for(let i=0;i<n;i++){w[i]/=nm;df+=Math.abs(w[i]-v[i])}v=w;if(df<1e-9&&it>5)break}let lam=0;for(let i=0;i<n;i++){let s=0;for(let j=0;j<n;j++)s+=A[i][j]*v[j];lam+=v[i]*s}vals.push(lam);vecs.push(v)}return{vals,vecs}};
-const upHTML=id=>`<div class="row"><label class="btn file">Upload a CSV with two number columns<input type="file" id="${id}-file" accept=".csv,.txt,text/csv"></label></div><p class="status" id="${id}-st" role="status"></p>`;
-function xyUp(root,id,fn,fitBox=true){const f=$('#'+id+'-file',root),st=$('#'+id+'-st',root);if(!f)return;f.onchange=()=>{const file=f.files[0];if(!file)return;const fr=new FileReader();fr.onload=()=>{const p=parseXY(fr.result);if(typeof p==='string'){st.textContent=p;return}let q=p.slice(0,400);
-  if(fitBox){const mn=[0,1].map(j=>Math.min(...q.map(v=>v[j]))),mx=[0,1].map(j=>Math.max(...q.map(v=>v[j])));q=q.map(v=>[((v[0]-mn[0])/((mx[0]-mn[0])||1)-.5)*6.4,((v[1]-mn[1])/((mx[1]-mn[1])||1)-.5)*4.4])}
-  st.textContent='Loaded '+q.length+' rows from '+file.name+(fitBox?', rescaled to fit the picture.':'.');fn(q)};fr.readAsText(file);f.value=''}}
-const dotAt=(g,x,y,r,fill,stroke)=>{g.beginPath();g.arc(x,y,r,0,7);if(fill){g.fillStyle=fill;g.fill()}if(stroke){g.strokeStyle=stroke;g.stroke()}};
-const canvasXY=(c,V,e)=>{const r=c.getBoundingClientRect();return[(e.clientX-r.left-V.w/2)/V.s,-(e.clientY-r.top-V.h/2)/V.s]};
+const laChol = (A) => {
+  const n = A.length,
+    L = A.map((r) => new Float64Array(n));
+  for (let i = 0; i < n; i++)
+    for (let j = 0; j <= i; j++) {
+      let s = A[i][j];
+      for (let k = 0; k < j; k++) s -= L[i][k] * L[j][k];
+      if (i === j) {
+        if (s <= 1e-12) s = 1e-12;
+        L[i][i] = Math.sqrt(s);
+      } else L[i][j] = s / L[j][j];
+    }
+  return L;
+};
+const laFwd = (L, b) => {
+  const n = L.length,
+    y = new Float64Array(n);
+  for (let i = 0; i < n; i++) {
+    let s = b[i];
+    for (let k = 0; k < i; k++) s -= L[i][k] * y[k];
+    y[i] = s / L[i][i];
+  }
+  return y;
+};
+const laBck = (L, y) => {
+  const n = L.length,
+    x = new Float64Array(n);
+  for (let i = n - 1; i >= 0; i--) {
+    let s = y[i];
+    for (let k = i + 1; k < n; k++) s -= L[k][i] * x[k];
+    x[i] = s / L[i][i];
+  }
+  return x;
+};
+const laInv = (A) => {
+  const n = A.length,
+    M = A.map((r, i) => [...r, ...r.map((_, j) => (i === j ? 1 : 0))]);
+  for (let c = 0; c < n; c++) {
+    let p = c;
+    for (let r = c + 1; r < n; r++) if (Math.abs(M[r][c]) > Math.abs(M[p][c])) p = r;
+    [M[c], M[p]] = [M[p], M[c]];
+    const d = M[c][c] || 1e-12;
+    for (let j = 0; j < 2 * n; j++) M[c][j] /= d;
+    for (let r = 0; r < n; r++)
+      if (r !== c) {
+        const f = M[r][c];
+        if (f) for (let j = 0; j < 2 * n; j++) M[r][j] -= f * M[c][j];
+      }
+  }
+  return M.map((r) => r.slice(n));
+};
+const laMul = (A, B) =>
+  A.map((r) =>
+    B[0].map((_, j) => {
+      let s = 0;
+      for (let k = 0; k < B.length; k++) s += r[k] * B[k][j];
+      return s;
+    }),
+  );
+const laT = (A) => A[0].map((_, j) => A.map((r) => r[j]));
+const laTop = (A, k, seed = 3) => {
+  const n = A.length,
+    r = randnFrom(rng(seed)),
+    vals = [],
+    vecs = [];
+  for (let c = 0; c < k; c++) {
+    let v = Array.from({ length: n }, r);
+    for (let it = 0; it < 300; it++) {
+      const w = new Array(n).fill(0);
+      for (let i = 0; i < n; i++) {
+        let s = 0;
+        const Ai = A[i];
+        for (let j = 0; j < n; j++) s += Ai[j] * v[j];
+        w[i] = s;
+      }
+      for (const u of vecs) {
+        let d = 0;
+        for (let i = 0; i < n; i++) d += w[i] * u[i];
+        for (let i = 0; i < n; i++) w[i] -= d * u[i];
+      }
+      let nm = Math.hypot(...w) || 1e-12,
+        df = 0;
+      for (let i = 0; i < n; i++) {
+        w[i] /= nm;
+        df += Math.abs(w[i] - v[i]);
+      }
+      v = w;
+      if (df < 1e-9 && it > 5) break;
+    }
+    let lam = 0;
+    for (let i = 0; i < n; i++) {
+      let s = 0;
+      for (let j = 0; j < n; j++) s += A[i][j] * v[j];
+      lam += v[i] * s;
+    }
+    vals.push(lam);
+    vecs.push(v);
+  }
+  return { vals, vecs };
+};
+const upHTML = (id) =>
+  `<div class="row"><label class="btn file">Upload a CSV with two number columns<input type="file" id="${id}-file" accept=".csv,.txt,text/csv"></label></div><p class="status" id="${id}-st" role="status"></p>`;
+function xyUp(root, id, fn, fitBox = true) {
+  const f = $('#' + id + '-file', root),
+    st = $('#' + id + '-st', root);
+  if (!f) return;
+  f.onchange = () => {
+    const file = f.files[0];
+    if (!file) return;
+    const fr = new FileReader();
+    fr.onload = () => {
+      const p = parseXY(fr.result);
+      if (typeof p === 'string') {
+        st.textContent = p;
+        return;
+      }
+      let q = p.slice(0, 400);
+      if (fitBox) {
+        const mn = [0, 1].map((j) => Math.min(...q.map((v) => v[j]))),
+          mx = [0, 1].map((j) => Math.max(...q.map((v) => v[j])));
+        q = q.map((v) => [
+          ((v[0] - mn[0]) / (mx[0] - mn[0] || 1) - 0.5) * 6.4,
+          ((v[1] - mn[1]) / (mx[1] - mn[1] || 1) - 0.5) * 4.4,
+        ]);
+      }
+      st.textContent =
+        'Loaded ' +
+        q.length +
+        ' rows from ' +
+        file.name +
+        (fitBox ? ', rescaled to fit the picture.' : '.');
+      fn(q);
+    };
+    fr.readAsText(file);
+    f.value = '';
+  };
+}
+const dotAt = (g, x, y, r, fill, stroke) => {
+  g.beginPath();
+  g.arc(x, y, r, 0, 7);
+  if (fill) {
+    g.fillStyle = fill;
+    g.fill();
+  }
+  if (stroke) {
+    g.strokeStyle = stroke;
+    g.stroke();
+  }
+};
+const canvasXY = (c, V, e) => {
+  const r = c.getBoundingClientRect();
+  return [(e.clientX - r.left - V.w / 2) / V.s, -(e.clientY - r.top - V.h / 2) / V.s];
+};
 
-REG.push(
-{id:'gp-regression',tab:'Gaussian process regression',title:'Gaussian process regression: a belief about whole curves',
- lede:'Most regression methods give you one curve. A Gaussian process gives you every curve that is consistent with the data, weighted by how plausible it is, and so it can tell you where it is sure and where it is guessing. Click to add measurements and watch the possible curves pinch together around each one and fan out in the gaps.',
- stage:`<div class="row seg" id="gp-d" role="group" aria-label="Data"><button class="btn" type="button" data-v="wave">A Gentle Wave</button><button class="btn" type="button" data-v="gap">A Gap in the Middle</button><button class="btn" type="button" data-v="line">A Noisy Trend</button><button class="btn" type="button" data-v="none">No Data Yet</button></div>
+REG.push({
+  id: 'gp-regression',
+  tab: 'Gaussian process regression',
+  title: 'Gaussian process regression: a belief about whole curves',
+  lede: 'Most regression methods give you one curve. A Gaussian process gives you every curve that is consistent with the data, weighted by how plausible it is, and so it can tell you where it is sure and where it is guessing. Click to add measurements and watch the possible curves pinch together around each one and fan out in the gaps.',
+  stage: `<div class="row seg" id="gp-d" role="group" aria-label="Data"><button class="btn" type="button" data-v="wave">A Gentle Wave</button><button class="btn" type="button" data-v="gap">A Gap in the Middle</button><button class="btn" type="button" data-v="line">A Noisy Trend</button><button class="btn" type="button" data-v="none">No Data Yet</button></div>
  <div class="stage"><figure class="fig"><figcaption>Dots: measurements. Thick line: the best guess. Shaded band: where the true curve lies with 95% probability. Thin moving lines: three curves drawn from the belief. Click empty space to add a measurement, click a dot to remove it</figcaption><canvas class="short" id="gp-c" role="img" aria-label="Gaussian process posterior with samples"></canvas></figure>
  <figure class="fig"><figcaption>Top: the kernel, how strongly two points are tied as a function of how far apart they are. Bottom: the score of the current settings (log marginal likelihood) while they are being fitted</figcaption><canvas class="short" id="gp-r" role="img" aria-label="Kernel shape and marginal likelihood during fitting"></canvas></figure></div>
- ${uHow('gp',['Choose a kernel. It says how similar the curve’s height should be at two places, given their distance.','Before any data, every curve the kernel allows is possible: the band is wide and flat.','Add measurements. Curves that miss them become implausible and are dropped.','The best guess at any place is a weighted average of the measurements, with weights set by the kernel.','The band narrows near measurements and widens away from them.','Fit the settings: adjust length scale, height and noise to make the data as probable as possible. The first step tries a coarse grid of settings and jumps to the best; later steps climb from there.'])}
- <div class="controls">${uBtns('gp','Fit the settings to the data','One step','steps')}
- ${grp('The kernel',`<div class="row seg" id="gp-k" role="group" aria-label="Kernel"><button class="btn" type="button" data-v="rbf">Smooth</button><button class="btn" type="button" data-v="mat">Rough</button><button class="btn" type="button" data-v="per">Repeating</button><button class="btn" type="button" data-v="lin">Straight</button></div>`+slider('gp-l','Length scale: how far apart before two points stop agreeing',.15,3,.05,1)+slider('gp-f','Height: how far the curve strays from zero',.2,3,.05,1)+slider('gp-n','Noise in each measurement',.02,1.5,.02,.2))}
- ${grp('Data',`<label class="check" for="gp-w"><input type="checkbox" id="gp-w" checked>Keep the sample curves moving</label>`+upHTML('gp'))}</div>
- <dl class="read">${rd('n','Measurements')}${rd('ml','Score: log marginal likelihood','hl')}${rd('fit','… of which data fit')}${rd('cx','… of which complexity penalty')}${rd('set','Length scale / height / noise')}</dl>`,
- tryit:'Choose No Data Yet and watch the three curves wander freely. Click once in the picture. What happens to the band at that spot, and a little to each side? Add four or five more. Now drag the length scale down to 0.2 and up to 3. Which setting ignores the data and which one chases every dot? Press Fit the settings and watch the score climb. Choose A Gap in the Middle. How does the band behave inside the gap? Switch the kernel to Repeating and see the belief fill the gap with a pattern. Finally set your own x in the prediction box and read off the answer with its error bar.',
- math:String.raw`<h4>Intuition</h4><p>Imagine every smooth curve you could possibly draw across the picture, all at once, like a thick bundle of threads. That bundle is your belief before you have seen anything. Now someone tells you the curve passes close to a particular dot. Throw away every thread that misses the dot. What is left is still a bundle, but pinched at that place. Near the dot the remaining threads agree, so you are confident. Far from any dot they still spread out, so you are not. A Gaussian process does this with mathematics instead of scissors, and the average of the surviving threads is its prediction.</p>
+ ${uHow('gp', ['Choose a kernel. It says how similar the curve’s height should be at two places, given their distance.', 'Before any data, every curve the kernel allows is possible: the band is wide and flat.', 'Add measurements. Curves that miss them become implausible and are dropped.', 'The best guess at any place is a weighted average of the measurements, with weights set by the kernel.', 'The band narrows near measurements and widens away from them.', 'Fit the settings: adjust length scale, height and noise to make the data as probable as possible. The first step tries a coarse grid of settings and jumps to the best; later steps climb from there.'])}
+ <div class="controls">${uBtns('gp', 'Fit the settings to the data', 'One step', 'steps')}
+ ${grp('The kernel', `<div class="row seg" id="gp-k" role="group" aria-label="Kernel"><button class="btn" type="button" data-v="rbf">Smooth</button><button class="btn" type="button" data-v="mat">Rough</button><button class="btn" type="button" data-v="per">Repeating</button><button class="btn" type="button" data-v="lin">Straight</button></div>` + slider('gp-l', 'Length scale: how far apart before two points stop agreeing', 0.15, 3, 0.05, 1) + slider('gp-f', 'Height: how far the curve strays from zero', 0.2, 3, 0.05, 1) + slider('gp-n', 'Noise in each measurement', 0.02, 1.5, 0.02, 0.2))}
+ ${grp('Data', `<label class="check" for="gp-w"><input type="checkbox" id="gp-w" checked>Keep the sample curves moving</label>` + upHTML('gp'))}</div>
+ <dl class="read">${rd('n', 'Measurements')}${rd('ml', 'Score: log marginal likelihood', 'hl')}${rd('fit', '… of which data fit')}${rd('cx', '… of which complexity penalty')}${rd('set', 'Length scale / height / noise')}</dl>`,
+  tryit:
+    'Choose No Data Yet and watch the three curves wander freely. Click once in the picture. What happens to the band at that spot, and a little to each side? Add four or five more. Now drag the length scale down to 0.2 and up to 3. Which setting ignores the data and which one chases every dot? Press Fit the settings and watch the score climb. Choose A Gap in the Middle. How does the band behave inside the gap? Switch the kernel to Repeating and see the belief fill the gap with a pattern. Finally set your own x in the prediction box and read off the answer with its error bar.',
+  math: String.raw`<h4>Intuition</h4><p>Imagine every smooth curve you could possibly draw across the picture, all at once, like a thick bundle of threads. That bundle is your belief before you have seen anything. Now someone tells you the curve passes close to a particular dot. Throw away every thread that misses the dot. What is left is still a bundle, but pinched at that place. Near the dot the remaining threads agree, so you are confident. Far from any dot they still spread out, so you are not. A Gaussian process does this with mathematics instead of scissors, and the average of the surviving threads is its prediction.</p>
  <h4>The model</h4><p>A Gaussian process is a distribution over functions such that the heights at any finite set of places are jointly Gaussian. It is fixed by a mean function, taken as zero here, and a <b>kernel</b> \(k(x,x')\) giving the covariance of the heights at \(x\) and \(x'\):</p>$$f\sim\mathcal{GP}(0,k),\qquad y_i=f(x_i)+\varepsilon_i,\quad\varepsilon_i\sim\mathcal N(0,\sigma_n^2).$$
  <h4>Kernels on this page</h4>$$k_{\text{smooth}}=\sigma_f^2\exp\!\Big(-\frac{r^2}{2\ell^2}\Big),\qquad k_{\text{rough}}=\sigma_f^2\Big(1+\frac{\sqrt3\,r}{\ell}\Big)\exp\!\Big(-\frac{\sqrt3\,r}{\ell}\Big),$$$$k_{\text{repeating}}=\sigma_f^2\exp\!\Big(-\frac{2\sin^2(\pi r/p)}{\ell^2}\Big),\qquad k_{\text{straight}}=\sigma_f^2\,(1+x\,x'),$$<p>with \(r=|x-x'|\) and period \(p=3\). The smooth one is the squared-exponential (RBF) kernel, the rough one is Matérn 3/2. The straight kernel turns the Gaussian process into Bayesian linear regression. The <b>length scale</b> \(\ell\) says how far you must move before the curve can change much.</p>
  <h4>The prediction</h4><p>Let \(\mathbf K\) be the kernel between all pairs of measured places, \(\mathbf k_*\) the kernel between a new place \(x_*\) and the measured ones. Conditioning a joint Gaussian gives</p>$$\mu_*=\mathbf k_*^{\top}(\mathbf K+\sigma_n^2\mathbf I)^{-1}\mathbf y,\qquad\sigma_*^2=k(x_*,x_*)-\mathbf k_*^{\top}(\mathbf K+\sigma_n^2\mathbf I)^{-1}\mathbf k_*.$$<p>The mean is a weighted sum of the measurements. The variance starts at the prior value and has something subtracted for what the data told you. It does not depend on the measured heights at all, only on where you measured.</p>
  <h4>Choosing the settings</h4><p>The probability of the data with the function integrated out is available in closed form:</p>$$\log p(\mathbf y)=\underbrace{-\tfrac12\mathbf y^{\top}(\mathbf K+\sigma_n^2\mathbf I)^{-1}\mathbf y}_{\text{data fit}}\ \underbrace{-\tfrac12\log\lvert\mathbf K+\sigma_n^2\mathbf I\rvert}_{\text{complexity penalty}}-\frac n2\log2\pi.$$<p>A tiny length scale fits anything and pays a heavy complexity penalty. A huge one is cheap and fits badly. Maximizing the sum balances the two without a validation set. The score can have several peaks: one explanation with a short length scale and little noise, another with a long length scale and more noise. So the Fit button first compares 36 settings on a coarse grid and moves to the best of them if it clearly beats the current one, then climbs by gradient ascent on \(\log\ell,\log\sigma_f,\log\sigma_n\), and stops when it gains less than 0.0005 in a step.</p>
  <h4>Cost</h4><p>Everything needs the inverse of an \(n\times n\) matrix, which costs \(O(n^3)\). That is the practical limit of exact Gaussian processes: superb with a few thousand points, and in need of approximations beyond that.</p>`,
- q:'In A Gap in the Middle the band is wide inside the gap. Would taking ten more measurements at the far left, where there are already several, narrow it?',a:'Hardly at all. The predictive variance at a place depends only on how strongly the kernel ties that place to the measured ones. With a length scale of about 1, points at the far left are almost uncorrelated with the middle, so they subtract almost nothing from the variance there. To narrow the band in the gap you have to measure in the gap, or believe in a longer length scale or a repeating pattern that links the gap to the data you have.',
- init(root){const c=$('#gp-c',root),cr=$('#gp-r',root),live=$('#gp-live',root),S={d:'wave',k:'rbf',l:1,f:1,n:.2,w:true},G=97,gx=Array.from({length:G},(_,i)=>-4+8*i/(G-1));
-  let D=[],mu=null,sd=null,Lp=null,za=null,zb=null,ph=0,ml=NaN,fitT=NaN,cxT=NaN,hist=[],fin=false,msg='',cu=0,V=null,pb,chk=()=>false,lB,fB,nB,ad=null,it=0;
-  const kern=(a,b,p=S)=>{const r=Math.abs(a-b),f2_=p.f*p.f;return p.k==='rbf'?f2_*Math.exp(-r*r/(2*p.l*p.l)):p.k==='mat'?f2_*(1+Math.sqrt(3)*r/p.l)*Math.exp(-Math.sqrt(3)*r/p.l):p.k==='per'?f2_*Math.exp(-2*Math.sin(Math.PI*r/3)**2/(p.l*p.l)):f2_*(1+a*b)};
-  const data=()=>{const r=rng(S.d==='wave'?5:S.d==='gap'?9:13),rn=randnFrom(r);D=[];if(S.d==='wave')for(let i=0;i<9;i++){const x=-3.5+7*(i+.5*r())/9;D.push([x,1.3*Math.sin(1.3*x)+.2*rn()])}else if(S.d==='gap')for(let i=0;i<12;i++){const x=i<6?-3.7+2.2*r():1.5+2.2*r();D.push([x,1.2*Math.sin(1.5*x)+.4*x*.3+.15*rn()])}else if(S.d==='line')for(let i=0;i<14;i++){const x=-3.6+7.2*r();D.push([x,.45*x+.3+.45*rn()])}};
-  const score=p=>{const n=D.length;if(!n)return[0,0,0];const K=D.map((a,i)=>D.map((b,j)=>kern(a[0],b[0],p)+(i===j?p.n*p.n+1e-8:0))),L=laChol(K),y=D.map(d=>d[1]),al=laBck(L,laFwd(L,y));let a=0,b=0;for(let i=0;i<n;i++){a-=.5*y[i]*al[i];b-=Math.log(L[i][i])}return[a+b-.5*n*Math.log(2*Math.PI),a,b]};
-  const solve=()=>{const n=D.length;mu=new Float64Array(G);sd=new Float64Array(G);const C=gx.map((a,i)=>gx.map((b,j)=>kern(a,b)+(i===j?1e-6:0)));
-   if(n){const K=D.map((a,i)=>D.map((b,j)=>kern(a[0],b[0])+(i===j?S.n*S.n+1e-8:0))),L=laChol(K),al=laBck(L,laFwd(L,D.map(d=>d[1]))),Vs=gx.map(x=>laFwd(L,D.map(d=>kern(x,d[0]))));for(let i=0;i<G;i++){let m=0;for(let j=0;j<n;j++)m+=kern(gx[i],D[j][0])*al[j];mu[i]=m;for(let j=0;j<=i;j++){let s=0;for(let k=0;k<n;k++)s+=Vs[i][k]*Vs[j][k];C[i][j]-=s;C[j][i]=C[i][j]}}}
-   for(let i=0;i<G;i++){C[i][i]+=1e-6;sd[i]=Math.sqrt(Math.max(0,C[i][i]))}Lp=laChol(C);[ml,fitT,cxT]=score(S)};
-  const newZ=()=>{za=[0,1,2].map(()=>Float64Array.from({length:G},randn));zb=[0,1,2].map(()=>Float64Array.from({length:G},randn))};
-  const reset=()=>{hist=[];fin=false;it=0;ad=null;cu=D.length?3:1;solve();msg=D.length?'With '+D.length+' measurements the belief is pinched around each one. Change the kernel settings by hand, or press Fit the settings.':'No data: this is the prior. Every curve the kernel allows is still possible. Click in the picture to add a measurement.'};
-  const predict=x=>{const n=D.length;if(!n)return[0,Math.sqrt(kern(x,x))];const K=D.map((a,i)=>D.map((b,j)=>kern(a[0],b[0])+(i===j?S.n*S.n+1e-8:0))),L=laChol(K),ks=D.map(d=>kern(x,d[0])),al=laBck(L,laFwd(L,D.map(d=>d[1]))),v=laFwd(L,ks);let m=0,s=kern(x,x);for(let j=0;j<n;j++){m+=ks[j]*al[j];s-=v[j]*v[j]}return[m,Math.sqrt(Math.max(0,s))]};
-  const fitStep=()=>{if(fin||D.length<2){fin=true;msg='Add at least two measurements before fitting.';return}if(!ad)ad={m:[0,0,0],v:[0,0,0],t:0};const P=t=>({k:S.k,l:Math.exp(t[0]),f:Math.exp(t[1]),n:Math.exp(t[2])});let th=[Math.log(S.l),Math.log(S.f),Math.log(S.n)];if(it===0){let bs=score(P(th))[0]+.5;for(const l of[.3,.6,1.2,2.4])for(const f of[.5,1,2])for(const n of[.1,.3,.8]){const q=[Math.log(l),Math.log(f),Math.log(n)],v=score(P(q))[0];if(v>bs){bs=v;th=q}}}const P0=t=>({k:S.k,l:Math.exp(t[0]),f:Math.exp(t[1]),n:Math.exp(t[2])}),s0=score(P(th))[0],gr=th.map((_,i)=>{const a=th.slice(),b=th.slice();a[i]+=1e-4;b[i]-=1e-4;return(score(P(a))[0]-score(P(b))[0])/2e-4});ad.t++;
-   for(let i=0;i<3;i++){ad.m[i]=.8*ad.m[i]+.2*gr[i];ad.v[i]=.99*ad.v[i]+.01*gr[i]*gr[i];th[i]+=.06*(ad.m[i]/(1-.8**ad.t))/(Math.sqrt(ad.v[i]/(1-.99**ad.t))+1e-8)}
-   S.l=clamp(Math.exp(th[0]),.15,3);S.f=clamp(Math.exp(th[1]),.2,3);S.n=clamp(Math.exp(th[2]),.02,1.5);lB.set(S.l);fB.set(S.f);nB.set(S.n);solve();it++;if(!hist.length)hist.push(s0);hist.push(ml);cu=5;
-   const gain=ml-hist[hist.length-2];msg='Fitting step '+it+': score '+f2(ml)+' ('+(gain>=0?'+':'')+f3(gain)+'). Length scale '+f2(S.l)+', height '+f2(S.f)+', noise '+f2(S.n)+'.';
-   if(it>=12&&Math.abs(gain)<5e-4&&Math.abs(ml-hist[Math.max(0,hist.length-6)])<3e-3||it>=400){fin=true;msg='Stopped after '+it+' steps: the score has stopped improving at '+f2(ml)+'. Fitted settings: length scale '+f2(S.l)+', height '+f2(S.f)+', noise '+f2(S.n)+'. Move a slider to try to beat it.'}};
-  const tp=testPoint(root,'gp',['Your x'],[1.5],[[-4,4]]);
-  const draw=()=>{const t=T();V=uView(c);const{g,w,h,X,Y}=V;uFrame(V,t,'x','y');if(mu){g.fillStyle=mix(t.accent,t.accent,0,.16);g.beginPath();for(let i=0;i<G;i++)g.lineTo(X(gx[i]),Y(mu[i]+1.96*sd[i]));for(let i=G-1;i>=0;i--)g.lineTo(X(gx[i]),Y(mu[i]-1.96*sd[i]));g.fill();
-    const cs=[t.gold,t.ok,'#4a7fb5'];for(let s=0;s<3;s++){g.strokeStyle=cs[s];g.lineWidth=1.1;g.globalAlpha=.8;g.beginPath();const ca=Math.cos(ph+s),sa=Math.sin(ph+s);for(let i=0;i<G;i++){let v=mu[i];const Li=Lp[i];for(let j=0;j<=i;j++)v+=Li[j]*(ca*za[s][j]+sa*zb[s][j]);i?g.lineTo(X(gx[i]),Y(v)):g.moveTo(X(gx[i]),Y(v))}g.stroke()}g.globalAlpha=1;
-    g.strokeStyle=t.accent;g.lineWidth=2.6;g.beginPath();for(let i=0;i<G;i++)i?g.lineTo(X(gx[i]),Y(mu[i])):g.moveTo(X(gx[i]),Y(mu[i]));g.stroke()}
-   for(const d of D){g.lineWidth=2;dotAt(g,X(d[0]),Y(d[1]),5,t.ink,t.bg)}
-   const[pm,ps]=predict(tp.v[0]);g.strokeStyle=t.ink;g.lineWidth=1.5;g.beginPath();g.moveTo(X(tp.v[0]),Y(pm-1.96*ps));g.lineTo(X(tp.v[0]),Y(pm+1.96*ps));g.stroke();markTP(g,X(tp.v[0]),Y(pm),t,false);tp.out.textContent='At x = '+f2(tp.v[0])+' the prediction is '+f2(pm)+' ± '+f2(1.96*ps)+' (95% range '+f2(pm-1.96*ps)+' to '+f2(pm+1.96*ps)+').';
-   {const{g,w,h}=fit(cr),h1=h*.5,ks=Array.from({length:60},(_,i)=>kern(0,4*i/59));const A=uLine(g,t,0,0,w,h1,ks,{title:'kernel: tie between two points, against their distance (0 to 4)',ym:Math.max(...ks)*1.05,y1:Math.min(0,...ks)});g.strokeStyle=t.gold;g.lineWidth=2.2;g.beginPath();ks.forEach((v,i)=>i?g.lineTo(A.X(i),A.Y(v)):g.moveTo(A.X(i),A.Y(v)));g.stroke();
-    if(hist.length>1){const lo=Math.min(...hist),hi=Math.max(...hist),B=uLine(g,t,0,h1,w,h-h1,hist,{title:'score during fitting',n:Math.max(20,hist.length),y1:lo-.05*(hi-lo+1e-6),ym:hi+.05*(hi-lo+1e-6)});g.strokeStyle=t.accent;g.lineWidth=2;g.beginPath();hist.forEach((v,i)=>i?g.lineTo(B.X(i),B.Y(v)):g.moveTo(B.X(i),B.Y(v)));g.stroke()}else{g.font=MONO;g.fillStyle=t.muted;g.textAlign='left';g.fillText('score during fitting: press Fit the settings',8,h1+13)}}
-   live.textContent=msg;uCur(root,'gp',cu);setR(root,'n',D.length);setR(root,'ml',D.length?f2(ml):'–');setR(root,'fit',D.length?f2(fitT):'–');setR(root,'cx',D.length?f2(cxT):'–');setR(root,'set',f2(S.l)+' / '+f2(S.f)+' / '+f2(S.n))};
-  tp.on=()=>draw();data();newZ();reset();
-  const anim=Anim(()=>{if(fin){pb.stop();return}ph+=.02;fitStep();draw();chk()});pb=playBtn($('#gp-play',root),anim);chk=runCtl(pb,root,'gp',{done:()=>fin,restart:()=>{hist=[];fin=false;it=0;ad=null},count:()=>it,what:'steps'});
-  const wig=Anim(()=>{if(anim.on||!S.w)return;ph+=.02;draw()});
-  $('#gp-step',root).onclick=()=>{pb.stop();if(fin){hist=[];fin=false;it=0;ad=null}fitStep();draw()};$('#gp-reset',root).onclick=()=>{pb.stop();S.l=1;S.f=1;S.n=.2;lB.set(1);fB.set(1);nB.set(.2);data();newZ();reset();draw()};
-  const ch=()=>{pb.stop();reset();draw()};lB=bind(root,'gp-l',v=>{S.l=v;ch()});fB=bind(root,'gp-f',v=>{S.f=v;ch()});nB=bind(root,'gp-n',v=>{S.n=v;ch()});
-  segBind(root,'gp-d',S.d,v=>{S.d=v;data();ch()});segBind(root,'gp-k',S.k,v=>{S.k=v;ch()});$('#gp-w',root).onchange=e=>{S.w=e.target.checked};
-  xyUp(root,'gp',q=>{D=q.slice(0,60);ch()});
-  c.style.cursor='crosshair';c.addEventListener('click',e=>{if(!V)return;const[x,y]=canvasXY(c,V,e),k=D.findIndex(d=>Math.hypot((d[0]-x)*V.s,(d[1]-y)*V.s)<10);if(k>=0)D.splice(k,1);else if(D.length<60)D.push([clamp(x,-4,4),clamp(y,-3,3)]);ch()});
-  return{draw,stop:()=>{pb.stop();wig.stop()},auto:()=>{wig.start()}}}}
-);
-REG.push(
-{id:'glm',tab:'Generalized linear models',title:'Generalized linear models: straight lines for data that cannot be straight',
- lede:'A straight line can predict minus three customers or a 130% chance of rain. Counts cannot go below zero and probabilities must stay between 0 and 1. A generalized linear model keeps the straight line and bends it through a link function so that predictions land where the data can actually be. Linear, logistic and Poisson regression turn out to be one method with three settings.',
- stage:`<div class="row seg" id="gl-f" role="group" aria-label="Kind of data"><button class="btn" type="button" data-v="pois">Counts: Ice Creams Sold</button><button class="btn" type="button" data-v="bern">Yes or No: Passed the Exam</button><button class="btn" type="button" data-v="gaus">Amounts: Plant Height</button></div>
+  q: 'In A Gap in the Middle the band is wide inside the gap. Would taking ten more measurements at the far left, where there are already several, narrow it?',
+  a: 'Hardly at all. The predictive variance at a place depends only on how strongly the kernel ties that place to the measured ones. With a length scale of about 1, points at the far left are almost uncorrelated with the middle, so they subtract almost nothing from the variance there. To narrow the band in the gap you have to measure in the gap, or believe in a longer length scale or a repeating pattern that links the gap to the data you have.',
+  init(root) {
+    const c = $('#gp-c', root),
+      cr = $('#gp-r', root),
+      live = $('#gp-live', root),
+      S = { d: 'wave', k: 'rbf', l: 1, f: 1, n: 0.2, w: true },
+      G = 97,
+      gx = Array.from({ length: G }, (_, i) => -4 + (8 * i) / (G - 1));
+    let D = [],
+      mu = null,
+      sd = null,
+      Lp = null,
+      za = null,
+      zb = null,
+      ph = 0,
+      ml = NaN,
+      fitT = NaN,
+      cxT = NaN,
+      hist = [],
+      fin = false,
+      msg = '',
+      cu = 0,
+      V = null,
+      pb,
+      chk = () => false,
+      lB,
+      fB,
+      nB,
+      ad = null,
+      it = 0;
+    const kern = (a, b, p = S) => {
+      const r = Math.abs(a - b),
+        f2_ = p.f * p.f;
+      return p.k === 'rbf'
+        ? f2_ * Math.exp((-r * r) / (2 * p.l * p.l))
+        : p.k === 'mat'
+          ? f2_ * (1 + (Math.sqrt(3) * r) / p.l) * Math.exp((-Math.sqrt(3) * r) / p.l)
+          : p.k === 'per'
+            ? f2_ * Math.exp((-2 * Math.sin((Math.PI * r) / 3) ** 2) / (p.l * p.l))
+            : f2_ * (1 + a * b);
+    };
+    const data = () => {
+      const r = rng(S.d === 'wave' ? 5 : S.d === 'gap' ? 9 : 13),
+        rn = randnFrom(r);
+      D = [];
+      if (S.d === 'wave')
+        for (let i = 0; i < 9; i++) {
+          const x = -3.5 + (7 * (i + 0.5 * r())) / 9;
+          D.push([x, 1.3 * Math.sin(1.3 * x) + 0.2 * rn()]);
+        }
+      else if (S.d === 'gap')
+        for (let i = 0; i < 12; i++) {
+          const x = i < 6 ? -3.7 + 2.2 * r() : 1.5 + 2.2 * r();
+          D.push([x, 1.2 * Math.sin(1.5 * x) + 0.4 * x * 0.3 + 0.15 * rn()]);
+        }
+      else if (S.d === 'line')
+        for (let i = 0; i < 14; i++) {
+          const x = -3.6 + 7.2 * r();
+          D.push([x, 0.45 * x + 0.3 + 0.45 * rn()]);
+        }
+    };
+    const score = (p) => {
+      const n = D.length;
+      if (!n) return [0, 0, 0];
+      const K = D.map((a, i) =>
+          D.map((b, j) => kern(a[0], b[0], p) + (i === j ? p.n * p.n + 1e-8 : 0)),
+        ),
+        L = laChol(K),
+        y = D.map((d) => d[1]),
+        al = laBck(L, laFwd(L, y));
+      let a = 0,
+        b = 0;
+      for (let i = 0; i < n; i++) {
+        a -= 0.5 * y[i] * al[i];
+        b -= Math.log(L[i][i]);
+      }
+      return [a + b - 0.5 * n * Math.log(2 * Math.PI), a, b];
+    };
+    const solve = () => {
+      const n = D.length;
+      mu = new Float64Array(G);
+      sd = new Float64Array(G);
+      const C = gx.map((a, i) => gx.map((b, j) => kern(a, b) + (i === j ? 1e-6 : 0)));
+      if (n) {
+        const K = D.map((a, i) =>
+            D.map((b, j) => kern(a[0], b[0]) + (i === j ? S.n * S.n + 1e-8 : 0)),
+          ),
+          L = laChol(K),
+          al = laBck(
+            L,
+            laFwd(
+              L,
+              D.map((d) => d[1]),
+            ),
+          ),
+          Vs = gx.map((x) =>
+            laFwd(
+              L,
+              D.map((d) => kern(x, d[0])),
+            ),
+          );
+        for (let i = 0; i < G; i++) {
+          let m = 0;
+          for (let j = 0; j < n; j++) m += kern(gx[i], D[j][0]) * al[j];
+          mu[i] = m;
+          for (let j = 0; j <= i; j++) {
+            let s = 0;
+            for (let k = 0; k < n; k++) s += Vs[i][k] * Vs[j][k];
+            C[i][j] -= s;
+            C[j][i] = C[i][j];
+          }
+        }
+      }
+      for (let i = 0; i < G; i++) {
+        C[i][i] += 1e-6;
+        sd[i] = Math.sqrt(Math.max(0, C[i][i]));
+      }
+      Lp = laChol(C);
+      [ml, fitT, cxT] = score(S);
+    };
+    const newZ = () => {
+      za = [0, 1, 2].map(() => Float64Array.from({ length: G }, randn));
+      zb = [0, 1, 2].map(() => Float64Array.from({ length: G }, randn));
+    };
+    const reset = () => {
+      hist = [];
+      fin = false;
+      it = 0;
+      ad = null;
+      cu = D.length ? 3 : 1;
+      solve();
+      msg = D.length
+        ? 'With ' +
+          D.length +
+          ' measurements the belief is pinched around each one. Change the kernel settings by hand, or press Fit the settings.'
+        : 'No data: this is the prior. Every curve the kernel allows is still possible. Click in the picture to add a measurement.';
+    };
+    const predict = (x) => {
+      const n = D.length;
+      if (!n) return [0, Math.sqrt(kern(x, x))];
+      const K = D.map((a, i) =>
+          D.map((b, j) => kern(a[0], b[0]) + (i === j ? S.n * S.n + 1e-8 : 0)),
+        ),
+        L = laChol(K),
+        ks = D.map((d) => kern(x, d[0])),
+        al = laBck(
+          L,
+          laFwd(
+            L,
+            D.map((d) => d[1]),
+          ),
+        ),
+        v = laFwd(L, ks);
+      let m = 0,
+        s = kern(x, x);
+      for (let j = 0; j < n; j++) {
+        m += ks[j] * al[j];
+        s -= v[j] * v[j];
+      }
+      return [m, Math.sqrt(Math.max(0, s))];
+    };
+    const fitStep = () => {
+      if (fin || D.length < 2) {
+        fin = true;
+        msg = 'Add at least two measurements before fitting.';
+        return;
+      }
+      if (!ad) ad = { m: [0, 0, 0], v: [0, 0, 0], t: 0 };
+      const P = (t) => ({ k: S.k, l: Math.exp(t[0]), f: Math.exp(t[1]), n: Math.exp(t[2]) });
+      let th = [Math.log(S.l), Math.log(S.f), Math.log(S.n)];
+      if (it === 0) {
+        let bs = score(P(th))[0] + 0.5;
+        for (const l of [0.3, 0.6, 1.2, 2.4])
+          for (const f of [0.5, 1, 2])
+            for (const n of [0.1, 0.3, 0.8]) {
+              const q = [Math.log(l), Math.log(f), Math.log(n)],
+                v = score(P(q))[0];
+              if (v > bs) {
+                bs = v;
+                th = q;
+              }
+            }
+      }
+      const P0 = (t) => ({ k: S.k, l: Math.exp(t[0]), f: Math.exp(t[1]), n: Math.exp(t[2]) }),
+        s0 = score(P(th))[0],
+        gr = th.map((_, i) => {
+          const a = th.slice(),
+            b = th.slice();
+          a[i] += 1e-4;
+          b[i] -= 1e-4;
+          return (score(P(a))[0] - score(P(b))[0]) / 2e-4;
+        });
+      ad.t++;
+      for (let i = 0; i < 3; i++) {
+        ad.m[i] = 0.8 * ad.m[i] + 0.2 * gr[i];
+        ad.v[i] = 0.99 * ad.v[i] + 0.01 * gr[i] * gr[i];
+        th[i] +=
+          (0.06 * (ad.m[i] / (1 - 0.8 ** ad.t))) / (Math.sqrt(ad.v[i] / (1 - 0.99 ** ad.t)) + 1e-8);
+      }
+      S.l = clamp(Math.exp(th[0]), 0.15, 3);
+      S.f = clamp(Math.exp(th[1]), 0.2, 3);
+      S.n = clamp(Math.exp(th[2]), 0.02, 1.5);
+      lB.set(S.l);
+      fB.set(S.f);
+      nB.set(S.n);
+      solve();
+      it++;
+      if (!hist.length) hist.push(s0);
+      hist.push(ml);
+      cu = 5;
+      const gain = ml - hist[hist.length - 2];
+      msg =
+        'Fitting step ' +
+        it +
+        ': score ' +
+        f2(ml) +
+        ' (' +
+        (gain >= 0 ? '+' : '') +
+        f3(gain) +
+        '). Length scale ' +
+        f2(S.l) +
+        ', height ' +
+        f2(S.f) +
+        ', noise ' +
+        f2(S.n) +
+        '.';
+      if (
+        (it >= 12 &&
+          Math.abs(gain) < 5e-4 &&
+          Math.abs(ml - hist[Math.max(0, hist.length - 6)]) < 3e-3) ||
+        it >= 400
+      ) {
+        fin = true;
+        msg =
+          'Stopped after ' +
+          it +
+          ' steps: the score has stopped improving at ' +
+          f2(ml) +
+          '. Fitted settings: length scale ' +
+          f2(S.l) +
+          ', height ' +
+          f2(S.f) +
+          ', noise ' +
+          f2(S.n) +
+          '. Move a slider to try to beat it.';
+      }
+    };
+    const tp = testPoint(root, 'gp', ['Your x'], [1.5], [[-4, 4]]);
+    const draw = () => {
+      const t = T();
+      V = uView(c);
+      const { g, w, h, X, Y } = V;
+      uFrame(V, t, 'x', 'y');
+      if (mu) {
+        g.fillStyle = mix(t.accent, t.accent, 0, 0.16);
+        g.beginPath();
+        for (let i = 0; i < G; i++) g.lineTo(X(gx[i]), Y(mu[i] + 1.96 * sd[i]));
+        for (let i = G - 1; i >= 0; i--) g.lineTo(X(gx[i]), Y(mu[i] - 1.96 * sd[i]));
+        g.fill();
+        const cs = [t.gold, t.ok, '#4a7fb5'];
+        for (let s = 0; s < 3; s++) {
+          g.strokeStyle = cs[s];
+          g.lineWidth = 1.1;
+          g.globalAlpha = 0.8;
+          g.beginPath();
+          const ca = Math.cos(ph + s),
+            sa = Math.sin(ph + s);
+          for (let i = 0; i < G; i++) {
+            let v = mu[i];
+            const Li = Lp[i];
+            for (let j = 0; j <= i; j++) v += Li[j] * (ca * za[s][j] + sa * zb[s][j]);
+            i ? g.lineTo(X(gx[i]), Y(v)) : g.moveTo(X(gx[i]), Y(v));
+          }
+          g.stroke();
+        }
+        g.globalAlpha = 1;
+        g.strokeStyle = t.accent;
+        g.lineWidth = 2.6;
+        g.beginPath();
+        for (let i = 0; i < G; i++) i ? g.lineTo(X(gx[i]), Y(mu[i])) : g.moveTo(X(gx[i]), Y(mu[i]));
+        g.stroke();
+      }
+      for (const d of D) {
+        g.lineWidth = 2;
+        dotAt(g, X(d[0]), Y(d[1]), 5, t.ink, t.bg);
+      }
+      const [pm, ps] = predict(tp.v[0]);
+      g.strokeStyle = t.ink;
+      g.lineWidth = 1.5;
+      g.beginPath();
+      g.moveTo(X(tp.v[0]), Y(pm - 1.96 * ps));
+      g.lineTo(X(tp.v[0]), Y(pm + 1.96 * ps));
+      g.stroke();
+      markTP(g, X(tp.v[0]), Y(pm), t, false);
+      tp.out.textContent =
+        'At x = ' +
+        f2(tp.v[0]) +
+        ' the prediction is ' +
+        f2(pm) +
+        ' ± ' +
+        f2(1.96 * ps) +
+        ' (95% range ' +
+        f2(pm - 1.96 * ps) +
+        ' to ' +
+        f2(pm + 1.96 * ps) +
+        ').';
+      {
+        const { g, w, h } = fit(cr),
+          h1 = h * 0.5,
+          ks = Array.from({ length: 60 }, (_, i) => kern(0, (4 * i) / 59));
+        const A = uLine(g, t, 0, 0, w, h1, ks, {
+          title: 'kernel: tie between two points, against their distance (0 to 4)',
+          ym: Math.max(...ks) * 1.05,
+          y1: Math.min(0, ...ks),
+        });
+        g.strokeStyle = t.gold;
+        g.lineWidth = 2.2;
+        g.beginPath();
+        ks.forEach((v, i) => (i ? g.lineTo(A.X(i), A.Y(v)) : g.moveTo(A.X(i), A.Y(v))));
+        g.stroke();
+        if (hist.length > 1) {
+          const lo = Math.min(...hist),
+            hi = Math.max(...hist),
+            B = uLine(g, t, 0, h1, w, h - h1, hist, {
+              title: 'score during fitting',
+              n: Math.max(20, hist.length),
+              y1: lo - 0.05 * (hi - lo + 1e-6),
+              ym: hi + 0.05 * (hi - lo + 1e-6),
+            });
+          g.strokeStyle = t.accent;
+          g.lineWidth = 2;
+          g.beginPath();
+          hist.forEach((v, i) => (i ? g.lineTo(B.X(i), B.Y(v)) : g.moveTo(B.X(i), B.Y(v))));
+          g.stroke();
+        } else {
+          g.font = MONO;
+          g.fillStyle = t.muted;
+          g.textAlign = 'left';
+          g.fillText('score during fitting: press Fit the settings', 8, h1 + 13);
+        }
+      }
+      live.textContent = msg;
+      uCur(root, 'gp', cu);
+      setR(root, 'n', D.length);
+      setR(root, 'ml', D.length ? f2(ml) : '–');
+      setR(root, 'fit', D.length ? f2(fitT) : '–');
+      setR(root, 'cx', D.length ? f2(cxT) : '–');
+      setR(root, 'set', f2(S.l) + ' / ' + f2(S.f) + ' / ' + f2(S.n));
+    };
+    tp.on = () => draw();
+    data();
+    newZ();
+    reset();
+    const anim = Anim(() => {
+      if (fin) {
+        pb.stop();
+        return;
+      }
+      ph += 0.02;
+      fitStep();
+      draw();
+      chk();
+    });
+    pb = playBtn($('#gp-play', root), anim);
+    chk = runCtl(pb, root, 'gp', {
+      done: () => fin,
+      restart: () => {
+        hist = [];
+        fin = false;
+        it = 0;
+        ad = null;
+      },
+      count: () => it,
+      what: 'steps',
+    });
+    const wig = Anim(() => {
+      if (anim.on || !S.w) return;
+      ph += 0.02;
+      draw();
+    });
+    $('#gp-step', root).onclick = () => {
+      pb.stop();
+      if (fin) {
+        hist = [];
+        fin = false;
+        it = 0;
+        ad = null;
+      }
+      fitStep();
+      draw();
+    };
+    $('#gp-reset', root).onclick = () => {
+      pb.stop();
+      S.l = 1;
+      S.f = 1;
+      S.n = 0.2;
+      lB.set(1);
+      fB.set(1);
+      nB.set(0.2);
+      data();
+      newZ();
+      reset();
+      draw();
+    };
+    const ch = () => {
+      pb.stop();
+      reset();
+      draw();
+    };
+    lB = bind(root, 'gp-l', (v) => {
+      S.l = v;
+      ch();
+    });
+    fB = bind(root, 'gp-f', (v) => {
+      S.f = v;
+      ch();
+    });
+    nB = bind(root, 'gp-n', (v) => {
+      S.n = v;
+      ch();
+    });
+    segBind(root, 'gp-d', S.d, (v) => {
+      S.d = v;
+      data();
+      ch();
+    });
+    segBind(root, 'gp-k', S.k, (v) => {
+      S.k = v;
+      ch();
+    });
+    $('#gp-w', root).onchange = (e) => {
+      S.w = e.target.checked;
+    };
+    xyUp(root, 'gp', (q) => {
+      D = q.slice(0, 60);
+      ch();
+    });
+    c.style.cursor = 'crosshair';
+    c.addEventListener('click', (e) => {
+      if (!V) return;
+      const [x, y] = canvasXY(c, V, e),
+        k = D.findIndex((d) => Math.hypot((d[0] - x) * V.s, (d[1] - y) * V.s) < 10);
+      if (k >= 0) D.splice(k, 1);
+      else if (D.length < 60) D.push([clamp(x, -4, 4), clamp(y, -3, 3)]);
+      ch();
+    });
+    return {
+      draw,
+      stop: () => {
+        pb.stop();
+        wig.stop();
+      },
+      auto: () => {
+        wig.start();
+      },
+    };
+  },
+});
+REG.push({
+  id: 'glm',
+  tab: 'Generalized linear models',
+  title: 'Generalized linear models: straight lines for data that cannot be straight',
+  lede: 'A straight line can predict minus three customers or a 130% chance of rain. Counts cannot go below zero and probabilities must stay between 0 and 1. A generalized linear model keeps the straight line and bends it through a link function so that predictions land where the data can actually be. Linear, logistic and Poisson regression turn out to be one method with three settings.',
+  stage: `<div class="row seg" id="gl-f" role="group" aria-label="Kind of data"><button class="btn" type="button" data-v="pois">Counts: Ice Creams Sold</button><button class="btn" type="button" data-v="bern">Yes or No: Passed the Exam</button><button class="btn" type="button" data-v="gaus">Amounts: Plant Height</button></div>
  <div class="stage"><figure class="fig"><figcaption id="gl-cap1">The data, the generalized linear model (solid), and an ordinary straight line fitted by least squares (dashed)</figcaption><canvas class="short" id="gl-c" role="img" aria-label="Data with the fitted mean curve"></canvas></figure>
  <figure class="fig"><figcaption>The same fit seen through the link function. On this scale the model is a straight line. Each dot is a data point moved to this scale; bigger dots carry more weight in the next refit</figcaption><canvas class="short" id="gl-r" role="img" aria-label="The linear predictor on the link scale"></canvas></figure></div>
  <figure class="fig" style="margin-top:18px"><figcaption>The last refit, worked out</figcaption><div class="eq" id="gl-eq" aria-live="polite" style="min-height:8em;margin-top:6px"></div></figure>
- ${uHow('gl',['Start with a flat model: every prediction equals the average of the data.','Move each data point to the link scale, where the model is a straight line. This gives a working value for each point.','Give each point a weight: how much information it carries at the current fit.','Fit a weighted straight line through the working values.','Bend that line back through the link to get the new curve.','Repeat until the fit stops changing. It usually takes five or six rounds.'])}
- <div class="controls">${uBtns('gl','Run','One refit','refits')}
- ${grp('Data',slider('gl-n','Number of observations',10,120,5,40)+`<div class="row"><button class="btn" id="gl-new" type="button">New data</button></div>`+upHTML('gl'))}</div>
- <dl class="read">${rd('it','Refits so far')}${rd('ab','Intercept and slope on the link scale','hl')}${rd('dev','Deviance: misfit of the model','hl2')}${rd('dev0','Deviance of a flat model')}${rd('mean','What one more unit of x does')}${rd('bad','Impossible predictions from the dashed line')}</dl>`,
- tryit:'On Ice Creams Sold, press One refit and follow the panel under the charts: the curve moves from flat to fitted in a handful of jumps. Look at the dashed straight line at the cold end. What does it predict there? Switch to Passed the Exam. The same procedure now draws an S-curve. Why is the right-hand chart still a straight line? Switch to Plant Height: how many refits does it need, and why? Then type your own x and read the prediction.',
- math:String.raw`<h4>Intuition</h4><p>You want to predict how many ice creams a stall sells from the temperature. A straight line works in the middle and then predicts a negative number on a cold day. The fix is to stop predicting the count itself and predict its logarithm with a straight line instead. A logarithm can be any number, positive or negative, so the line is free to go wherever it likes, and when you undo the logarithm the prediction is always positive. For a yes-or-no outcome you do the same with the log-odds. The straight line lives on a scale where it cannot do harm, and a fixed bend carries it back to the scale of the data.</p>
+ ${uHow('gl', ['Start with a flat model: every prediction equals the average of the data.', 'Move each data point to the link scale, where the model is a straight line. This gives a working value for each point.', 'Give each point a weight: how much information it carries at the current fit.', 'Fit a weighted straight line through the working values.', 'Bend that line back through the link to get the new curve.', 'Repeat until the fit stops changing. It usually takes five or six rounds.'])}
+ <div class="controls">${uBtns('gl', 'Run', 'One refit', 'refits')}
+ ${grp('Data', slider('gl-n', 'Number of observations', 10, 120, 5, 40) + `<div class="row"><button class="btn" id="gl-new" type="button">New data</button></div>` + upHTML('gl'))}</div>
+ <dl class="read">${rd('it', 'Refits so far')}${rd('ab', 'Intercept and slope on the link scale', 'hl')}${rd('dev', 'Deviance: misfit of the model', 'hl2')}${rd('dev0', 'Deviance of a flat model')}${rd('mean', 'What one more unit of x does')}${rd('bad', 'Impossible predictions from the dashed line')}</dl>`,
+  tryit:
+    'On Ice Creams Sold, press One refit and follow the panel under the charts: the curve moves from flat to fitted in a handful of jumps. Look at the dashed straight line at the cold end. What does it predict there? Switch to Passed the Exam. The same procedure now draws an S-curve. Why is the right-hand chart still a straight line? Switch to Plant Height: how many refits does it need, and why? Then type your own x and read the prediction.',
+  math: String.raw`<h4>Intuition</h4><p>You want to predict how many ice creams a stall sells from the temperature. A straight line works in the middle and then predicts a negative number on a cold day. The fix is to stop predicting the count itself and predict its logarithm with a straight line instead. A logarithm can be any number, positive or negative, so the line is free to go wherever it likes, and when you undo the logarithm the prediction is always positive. For a yes-or-no outcome you do the same with the log-odds. The straight line lives on a scale where it cannot do harm, and a fixed bend carries it back to the scale of the data.</p>
  <h4>Three ingredients</h4><p>A generalized linear model (Nelder and Wedderburn, 1972) has a <b>linear predictor</b>, a <b>link function</b> \(g\) connecting it to the mean, and a <b>distribution</b> for the scatter around the mean:</p>$$\eta_i=a+b\,x_i,\qquad g(\mu_i)=\eta_i,\qquad y_i\sim\text{a distribution with mean }\mu_i.$$
  <table><tr><th>Data</th><th>Distribution</th><th>Link \(g(\mu)\)</th><th>Mean \(\mu\)</th><th>Variance</th></tr><tr><td>Amounts</td><td>Gaussian</td><td>\(\mu\)</td><td>\(\eta\)</td><td>\(\sigma^2\)</td></tr><tr><td>Yes or no</td><td>Bernoulli</td><td>\(\log\frac{\mu}{1-\mu}\)</td><td>\(\frac{1}{1+e^{-\eta}}\)</td><td>\(\mu(1-\mu)\)</td></tr><tr><td>Counts</td><td>Poisson</td><td>\(\log\mu\)</td><td>\(e^{\eta}\)</td><td>\(\mu\)</td></tr></table>
  <p>The variance column matters as much as the link. Counts scatter more when the mean is large, and a yes-or-no outcome is most uncertain at a probability of one half. The model knows this and weights each point accordingly.</p>
  <h4>Fitting: iteratively reweighted least squares</h4><p>The parameters maximize the likelihood. There is no formula for the answer, but Newton's method takes a pleasant form. At the current fit, compute for every point a <b>working value</b> and a <b>weight</b>,</p>$$z_i=\eta_i+\frac{y_i-\mu_i}{d\mu_i/d\eta_i},\qquad w_i=\frac{(d\mu_i/d\eta_i)^2}{\operatorname{Var}(y_i)},$$<p>and then solve an ordinary weighted least-squares problem for the line through the \(z_i\):</p>$$(a,b)\leftarrow\arg\min_{a,b}\sum_i w_i\,(z_i-a-b\,x_i)^2.$$<p>For the three links above the weights simplify to \(1\), \(\mu_i(1-\mu_i)\) and \(\mu_i\). For the Gaussian case the working values are the data and the weights are all equal, so one refit gives the exact answer: that is ordinary least squares.</p>
  <h4>Deviance</h4><p>The misfit is measured by the deviance, twice the gap in log-likelihood between the model and a perfect fit:</p>$$D_{\text{Poisson}}=2\sum_i\Big[y_i\log\frac{y_i}{\mu_i}-(y_i-\mu_i)\Big],\qquad D_{\text{Bernoulli}}=-2\sum_i\big[y_i\log\mu_i+(1-y_i)\log(1-\mu_i)\big].$$<p>For Gaussian data it is the familiar sum of squared residuals. The run stops when a refit lowers the deviance by less than \(10^{-8}\).</p>
  <h4>Reading the slope</h4><p>On the link scale the slope has a simple meaning. With a log link, one more unit of \(x\) <i>multiplies</i> the expected count by \(e^{b}\). With a logit link it multiplies the <i>odds</i> by \(e^{b}\). With the identity link it adds \(b\).</p>`,
- q:'On Ice Creams Sold, why does the fit give more weight to hot days than to cold days, when a least-squares line would treat them all the same?',a:'For a Poisson count the variance equals the mean, and with a log link the weight of a point works out to be its fitted mean. On the link scale a hot day with 40 sales has a working value known to within about 1 part in √40, while a cold day with 2 sales could just as easily have been 0 or 5, which is a huge difference in logarithms. The hot days pin down the line more firmly on the log scale, so they are trusted more. Least squares on the raw counts makes the opposite mistake in another way: it assumes the scatter is the same everywhere.',
- init(root){const c=$('#gl-c',root),cr=$('#gl-r',root),live=$('#gl-live',root),eq=$('#gl-eq',root),S={f:'pois',n:40},CFG={pois:{xr:[8,36],yr:[0,60],xl:'temperature, °C',yl:'ice creams sold',xs:4,tp:28,inv:e=>Math.exp(e),lnk:m=>Math.log(m)},bern:{xr:[0,10],yr:[-.15,1.15],xl:'hours studied',yl:'passed (1) or failed (0)',xs:2,tp:6,inv:e=>1/(1+Math.exp(-e)),lnk:m=>Math.log(m/(1-m))},gaus:{xr:[0,10],yr:[0,60],xl:'fertilizer, grams',yl:'height, cm',xs:2,tp:5,inv:e=>e,lnk:m=>m}};
-  let D=[],a=0,b=0,it=0,fin=false,dev=NaN,dev0=NaN,msg='',cu=0,seed=1,pb,chk=()=>false,ols=[0,0],Z=[],W=[],up=false;
-  const pois=(lam,r)=>{let L=Math.exp(-lam),k=0,p=1;do{k++;p*=r()}while(p>L);return k-1};
-  const gen=()=>{const r=rng(seed*31+7),rn=randnFrom(r),C=CFG[S.f];D=[];up=false;for(let i=0;i<S.n;i++){const x=C.xr[0]+(C.xr[1]-C.xr[0])*(.03+.94*r());D.push([x,S.f==='pois'?pois(Math.exp(-1.1+.135*x),r):S.f==='bern'?(r()<1/(1+Math.exp(-(-4.2+.85*x)))?1:0):Math.max(0,8+4.2*x+5*rn())])}};
-  const devOf=(a,b)=>{const C=CFG[S.f];let d=0;for(const[x,y]of D){const m=C.inv(a+b*x);d+=S.f==='pois'?2*((y>0?y*Math.log(y/m):0)-(y-m)):S.f==='bern'?-2*(y*Math.log(Math.max(m,1e-12))+(1-y)*Math.log(Math.max(1-m,1e-12))):(y-m)**2}return d};
-  const work=()=>{Z=[];W=[];const C=CFG[S.f];for(const[x,y]of D){const e=a+b*x,m=C.inv(e),dm=S.f==='pois'?m:S.f==='bern'?Math.max(m*(1-m),1e-9):1;Z.push(e+(y-m)/dm);W.push(dm)}};
-  const reset=()=>{const C=CFG[S.f],n=D.length;let my=0,mx=0;for(const d of D){mx+=d[0]/n;my+=d[1]/n}my=S.f==='bern'?clamp(my,.02,.98):Math.max(my,.05);a=C.lnk(my);b=0;it=0;fin=false;dev=dev0=devOf(a,b);let sxx=0,sxy=0;for(const d of D){sxx+=(d[0]-mx)**2;sxy+=(d[0]-mx)*(d[1]-my)}ols=[my-sxy/sxx*mx,sxy/sxx];work();cu=0;msg='Start: a flat model that predicts the average, '+f2(my)+', everywhere. Press One refit.';eqShow(eq,['No refits yet. The model is flat at the average of the data.'],0)};
-  const step=()=>{if(fin)return;work();let sw=0,sx=0,sz=0,sxx=0,sxz=0;D.forEach(([x],i)=>{const w=W[i];sw+=w;sx+=w*x;sz+=w*Z[i];sxx+=w*x*x;sxz+=w*x*Z[i]});const den=sw*sxx-sx*sx,nb=(sw*sxz-sx*sz)/den,na=(sz-nb*sx)/sw,d1=devOf(na,nb),k=D.reduce((m,d,i)=>W[i]>W[m]?i:m,0);it++;
-   eqShow(eq,['Refit '+it+'. Current line on the link scale: η = '+f3(a)+' + '+f3(b)+' × x','Example, the point with the most weight: x = '+f2(D[k][0])+', y = '+f2(D[k][1])+', fitted mean '+f2(CFG[S.f].inv(a+b*D[k][0]))+' → working value z = '+f3(Z[k])+', weight '+f3(W[k]),'Weighted straight line through all '+D.length+' working values:','new intercept = <b>'+f3(na)+'</b>, new slope = <b>'+f3(nb)+'</b>','deviance: '+f3(dev)+' → <b>'+f3(d1)+'</b>'],0);
-   const gain=dev-d1;a=na;b=nb;dev=d1;work();cu=3;msg='Refit '+it+': the deviance fell by '+(gain<1e-3?gain.toExponential(1):f3(gain))+' to '+f3(dev)+'.';if(Math.abs(gain)<1e-8||it>=50){fin=true;cu=5;msg='Stopped after '+it+' refit'+(it===1?'':'s')+': the fit has stopped changing. '+(S.f==='gaus'?'With Gaussian data the first refit is already ordinary least squares, and the second only confirms it.':'Deviance '+f2(dev)+', against '+f2(dev0)+' for the flat model.')}};
-  const tp=testPoint(root,'gl',['Your x'],[CFG.pois.tp],[[0,40]]);
-  const draw=()=>{const t=T(),C=CFG[S.f];{const{g,w,h}=fit(c),P=plot(g,w,h,C.xr,C.yr,t,{xstep:C.xs,xlabel:C.xl,yticks:S.f==='bern'?[0,.5,1]:[0,20,40,60]});clipPlot(g,P);g.strokeStyle=t.muted;g.lineWidth=1.5;g.setLineDash([6,5]);curve(g,P,x=>ols[0]+ols[1]*x,C.xr[0],C.xr[1]);g.stroke();g.setLineDash([]);
-    if(S.f==='pois'){g.fillStyle=mix(t.accent,t.accent,0,.13);g.beginPath();for(let i=0;i<=80;i++){const x=C.xr[0]+(C.xr[1]-C.xr[0])*i/80,m=C.inv(a+b*x);g.lineTo(P.X(x),P.Y(m+2*Math.sqrt(m)))}for(let i=80;i>=0;i--){const x=C.xr[0]+(C.xr[1]-C.xr[0])*i/80,m=C.inv(a+b*x);g.lineTo(P.X(x),P.Y(Math.max(0,m-2*Math.sqrt(m))))}g.fill()}
-    for(const[x,y]of D)dotAt(g,P.X(x),P.Y(y),3.5,mix(t.ink,t.ink,0,.6));g.strokeStyle=t.accent;g.lineWidth=2.8;curve(g,P,x=>C.inv(a+b*x),C.xr[0],C.xr[1]);g.stroke();const xv=clamp(tp.v[0],C.xr[0],C.xr[1]),pm=C.inv(a+b*xv);markTP(g,P.X(xv),P.Y(pm),t,false);g.restore();g.font=MONO;g.fillStyle=t.muted;g.textAlign='left';g.fillText(C.yl,P.m.l+6,P.m.t+8);
-    tp.out.textContent='At x = '+f2(xv)+' the model predicts '+(S.f==='bern'?'a '+pct(pm)+' chance of passing':S.f==='pois'?f2(pm)+' ice creams on average, usually between '+Math.max(0,Math.round(pm-2*Math.sqrt(pm)))+' and '+Math.round(pm+2*Math.sqrt(pm)):f2(pm)+' cm')+'. The dashed straight line says '+f2(ols[0]+ols[1]*xv)+'.'}
-   {const{g,w,h}=fit(cr),zs=Z.filter(isFinite),lo=Math.min(...zs,C.lnk(S.f==='bern'?.02:.5)),hi=Math.max(...zs),pad=.08*(hi-lo+1e-9),P=plot(g,w,h,C.xr,[lo-pad,hi+pad],t,{xstep:C.xs,xlabel:C.xl});clipPlot(g,P);const wm=Math.max(...W);D.forEach(([x],i)=>dotAt(g,P.X(x),P.Y(Z[i]),1.5+5*Math.sqrt(W[i]/wm),mix(t.gold,t.gold,0,.6)));g.strokeStyle=t.accent;g.lineWidth=2.6;curve(g,P,x=>a+b*x,C.xr[0],C.xr[1],2);g.stroke();g.restore();g.font=MONO;g.fillStyle=t.muted;g.textAlign='left';g.fillText(S.f==='pois'?'log of the expected count':S.f==='bern'?'log-odds of passing':'height (the link changes nothing)',P.m.l+6,P.m.t+8)}
-   let bad=0;for(const[x]of D){const v=ols[0]+ols[1]*x;if(S.f==='pois'&&v<0||S.f==='bern'&&(v<0||v>1))bad++}const lo=ols[0]+ols[1]*C.xr[0],hi=ols[0]+ols[1]*C.xr[1];
-   live.textContent=msg;uCur(root,'gl',cu);setR(root,'it',it+(fin?' (stopped)':''));setR(root,'ab',f3(a)+' and '+f3(b));setR(root,'dev',f2(dev));setR(root,'dev0',f2(dev0));setR(root,'mean',S.f==='pois'?'multiplies the expected count by '+f3(Math.exp(b)):S.f==='bern'?'multiplies the odds of passing by '+f2(Math.exp(b)):'adds '+f2(b)+' cm');
-   setR(root,'bad',S.f==='gaus'?'none: a straight line is the right model here':S.f==='pois'?(lo<0?'below zero at the cold end ('+f2(lo)+' at '+C.xr[0]+' °C)':'none on this range'):(lo<0||hi>1?'outside 0 to 1 ('+f2(lo)+' at 0 hours, '+f2(hi)+' at 10 hours)':'none on this range'))};
-  tp.on=()=>draw();gen();reset();if(RM){while(!fin)step()}
-  let fr=0;const anim=Anim(()=>{if(fin){pb.stop();return}if(++fr%45)return;step();draw();chk()});pb=playBtn($('#gl-play',root),anim);chk=runCtl(pb,root,'gl',{done:()=>fin,restart:reset,count:()=>it,what:'refits'});
-  $('#gl-step',root).onclick=()=>{pb.stop();if(fin)reset();else step();draw()};$('#gl-reset',root).onclick=()=>{pb.stop();reset();draw()};$('#gl-new',root).onclick=()=>{pb.stop();seed++;gen();reset();draw();fr=20;pb.start()};
-  bind(root,'gl-n',v=>{S.n=v;pb.stop();gen();reset();draw()},v=>String(+v));segBind(root,'gl-f',S.f,v=>{S.f=v;pb.stop();tp.set([CFG[v].tp]);gen();reset();draw();fr=20;pb.start()});
-  xyUp(root,'gl',q=>{const st=$('#gl-st',root),C=CFG[S.f];if(S.f==='bern'&&q.some(d=>d[1]!==0&&d[1]!==1)){st.textContent='For yes-or-no data the second column must contain only 0 and 1. Choose another kind of data or another file.';return}if(S.f==='pois'&&q.some(d=>d[1]<0||d[1]!==Math.round(d[1]))){st.textContent='For counts the second column must contain whole numbers of zero or more. Choose another kind of data or another file.';return}
-   const x0=Math.min(...q.map(d=>d[0])),x1=Math.max(...q.map(d=>d[0])),y1=Math.max(...q.map(d=>d[1]));D=q.map(d=>[C.xr[0]+(d[0]-x0)/((x1-x0)||1)*(C.xr[1]-C.xr[0]),S.f==='bern'?d[1]:S.f==='pois'&&y1<=60?d[1]:d[1]/((y1)||1)*55]);if(S.f==='pois')D=D.map(d=>[d[0],Math.round(d[1])]);st.textContent+=' The x column was rescaled to the axis shown.';pb.stop();reset();draw()},false);
-  return{draw,stop:()=>pb.stop(),auto:()=>{reset();draw();fr=20;pb.start()}}}}
-);
-REG.push(
-{id:'robust-regression',tab:'Robust regression',title:'Robust regression: do not let one bad point steer the line',
- lede:'Least squares punishes a miss by its square, so a single wild measurement, ten times further off than the rest, pulls a hundred times harder. One typing error can tilt the whole line. Robust regression changes the punishment so that points far from the crowd count for less, or for nothing. Drag a point away from the others and watch which line follows it.',
- stage:`<div class="row seg" id="rr-d" role="group" aria-label="Data"><button class="btn" type="button" data-v="one">One Wild Point</button><button class="btn" type="button" data-v="few">A Few Bad Readings</button><button class="btn" type="button" data-v="many">A Third of the Data Is Wrong</button><button class="btn" type="button" data-v="clean">Clean Data</button></div>
+  q: 'On Ice Creams Sold, why does the fit give more weight to hot days than to cold days, when a least-squares line would treat them all the same?',
+  a: 'For a Poisson count the variance equals the mean, and with a log link the weight of a point works out to be its fitted mean. On the link scale a hot day with 40 sales has a working value known to within about 1 part in √40, while a cold day with 2 sales could just as easily have been 0 or 5, which is a huge difference in logarithms. The hot days pin down the line more firmly on the log scale, so they are trusted more. Least squares on the raw counts makes the opposite mistake in another way: it assumes the scatter is the same everywhere.',
+  init(root) {
+    const c = $('#gl-c', root),
+      cr = $('#gl-r', root),
+      live = $('#gl-live', root),
+      eq = $('#gl-eq', root),
+      S = { f: 'pois', n: 40 },
+      CFG = {
+        pois: {
+          xr: [8, 36],
+          yr: [0, 60],
+          xl: 'temperature, °C',
+          yl: 'ice creams sold',
+          xs: 4,
+          tp: 28,
+          inv: (e) => Math.exp(e),
+          lnk: (m) => Math.log(m),
+        },
+        bern: {
+          xr: [0, 10],
+          yr: [-0.15, 1.15],
+          xl: 'hours studied',
+          yl: 'passed (1) or failed (0)',
+          xs: 2,
+          tp: 6,
+          inv: (e) => 1 / (1 + Math.exp(-e)),
+          lnk: (m) => Math.log(m / (1 - m)),
+        },
+        gaus: {
+          xr: [0, 10],
+          yr: [0, 60],
+          xl: 'fertilizer, grams',
+          yl: 'height, cm',
+          xs: 2,
+          tp: 5,
+          inv: (e) => e,
+          lnk: (m) => m,
+        },
+      };
+    let D = [],
+      a = 0,
+      b = 0,
+      it = 0,
+      fin = false,
+      dev = NaN,
+      dev0 = NaN,
+      msg = '',
+      cu = 0,
+      seed = 1,
+      pb,
+      chk = () => false,
+      ols = [0, 0],
+      Z = [],
+      W = [],
+      up = false;
+    const pois = (lam, r) => {
+      let L = Math.exp(-lam),
+        k = 0,
+        p = 1;
+      do {
+        k++;
+        p *= r();
+      } while (p > L);
+      return k - 1;
+    };
+    const gen = () => {
+      const r = rng(seed * 31 + 7),
+        rn = randnFrom(r),
+        C = CFG[S.f];
+      D = [];
+      up = false;
+      for (let i = 0; i < S.n; i++) {
+        const x = C.xr[0] + (C.xr[1] - C.xr[0]) * (0.03 + 0.94 * r());
+        D.push([
+          x,
+          S.f === 'pois'
+            ? pois(Math.exp(-1.1 + 0.135 * x), r)
+            : S.f === 'bern'
+              ? r() < 1 / (1 + Math.exp(-(-4.2 + 0.85 * x)))
+                ? 1
+                : 0
+              : Math.max(0, 8 + 4.2 * x + 5 * rn()),
+        ]);
+      }
+    };
+    const devOf = (a, b) => {
+      const C = CFG[S.f];
+      let d = 0;
+      for (const [x, y] of D) {
+        const m = C.inv(a + b * x);
+        d +=
+          S.f === 'pois'
+            ? 2 * ((y > 0 ? y * Math.log(y / m) : 0) - (y - m))
+            : S.f === 'bern'
+              ? -2 * (y * Math.log(Math.max(m, 1e-12)) + (1 - y) * Math.log(Math.max(1 - m, 1e-12)))
+              : (y - m) ** 2;
+      }
+      return d;
+    };
+    const work = () => {
+      Z = [];
+      W = [];
+      const C = CFG[S.f];
+      for (const [x, y] of D) {
+        const e = a + b * x,
+          m = C.inv(e),
+          dm = S.f === 'pois' ? m : S.f === 'bern' ? Math.max(m * (1 - m), 1e-9) : 1;
+        Z.push(e + (y - m) / dm);
+        W.push(dm);
+      }
+    };
+    const reset = () => {
+      const C = CFG[S.f],
+        n = D.length;
+      let my = 0,
+        mx = 0;
+      for (const d of D) {
+        mx += d[0] / n;
+        my += d[1] / n;
+      }
+      my = S.f === 'bern' ? clamp(my, 0.02, 0.98) : Math.max(my, 0.05);
+      a = C.lnk(my);
+      b = 0;
+      it = 0;
+      fin = false;
+      dev = dev0 = devOf(a, b);
+      let sxx = 0,
+        sxy = 0;
+      for (const d of D) {
+        sxx += (d[0] - mx) ** 2;
+        sxy += (d[0] - mx) * (d[1] - my);
+      }
+      ols = [my - (sxy / sxx) * mx, sxy / sxx];
+      work();
+      cu = 0;
+      msg =
+        'Start: a flat model that predicts the average, ' +
+        f2(my) +
+        ', everywhere. Press One refit.';
+      eqShow(eq, ['No refits yet. The model is flat at the average of the data.'], 0);
+    };
+    const step = () => {
+      if (fin) return;
+      work();
+      let sw = 0,
+        sx = 0,
+        sz = 0,
+        sxx = 0,
+        sxz = 0;
+      D.forEach(([x], i) => {
+        const w = W[i];
+        sw += w;
+        sx += w * x;
+        sz += w * Z[i];
+        sxx += w * x * x;
+        sxz += w * x * Z[i];
+      });
+      const den = sw * sxx - sx * sx,
+        nb = (sw * sxz - sx * sz) / den,
+        na = (sz - nb * sx) / sw,
+        d1 = devOf(na, nb),
+        k = D.reduce((m, d, i) => (W[i] > W[m] ? i : m), 0);
+      it++;
+      eqShow(
+        eq,
+        [
+          'Refit ' + it + '. Current line on the link scale: η = ' + f3(a) + ' + ' + f3(b) + ' × x',
+          'Example, the point with the most weight: x = ' +
+            f2(D[k][0]) +
+            ', y = ' +
+            f2(D[k][1]) +
+            ', fitted mean ' +
+            f2(CFG[S.f].inv(a + b * D[k][0])) +
+            ' → working value z = ' +
+            f3(Z[k]) +
+            ', weight ' +
+            f3(W[k]),
+          'Weighted straight line through all ' + D.length + ' working values:',
+          'new intercept = <b>' + f3(na) + '</b>, new slope = <b>' + f3(nb) + '</b>',
+          'deviance: ' + f3(dev) + ' → <b>' + f3(d1) + '</b>',
+        ],
+        0,
+      );
+      const gain = dev - d1;
+      a = na;
+      b = nb;
+      dev = d1;
+      work();
+      cu = 3;
+      msg =
+        'Refit ' +
+        it +
+        ': the deviance fell by ' +
+        (gain < 1e-3 ? gain.toExponential(1) : f3(gain)) +
+        ' to ' +
+        f3(dev) +
+        '.';
+      if (Math.abs(gain) < 1e-8 || it >= 50) {
+        fin = true;
+        cu = 5;
+        msg =
+          'Stopped after ' +
+          it +
+          ' refit' +
+          (it === 1 ? '' : 's') +
+          ': the fit has stopped changing. ' +
+          (S.f === 'gaus'
+            ? 'With Gaussian data the first refit is already ordinary least squares, and the second only confirms it.'
+            : 'Deviance ' + f2(dev) + ', against ' + f2(dev0) + ' for the flat model.');
+      }
+    };
+    const tp = testPoint(root, 'gl', ['Your x'], [CFG.pois.tp], [[0, 40]]);
+    const draw = () => {
+      const t = T(),
+        C = CFG[S.f];
+      {
+        const { g, w, h } = fit(c),
+          P = plot(g, w, h, C.xr, C.yr, t, {
+            xstep: C.xs,
+            xlabel: C.xl,
+            yticks: S.f === 'bern' ? [0, 0.5, 1] : [0, 20, 40, 60],
+          });
+        clipPlot(g, P);
+        g.strokeStyle = t.muted;
+        g.lineWidth = 1.5;
+        g.setLineDash([6, 5]);
+        curve(g, P, (x) => ols[0] + ols[1] * x, C.xr[0], C.xr[1]);
+        g.stroke();
+        g.setLineDash([]);
+        if (S.f === 'pois') {
+          g.fillStyle = mix(t.accent, t.accent, 0, 0.13);
+          g.beginPath();
+          for (let i = 0; i <= 80; i++) {
+            const x = C.xr[0] + ((C.xr[1] - C.xr[0]) * i) / 80,
+              m = C.inv(a + b * x);
+            g.lineTo(P.X(x), P.Y(m + 2 * Math.sqrt(m)));
+          }
+          for (let i = 80; i >= 0; i--) {
+            const x = C.xr[0] + ((C.xr[1] - C.xr[0]) * i) / 80,
+              m = C.inv(a + b * x);
+            g.lineTo(P.X(x), P.Y(Math.max(0, m - 2 * Math.sqrt(m))));
+          }
+          g.fill();
+        }
+        for (const [x, y] of D) dotAt(g, P.X(x), P.Y(y), 3.5, mix(t.ink, t.ink, 0, 0.6));
+        g.strokeStyle = t.accent;
+        g.lineWidth = 2.8;
+        curve(g, P, (x) => C.inv(a + b * x), C.xr[0], C.xr[1]);
+        g.stroke();
+        const xv = clamp(tp.v[0], C.xr[0], C.xr[1]),
+          pm = C.inv(a + b * xv);
+        markTP(g, P.X(xv), P.Y(pm), t, false);
+        g.restore();
+        g.font = MONO;
+        g.fillStyle = t.muted;
+        g.textAlign = 'left';
+        g.fillText(C.yl, P.m.l + 6, P.m.t + 8);
+        tp.out.textContent =
+          'At x = ' +
+          f2(xv) +
+          ' the model predicts ' +
+          (S.f === 'bern'
+            ? 'a ' + pct(pm) + ' chance of passing'
+            : S.f === 'pois'
+              ? f2(pm) +
+                ' ice creams on average, usually between ' +
+                Math.max(0, Math.round(pm - 2 * Math.sqrt(pm))) +
+                ' and ' +
+                Math.round(pm + 2 * Math.sqrt(pm))
+              : f2(pm) + ' cm') +
+          '. The dashed straight line says ' +
+          f2(ols[0] + ols[1] * xv) +
+          '.';
+      }
+      {
+        const { g, w, h } = fit(cr),
+          zs = Z.filter(isFinite),
+          lo = Math.min(...zs, C.lnk(S.f === 'bern' ? 0.02 : 0.5)),
+          hi = Math.max(...zs),
+          pad = 0.08 * (hi - lo + 1e-9),
+          P = plot(g, w, h, C.xr, [lo - pad, hi + pad], t, { xstep: C.xs, xlabel: C.xl });
+        clipPlot(g, P);
+        const wm = Math.max(...W);
+        D.forEach(([x], i) =>
+          dotAt(g, P.X(x), P.Y(Z[i]), 1.5 + 5 * Math.sqrt(W[i] / wm), mix(t.gold, t.gold, 0, 0.6)),
+        );
+        g.strokeStyle = t.accent;
+        g.lineWidth = 2.6;
+        curve(g, P, (x) => a + b * x, C.xr[0], C.xr[1], 2);
+        g.stroke();
+        g.restore();
+        g.font = MONO;
+        g.fillStyle = t.muted;
+        g.textAlign = 'left';
+        g.fillText(
+          S.f === 'pois'
+            ? 'log of the expected count'
+            : S.f === 'bern'
+              ? 'log-odds of passing'
+              : 'height (the link changes nothing)',
+          P.m.l + 6,
+          P.m.t + 8,
+        );
+      }
+      let bad = 0;
+      for (const [x] of D) {
+        const v = ols[0] + ols[1] * x;
+        if ((S.f === 'pois' && v < 0) || (S.f === 'bern' && (v < 0 || v > 1))) bad++;
+      }
+      const lo = ols[0] + ols[1] * C.xr[0],
+        hi = ols[0] + ols[1] * C.xr[1];
+      live.textContent = msg;
+      uCur(root, 'gl', cu);
+      setR(root, 'it', it + (fin ? ' (stopped)' : ''));
+      setR(root, 'ab', f3(a) + ' and ' + f3(b));
+      setR(root, 'dev', f2(dev));
+      setR(root, 'dev0', f2(dev0));
+      setR(
+        root,
+        'mean',
+        S.f === 'pois'
+          ? 'multiplies the expected count by ' + f3(Math.exp(b))
+          : S.f === 'bern'
+            ? 'multiplies the odds of passing by ' + f2(Math.exp(b))
+            : 'adds ' + f2(b) + ' cm',
+      );
+      setR(
+        root,
+        'bad',
+        S.f === 'gaus'
+          ? 'none: a straight line is the right model here'
+          : S.f === 'pois'
+            ? lo < 0
+              ? 'below zero at the cold end (' + f2(lo) + ' at ' + C.xr[0] + ' °C)'
+              : 'none on this range'
+            : lo < 0 || hi > 1
+              ? 'outside 0 to 1 (' + f2(lo) + ' at 0 hours, ' + f2(hi) + ' at 10 hours)'
+              : 'none on this range',
+      );
+    };
+    tp.on = () => draw();
+    gen();
+    reset();
+    if (RM) {
+      while (!fin) step();
+    }
+    let fr = 0;
+    const anim = Anim(() => {
+      if (fin) {
+        pb.stop();
+        return;
+      }
+      if (++fr % 45) return;
+      step();
+      draw();
+      chk();
+    });
+    pb = playBtn($('#gl-play', root), anim);
+    chk = runCtl(pb, root, 'gl', {
+      done: () => fin,
+      restart: reset,
+      count: () => it,
+      what: 'refits',
+    });
+    $('#gl-step', root).onclick = () => {
+      pb.stop();
+      if (fin) reset();
+      else step();
+      draw();
+    };
+    $('#gl-reset', root).onclick = () => {
+      pb.stop();
+      reset();
+      draw();
+    };
+    $('#gl-new', root).onclick = () => {
+      pb.stop();
+      seed++;
+      gen();
+      reset();
+      draw();
+      fr = 20;
+      pb.start();
+    };
+    bind(
+      root,
+      'gl-n',
+      (v) => {
+        S.n = v;
+        pb.stop();
+        gen();
+        reset();
+        draw();
+      },
+      (v) => String(+v),
+    );
+    segBind(root, 'gl-f', S.f, (v) => {
+      S.f = v;
+      pb.stop();
+      tp.set([CFG[v].tp]);
+      gen();
+      reset();
+      draw();
+      fr = 20;
+      pb.start();
+    });
+    xyUp(
+      root,
+      'gl',
+      (q) => {
+        const st = $('#gl-st', root),
+          C = CFG[S.f];
+        if (S.f === 'bern' && q.some((d) => d[1] !== 0 && d[1] !== 1)) {
+          st.textContent =
+            'For yes-or-no data the second column must contain only 0 and 1. Choose another kind of data or another file.';
+          return;
+        }
+        if (S.f === 'pois' && q.some((d) => d[1] < 0 || d[1] !== Math.round(d[1]))) {
+          st.textContent =
+            'For counts the second column must contain whole numbers of zero or more. Choose another kind of data or another file.';
+          return;
+        }
+        const x0 = Math.min(...q.map((d) => d[0])),
+          x1 = Math.max(...q.map((d) => d[0])),
+          y1 = Math.max(...q.map((d) => d[1]));
+        D = q.map((d) => [
+          C.xr[0] + ((d[0] - x0) / (x1 - x0 || 1)) * (C.xr[1] - C.xr[0]),
+          S.f === 'bern' ? d[1] : S.f === 'pois' && y1 <= 60 ? d[1] : (d[1] / (y1 || 1)) * 55,
+        ]);
+        if (S.f === 'pois') D = D.map((d) => [d[0], Math.round(d[1])]);
+        st.textContent += ' The x column was rescaled to the axis shown.';
+        pb.stop();
+        reset();
+        draw();
+      },
+      false,
+    );
+    return {
+      draw,
+      stop: () => pb.stop(),
+      auto: () => {
+        reset();
+        draw();
+        fr = 20;
+        pb.start();
+      },
+    };
+  },
+});
+REG.push({
+  id: 'robust-regression',
+  tab: 'Robust regression',
+  title: 'Robust regression: do not let one bad point steer the line',
+  lede: 'Least squares punishes a miss by its square, so a single wild measurement, ten times further off than the rest, pulls a hundred times harder. One typing error can tilt the whole line. Robust regression changes the punishment so that points far from the crowd count for less, or for nothing. Drag a point away from the others and watch which line follows it.',
+  stage: `<div class="row seg" id="rr-d" role="group" aria-label="Data"><button class="btn" type="button" data-v="one">One Wild Point</button><button class="btn" type="button" data-v="few">A Few Bad Readings</button><button class="btn" type="button" data-v="many">A Third of the Data Is Wrong</button><button class="btn" type="button" data-v="clean">Clean Data</button></div>
  <div class="stage"><figure class="fig"><figcaption>Dashed: least squares. Solid: the robust line. Thin grey: the line that generated the good data. Each dot is drawn as large as the weight the robust fit currently gives it. Drag any dot; click empty space to add one</figcaption><canvas class="short" id="rr-c" role="img" aria-label="Data with least squares and robust lines"></canvas></figure>
  <figure class="fig"><figcaption>Top: the penalty for a miss of a given size, least squares (dashed) and the robust choice (solid). Bottom: the weight a point receives against the size of its miss. Dots: the data points at their current misses</figcaption><canvas class="short" id="rr-r" role="img" aria-label="Loss and weight functions"></canvas></figure></div>
- ${uHow('rr',['Start from a first line and measure every point’s miss (its residual).','Estimate the typical size of a miss from the middle of the data, ignoring the extremes.','Give each point a weight: 1 if its miss is ordinary, less if it is large.','Refit the line by weighted least squares.','The misses have changed, so recompute the weights and refit.','Stop when the line no longer moves.'])}
- <div class="controls">${uBtns('rr','Run','One refit','refits')}
- ${grp('The penalty',`<div class="row seg" id="rr-m" role="group" aria-label="Method"><button class="btn" type="button" data-v="huber">Huber</button><button class="btn" type="button" data-v="tukey">Tukey</button><button class="btn" type="button" data-v="l1">Absolute Value</button></div>`+slider('rr-k','Cut-off, in typical-miss units',.5,6,.05,1.35)+`<div class="row seg" id="rr-s" role="group" aria-label="First line" style="margin-top:6px"><button class="btn" type="button" data-v="ols">Start from Least Squares</button><button class="btn" type="button" data-v="lms">Start from a Search over Pairs of Points</button></div>`)}
- ${grp('Data',`<div class="row"><button class="btn" id="rr-new" type="button">New data</button></div>`+upHTML('rr'))}</div>
- <dl class="read">${rd('it','Refits so far')}${rd('tr','True line: intercept, slope')}${rd('ls','Least squares','hl2')}${rd('rb','Robust','hl')}${rd('sc','Typical miss (robust scale)')}${rd('dn','Points with weight below one half')}</dl>`,
- tryit:'On One Wild Point, press One refit a few times and watch the wild dot shrink as its weight falls. Then drag it further away, and then towards the far right end. Which line follows it? Choose A Third of the Data Is Wrong with Huber: does the robust line get anywhere near the grey one? Switch to Tukey. Still no. Now switch the first line to Start from a Search over Pairs of Points and run Tukey again. Then try Huber from that same start. Why does the starting line matter for Tukey and not for Huber? Finally choose Clean Data: how much do you lose by being robust when nothing is wrong?',
- math:String.raw`<h4>Intuition</h4><p>Ask twenty people to estimate the length of a table, and suppose one of them answers in inches while the rest answer in centimetres. The average of the twenty answers is ruined. The median is fine. Least squares is the average: it listens to everyone in proportion to how loudly they disagree. Robust regression behaves more like the median. It forms a first opinion, notices who is far from it, and turns their volume down before asking again.</p>
+ ${uHow('rr', ['Start from a first line and measure every point’s miss (its residual).', 'Estimate the typical size of a miss from the middle of the data, ignoring the extremes.', 'Give each point a weight: 1 if its miss is ordinary, less if it is large.', 'Refit the line by weighted least squares.', 'The misses have changed, so recompute the weights and refit.', 'Stop when the line no longer moves.'])}
+ <div class="controls">${uBtns('rr', 'Run', 'One refit', 'refits')}
+ ${grp('The penalty', `<div class="row seg" id="rr-m" role="group" aria-label="Method"><button class="btn" type="button" data-v="huber">Huber</button><button class="btn" type="button" data-v="tukey">Tukey</button><button class="btn" type="button" data-v="l1">Absolute Value</button></div>` + slider('rr-k', 'Cut-off, in typical-miss units', 0.5, 6, 0.05, 1.35) + `<div class="row seg" id="rr-s" role="group" aria-label="First line" style="margin-top:6px"><button class="btn" type="button" data-v="ols">Start from Least Squares</button><button class="btn" type="button" data-v="lms">Start from a Search over Pairs of Points</button></div>`)}
+ ${grp('Data', `<div class="row"><button class="btn" id="rr-new" type="button">New data</button></div>` + upHTML('rr'))}</div>
+ <dl class="read">${rd('it', 'Refits so far')}${rd('tr', 'True line: intercept, slope')}${rd('ls', 'Least squares', 'hl2')}${rd('rb', 'Robust', 'hl')}${rd('sc', 'Typical miss (robust scale)')}${rd('dn', 'Points with weight below one half')}</dl>`,
+  tryit:
+    'On One Wild Point, press One refit a few times and watch the wild dot shrink as its weight falls. Then drag it further away, and then towards the far right end. Which line follows it? Choose A Third of the Data Is Wrong with Huber: does the robust line get anywhere near the grey one? Switch to Tukey. Still no. Now switch the first line to Start from a Search over Pairs of Points and run Tukey again. Then try Huber from that same start. Why does the starting line matter for Tukey and not for Huber? Finally choose Clean Data: how much do you lose by being robust when nothing is wrong?',
+  math: String.raw`<h4>Intuition</h4><p>Ask twenty people to estimate the length of a table, and suppose one of them answers in inches while the rest answer in centimetres. The average of the twenty answers is ruined. The median is fine. Least squares is the average: it listens to everyone in proportion to how loudly they disagree. Robust regression behaves more like the median. It forms a first opinion, notices who is far from it, and turns their volume down before asking again.</p>
  <h4>From squared error to a gentler penalty</h4><p>Least squares minimizes \(\sum_i r_i^2\) with \(r_i=y_i-a-b\,x_i\). An M-estimator replaces the square with a function \(\rho\) that grows more slowly for large misses:</p>$$\min_{a,b}\ \sum_i\rho\!\Big(\frac{r_i}{s}\Big),$$<p>where \(s\) is a robust estimate of the typical miss. This page uses the median absolute deviation, \(s=\operatorname{median}\lvert r_i-\operatorname{median}(r)\rvert/0.6745\), which half of the data can be wrong about without spoiling it.</p>
  <h4>Three penalties</h4>$$\rho_{\text{Huber}}(u)=\begin{cases}\tfrac12u^2&\lvert u\rvert\le k\\k\lvert u\rvert-\tfrac12k^2&\lvert u\rvert>k\end{cases}\qquad\rho_{\text{Tukey}}(u)=\begin{cases}\tfrac{c^2}{6}\Big[1-\big(1-\tfrac{u^2}{c^2}\big)^3\Big]&\lvert u\rvert\le c\\\tfrac{c^2}{6}&\lvert u\rvert>c\end{cases}\qquad\rho_{\text{abs}}(u)=\lvert u\rvert.$$<p>Huber's penalty (1964) is a square near zero and a straight line beyond the cut-off, so large misses still pull, but with a constant force. Tukey's levels off completely: beyond the cut-off a point exerts no pull at all. The absolute value pulls every point with the same force however far away it is, which is what makes the median robust.</p>
  <h4>Iteratively reweighted least squares</h4><p>Setting the derivative to zero gives a weighted least-squares problem with weights that depend on the residuals:</p>$$w_i=\frac{\rho'(u_i)}{u_i},\qquad w^{\text{Huber}}_i=\min\!\Big(1,\frac{k}{\lvert u_i\rvert}\Big),\qquad w^{\text{Tukey}}_i=\Big(1-\frac{u_i^2}{c^2}\Big)^2\ \text{for }\lvert u_i\rvert<c,\ \text{else }0.$$<p>Fix the weights, solve, recompute the weights, repeat. The run stops when intercept and slope both change by less than \(10^{-5}\).</p>
  <h4>What can go wrong</h4><p>Huber's penalty is convex: there is one best line and the iteration finds it from any start. But its pull never drops to zero. When many points are bad, and above all when they sit together at one end of the data, the line is dragged almost as far as the least-squares line. Tukey's penalty ignores far points completely, which copes with much more contamination. The price is that it is not convex. There can be several lines that each look best to the points they have not discarded, and the answer depends on the first line. Started from least squares, which the outliers have already tilted, it may throw away the good points instead of the bad ones. Practical software starts from a very robust first fit. The one offered here tries the line through every pair of data points and keeps the one whose median miss is smallest (least median of squares): a line that half of the data can be wrong about.</p>
  <h4>Leverage</h4><p>A point that is wrong in \(y\) near the middle of the data is easy to detect. A point far out along the \(x\)-axis has <b>leverage</b>: the line pivots towards it, so its own residual stays small and it keeps a high weight. Reweighting by residuals gives only limited protection against such points.</p>
  <h4>The cost of caution</h4><p>On clean Gaussian data least squares is the best possible estimator. Huber with \(k=1.345\) and Tukey with \(c=4.685\) are chosen to keep 95% of that efficiency: a 5% insurance premium against bad data.</p>`,
- q:'With a third of the data wrong, Tukey started from least squares settles on a poor line, while the same method started from the search over pairs finds the grey line. Nothing else changed. Why?',a:'Tukey’s penalty gives zero weight to any point further than the cut-off from the current line. Least squares has been pulled towards the bad third, so measured from that tilted line the residuals are large everywhere and the robust scale is inflated; the reweighting then has no clear group to discard and can lock on to a compromise. The line found by the search over pairs passes through the good two-thirds, so measured from there the bad third is clearly far away, gets zero weight at once, and the fit is finished using only good points. A penalty that can ignore points entirely has more than one self-consistent answer, and the first line decides which one you reach.',
- init(root){const c=$('#rr-c',root),cr=$('#rr-r',root),live=$('#rr-live',root),S={d:'one',m:'huber',k:1.35,s:'ols'},TR=[.3,.55];
-  let D=[],W=[],a=0,b=0,ols=[0,0],sc=1,it=0,fin=false,msg='',cu=0,seed=1,pb,chk=()=>false,V=null,drag=-1,kB;
-  const gen=()=>{const r=rng(seed*13+S.d.length),rn=randnFrom(r);D=[];for(let i=0;i<30;i++){const x=-3.4+6.8*(i+.5)/30+.1*rn();D.push([x,TR[0]+TR[1]*x+.3*rn()])}
-   if(S.d==='one')D[27][1]=-2.6;else if(S.d==='few')for(const i of[3,12,24,28])D[i][1]+=(i>15?-3:3)*(.7+.5*r());else if(S.d==='many')for(let i=20;i<30;i++)D[i][1]=-1.6+.25*rn()};
-  const wls=w=>{let sw=0,sx=0,sy=0,sxx=0,sxy=0;D.forEach(([x,y],i)=>{sw+=w[i];sx+=w[i]*x;sy+=w[i]*y;sxx+=w[i]*x*x;sxy+=w[i]*x*y});const den=sw*sxx-sx*sx||1e-12,bb=(sw*sxy-sx*sy)/den;return[(sy-bb*sx)/sw,bb]};
-  const med=v=>{const s=v.slice().sort((p,q)=>p-q),n=s.length;return n%2?s[(n-1)/2]:(s[n/2-1]+s[n/2])/2};
-  const scale=()=>{const r=D.map(d=>d[1]-a-b*d[0]),m=med(r);return Math.max(1e-6,med(r.map(v=>Math.abs(v-m)))/.6745)};
-  const wOf=u=>{const au=Math.abs(u);return S.m==='huber'?Math.min(1,S.k/Math.max(au,1e-9)):S.m==='tukey'?(au<S.k?(1-u*u/(S.k*S.k))**2:0):1/Math.max(au,.05)};
-  const lmsfit=()=>{let best=wls(D.map(()=>1)),bm=1e9;const n=Math.min(D.length,60);for(let i=0;i<n;i++)for(let j=i+1;j<n;j++){if(Math.abs(D[j][0]-D[i][0])<1e-6)continue;const q=(D[j][1]-D[i][1])/(D[j][0]-D[i][0]),p=D[i][1]-q*D[i][0],m=med(D.map(d=>Math.abs(d[1]-p-q*d[0])));if(m<bm){bm=m;best=[p,q]}}return best};
-  const weights=()=>{sc=scale();W=D.map(d=>wOf((d[1]-a-b*d[0])/sc));if(S.m==='l1'){const m=Math.max(...W);W=W.map(v=>v/m)}};
-  const reset=()=>{ols=wls(D.map(()=>1));[a,b]=S.s==='ols'?ols:lmsfit();it=0;fin=false;weights();cu=0;msg='First line: '+(S.s==='ols'?'least squares':'the line through two data points that leaves the smallest median miss')+'. Every point has been given a weight from the size of its miss. Press One refit.'};
-  const step=()=>{if(fin)return;weights();if(W.reduce((s,v)=>s+v,0)<1e-9){fin=true;msg='Every point is beyond the cut-off, so nothing is left to fit. Raise the cut-off.';return}const[na,nb]=wls(W),da=Math.abs(na-a)+Math.abs(nb-b);a=na;b=nb;it++;weights();cu=3;const low=W.filter(v=>v<.5).length;msg='Refit '+it+': the line moved by '+(da<1e-3?da.toExponential(1):f3(da))+'.'+(S.m==='l1'?'':' '+low+' point'+(low===1?' has':'s have')+' weight below one half.');
-   if(da<1e-5||it>=200){fin=true;cu=5;msg='Stopped after '+it+' refits: the line has stopped moving. Robust slope '+f2(b)+', least-squares slope '+f2(ols[1])+', true slope '+f2(TR[1])+'. '+(Math.abs(b-TR[1])<Math.abs(ols[1]-TR[1])-.02?'The robust line is closer to the truth.':Math.abs(b-TR[1])>Math.abs(ols[1]-TR[1])+.02?'Here the robust line is further from the truth than least squares.':'The two lines are about equally close to the truth.')}};
-  const rho=u=>{const au=Math.abs(u);return S.m==='huber'?(au<=S.k?.5*u*u:S.k*au-.5*S.k*S.k):S.m==='tukey'?(au<=S.k?S.k*S.k/6*(1-(1-u*u/(S.k*S.k))**3):S.k*S.k/6):au};
-  const draw=()=>{const t=T();V=uView(c);const{g,w,h,X,Y}=V;uFrame(V,t,'x','y');const ln=(p,q)=>{g.beginPath();g.moveTo(X(-4),Y(p-4*q));g.lineTo(X(4),Y(p+4*q));g.stroke()};g.strokeStyle=t.muted;g.lineWidth=1;g.globalAlpha=.6;ln(TR[0],TR[1]);g.globalAlpha=1;g.strokeStyle=t.cut;g.lineWidth=2;g.setLineDash([7,5]);ln(ols[0],ols[1]);g.setLineDash([]);g.strokeStyle=t.accent;g.lineWidth=2.8;ln(a,b);
-   D.forEach((d,i)=>{const wv=W[i]||0;g.strokeStyle=mix(t.ink,t.ink,0,.25);g.lineWidth=1;g.beginPath();g.moveTo(X(d[0]),Y(d[1]));g.lineTo(X(d[0]),Y(a+b*d[0]));g.stroke();g.lineWidth=1.5;dotAt(g,X(d[0]),Y(d[1]),2+5*Math.sqrt(wv),mix(t.ink,t.cut,1-wv,.85),wv<.05?t.cut:null)});g2Note(g,t,h,'big dark dots are trusted; small amber dots have been turned down');
-   {const{g,w,h}=fit(cr),h1=h*.5,U=6,n=121,us=Array.from({length:n},(_,i)=>-U+2*U*i/(n-1)),rs=us.map(rho),ym=Math.min(8,Math.max(...rs)*1.1),A=uLine(g,t,0,0,w,h1,[],{title:'penalty against the size of the miss (in typical-miss units, −6 to 6)',n,ym,y1:0});g.save();g.beginPath();g.rect(0,0,w,h1-18);g.clip();g.strokeStyle=t.cut;g.lineWidth=1.6;g.setLineDash([6,4]);g.beginPath();us.forEach((u,i)=>i?g.lineTo(A.X(i),A.Y(.5*u*u)):g.moveTo(A.X(i),A.Y(.5*u*u)));g.stroke();g.setLineDash([]);g.strokeStyle=t.accent;g.lineWidth=2.4;g.beginPath();rs.forEach((v,i)=>i?g.lineTo(A.X(i),A.Y(v)):g.moveTo(A.X(i),A.Y(v)));g.stroke();g.restore();
-    const ws=us.map(u=>S.m==='l1'?Math.min(1,.25/Math.max(Math.abs(u),.01)):wOf(u)),B=uLine(g,t,0,h1,w,h-h1,[],{title:'weight against the size of the miss',n,ym:1.08,y1:0});g.strokeStyle=t.accent;g.lineWidth=2.4;g.beginPath();ws.forEach((v,i)=>i?g.lineTo(B.X(i),B.Y(v)):g.moveTo(B.X(i),B.Y(v)));g.stroke();
-    D.forEach((d,i)=>{const u=clamp((d[1]-a-b*d[0])/sc,-U,U),xi=(u+U)/(2*U)*(n-1);g.lineWidth=1;dotAt(g,B.X(xi),B.Y(S.m==='l1'?Math.min(1,.25/Math.max(Math.abs(u),.01)):wOf(u)),3.5,mix(t.gold,t.gold,0,.8),t.bg)})}
-   live.textContent=msg;uCur(root,'rr',cu);setR(root,'it',it+(fin?' (stopped)':''));setR(root,'tr',f2(TR[0])+', '+f2(TR[1]));setR(root,'ls',f2(ols[0])+', '+f2(ols[1]));setR(root,'rb',f2(a)+', '+f2(b));setR(root,'sc',f2(sc));setR(root,'dn',S.m==='l1'?'not meaningful for this penalty':W.filter(v=>v<.5).length+' of '+D.length)};
-  gen();reset();if(RM){while(!fin)step()}
-  let fr=0;const anim=Anim(()=>{if(fin){pb.stop();return}if(++fr%14)return;step();draw();chk()});pb=playBtn($('#rr-play',root),anim);chk=runCtl(pb,root,'rr',{done:()=>fin,restart:reset,count:()=>it,what:'refits'});
-  const go=()=>{pb.stop();reset();draw();fr=0;pb.start()};
-  $('#rr-step',root).onclick=()=>{pb.stop();if(fin)reset();else step();draw()};$('#rr-reset',root).onclick=()=>{pb.stop();gen();reset();draw()};$('#rr-new',root).onclick=()=>{seed++;gen();go()};
-  kB=bind(root,'rr-k',v=>{S.k=v;pb.stop();reset();draw()});segBind(root,'rr-d',S.d,v=>{S.d=v;gen();go()});segBind(root,'rr-m',S.m,v=>{S.m=v;S.k=v==='tukey'?4.69:1.35;kB.set(S.k);kB.el.disabled=v==='l1';go()});segBind(root,'rr-s',S.s,v=>{S.s=v;go()});
-  xyUp(root,'rr',q=>{D=q.slice(0,120);TR[0]=NaN;TR[1]=NaN;go()});
-  c.style.cursor='grab';c.style.touchAction='none';c.addEventListener('pointerdown',e=>{if(!V)return;const[x,y]=canvasXY(c,V,e);drag=D.findIndex(d=>Math.hypot((d[0]-x)*V.s,(d[1]-y)*V.s)<12);if(drag<0&&D.length<120){D.push([x,y]);drag=D.length-1}c.setPointerCapture(e.pointerId);pb.stop();reset();draw()});
-  c.addEventListener('pointermove',e=>{if(drag<0||!V)return;const[x,y]=canvasXY(c,V,e);D[drag]=[clamp(x,-4,4),clamp(y,-3,3)];reset();while(!fin)step();draw()});const end=()=>{drag=-1};c.addEventListener('pointerup',end);c.addEventListener('pointercancel',end);
-  return{draw,stop:()=>pb.stop(),auto:()=>{reset();draw();fr=0;pb.start()}}}}
-);
-FND.push(
-{id:'residuals',tab:'Residual plots',title:'Residual plots: what the model left behind',
- lede:'A fitted line always looks reasonable drawn through its own data. The honest test is to take the line away and look at what is left. If the model has captured everything systematic, the leftovers are shapeless noise. If they show a bend, a funnel or a lone straggler, the model is telling you exactly what it missed. Press Run and watch the fitted line being pulled flat, carrying the data with it.',
- stage:`<div class="row seg" id="rs-d" role="group" aria-label="Data"><button class="btn" type="button" data-v="good">A Line That Fits</button><button class="btn" type="button" data-v="curve">A Hidden Bend</button><button class="btn" type="button" data-v="funnel">A Funnel</button><button class="btn" type="button" data-v="out">One Straggler</button></div>
+  q: 'With a third of the data wrong, Tukey started from least squares settles on a poor line, while the same method started from the search over pairs finds the grey line. Nothing else changed. Why?',
+  a: 'Tukey’s penalty gives zero weight to any point further than the cut-off from the current line. Least squares has been pulled towards the bad third, so measured from that tilted line the residuals are large everywhere and the robust scale is inflated; the reweighting then has no clear group to discard and can lock on to a compromise. The line found by the search over pairs passes through the good two-thirds, so measured from there the bad third is clearly far away, gets zero weight at once, and the fit is finished using only good points. A penalty that can ignore points entirely has more than one self-consistent answer, and the first line decides which one you reach.',
+  init(root) {
+    const c = $('#rr-c', root),
+      cr = $('#rr-r', root),
+      live = $('#rr-live', root),
+      S = { d: 'one', m: 'huber', k: 1.35, s: 'ols' },
+      TR = [0.3, 0.55];
+    let D = [],
+      W = [],
+      a = 0,
+      b = 0,
+      ols = [0, 0],
+      sc = 1,
+      it = 0,
+      fin = false,
+      msg = '',
+      cu = 0,
+      seed = 1,
+      pb,
+      chk = () => false,
+      V = null,
+      drag = -1,
+      kB;
+    const gen = () => {
+      const r = rng(seed * 13 + S.d.length),
+        rn = randnFrom(r);
+      D = [];
+      for (let i = 0; i < 30; i++) {
+        const x = -3.4 + (6.8 * (i + 0.5)) / 30 + 0.1 * rn();
+        D.push([x, TR[0] + TR[1] * x + 0.3 * rn()]);
+      }
+      if (S.d === 'one') D[27][1] = -2.6;
+      else if (S.d === 'few')
+        for (const i of [3, 12, 24, 28]) D[i][1] += (i > 15 ? -3 : 3) * (0.7 + 0.5 * r());
+      else if (S.d === 'many') for (let i = 20; i < 30; i++) D[i][1] = -1.6 + 0.25 * rn();
+    };
+    const wls = (w) => {
+      let sw = 0,
+        sx = 0,
+        sy = 0,
+        sxx = 0,
+        sxy = 0;
+      D.forEach(([x, y], i) => {
+        sw += w[i];
+        sx += w[i] * x;
+        sy += w[i] * y;
+        sxx += w[i] * x * x;
+        sxy += w[i] * x * y;
+      });
+      const den = sw * sxx - sx * sx || 1e-12,
+        bb = (sw * sxy - sx * sy) / den;
+      return [(sy - bb * sx) / sw, bb];
+    };
+    const med = (v) => {
+      const s = v.slice().sort((p, q) => p - q),
+        n = s.length;
+      return n % 2 ? s[(n - 1) / 2] : (s[n / 2 - 1] + s[n / 2]) / 2;
+    };
+    const scale = () => {
+      const r = D.map((d) => d[1] - a - b * d[0]),
+        m = med(r);
+      return Math.max(1e-6, med(r.map((v) => Math.abs(v - m))) / 0.6745);
+    };
+    const wOf = (u) => {
+      const au = Math.abs(u);
+      return S.m === 'huber'
+        ? Math.min(1, S.k / Math.max(au, 1e-9))
+        : S.m === 'tukey'
+          ? au < S.k
+            ? (1 - (u * u) / (S.k * S.k)) ** 2
+            : 0
+          : 1 / Math.max(au, 0.05);
+    };
+    const lmsfit = () => {
+      let best = wls(D.map(() => 1)),
+        bm = 1e9;
+      const n = Math.min(D.length, 60);
+      for (let i = 0; i < n; i++)
+        for (let j = i + 1; j < n; j++) {
+          if (Math.abs(D[j][0] - D[i][0]) < 1e-6) continue;
+          const q = (D[j][1] - D[i][1]) / (D[j][0] - D[i][0]),
+            p = D[i][1] - q * D[i][0],
+            m = med(D.map((d) => Math.abs(d[1] - p - q * d[0])));
+          if (m < bm) {
+            bm = m;
+            best = [p, q];
+          }
+        }
+      return best;
+    };
+    const weights = () => {
+      sc = scale();
+      W = D.map((d) => wOf((d[1] - a - b * d[0]) / sc));
+      if (S.m === 'l1') {
+        const m = Math.max(...W);
+        W = W.map((v) => v / m);
+      }
+    };
+    const reset = () => {
+      ols = wls(D.map(() => 1));
+      [a, b] = S.s === 'ols' ? ols : lmsfit();
+      it = 0;
+      fin = false;
+      weights();
+      cu = 0;
+      msg =
+        'First line: ' +
+        (S.s === 'ols'
+          ? 'least squares'
+          : 'the line through two data points that leaves the smallest median miss') +
+        '. Every point has been given a weight from the size of its miss. Press One refit.';
+    };
+    const step = () => {
+      if (fin) return;
+      weights();
+      if (W.reduce((s, v) => s + v, 0) < 1e-9) {
+        fin = true;
+        msg = 'Every point is beyond the cut-off, so nothing is left to fit. Raise the cut-off.';
+        return;
+      }
+      const [na, nb] = wls(W),
+        da = Math.abs(na - a) + Math.abs(nb - b);
+      a = na;
+      b = nb;
+      it++;
+      weights();
+      cu = 3;
+      const low = W.filter((v) => v < 0.5).length;
+      msg =
+        'Refit ' +
+        it +
+        ': the line moved by ' +
+        (da < 1e-3 ? da.toExponential(1) : f3(da)) +
+        '.' +
+        (S.m === 'l1'
+          ? ''
+          : ' ' + low + ' point' + (low === 1 ? ' has' : 's have') + ' weight below one half.');
+      if (da < 1e-5 || it >= 200) {
+        fin = true;
+        cu = 5;
+        msg =
+          'Stopped after ' +
+          it +
+          ' refits: the line has stopped moving. Robust slope ' +
+          f2(b) +
+          ', least-squares slope ' +
+          f2(ols[1]) +
+          ', true slope ' +
+          f2(TR[1]) +
+          '. ' +
+          (Math.abs(b - TR[1]) < Math.abs(ols[1] - TR[1]) - 0.02
+            ? 'The robust line is closer to the truth.'
+            : Math.abs(b - TR[1]) > Math.abs(ols[1] - TR[1]) + 0.02
+              ? 'Here the robust line is further from the truth than least squares.'
+              : 'The two lines are about equally close to the truth.');
+      }
+    };
+    const rho = (u) => {
+      const au = Math.abs(u);
+      return S.m === 'huber'
+        ? au <= S.k
+          ? 0.5 * u * u
+          : S.k * au - 0.5 * S.k * S.k
+        : S.m === 'tukey'
+          ? au <= S.k
+            ? ((S.k * S.k) / 6) * (1 - (1 - (u * u) / (S.k * S.k)) ** 3)
+            : (S.k * S.k) / 6
+          : au;
+    };
+    const draw = () => {
+      const t = T();
+      V = uView(c);
+      const { g, w, h, X, Y } = V;
+      uFrame(V, t, 'x', 'y');
+      const ln = (p, q) => {
+        g.beginPath();
+        g.moveTo(X(-4), Y(p - 4 * q));
+        g.lineTo(X(4), Y(p + 4 * q));
+        g.stroke();
+      };
+      g.strokeStyle = t.muted;
+      g.lineWidth = 1;
+      g.globalAlpha = 0.6;
+      ln(TR[0], TR[1]);
+      g.globalAlpha = 1;
+      g.strokeStyle = t.cut;
+      g.lineWidth = 2;
+      g.setLineDash([7, 5]);
+      ln(ols[0], ols[1]);
+      g.setLineDash([]);
+      g.strokeStyle = t.accent;
+      g.lineWidth = 2.8;
+      ln(a, b);
+      D.forEach((d, i) => {
+        const wv = W[i] || 0;
+        g.strokeStyle = mix(t.ink, t.ink, 0, 0.25);
+        g.lineWidth = 1;
+        g.beginPath();
+        g.moveTo(X(d[0]), Y(d[1]));
+        g.lineTo(X(d[0]), Y(a + b * d[0]));
+        g.stroke();
+        g.lineWidth = 1.5;
+        dotAt(
+          g,
+          X(d[0]),
+          Y(d[1]),
+          2 + 5 * Math.sqrt(wv),
+          mix(t.ink, t.cut, 1 - wv, 0.85),
+          wv < 0.05 ? t.cut : null,
+        );
+      });
+      g2Note(g, t, h, 'big dark dots are trusted; small amber dots have been turned down');
+      {
+        const { g, w, h } = fit(cr),
+          h1 = h * 0.5,
+          U = 6,
+          n = 121,
+          us = Array.from({ length: n }, (_, i) => -U + (2 * U * i) / (n - 1)),
+          rs = us.map(rho),
+          ym = Math.min(8, Math.max(...rs) * 1.1),
+          A = uLine(g, t, 0, 0, w, h1, [], {
+            title: 'penalty against the size of the miss (in typical-miss units, −6 to 6)',
+            n,
+            ym,
+            y1: 0,
+          });
+        g.save();
+        g.beginPath();
+        g.rect(0, 0, w, h1 - 18);
+        g.clip();
+        g.strokeStyle = t.cut;
+        g.lineWidth = 1.6;
+        g.setLineDash([6, 4]);
+        g.beginPath();
+        us.forEach((u, i) =>
+          i ? g.lineTo(A.X(i), A.Y(0.5 * u * u)) : g.moveTo(A.X(i), A.Y(0.5 * u * u)),
+        );
+        g.stroke();
+        g.setLineDash([]);
+        g.strokeStyle = t.accent;
+        g.lineWidth = 2.4;
+        g.beginPath();
+        rs.forEach((v, i) => (i ? g.lineTo(A.X(i), A.Y(v)) : g.moveTo(A.X(i), A.Y(v))));
+        g.stroke();
+        g.restore();
+        const ws = us.map((u) =>
+            S.m === 'l1' ? Math.min(1, 0.25 / Math.max(Math.abs(u), 0.01)) : wOf(u),
+          ),
+          B = uLine(g, t, 0, h1, w, h - h1, [], {
+            title: 'weight against the size of the miss',
+            n,
+            ym: 1.08,
+            y1: 0,
+          });
+        g.strokeStyle = t.accent;
+        g.lineWidth = 2.4;
+        g.beginPath();
+        ws.forEach((v, i) => (i ? g.lineTo(B.X(i), B.Y(v)) : g.moveTo(B.X(i), B.Y(v))));
+        g.stroke();
+        D.forEach((d, i) => {
+          const u = clamp((d[1] - a - b * d[0]) / sc, -U, U),
+            xi = ((u + U) / (2 * U)) * (n - 1);
+          g.lineWidth = 1;
+          dotAt(
+            g,
+            B.X(xi),
+            B.Y(S.m === 'l1' ? Math.min(1, 0.25 / Math.max(Math.abs(u), 0.01)) : wOf(u)),
+            3.5,
+            mix(t.gold, t.gold, 0, 0.8),
+            t.bg,
+          );
+        });
+      }
+      live.textContent = msg;
+      uCur(root, 'rr', cu);
+      setR(root, 'it', it + (fin ? ' (stopped)' : ''));
+      setR(root, 'tr', f2(TR[0]) + ', ' + f2(TR[1]));
+      setR(root, 'ls', f2(ols[0]) + ', ' + f2(ols[1]));
+      setR(root, 'rb', f2(a) + ', ' + f2(b));
+      setR(root, 'sc', f2(sc));
+      setR(
+        root,
+        'dn',
+        S.m === 'l1'
+          ? 'not meaningful for this penalty'
+          : W.filter((v) => v < 0.5).length + ' of ' + D.length,
+      );
+    };
+    gen();
+    reset();
+    if (RM) {
+      while (!fin) step();
+    }
+    let fr = 0;
+    const anim = Anim(() => {
+      if (fin) {
+        pb.stop();
+        return;
+      }
+      if (++fr % 14) return;
+      step();
+      draw();
+      chk();
+    });
+    pb = playBtn($('#rr-play', root), anim);
+    chk = runCtl(pb, root, 'rr', {
+      done: () => fin,
+      restart: reset,
+      count: () => it,
+      what: 'refits',
+    });
+    const go = () => {
+      pb.stop();
+      reset();
+      draw();
+      fr = 0;
+      pb.start();
+    };
+    $('#rr-step', root).onclick = () => {
+      pb.stop();
+      if (fin) reset();
+      else step();
+      draw();
+    };
+    $('#rr-reset', root).onclick = () => {
+      pb.stop();
+      gen();
+      reset();
+      draw();
+    };
+    $('#rr-new', root).onclick = () => {
+      seed++;
+      gen();
+      go();
+    };
+    kB = bind(root, 'rr-k', (v) => {
+      S.k = v;
+      pb.stop();
+      reset();
+      draw();
+    });
+    segBind(root, 'rr-d', S.d, (v) => {
+      S.d = v;
+      gen();
+      go();
+    });
+    segBind(root, 'rr-m', S.m, (v) => {
+      S.m = v;
+      S.k = v === 'tukey' ? 4.69 : 1.35;
+      kB.set(S.k);
+      kB.el.disabled = v === 'l1';
+      go();
+    });
+    segBind(root, 'rr-s', S.s, (v) => {
+      S.s = v;
+      go();
+    });
+    xyUp(root, 'rr', (q) => {
+      D = q.slice(0, 120);
+      TR[0] = NaN;
+      TR[1] = NaN;
+      go();
+    });
+    c.style.cursor = 'grab';
+    c.style.touchAction = 'none';
+    c.addEventListener('pointerdown', (e) => {
+      if (!V) return;
+      const [x, y] = canvasXY(c, V, e);
+      drag = D.findIndex((d) => Math.hypot((d[0] - x) * V.s, (d[1] - y) * V.s) < 12);
+      if (drag < 0 && D.length < 120) {
+        D.push([x, y]);
+        drag = D.length - 1;
+      }
+      c.setPointerCapture(e.pointerId);
+      pb.stop();
+      reset();
+      draw();
+    });
+    c.addEventListener('pointermove', (e) => {
+      if (drag < 0 || !V) return;
+      const [x, y] = canvasXY(c, V, e);
+      D[drag] = [clamp(x, -4, 4), clamp(y, -3, 3)];
+      reset();
+      while (!fin) step();
+      draw();
+    });
+    const end = () => {
+      drag = -1;
+    };
+    c.addEventListener('pointerup', end);
+    c.addEventListener('pointercancel', end);
+    return {
+      draw,
+      stop: () => pb.stop(),
+      auto: () => {
+        reset();
+        draw();
+        fr = 0;
+        pb.start();
+      },
+    };
+  },
+});
+FND.push({
+  id: 'residuals',
+  tab: 'Residual plots',
+  title: 'Residual plots: what the model left behind',
+  lede: 'A fitted line always looks reasonable drawn through its own data. The honest test is to take the line away and look at what is left. If the model has captured everything systematic, the leftovers are shapeless noise. If they show a bend, a funnel or a lone straggler, the model is telling you exactly what it missed. Press Run and watch the fitted line being pulled flat, carrying the data with it.',
+  stage: `<div class="row seg" id="rs-d" role="group" aria-label="Data"><button class="btn" type="button" data-v="good">A Line That Fits</button><button class="btn" type="button" data-v="curve">A Hidden Bend</button><button class="btn" type="button" data-v="funnel">A Funnel</button><button class="btn" type="button" data-v="out">One Straggler</button></div>
  <div class="stage"><figure class="fig"><figcaption id="rs-cap">The data and the fitted model. Vertical sticks are the residuals: observed minus predicted. Run flattens the fitted line into the horizontal axis, which turns this picture into the residual plot</figcaption><canvas class="short" id="rs-c" role="img" aria-label="Data and fit, morphing into the residual plot"></canvas></figure>
  <figure class="fig"><figcaption>Top: how the residuals are distributed (bars) against a bell curve of the same spread. Bottom: the size of each residual, ignoring sign, against the predicted value. A rising trend means the scatter is not constant</figcaption><canvas class="short" id="rs-r" role="img" aria-label="Histogram of residuals and spread against fitted value"></canvas></figure></div>
- ${uHow('rs',['Fit the model to the data.','For every point, subtract the prediction from the observation. That difference is the residual.','Plot the residuals against the predictions. The fitted line becomes the flat line at zero.','Look for a bend: residuals mostly positive at the ends and negative in the middle, or the reverse.','Look for a funnel: residuals spreading out as the prediction grows.','Look for stragglers, far from everything else.'])}
- <div class="controls">${uBtns('rs','Run','Flip the view','')}
- ${grp('The model',`<div class="row seg" id="rs-m" role="group" aria-label="Model"><button class="btn" type="button" data-v="1">Straight Line</button><button class="btn" type="button" data-v="2">Curve (adds x²)</button></div><label class="check" for="rs-log"><input type="checkbox" id="rs-log">Model the logarithm of y instead of y</label><label class="check" for="rs-drop"><input type="checkbox" id="rs-drop">Leave the most extreme point out of the fit</label>`)}
- ${grp('Data',`<div class="row"><button class="btn" id="rs-new" type="button">New data</button></div>`+upHTML('rs'))}</div>
- <dl class="read">${rd('r2','R²: share of variation explained')}${rd('bend','Bend left in the residuals','hl')}${rd('fun','Funnel: spread growing with the prediction','hl')}${rd('big','Largest residual, in typical-miss units','hl2')}${rd('ver','Verdict')}</dl>`,
- tryit:'Start with A Line That Fits and let it run: the leftover cloud is a shapeless band. That is what success looks like. Now choose A Hidden Bend. R² is high. Would you have noticed the problem from the left-hand picture before it flattened? Switch the model to Curve and run again. Choose A Funnel and look at the bottom-right chart, then tick the logarithm box. Choose One Straggler: how far does a single point move the line? Tick the box that leaves it out and compare.',
- math:String.raw`<h4>Intuition</h4><p>A tailor checks a suit by looking at where the cloth pulls and where it hangs loose, because that is where the pattern was wrong. Residuals are the same check for a model. Each one is the part of an observation that the model failed to predict. If the model is right, what it failed to predict is pure chance, and chance has no shape. Any shape you can see in the residuals is something real that the model does not know about, and the kind of shape tells you what to add.</p>
+ ${uHow('rs', ['Fit the model to the data.', 'For every point, subtract the prediction from the observation. That difference is the residual.', 'Plot the residuals against the predictions. The fitted line becomes the flat line at zero.', 'Look for a bend: residuals mostly positive at the ends and negative in the middle, or the reverse.', 'Look for a funnel: residuals spreading out as the prediction grows.', 'Look for stragglers, far from everything else.'])}
+ <div class="controls">${uBtns('rs', 'Run', 'Flip the view', '')}
+ ${grp('The model', `<div class="row seg" id="rs-m" role="group" aria-label="Model"><button class="btn" type="button" data-v="1">Straight Line</button><button class="btn" type="button" data-v="2">Curve (adds x²)</button></div><label class="check" for="rs-log"><input type="checkbox" id="rs-log">Model the logarithm of y instead of y</label><label class="check" for="rs-drop"><input type="checkbox" id="rs-drop">Leave the most extreme point out of the fit</label>`)}
+ ${grp('Data', `<div class="row"><button class="btn" id="rs-new" type="button">New data</button></div>` + upHTML('rs'))}</div>
+ <dl class="read">${rd('r2', 'R²: share of variation explained')}${rd('bend', 'Bend left in the residuals', 'hl')}${rd('fun', 'Funnel: spread growing with the prediction', 'hl')}${rd('big', 'Largest residual, in typical-miss units', 'hl2')}${rd('ver', 'Verdict')}</dl>`,
+  tryit:
+    'Start with A Line That Fits and let it run: the leftover cloud is a shapeless band. That is what success looks like. Now choose A Hidden Bend. R² is high. Would you have noticed the problem from the left-hand picture before it flattened? Switch the model to Curve and run again. Choose A Funnel and look at the bottom-right chart, then tick the logarithm box. Choose One Straggler: how far does a single point move the line? Tick the box that leaves it out and compare.',
+  math: String.raw`<h4>Intuition</h4><p>A tailor checks a suit by looking at where the cloth pulls and where it hangs loose, because that is where the pattern was wrong. Residuals are the same check for a model. Each one is the part of an observation that the model failed to predict. If the model is right, what it failed to predict is pure chance, and chance has no shape. Any shape you can see in the residuals is something real that the model does not know about, and the kind of shape tells you what to add.</p>
  <h4>Definition</h4><p>For a fitted model \(\hat y_i=\hat f(x_i)\) the residuals are</p>$$e_i=y_i-\hat y_i.$$<p>Least squares forces them to sum to zero and to be uncorrelated with \(x\), so their average and their straight-line trend carry no information. Everything else about them does.</p>
  <h4>What a linear model assumes</h4><p>The standard model is \(y_i=a+b\,x_i+\varepsilon_i\) with errors \(\varepsilon_i\) that are independent, centred on zero, of constant variance \(\sigma^2\), and for the usual tests and intervals roughly Gaussian. Each assumption has a visible signature when it fails:</p>
  <table><tr><th>You see</th><th>It means</th><th>Usual remedy</th></tr><tr><td>A bend or arch</td><td>The relationship is not a straight line</td><td>Add a curved term, or transform \(x\)</td></tr><tr><td>A funnel</td><td>The scatter grows with the mean (heteroscedasticity)</td><td>Model \(\log y\), or use weights or a generalized linear model</td></tr><tr><td>One point far away</td><td>An outlier or a recording error</td><td>Check it; refit without it; use a robust method</td></tr><tr><td>A lopsided histogram</td><td>Errors are skewed</td><td>Transform \(y\)</td></tr></table>
  <h4>Why R² is not enough</h4><p>The coefficient of determination</p>$$R^2=1-\frac{\sum_i e_i^2}{\sum_i(y_i-\bar y)^2}$$<p>measures how much of the variation the model accounts for. It says nothing about whether the remainder is noise. A straight line through a gentle curve can have \(R^2\) above 0.9 and still be wrong everywhere in a predictable direction. Anscombe's four data sets (1973) share the same line and the same \(R^2\) and look nothing alike.</p>
  <h4>The numbers on this page</h4><p>The <b>bend</b> readout is the correlation between the residuals and the squared, centred prediction: near zero for a good fit, large when the residuals arch. The <b>funnel</b> readout is the correlation between \(\lvert e_i\rvert\) and the prediction. The <b>largest residual</b> is divided by a robust estimate of the typical miss, so a value above about 3.5 marks a point worth checking. A bend or funnel is flagged when its correlation exceeds 0.35 in size, which pure chance rarely produces with this much data. They are aids for the eye, not replacements for it.</p>
  <h4>Leverage</h4><p>A point far from the others along \(x\) pulls the line towards itself, so its own residual can be small even when it is badly wrong. The straggler here sits at the right-hand end for that reason: refitting without it shows how much it moved the line.</p>`,
- q:'On A Hidden Bend the straight line has an R² of about 0.9. Its residual plot shows a clear arch. Is the model good enough?',a:'It depends on what it is for, but the arch means its errors are not random. In the middle of the range it predicts too high (or too low) every time, and at both ends it errs the other way every time. Those are systematic mistakes that a better model would remove, and they grow quickly if you predict beyond the data. The high R² only says that the overall upward trend dominates the variation. Adding the squared term removes the arch, and the remaining residuals look like noise.',
- init(root){const c=$('#rs-c',root),cr=$('#rs-r',root),live=$('#rs-live',root),S={d:'good',m:1,log:false,drop:false};let D=[],co=[0,0,0],E=[],F=[],u=0,dir=1,seed=1,msg='',cu=0,pb,st={},xr=[0,10],dropI=-1,up=false;
-  const gen=()=>{const r=rng(seed*7+S.d.length*3),rn=randnFrom(r);D=[];up=false;for(let i=0;i<60;i++){const x=.4+9.2*r();D.push([x,S.d==='good'?6+2.4*x+2.6*rn():S.d==='curve'?5+.4*x+.26*x*x+1.6*rn():S.d==='funnel'?Math.exp(.9+.28*x+.38*rn()):6+2.4*x+2*rn()])}if(S.d==='out'){D[0]=[9.5,3]}};
-  const fitM=()=>{const ty=v=>S.log?Math.log(Math.max(v,1e-6)):v;let mx=0,k=-1;if(S.drop&&E.length===D.length){E.forEach((e,i)=>{if(Math.abs(e)>mx){mx=Math.abs(e);k=i}})}dropI=S.drop?(dropI>=0?dropI:k):-1;const p=S.m+1,A=Array.from({length:p},()=>new Array(p).fill(0)),bv=new Array(p).fill(0);D.forEach(([x,y],i)=>{if(i===dropI)return;const ph=[1,x,x*x].slice(0,p);for(let a=0;a<p;a++){bv[a]+=ph[a]*ty(y);for(let b=0;b<p;b++)A[a][b]+=ph[a]*ph[b]}});const iv=laInv(A);co=[0,0,0];for(let a=0;a<p;a++)for(let b=0;b<p;b++)co[a]+=iv[a][b]*bv[b];
-   F=D.map(([x])=>co[0]+co[1]*x+co[2]*x*x);E=D.map(([x,y],i)=>ty(y)-F[i]);const n=D.length,keep=E.filter((_,i)=>i!==dropI),ys=D.filter((_,i)=>i!==dropI).map(d=>ty(d[1])),my=ys.reduce((s,v)=>s+v,0)/ys.length,sse=keep.reduce((s,v)=>s+v*v,0),sst=ys.reduce((s,v)=>s+(v-my)**2,0),mf=F.reduce((s,v)=>s+v,0)/n,cor=(a,b)=>{const ma=a.reduce((s,v)=>s+v,0)/a.length,mb=b.reduce((s,v)=>s+v,0)/b.length;let sab=0,sa=0,sb=0;a.forEach((v,i)=>{sab+=(v-ma)*(b[i]-mb);sa+=(v-ma)**2;sb+=(b[i]-mb)**2});return sab/Math.sqrt(sa*sb||1)};
-   const srt=E.map(Math.abs).sort((a,b)=>a-b),mad=srt[Math.floor(n/2)]/.6745||1e-9,idx=E.map((_,i)=>i).filter(i=>i!==dropI&&Math.abs(E[i])/mad<3.5),e2=idx.map(i=>E[i]),f2_=idx.map(i=>F[i]);st={r2:1-sse/sst,bend:cor(e2,f2_.map(v=>(v-mf)**2)),fun:cor(e2.map(Math.abs),f2_),big:Math.max(...E.map((e,i)=>i===dropI?0:Math.abs(e)))/mad,mad,sd:Math.sqrt(sse/keep.length)};
-   const pr=[];if(Math.abs(st.bend)>.35)pr.push('a bend');if(st.fun>.35)pr.push('a funnel');if(st.big>3.5)pr.push('a straggler');st.ver=pr.length?'The residuals show '+pr.join(' and ')+'.':'No pattern: the leftovers look like noise.'};
-  const refit=()=>{dropI=-1;if(S.drop){const sv=S.drop;S.drop=false;fitM();S.drop=sv}fitM();u=0;dir=1;cu=0;msg='Fitted. '+st.ver+' Press Run to flatten the line and see the residuals on their own.'};
-  const tp=testPoint(root,'rs',['Your x'],[5],[[0,12]]);
-  const draw=()=>{const t=T(),ty=v=>S.log?Math.log(Math.max(v,1e-6)):v,ys=D.map(d=>ty(d[1])),lo=Math.min(...ys,...F),hi=Math.max(...ys,...F),em=Math.max(...E.map(Math.abs))*1.15,s=u*u*(3-2*u),ya=lo-(hi-lo)*.06+(-em-(lo-(hi-lo)*.06))*s,yb=hi+(hi-lo)*.06+(em-(hi+(hi-lo)*.06))*s;
-   {const{g,w,h}=fit(c),P=plot(g,w,h,xr,[ya,yb],t,{xstep:2,xlabel:s>.5?'x (the fitted model is now the flat line)':'x'});clipPlot(g,P);g.strokeStyle=t.accent;g.lineWidth=2.6;curve(g,P,x=>(co[0]+co[1]*x+co[2]*x*x)*(1-s),xr[0],xr[1],60);g.stroke();
-    D.forEach(([x,y],i)=>{const f=F[i]*(1-s),v=ty(y)-F[i]*s;g.strokeStyle=mix(t.cut,t.cut,0,.55);g.lineWidth=1.2;g.beginPath();g.moveTo(P.X(x),P.Y(f));g.lineTo(P.X(x),P.Y(v));g.stroke();g.lineWidth=1.5;dotAt(g,P.X(x),P.Y(v),i===dropI?5:3.6,i===dropI?null:mix(t.ink,t.ink,0,.7),i===dropI?t.cut:null)});
-    const xv=clamp(tp.v[0],xr[0],xr[1]),pm=co[0]+co[1]*xv+co[2]*xv*xv;if(s<.5)markTP(g,P.X(xv),P.Y(pm*(1-s)),t,false);g.restore();g.font=MONO;g.fillStyle=t.muted;g.textAlign='left';g.fillText(s>.5?'residual: observed − predicted':(S.log?'log of y':'y'),P.m.l+6,P.m.t+8);
-    const bk=v=>S.log?Math.exp(v):v,warn=Math.abs(st.bend)>.35||st.fun>.35;tp.out.textContent='At x = '+f2(xv)+' the model predicts '+f2(bk(pm))+', give or take about '+(S.log?'a factor of '+f2(Math.exp(2*st.sd)):f2(2*st.sd))+'.'+(warn?' Do not trust that margin: the residuals show the model is missing something, so its errors are not the same everywhere.':'')}
-   {const{g,w,h}=fit(cr),h1=h*.5,NB=13,hs=new Array(NB).fill(0),R=3.5*st.sd||1;E.forEach(e=>{const k=Math.floor((e+R)/(2*R)*NB);if(k>=0&&k<NB)hs[k]++});const hm=Math.max(...hs,1),A=uLine(g,t,0,0,w,h1,[],{title:'residuals: how many of each size (bars) and a bell curve',n:NB+1,ym:hm*1.1,y1:0}),bw=A.X(1)-A.X(0);hs.forEach((v,k)=>{g.fillStyle=mix(t.accent,t.accent,0,.6);g.fillRect(A.X(k)+1,A.Y(v),bw-2,A.Y(0)-A.Y(v))});g.strokeStyle=t.cut;g.lineWidth=2;g.beginPath();for(let i=0;i<=60;i++){const e=-R+2*R*i/60,v=D.length*(2*R/NB)*Math.exp(-e*e/(2*st.sd*st.sd))/(st.sd*Math.sqrt(2*Math.PI));i?g.lineTo(A.X(i/60*NB),A.Y(v)):g.moveTo(A.X(0),A.Y(v))}g.stroke();
-    const fl=Math.min(...F),fh=Math.max(...F),am=Math.max(...E.map(Math.abs))*1.1,B=uLine(g,t,0,h1,w,h-h1,[],{title:'size of residual against the prediction (small → large)',n:101,ym:am,y1:0});D.forEach((_,i)=>dotAt(g,B.X((F[i]-fl)/((fh-fl)||1)*100),B.Y(Math.abs(E[i])),3,mix(t.gold,t.gold,0,.75)));
-    let sx=0,sy=0,sxx=0,sxy=0;const n=D.length;D.forEach((_,i)=>{const x=(F[i]-fl)/((fh-fl)||1)*100,y=Math.abs(E[i]);sx+=x;sy+=y;sxx+=x*x;sxy+=x*y});const b=(n*sxy-sx*sy)/(n*sxx-sx*sx),a=(sy-b*sx)/n;g.strokeStyle=t.cut;g.lineWidth=2;g.beginPath();g.moveTo(B.X(0),B.Y(Math.max(0,a)));g.lineTo(B.X(100),B.Y(Math.max(0,a+100*b)));g.stroke()}
-   live.textContent=msg;uCur(root,'rs',cu);setR(root,'r2',f3(st.r2));setR(root,'bend',f2(st.bend)+(Math.abs(st.bend)>.35?' (flagged)':''));setR(root,'fun',f2(st.fun)+(st.fun>.35?' (flagged)':''));setR(root,'big',f2(st.big)+(st.big>3.5?' (flagged)':''));setR(root,'ver',st.ver)};
-  tp.on=()=>draw();gen();refit();if(RM)u=1;
-  const anim=Anim(()=>{u=clamp(u+dir*.012,0,1);if(u>=1||u<=0){pb.stop();cu=u>=1?(Math.abs(st.bend)>.35?3:st.fun>.35?4:st.big>3.5?5:2):0;msg=u>=1?'Flattened. This is the residual plot. '+st.ver:'Back to the data and the fitted model.'}draw()});pb=playBtn($('#rs-play',root),anim);{const s0=pb.start;pb.start=()=>{if(u>=1){u=0}dir=1;s0()}}
-  $('#rs-step',root).onclick=()=>{pb.stop();u=u<.5?1:0;cu=u?2:0;msg=u?'The residual plot. '+st.ver:'The data and the fitted model.';draw()};$('#rs-reset',root).onclick=()=>{pb.stop();refit();draw()};$('#rs-new',root).onclick=()=>{pb.stop();seed++;gen();refit();draw();pb.start()};
-  const re=()=>{pb.stop();refit();draw();pb.start()};segBind(root,'rs-d',S.d,v=>{S.d=v;gen();re()});segBind(root,'rs-m','1',v=>{S.m=+v;re()});$('#rs-log',root).onchange=e=>{S.log=e.target.checked;re()};$('#rs-drop',root).onchange=e=>{S.drop=e.target.checked;re()};
-  xyUp(root,'rs',q=>{const x0=Math.min(...q.map(d=>d[0])),x1=Math.max(...q.map(d=>d[0]));D=q.map(d=>[.4+9.2*(d[0]-x0)/((x1-x0)||1),d[1]]);if(S.log&&D.some(d=>d[1]<=0)){S.log=false;$('#rs-log',root).checked=false}re()},false);
-  return{draw,stop:()=>pb.stop(),auto:()=>{u=0;draw();pb.start()}}}}
-);
-FND.push(
-{id:'vc-dimension',tab:'VC dimension',title:'VC dimension: how many points can a model explain away?',
- lede:'A model that can fit any pattern of labels you give it has learned nothing when it fits yours. The VC dimension measures that flexibility with a game. Put some points down. An opponent labels them in every possible way. If your family of models has an answer for every labelling, the points are shattered. The largest number of points that can be shattered is the VC dimension, and it controls how much data you need before a good fit means anything.',
- stage:`<div class="row seg" id="vc-h" role="group" aria-label="Family of models"><button class="btn" type="button" data-v="int">Intervals on a Line</button><button class="btn" type="button" data-v="line">Straight Lines</button><button class="btn" type="button" data-v="rect">Upright Rectangles</button></div>
+  q: 'On A Hidden Bend the straight line has an R² of about 0.9. Its residual plot shows a clear arch. Is the model good enough?',
+  a: 'It depends on what it is for, but the arch means its errors are not random. In the middle of the range it predicts too high (or too low) every time, and at both ends it errs the other way every time. Those are systematic mistakes that a better model would remove, and they grow quickly if you predict beyond the data. The high R² only says that the overall upward trend dominates the variation. Adding the squared term removes the arch, and the remaining residuals look like noise.',
+  init(root) {
+    const c = $('#rs-c', root),
+      cr = $('#rs-r', root),
+      live = $('#rs-live', root),
+      S = { d: 'good', m: 1, log: false, drop: false };
+    let D = [],
+      co = [0, 0, 0],
+      E = [],
+      F = [],
+      u = 0,
+      dir = 1,
+      seed = 1,
+      msg = '',
+      cu = 0,
+      pb,
+      st = {},
+      xr = [0, 10],
+      dropI = -1,
+      up = false;
+    const gen = () => {
+      const r = rng(seed * 7 + S.d.length * 3),
+        rn = randnFrom(r);
+      D = [];
+      up = false;
+      for (let i = 0; i < 60; i++) {
+        const x = 0.4 + 9.2 * r();
+        D.push([
+          x,
+          S.d === 'good'
+            ? 6 + 2.4 * x + 2.6 * rn()
+            : S.d === 'curve'
+              ? 5 + 0.4 * x + 0.26 * x * x + 1.6 * rn()
+              : S.d === 'funnel'
+                ? Math.exp(0.9 + 0.28 * x + 0.38 * rn())
+                : 6 + 2.4 * x + 2 * rn(),
+        ]);
+      }
+      if (S.d === 'out') {
+        D[0] = [9.5, 3];
+      }
+    };
+    const fitM = () => {
+      const ty = (v) => (S.log ? Math.log(Math.max(v, 1e-6)) : v);
+      let mx = 0,
+        k = -1;
+      if (S.drop && E.length === D.length) {
+        E.forEach((e, i) => {
+          if (Math.abs(e) > mx) {
+            mx = Math.abs(e);
+            k = i;
+          }
+        });
+      }
+      dropI = S.drop ? (dropI >= 0 ? dropI : k) : -1;
+      const p = S.m + 1,
+        A = Array.from({ length: p }, () => new Array(p).fill(0)),
+        bv = new Array(p).fill(0);
+      D.forEach(([x, y], i) => {
+        if (i === dropI) return;
+        const ph = [1, x, x * x].slice(0, p);
+        for (let a = 0; a < p; a++) {
+          bv[a] += ph[a] * ty(y);
+          for (let b = 0; b < p; b++) A[a][b] += ph[a] * ph[b];
+        }
+      });
+      const iv = laInv(A);
+      co = [0, 0, 0];
+      for (let a = 0; a < p; a++) for (let b = 0; b < p; b++) co[a] += iv[a][b] * bv[b];
+      F = D.map(([x]) => co[0] + co[1] * x + co[2] * x * x);
+      E = D.map(([x, y], i) => ty(y) - F[i]);
+      const n = D.length,
+        keep = E.filter((_, i) => i !== dropI),
+        ys = D.filter((_, i) => i !== dropI).map((d) => ty(d[1])),
+        my = ys.reduce((s, v) => s + v, 0) / ys.length,
+        sse = keep.reduce((s, v) => s + v * v, 0),
+        sst = ys.reduce((s, v) => s + (v - my) ** 2, 0),
+        mf = F.reduce((s, v) => s + v, 0) / n,
+        cor = (a, b) => {
+          const ma = a.reduce((s, v) => s + v, 0) / a.length,
+            mb = b.reduce((s, v) => s + v, 0) / b.length;
+          let sab = 0,
+            sa = 0,
+            sb = 0;
+          a.forEach((v, i) => {
+            sab += (v - ma) * (b[i] - mb);
+            sa += (v - ma) ** 2;
+            sb += (b[i] - mb) ** 2;
+          });
+          return sab / Math.sqrt(sa * sb || 1);
+        };
+      const srt = E.map(Math.abs).sort((a, b) => a - b),
+        mad = srt[Math.floor(n / 2)] / 0.6745 || 1e-9,
+        idx = E.map((_, i) => i).filter((i) => i !== dropI && Math.abs(E[i]) / mad < 3.5),
+        e2 = idx.map((i) => E[i]),
+        f2_ = idx.map((i) => F[i]);
+      st = {
+        r2: 1 - sse / sst,
+        bend: cor(
+          e2,
+          f2_.map((v) => (v - mf) ** 2),
+        ),
+        fun: cor(e2.map(Math.abs), f2_),
+        big: Math.max(...E.map((e, i) => (i === dropI ? 0 : Math.abs(e)))) / mad,
+        mad,
+        sd: Math.sqrt(sse / keep.length),
+      };
+      const pr = [];
+      if (Math.abs(st.bend) > 0.35) pr.push('a bend');
+      if (st.fun > 0.35) pr.push('a funnel');
+      if (st.big > 3.5) pr.push('a straggler');
+      st.ver = pr.length
+        ? 'The residuals show ' + pr.join(' and ') + '.'
+        : 'No pattern: the leftovers look like noise.';
+    };
+    const refit = () => {
+      dropI = -1;
+      if (S.drop) {
+        const sv = S.drop;
+        S.drop = false;
+        fitM();
+        S.drop = sv;
+      }
+      fitM();
+      u = 0;
+      dir = 1;
+      cu = 0;
+      msg =
+        'Fitted. ' + st.ver + ' Press Run to flatten the line and see the residuals on their own.';
+    };
+    const tp = testPoint(root, 'rs', ['Your x'], [5], [[0, 12]]);
+    const draw = () => {
+      const t = T(),
+        ty = (v) => (S.log ? Math.log(Math.max(v, 1e-6)) : v),
+        ys = D.map((d) => ty(d[1])),
+        lo = Math.min(...ys, ...F),
+        hi = Math.max(...ys, ...F),
+        em = Math.max(...E.map(Math.abs)) * 1.15,
+        s = u * u * (3 - 2 * u),
+        ya = lo - (hi - lo) * 0.06 + (-em - (lo - (hi - lo) * 0.06)) * s,
+        yb = hi + (hi - lo) * 0.06 + (em - (hi + (hi - lo) * 0.06)) * s;
+      {
+        const { g, w, h } = fit(c),
+          P = plot(g, w, h, xr, [ya, yb], t, {
+            xstep: 2,
+            xlabel: s > 0.5 ? 'x (the fitted model is now the flat line)' : 'x',
+          });
+        clipPlot(g, P);
+        g.strokeStyle = t.accent;
+        g.lineWidth = 2.6;
+        curve(g, P, (x) => (co[0] + co[1] * x + co[2] * x * x) * (1 - s), xr[0], xr[1], 60);
+        g.stroke();
+        D.forEach(([x, y], i) => {
+          const f = F[i] * (1 - s),
+            v = ty(y) - F[i] * s;
+          g.strokeStyle = mix(t.cut, t.cut, 0, 0.55);
+          g.lineWidth = 1.2;
+          g.beginPath();
+          g.moveTo(P.X(x), P.Y(f));
+          g.lineTo(P.X(x), P.Y(v));
+          g.stroke();
+          g.lineWidth = 1.5;
+          dotAt(
+            g,
+            P.X(x),
+            P.Y(v),
+            i === dropI ? 5 : 3.6,
+            i === dropI ? null : mix(t.ink, t.ink, 0, 0.7),
+            i === dropI ? t.cut : null,
+          );
+        });
+        const xv = clamp(tp.v[0], xr[0], xr[1]),
+          pm = co[0] + co[1] * xv + co[2] * xv * xv;
+        if (s < 0.5) markTP(g, P.X(xv), P.Y(pm * (1 - s)), t, false);
+        g.restore();
+        g.font = MONO;
+        g.fillStyle = t.muted;
+        g.textAlign = 'left';
+        g.fillText(
+          s > 0.5 ? 'residual: observed − predicted' : S.log ? 'log of y' : 'y',
+          P.m.l + 6,
+          P.m.t + 8,
+        );
+        const bk = (v) => (S.log ? Math.exp(v) : v),
+          warn = Math.abs(st.bend) > 0.35 || st.fun > 0.35;
+        tp.out.textContent =
+          'At x = ' +
+          f2(xv) +
+          ' the model predicts ' +
+          f2(bk(pm)) +
+          ', give or take about ' +
+          (S.log ? 'a factor of ' + f2(Math.exp(2 * st.sd)) : f2(2 * st.sd)) +
+          '.' +
+          (warn
+            ? ' Do not trust that margin: the residuals show the model is missing something, so its errors are not the same everywhere.'
+            : '');
+      }
+      {
+        const { g, w, h } = fit(cr),
+          h1 = h * 0.5,
+          NB = 13,
+          hs = new Array(NB).fill(0),
+          R = 3.5 * st.sd || 1;
+        E.forEach((e) => {
+          const k = Math.floor(((e + R) / (2 * R)) * NB);
+          if (k >= 0 && k < NB) hs[k]++;
+        });
+        const hm = Math.max(...hs, 1),
+          A = uLine(g, t, 0, 0, w, h1, [], {
+            title: 'residuals: how many of each size (bars) and a bell curve',
+            n: NB + 1,
+            ym: hm * 1.1,
+            y1: 0,
+          }),
+          bw = A.X(1) - A.X(0);
+        hs.forEach((v, k) => {
+          g.fillStyle = mix(t.accent, t.accent, 0, 0.6);
+          g.fillRect(A.X(k) + 1, A.Y(v), bw - 2, A.Y(0) - A.Y(v));
+        });
+        g.strokeStyle = t.cut;
+        g.lineWidth = 2;
+        g.beginPath();
+        for (let i = 0; i <= 60; i++) {
+          const e = -R + (2 * R * i) / 60,
+            v =
+              (D.length * ((2 * R) / NB) * Math.exp((-e * e) / (2 * st.sd * st.sd))) /
+              (st.sd * Math.sqrt(2 * Math.PI));
+          i ? g.lineTo(A.X((i / 60) * NB), A.Y(v)) : g.moveTo(A.X(0), A.Y(v));
+        }
+        g.stroke();
+        const fl = Math.min(...F),
+          fh = Math.max(...F),
+          am = Math.max(...E.map(Math.abs)) * 1.1,
+          B = uLine(g, t, 0, h1, w, h - h1, [], {
+            title: 'size of residual against the prediction (small → large)',
+            n: 101,
+            ym: am,
+            y1: 0,
+          });
+        D.forEach((_, i) =>
+          dotAt(
+            g,
+            B.X(((F[i] - fl) / (fh - fl || 1)) * 100),
+            B.Y(Math.abs(E[i])),
+            3,
+            mix(t.gold, t.gold, 0, 0.75),
+          ),
+        );
+        let sx = 0,
+          sy = 0,
+          sxx = 0,
+          sxy = 0;
+        const n = D.length;
+        D.forEach((_, i) => {
+          const x = ((F[i] - fl) / (fh - fl || 1)) * 100,
+            y = Math.abs(E[i]);
+          sx += x;
+          sy += y;
+          sxx += x * x;
+          sxy += x * y;
+        });
+        const b = (n * sxy - sx * sy) / (n * sxx - sx * sx),
+          a = (sy - b * sx) / n;
+        g.strokeStyle = t.cut;
+        g.lineWidth = 2;
+        g.beginPath();
+        g.moveTo(B.X(0), B.Y(Math.max(0, a)));
+        g.lineTo(B.X(100), B.Y(Math.max(0, a + 100 * b)));
+        g.stroke();
+      }
+      live.textContent = msg;
+      uCur(root, 'rs', cu);
+      setR(root, 'r2', f3(st.r2));
+      setR(root, 'bend', f2(st.bend) + (Math.abs(st.bend) > 0.35 ? ' (flagged)' : ''));
+      setR(root, 'fun', f2(st.fun) + (st.fun > 0.35 ? ' (flagged)' : ''));
+      setR(root, 'big', f2(st.big) + (st.big > 3.5 ? ' (flagged)' : ''));
+      setR(root, 'ver', st.ver);
+    };
+    tp.on = () => draw();
+    gen();
+    refit();
+    if (RM) u = 1;
+    const anim = Anim(() => {
+      u = clamp(u + dir * 0.012, 0, 1);
+      if (u >= 1 || u <= 0) {
+        pb.stop();
+        cu = u >= 1 ? (Math.abs(st.bend) > 0.35 ? 3 : st.fun > 0.35 ? 4 : st.big > 3.5 ? 5 : 2) : 0;
+        msg =
+          u >= 1
+            ? 'Flattened. This is the residual plot. ' + st.ver
+            : 'Back to the data and the fitted model.';
+      }
+      draw();
+    });
+    pb = playBtn($('#rs-play', root), anim);
+    {
+      const s0 = pb.start;
+      pb.start = () => {
+        if (u >= 1) {
+          u = 0;
+        }
+        dir = 1;
+        s0();
+      };
+    }
+    $('#rs-step', root).onclick = () => {
+      pb.stop();
+      u = u < 0.5 ? 1 : 0;
+      cu = u ? 2 : 0;
+      msg = u ? 'The residual plot. ' + st.ver : 'The data and the fitted model.';
+      draw();
+    };
+    $('#rs-reset', root).onclick = () => {
+      pb.stop();
+      refit();
+      draw();
+    };
+    $('#rs-new', root).onclick = () => {
+      pb.stop();
+      seed++;
+      gen();
+      refit();
+      draw();
+      pb.start();
+    };
+    const re = () => {
+      pb.stop();
+      refit();
+      draw();
+      pb.start();
+    };
+    segBind(root, 'rs-d', S.d, (v) => {
+      S.d = v;
+      gen();
+      re();
+    });
+    segBind(root, 'rs-m', '1', (v) => {
+      S.m = +v;
+      re();
+    });
+    $('#rs-log', root).onchange = (e) => {
+      S.log = e.target.checked;
+      re();
+    };
+    $('#rs-drop', root).onchange = (e) => {
+      S.drop = e.target.checked;
+      re();
+    };
+    xyUp(
+      root,
+      'rs',
+      (q) => {
+        const x0 = Math.min(...q.map((d) => d[0])),
+          x1 = Math.max(...q.map((d) => d[0]));
+        D = q.map((d) => [0.4 + (9.2 * (d[0] - x0)) / (x1 - x0 || 1), d[1]]);
+        if (S.log && D.some((d) => d[1] <= 0)) {
+          S.log = false;
+          $('#rs-log', root).checked = false;
+        }
+        re();
+      },
+      false,
+    );
+    return {
+      draw,
+      stop: () => pb.stop(),
+      auto: () => {
+        u = 0;
+        draw();
+        pb.start();
+      },
+    };
+  },
+});
+FND.push({
+  id: 'vc-dimension',
+  tab: 'VC dimension',
+  title: 'VC dimension: how many points can a model explain away?',
+  lede: 'A model that can fit any pattern of labels you give it has learned nothing when it fits yours. The VC dimension measures that flexibility with a game. Put some points down. An opponent labels them in every possible way. If your family of models has an answer for every labelling, the points are shattered. The largest number of points that can be shattered is the VC dimension, and it controls how much data you need before a good fit means anything.',
+  stage: `<div class="row seg" id="vc-h" role="group" aria-label="Family of models"><button class="btn" type="button" data-v="int">Intervals on a Line</button><button class="btn" type="button" data-v="line">Straight Lines</button><button class="btn" type="button" data-v="rect">Upright Rectangles</button></div>
  <div class="stage"><figure class="fig"><figcaption>The current labelling: gold points must be inside (positive), dark points outside. If the family has a member that does it, it is drawn. Drag the points to rearrange them</figcaption><canvas class="short" id="vc-c" role="img" aria-label="Points with the current labelling and a separating model if one exists"></canvas></figure>
  <figure class="fig"><figcaption>Top: every possible labelling as a tile. Filled: the family can produce it. Crossed: it cannot. Bottom: how many labellings the family can produce on n points (solid), against all 2ⁿ labellings (dashed)</figcaption><canvas class="short" id="vc-r" role="img" aria-label="Grid of labellings and the growth function"></canvas></figure></div>
- ${uHow('vc',['Choose a family of models and put down n points.','List every way of labelling the points positive or negative. There are 2ⁿ of them.','For each labelling, look for a member of the family that gets every point right.','If every labelling can be matched, the points are shattered.','If even one labelling cannot be matched, try moving the points. Shattering needs only one good arrangement.','The VC dimension is the largest n for which some arrangement can be shattered.'])}
- <div class="controls">${uBtns('vc','Run','Next labelling','labellings')}
- ${grp('The points',slider('vc-n','Number of points',1,6,1,3)+`<div class="row"><button class="btn" id="vc-new" type="button">Rearrange at random</button><button class="btn" id="vc-row" type="button">Put them in a row</button><button class="btn" id="vc-best" type="button">A good arrangement</button></div>`+slider('vc-sp','Speed',1,3,1,2))}</div>
- <dl class="read">${rd('n','Points')}${rd('done','Labellings tried')}${rd('ok','Labellings the family can match','hl')}${rd('sh','Shattered?','hl2')}${rd('vc','VC dimension of this family')}${rd('fail','First labelling that failed')}</dl>`,
- tryit:'With Straight Lines and three points, press Run: all 8 labellings can be matched. Now press Put them in a row and run again. Which labelling fails, and does that change the VC dimension? Raise the number of points to 4 and try to find any arrangement, by dragging, that a straight line can shatter. Switch to Upright Rectangles: four points in a diamond can be shattered. Try five. Whatever you do, one labelling always fails. Which point is always the problem?',
- math:String.raw`<h4>Intuition</h4><p>Suppose a fortune-teller can explain any outcome after the fact. If you won, the stars foretold it. If you lost, the stars foretold that too. Their record of explaining the past is perfect and tells you nothing about whether they can predict the future. A family of models is in the same position when it is flexible enough to match every possible labelling of your data: a perfect fit was guaranteed in advance. A family that can match only a few of the possible labellings is different. If it fits yours, that is evidence. The VC dimension counts how many points a family can explain away completely.</p>
+ ${uHow('vc', ['Choose a family of models and put down n points.', 'List every way of labelling the points positive or negative. There are 2ⁿ of them.', 'For each labelling, look for a member of the family that gets every point right.', 'If every labelling can be matched, the points are shattered.', 'If even one labelling cannot be matched, try moving the points. Shattering needs only one good arrangement.', 'The VC dimension is the largest n for which some arrangement can be shattered.'])}
+ <div class="controls">${uBtns('vc', 'Run', 'Next labelling', 'labellings')}
+ ${grp('The points', slider('vc-n', 'Number of points', 1, 6, 1, 3) + `<div class="row"><button class="btn" id="vc-new" type="button">Rearrange at random</button><button class="btn" id="vc-row" type="button">Put them in a row</button><button class="btn" id="vc-best" type="button">A good arrangement</button></div>` + slider('vc-sp', 'Speed', 1, 3, 1, 2))}</div>
+ <dl class="read">${rd('n', 'Points')}${rd('done', 'Labellings tried')}${rd('ok', 'Labellings the family can match', 'hl')}${rd('sh', 'Shattered?', 'hl2')}${rd('vc', 'VC dimension of this family')}${rd('fail', 'First labelling that failed')}</dl>`,
+  tryit:
+    'With Straight Lines and three points, press Run: all 8 labellings can be matched. Now press Put them in a row and run again. Which labelling fails, and does that change the VC dimension? Raise the number of points to 4 and try to find any arrangement, by dragging, that a straight line can shatter. Switch to Upright Rectangles: four points in a diamond can be shattered. Try five. Whatever you do, one labelling always fails. Which point is always the problem?',
+  math: String.raw`<h4>Intuition</h4><p>Suppose a fortune-teller can explain any outcome after the fact. If you won, the stars foretold it. If you lost, the stars foretold that too. Their record of explaining the past is perfect and tells you nothing about whether they can predict the future. A family of models is in the same position when it is flexible enough to match every possible labelling of your data: a perfect fit was guaranteed in advance. A family that can match only a few of the possible labellings is different. If it fits yours, that is evidence. The VC dimension counts how many points a family can explain away completely.</p>
  <h4>Shattering</h4><p>Let \(\mathcal H\) be a family of classifiers. A set of \(n\) points is <b>shattered</b> by \(\mathcal H\) if, for every one of the \(2^n\) ways of labelling them \(\pm1\), some \(h\in\mathcal H\) labels all of them correctly. The <b>Vapnik-Chervonenkis dimension</b> is</p>$$d_{\mathrm{VC}}(\mathcal H)=\max\{\,n:\ \text{some set of }n\text{ points is shattered by }\mathcal H\,\}.$$<p>Note the two quantifiers. To show \(d_{\mathrm{VC}}\ge n\) you need <i>one</i> arrangement that works. To show \(d_{\mathrm{VC}}<n\) you must show that <i>every</i> arrangement fails.</p>
  <h4>The three families here</h4><p><b>Intervals</b> label a point positive when it lies in \([a,b]\). Two points can be shattered. Three cannot: positive, negative, positive from left to right is impossible. So \(d_{\mathrm{VC}}=2\).</p><p><b>Straight lines</b> in the plane label one side positive. Three points not in a row can be shattered. Four never can: either one point lies inside the triangle of the others, and cannot be labelled differently from all three, or the four form a quadrilateral, and the two diagonals cannot be given opposite labels. So \(d_{\mathrm{VC}}=3\). In \(d\) dimensions a hyperplane has \(d_{\mathrm{VC}}=d+1\).</p><p><b>Upright rectangles</b> label the inside positive. Four points in a diamond can be shattered. With five, take the leftmost, rightmost, top and bottom points: any rectangle containing those four contains the fifth as well. So \(d_{\mathrm{VC}}=4\).</p>
  <h4>The growth function</h4><p>Let \(m_{\mathcal H}(n)\) be the largest number of distinct labellings \(\mathcal H\) can produce on any \(n\) points. Up to the VC dimension it equals \(2^n\). Beyond it, Sauer's lemma says it grows only like a polynomial:</p>$$m_{\mathcal H}(n)\le\sum_{i=0}^{d_{\mathrm{VC}}}\binom{n}{i}\le\Big(\frac{e\,n}{d_{\mathrm{VC}}}\Big)^{d_{\mathrm{VC}}}.$$<p>That break from exponential to polynomial is what makes learning possible. The bottom-right chart shows the two curves separating.</p>
  <h4>Why it matters</h4><p>With probability at least \(1-\delta\), every classifier in the family satisfies</p>$$\text{true error}\ \le\ \text{training error}+\sqrt{\frac{8}{n}\Big(d_{\mathrm{VC}}\ln\frac{2en}{d_{\mathrm{VC}}}+\ln\frac4\delta\Big)}.$$<p>The gap between what you measure and what you get shrinks as the number of examples \(n\) grows and widens with the VC dimension. A family with infinite VC dimension offers no such guarantee at all. The bound is loose in practice, often by a large factor, and modern networks generalize far better than it predicts. Its lasting lesson is the trade: more flexibility buys a better fit and costs certainty about what that fit means.</p>
  <h4>What this page checks</h4><p>For each labelling the page searches the family exhaustively: every pair of cut points for intervals, the bounding box of the positive points for rectangles, and 720 directions for lines. The growth-function chart uses the exact values for these three families, \(\binom n2+n+1\) for intervals, \(n^2-n+2\) for lines and the Sauer bound for rectangles.</p>`,
- q:'Three points in a row cannot be shattered by straight lines. Four points in general position cannot either. Why is the VC dimension of lines 3 and not 2?',a:'Because the definition asks for the best case over arrangements. It is enough that one set of three points can be shattered, and any three points that are not in a row can be. The failure for three points in a row is a property of that unlucky arrangement, not of the family. For four points the failure is different in kind: it happens for every arrangement, whether one point is inside the triangle of the others or the four form a quadrilateral. So three is achievable and four is not, and the VC dimension is 3.',
- init(root){const c=$('#vc-c',root),cr=$('#vc-r',root),live=$('#vc-live',root),S={h:'line',n:3,sp:2},VC={int:2,line:3,rect:4},GOOD={int:[[-2,0],[1,0],[2.6,0],[-3,0],[0,0],[3.4,0]],line:[[-1.8,-1],[1.9,-.8],[.1,1.6],[2.4,1.4],[-2.6,1.2],[0,-2.2]],rect:[[0,1.8],[2.2,0],[0,-1.8],[-2.2,0],[.2,.1],[1.4,1.3]]};
-  let P=[],k=0,res=[],hyp=null,fin=false,msg='',cu=0,pb,chk=()=>false,V=null,drag=-1,fr=0,firstFail=-1;
-  const lab=(m,i)=>(m>>i)&1;
-  const find=m=>{const n=S.n,pos=[],neg=[];for(let i=0;i<n;i++)(lab(m,i)?pos:neg).push(P[i]);
-   if(S.h==='int'){if(!pos.length)return{t:'int',a:9,b:9};const a=Math.min(...pos.map(p=>p[0])),b=Math.max(...pos.map(p=>p[0]));return neg.some(p=>p[0]>=a-1e-9&&p[0]<=b+1e-9)?null:{t:'int',a:a-.25,b:b+.25}}
-   if(S.h==='rect'){if(!pos.length)return{t:'rect',none:true};const x0=Math.min(...pos.map(p=>p[0])),x1=Math.max(...pos.map(p=>p[0])),y0=Math.min(...pos.map(p=>p[1])),y1=Math.max(...pos.map(p=>p[1]));return neg.some(p=>p[0]>=x0-1e-9&&p[0]<=x1+1e-9&&p[1]>=y0-1e-9&&p[1]<=y1+1e-9)?null:{t:'rect',x0:x0-.22,x1:x1+.22,y0:y0-.22,y1:y1+.22}}
-   if(!pos.length||!neg.length)return{t:'line',nx:1,ny:0,c:pos.length?-9:9};let best=null,bg=1e-6;for(let a=0;a<720;a++){const th=a*Math.PI/360,nx=Math.cos(th),ny=Math.sin(th),lo=Math.min(...pos.map(p=>p[0]*nx+p[1]*ny)),hi=Math.max(...neg.map(p=>p[0]*nx+p[1]*ny));if(lo-hi>bg){bg=lo-hi;best={t:'line',nx,ny,c:(lo+hi)/2}}}return best};
-  const place=kind=>{const n=6;if(kind==='good')P=GOOD[S.h].map(p=>p.slice());else if(kind==='row')P=Array.from({length:n},(_,i)=>[-3+1.2*i,S.h==='int'?0:-1.2+.48*i]);else P=Array.from({length:n},()=>[-3.3+6.6*Math.random(),S.h==='int'?0:-2.3+4.6*Math.random()])};
-  const reset=()=>{k=0;res=[];hyp=null;fin=false;firstFail=-1;cu=0;msg='There are '+(1<<S.n)+' ways to label '+S.n+' point'+(S.n===1?'':'s')+'. Press Run to try them all, or Next labelling to go one at a time.'};
-  const str=m=>Array.from({length:S.n},(_,i)=>lab(m,i)?'+':'−').join(' ');
-  const step=()=>{if(fin)return;const tot=1<<S.n;hyp=find(k);res.push(!!hyp);if(!hyp&&firstFail<0)firstFail=k;cu=2;msg='Labelling '+(k+1)+' of '+tot+' ('+str(k)+'): '+(hyp?'matched.':'no member of the family can do this.');k++;
-   if(k>=tot){fin=true;const ok=res.filter(Boolean).length,sh=ok===tot;cu=sh?3:4;msg='All '+tot+' labellings tried: '+ok+' matched. '+(sh?'These '+S.n+' points are shattered, so the VC dimension is at least '+S.n+'.'+(S.n===VC[S.h]?' It is exactly '+S.n+': no arrangement of '+(S.n+1)+' points can be shattered.':''):'These points are not shattered. '+(S.n<=VC[S.h]?'Another arrangement of '+S.n+' points can be: try A good arrangement.':'No arrangement of '+S.n+' points can be, because the VC dimension of this family is '+VC[S.h]+'.'))}};
-  const draw=()=>{const t=T();V=uView(c);const{g,w,h,X,Y}=V,m=fin?(firstFail>=0?firstFail:k-1):Math.max(0,k-1),show=fin&&firstFail>=0?null:hyp;
-   if(S.h==='int'){g.strokeStyle=t.line;g.lineWidth=1;g.beginPath();g.moveTo(X(-4),Y(0));g.lineTo(X(4),Y(0));g.stroke()}
-   if(show&&k>0){g.fillStyle=mix(t.gold,t.gold,0,.16);g.strokeStyle=t.gold;g.lineWidth=2;if(show.t==='int'){if(show.a<5){g.fillRect(X(show.a),Y(.5),X(show.b)-X(show.a),Y(-.5)-Y(.5));g.strokeRect(X(show.a),Y(.5),X(show.b)-X(show.a),Y(-.5)-Y(.5))}}else if(show.t==='rect'){if(!show.none){g.fillRect(X(show.x0),Y(show.y1),X(show.x1)-X(show.x0),Y(show.y0)-Y(show.y1));g.strokeRect(X(show.x0),Y(show.y1),X(show.x1)-X(show.x0),Y(show.y0)-Y(show.y1))}}
-    else{const{nx,ny,c:cc}=show,px=nx*cc,py=ny*cc,L=12;g.beginPath();g.moveTo(X(px-ny*L),Y(py+nx*L));g.lineTo(X(px+ny*L),Y(py-nx*L));g.lineTo(X(px+ny*L+nx*L),Y(py-nx*L+ny*L));g.lineTo(X(px-ny*L+nx*L),Y(py+nx*L+ny*L));g.closePath();g.fill();g.beginPath();g.moveTo(X(px-ny*L),Y(py+nx*L));g.lineTo(X(px+ny*L),Y(py-nx*L));g.stroke()}}
-   for(let i=0;i<S.n;i++){const on=k>0||fin?lab(m,i):0;g.lineWidth=2.5;dotAt(g,X(P[i][0]),Y(P[i][1]),10,k>0?(on?t.gold:t.ink):t.muted,t.bg);g.font=SANS;g.fillStyle=t.bg;g.textAlign='center';g.fillText(k>0?(on?'+':'−'):String(i+1),X(P[i][0]),Y(P[i][1])+4.5)}
-   g2Note(g,t,h,k===0?'drag the points, then press Run':fin&&firstFail>=0?'showing the first labelling that cannot be matched: '+str(firstFail):hyp?'gold area: the positive side of the matching model':'no model matches this labelling');
-   {const{g,w,h}=fit(cr),h1=h*.5,tot=1<<S.n,cols=tot<=8?tot:tot<=16?8:tot<=32?8:16,rows=Math.ceil(tot/cols),tw=Math.min(46,(w-40)/cols),th=Math.min(34,(h1-34)/rows),ox=(w-cols*tw)/2,oy=26;g.font=MONO;g.fillStyle=t.muted;g.textAlign='left';g.fillText('all '+tot+' labellings',8,13);
-    for(let q=0;q<tot;q++){const x=ox+(q%cols)*tw,y=oy+Math.floor(q/cols)*th,dn=q<res.length;g.strokeStyle=q===k-1&&!fin?t.gold:t.line;g.lineWidth=q===k-1&&!fin?2.5:1;g.fillStyle=dn?(res[q]?mix(t.accent,t.accent,0,.55):mix(t.cut,t.cut,0,.2)):'transparent';g.fillRect(x+2,y+2,tw-4,th-4);g.strokeRect(x+2,y+2,tw-4,th-4);if(dn&&!res[q]){g.strokeStyle=t.cut;g.lineWidth=2;g.beginPath();g.moveTo(x+6,y+6);g.lineTo(x+tw-6,y+th-6);g.moveTo(x+tw-6,y+6);g.lineTo(x+6,y+th-6);g.stroke()}
-     if(tw>30){for(let i=0;i<S.n;i++)dotAt(g,x+tw/2+(i-(S.n-1)/2)*Math.min(7,(tw-10)/S.n),y+th/2,2,lab(q,i)?t.gold:t.ink)}}
-    const gf=n=>S.h==='int'?n*(n-1)/2+n+1:S.h==='line'?(n<=1?2:n*n-n+2):[0,1,2,3,4].reduce((s,i)=>s+(i<=n?[1,n,n*(n-1)/2,n*(n-1)*(n-2)/6,n*(n-1)*(n-2)*(n-3)/24][i]:0),0),NS=[1,2,3,4,5,6,7,8],A=uLine(g,t,0,h1,w,h-h1,[],{title:'labellings on n points, n = 1 to 8 (log scale): family (solid), all 2ⁿ (dashed)',n:8,ym:8,y1:1});
-    g.strokeStyle=t.cut;g.lineWidth=1.6;g.setLineDash([6,4]);g.beginPath();NS.forEach((n,i)=>i?g.lineTo(A.X(i),A.Y(n)):g.moveTo(A.X(i),A.Y(n)));g.stroke();g.setLineDash([]);g.strokeStyle=t.accent;g.lineWidth=2.4;g.beginPath();NS.forEach((n,i)=>{const v=Math.log2(Math.min(gf(n),2**n));i?g.lineTo(A.X(i),A.Y(v)):g.moveTo(A.X(i),A.Y(v))});g.stroke();dotAt(g,A.X(S.n-1),A.Y(Math.log2(Math.min(gf(S.n),2**S.n))),5,t.gold,t.bg);g.strokeStyle=t.muted;g.lineWidth=1;g.setLineDash([2,4]);g.beginPath();g.moveTo(A.X(VC[S.h]-1),A.Y(1));g.lineTo(A.X(VC[S.h]-1),A.Y(8));g.stroke();g.setLineDash([]);g.fillStyle=t.muted;g.textAlign='left';g.fillText('VC dimension',A.X(VC[S.h]-1)+5,A.Y(7.6))}
-   const ok=res.filter(Boolean).length;live.textContent=msg;uCur(root,'vc',cu);setR(root,'n',S.n);setR(root,'done',res.length+' of '+(1<<S.n)+(fin?' (finished)':''));setR(root,'ok',String(ok));setR(root,'sh',fin?(ok===(1<<S.n)?'Yes':'No'):'–');setR(root,'vc',VC[S.h]);setR(root,'fail',firstFail>=0?str(firstFail):fin?'none':'–')};
-  place('good');reset();if(RM){while(!fin)step()}
-  const anim=Anim(()=>{if(fin){pb.stop();return}if(++fr%(S.sp===1?40:S.sp===2?(S.n>4?5:14):2))return;step();draw();chk()});pb=playBtn($('#vc-play',root),anim);chk=runCtl(pb,root,'vc',{done:()=>fin,restart:reset,count:()=>k,what:'labellings'});
-  const go=()=>{pb.stop();reset();draw();fr=0;pb.start()};
-  $('#vc-step',root).onclick=()=>{pb.stop();if(fin)reset();else step();draw()};$('#vc-reset',root).onclick=()=>{pb.stop();reset();draw()};$('#vc-new',root).onclick=()=>{place('rand');go()};$('#vc-row',root).onclick=()=>{place('row');go()};$('#vc-best',root).onclick=()=>{place('good');go()};
-  bind(root,'vc-n',v=>{S.n=v;go()},v=>String(+v));bind(root,'vc-sp',v=>{S.sp=v},v=>['','slow','steady','fast'][+v]);segBind(root,'vc-h',S.h,v=>{S.h=v;place('good');go()});
-  c.style.cursor='grab';c.style.touchAction='none';c.addEventListener('pointerdown',e=>{if(!V)return;const[x,y]=canvasXY(c,V,e);drag=P.slice(0,S.n).findIndex(p=>Math.hypot((p[0]-x)*V.s,(p[1]-y)*V.s)<16);if(drag>=0){c.setPointerCapture(e.pointerId);pb.stop()}});
-  c.addEventListener('pointermove',e=>{if(drag<0||!V)return;const[x,y]=canvasXY(c,V,e);P[drag]=[clamp(x,-3.7,3.7),S.h==='int'?0:clamp(y,-2.7,2.7)];reset();while(!fin)step();draw()});const end=()=>{drag=-1};c.addEventListener('pointerup',end);c.addEventListener('pointercancel',end);
-  return{draw,stop:()=>pb.stop(),auto:()=>{reset();draw();fr=0;pb.start()}}}}
-);
-UNS.push(
-{id:'kernel-pca',tab:'Kernel PCA',title:'Kernel PCA: straighten the data, then find its directions',
- lede:'Ordinary PCA finds the straight direction along which the data vary most. That is no help when the structure is a ring inside a ring, or two interlocked crescents: no straight line tells the groups apart. Kernel PCA first measures how similar every point is to every other, and then runs PCA on the similarities. In effect it bends the space until the structure lies along straight axes.',
- stage:`<div class="row seg" id="kp-d" role="group" aria-label="Data"><button class="btn" type="button" data-v="rings">A Ring Inside a Ring</button><button class="btn" type="button" data-v="moons">Two Crescents</button><button class="btn" type="button" data-v="blobs">Two Plain Clouds</button></div>
+  q: 'Three points in a row cannot be shattered by straight lines. Four points in general position cannot either. Why is the VC dimension of lines 3 and not 2?',
+  a: 'Because the definition asks for the best case over arrangements. It is enough that one set of three points can be shattered, and any three points that are not in a row can be. The failure for three points in a row is a property of that unlucky arrangement, not of the family. For four points the failure is different in kind: it happens for every arrangement, whether one point is inside the triangle of the others or the four form a quadrilateral. So three is achievable and four is not, and the VC dimension is 3.',
+  init(root) {
+    const c = $('#vc-c', root),
+      cr = $('#vc-r', root),
+      live = $('#vc-live', root),
+      S = { h: 'line', n: 3, sp: 2 },
+      VC = { int: 2, line: 3, rect: 4 },
+      GOOD = {
+        int: [
+          [-2, 0],
+          [1, 0],
+          [2.6, 0],
+          [-3, 0],
+          [0, 0],
+          [3.4, 0],
+        ],
+        line: [
+          [-1.8, -1],
+          [1.9, -0.8],
+          [0.1, 1.6],
+          [2.4, 1.4],
+          [-2.6, 1.2],
+          [0, -2.2],
+        ],
+        rect: [
+          [0, 1.8],
+          [2.2, 0],
+          [0, -1.8],
+          [-2.2, 0],
+          [0.2, 0.1],
+          [1.4, 1.3],
+        ],
+      };
+    let P = [],
+      k = 0,
+      res = [],
+      hyp = null,
+      fin = false,
+      msg = '',
+      cu = 0,
+      pb,
+      chk = () => false,
+      V = null,
+      drag = -1,
+      fr = 0,
+      firstFail = -1;
+    const lab = (m, i) => (m >> i) & 1;
+    const find = (m) => {
+      const n = S.n,
+        pos = [],
+        neg = [];
+      for (let i = 0; i < n; i++) (lab(m, i) ? pos : neg).push(P[i]);
+      if (S.h === 'int') {
+        if (!pos.length) return { t: 'int', a: 9, b: 9 };
+        const a = Math.min(...pos.map((p) => p[0])),
+          b = Math.max(...pos.map((p) => p[0]));
+        return neg.some((p) => p[0] >= a - 1e-9 && p[0] <= b + 1e-9)
+          ? null
+          : { t: 'int', a: a - 0.25, b: b + 0.25 };
+      }
+      if (S.h === 'rect') {
+        if (!pos.length) return { t: 'rect', none: true };
+        const x0 = Math.min(...pos.map((p) => p[0])),
+          x1 = Math.max(...pos.map((p) => p[0])),
+          y0 = Math.min(...pos.map((p) => p[1])),
+          y1 = Math.max(...pos.map((p) => p[1]));
+        return neg.some(
+          (p) => p[0] >= x0 - 1e-9 && p[0] <= x1 + 1e-9 && p[1] >= y0 - 1e-9 && p[1] <= y1 + 1e-9,
+        )
+          ? null
+          : { t: 'rect', x0: x0 - 0.22, x1: x1 + 0.22, y0: y0 - 0.22, y1: y1 + 0.22 };
+      }
+      if (!pos.length || !neg.length) return { t: 'line', nx: 1, ny: 0, c: pos.length ? -9 : 9 };
+      let best = null,
+        bg = 1e-6;
+      for (let a = 0; a < 720; a++) {
+        const th = (a * Math.PI) / 360,
+          nx = Math.cos(th),
+          ny = Math.sin(th),
+          lo = Math.min(...pos.map((p) => p[0] * nx + p[1] * ny)),
+          hi = Math.max(...neg.map((p) => p[0] * nx + p[1] * ny));
+        if (lo - hi > bg) {
+          bg = lo - hi;
+          best = { t: 'line', nx, ny, c: (lo + hi) / 2 };
+        }
+      }
+      return best;
+    };
+    const place = (kind) => {
+      const n = 6;
+      if (kind === 'good') P = GOOD[S.h].map((p) => p.slice());
+      else if (kind === 'row')
+        P = Array.from({ length: n }, (_, i) => [
+          -3 + 1.2 * i,
+          S.h === 'int' ? 0 : -1.2 + 0.48 * i,
+        ]);
+      else
+        P = Array.from({ length: n }, () => [
+          -3.3 + 6.6 * Math.random(),
+          S.h === 'int' ? 0 : -2.3 + 4.6 * Math.random(),
+        ]);
+    };
+    const reset = () => {
+      k = 0;
+      res = [];
+      hyp = null;
+      fin = false;
+      firstFail = -1;
+      cu = 0;
+      msg =
+        'There are ' +
+        (1 << S.n) +
+        ' ways to label ' +
+        S.n +
+        ' point' +
+        (S.n === 1 ? '' : 's') +
+        '. Press Run to try them all, or Next labelling to go one at a time.';
+    };
+    const str = (m) => Array.from({ length: S.n }, (_, i) => (lab(m, i) ? '+' : '−')).join(' ');
+    const step = () => {
+      if (fin) return;
+      const tot = 1 << S.n;
+      hyp = find(k);
+      res.push(!!hyp);
+      if (!hyp && firstFail < 0) firstFail = k;
+      cu = 2;
+      msg =
+        'Labelling ' +
+        (k + 1) +
+        ' of ' +
+        tot +
+        ' (' +
+        str(k) +
+        '): ' +
+        (hyp ? 'matched.' : 'no member of the family can do this.');
+      k++;
+      if (k >= tot) {
+        fin = true;
+        const ok = res.filter(Boolean).length,
+          sh = ok === tot;
+        cu = sh ? 3 : 4;
+        msg =
+          'All ' +
+          tot +
+          ' labellings tried: ' +
+          ok +
+          ' matched. ' +
+          (sh
+            ? 'These ' +
+              S.n +
+              ' points are shattered, so the VC dimension is at least ' +
+              S.n +
+              '.' +
+              (S.n === VC[S.h]
+                ? ' It is exactly ' +
+                  S.n +
+                  ': no arrangement of ' +
+                  (S.n + 1) +
+                  ' points can be shattered.'
+                : '')
+            : 'These points are not shattered. ' +
+              (S.n <= VC[S.h]
+                ? 'Another arrangement of ' + S.n + ' points can be: try A good arrangement.'
+                : 'No arrangement of ' +
+                  S.n +
+                  ' points can be, because the VC dimension of this family is ' +
+                  VC[S.h] +
+                  '.'));
+      }
+    };
+    const draw = () => {
+      const t = T();
+      V = uView(c);
+      const { g, w, h, X, Y } = V,
+        m = fin ? (firstFail >= 0 ? firstFail : k - 1) : Math.max(0, k - 1),
+        show = fin && firstFail >= 0 ? null : hyp;
+      if (S.h === 'int') {
+        g.strokeStyle = t.line;
+        g.lineWidth = 1;
+        g.beginPath();
+        g.moveTo(X(-4), Y(0));
+        g.lineTo(X(4), Y(0));
+        g.stroke();
+      }
+      if (show && k > 0) {
+        g.fillStyle = mix(t.gold, t.gold, 0, 0.16);
+        g.strokeStyle = t.gold;
+        g.lineWidth = 2;
+        if (show.t === 'int') {
+          if (show.a < 5) {
+            g.fillRect(X(show.a), Y(0.5), X(show.b) - X(show.a), Y(-0.5) - Y(0.5));
+            g.strokeRect(X(show.a), Y(0.5), X(show.b) - X(show.a), Y(-0.5) - Y(0.5));
+          }
+        } else if (show.t === 'rect') {
+          if (!show.none) {
+            g.fillRect(X(show.x0), Y(show.y1), X(show.x1) - X(show.x0), Y(show.y0) - Y(show.y1));
+            g.strokeRect(X(show.x0), Y(show.y1), X(show.x1) - X(show.x0), Y(show.y0) - Y(show.y1));
+          }
+        } else {
+          const { nx, ny, c: cc } = show,
+            px = nx * cc,
+            py = ny * cc,
+            L = 12;
+          g.beginPath();
+          g.moveTo(X(px - ny * L), Y(py + nx * L));
+          g.lineTo(X(px + ny * L), Y(py - nx * L));
+          g.lineTo(X(px + ny * L + nx * L), Y(py - nx * L + ny * L));
+          g.lineTo(X(px - ny * L + nx * L), Y(py + nx * L + ny * L));
+          g.closePath();
+          g.fill();
+          g.beginPath();
+          g.moveTo(X(px - ny * L), Y(py + nx * L));
+          g.lineTo(X(px + ny * L), Y(py - nx * L));
+          g.stroke();
+        }
+      }
+      for (let i = 0; i < S.n; i++) {
+        const on = k > 0 || fin ? lab(m, i) : 0;
+        g.lineWidth = 2.5;
+        dotAt(g, X(P[i][0]), Y(P[i][1]), 10, k > 0 ? (on ? t.gold : t.ink) : t.muted, t.bg);
+        g.font = SANS;
+        g.fillStyle = t.bg;
+        g.textAlign = 'center';
+        g.fillText(k > 0 ? (on ? '+' : '−') : String(i + 1), X(P[i][0]), Y(P[i][1]) + 4.5);
+      }
+      g2Note(
+        g,
+        t,
+        h,
+        k === 0
+          ? 'drag the points, then press Run'
+          : fin && firstFail >= 0
+            ? 'showing the first labelling that cannot be matched: ' + str(firstFail)
+            : hyp
+              ? 'gold area: the positive side of the matching model'
+              : 'no model matches this labelling',
+      );
+      {
+        const { g, w, h } = fit(cr),
+          h1 = h * 0.5,
+          tot = 1 << S.n,
+          cols = tot <= 8 ? tot : tot <= 16 ? 8 : tot <= 32 ? 8 : 16,
+          rows = Math.ceil(tot / cols),
+          tw = Math.min(46, (w - 40) / cols),
+          th = Math.min(34, (h1 - 34) / rows),
+          ox = (w - cols * tw) / 2,
+          oy = 26;
+        g.font = MONO;
+        g.fillStyle = t.muted;
+        g.textAlign = 'left';
+        g.fillText('all ' + tot + ' labellings', 8, 13);
+        for (let q = 0; q < tot; q++) {
+          const x = ox + (q % cols) * tw,
+            y = oy + Math.floor(q / cols) * th,
+            dn = q < res.length;
+          g.strokeStyle = q === k - 1 && !fin ? t.gold : t.line;
+          g.lineWidth = q === k - 1 && !fin ? 2.5 : 1;
+          g.fillStyle = dn
+            ? res[q]
+              ? mix(t.accent, t.accent, 0, 0.55)
+              : mix(t.cut, t.cut, 0, 0.2)
+            : 'transparent';
+          g.fillRect(x + 2, y + 2, tw - 4, th - 4);
+          g.strokeRect(x + 2, y + 2, tw - 4, th - 4);
+          if (dn && !res[q]) {
+            g.strokeStyle = t.cut;
+            g.lineWidth = 2;
+            g.beginPath();
+            g.moveTo(x + 6, y + 6);
+            g.lineTo(x + tw - 6, y + th - 6);
+            g.moveTo(x + tw - 6, y + 6);
+            g.lineTo(x + 6, y + th - 6);
+            g.stroke();
+          }
+          if (tw > 30) {
+            for (let i = 0; i < S.n; i++)
+              dotAt(
+                g,
+                x + tw / 2 + (i - (S.n - 1) / 2) * Math.min(7, (tw - 10) / S.n),
+                y + th / 2,
+                2,
+                lab(q, i) ? t.gold : t.ink,
+              );
+          }
+        }
+        const gf = (n) =>
+            S.h === 'int'
+              ? (n * (n - 1)) / 2 + n + 1
+              : S.h === 'line'
+                ? n <= 1
+                  ? 2
+                  : n * n - n + 2
+                : [0, 1, 2, 3, 4].reduce(
+                    (s, i) =>
+                      s +
+                      (i <= n
+                        ? [
+                            1,
+                            n,
+                            (n * (n - 1)) / 2,
+                            (n * (n - 1) * (n - 2)) / 6,
+                            (n * (n - 1) * (n - 2) * (n - 3)) / 24,
+                          ][i]
+                        : 0),
+                    0,
+                  ),
+          NS = [1, 2, 3, 4, 5, 6, 7, 8],
+          A = uLine(g, t, 0, h1, w, h - h1, [], {
+            title:
+              'labellings on n points, n = 1 to 8 (log scale): family (solid), all 2ⁿ (dashed)',
+            n: 8,
+            ym: 8,
+            y1: 1,
+          });
+        g.strokeStyle = t.cut;
+        g.lineWidth = 1.6;
+        g.setLineDash([6, 4]);
+        g.beginPath();
+        NS.forEach((n, i) => (i ? g.lineTo(A.X(i), A.Y(n)) : g.moveTo(A.X(i), A.Y(n))));
+        g.stroke();
+        g.setLineDash([]);
+        g.strokeStyle = t.accent;
+        g.lineWidth = 2.4;
+        g.beginPath();
+        NS.forEach((n, i) => {
+          const v = Math.log2(Math.min(gf(n), 2 ** n));
+          i ? g.lineTo(A.X(i), A.Y(v)) : g.moveTo(A.X(i), A.Y(v));
+        });
+        g.stroke();
+        dotAt(g, A.X(S.n - 1), A.Y(Math.log2(Math.min(gf(S.n), 2 ** S.n))), 5, t.gold, t.bg);
+        g.strokeStyle = t.muted;
+        g.lineWidth = 1;
+        g.setLineDash([2, 4]);
+        g.beginPath();
+        g.moveTo(A.X(VC[S.h] - 1), A.Y(1));
+        g.lineTo(A.X(VC[S.h] - 1), A.Y(8));
+        g.stroke();
+        g.setLineDash([]);
+        g.fillStyle = t.muted;
+        g.textAlign = 'left';
+        g.fillText('VC dimension', A.X(VC[S.h] - 1) + 5, A.Y(7.6));
+      }
+      const ok = res.filter(Boolean).length;
+      live.textContent = msg;
+      uCur(root, 'vc', cu);
+      setR(root, 'n', S.n);
+      setR(root, 'done', res.length + ' of ' + (1 << S.n) + (fin ? ' (finished)' : ''));
+      setR(root, 'ok', String(ok));
+      setR(root, 'sh', fin ? (ok === 1 << S.n ? 'Yes' : 'No') : '–');
+      setR(root, 'vc', VC[S.h]);
+      setR(root, 'fail', firstFail >= 0 ? str(firstFail) : fin ? 'none' : '–');
+    };
+    place('good');
+    reset();
+    if (RM) {
+      while (!fin) step();
+    }
+    const anim = Anim(() => {
+      if (fin) {
+        pb.stop();
+        return;
+      }
+      if (++fr % (S.sp === 1 ? 40 : S.sp === 2 ? (S.n > 4 ? 5 : 14) : 2)) return;
+      step();
+      draw();
+      chk();
+    });
+    pb = playBtn($('#vc-play', root), anim);
+    chk = runCtl(pb, root, 'vc', {
+      done: () => fin,
+      restart: reset,
+      count: () => k,
+      what: 'labellings',
+    });
+    const go = () => {
+      pb.stop();
+      reset();
+      draw();
+      fr = 0;
+      pb.start();
+    };
+    $('#vc-step', root).onclick = () => {
+      pb.stop();
+      if (fin) reset();
+      else step();
+      draw();
+    };
+    $('#vc-reset', root).onclick = () => {
+      pb.stop();
+      reset();
+      draw();
+    };
+    $('#vc-new', root).onclick = () => {
+      place('rand');
+      go();
+    };
+    $('#vc-row', root).onclick = () => {
+      place('row');
+      go();
+    };
+    $('#vc-best', root).onclick = () => {
+      place('good');
+      go();
+    };
+    bind(
+      root,
+      'vc-n',
+      (v) => {
+        S.n = v;
+        go();
+      },
+      (v) => String(+v),
+    );
+    bind(
+      root,
+      'vc-sp',
+      (v) => {
+        S.sp = v;
+      },
+      (v) => ['', 'slow', 'steady', 'fast'][+v],
+    );
+    segBind(root, 'vc-h', S.h, (v) => {
+      S.h = v;
+      place('good');
+      go();
+    });
+    c.style.cursor = 'grab';
+    c.style.touchAction = 'none';
+    c.addEventListener('pointerdown', (e) => {
+      if (!V) return;
+      const [x, y] = canvasXY(c, V, e);
+      drag = P.slice(0, S.n).findIndex((p) => Math.hypot((p[0] - x) * V.s, (p[1] - y) * V.s) < 16);
+      if (drag >= 0) {
+        c.setPointerCapture(e.pointerId);
+        pb.stop();
+      }
+    });
+    c.addEventListener('pointermove', (e) => {
+      if (drag < 0 || !V) return;
+      const [x, y] = canvasXY(c, V, e);
+      P[drag] = [clamp(x, -3.7, 3.7), S.h === 'int' ? 0 : clamp(y, -2.7, 2.7)];
+      reset();
+      while (!fin) step();
+      draw();
+    });
+    const end = () => {
+      drag = -1;
+    };
+    c.addEventListener('pointerup', end);
+    c.addEventListener('pointercancel', end);
+    return {
+      draw,
+      stop: () => pb.stop(),
+      auto: () => {
+        reset();
+        draw();
+        fr = 0;
+        pb.start();
+      },
+    };
+  },
+});
+UNS.push({
+  id: 'kernel-pca',
+  tab: 'Kernel PCA',
+  title: 'Kernel PCA: straighten the data, then find its directions',
+  lede: 'Ordinary PCA finds the straight direction along which the data vary most. That is no help when the structure is a ring inside a ring, or two interlocked crescents: no straight line tells the groups apart. Kernel PCA first measures how similar every point is to every other, and then runs PCA on the similarities. In effect it bends the space until the structure lies along straight axes.',
+  stage: `<div class="row seg" id="kp-d" role="group" aria-label="Data"><button class="btn" type="button" data-v="rings">A Ring Inside a Ring</button><button class="btn" type="button" data-v="moons">Two Crescents</button><button class="btn" type="button" data-v="blobs">Two Plain Clouds</button></div>
  <div class="stage"><figure class="fig"><figcaption>The data where they live. Background shading: the value of the chosen component at every place, light for low and dark for high. Curves are places with the same value. The diamond is your own point</figcaption><canvas class="short" id="kp-c" role="img" aria-label="Data in the input space with the component as a field"></canvas></figure>
  <figure class="fig"><figcaption>The same points after the change of coordinates: first component across, second component up. Run slides each point from where it started to where it ends up</figcaption><canvas class="short" id="kp-r" role="img" aria-label="Data in the space of the first two components"></canvas></figure></div>
- ${uHow('kp',['Choose a kernel: a rule that scores how similar two points are.','Compute the similarity of every pair of points. With n points that is an n by n table.','Centre the table, so that the cloud of points in the new space has its mean at the origin.','Find the leading eigenvectors of the table. Each one assigns a number to every data point.','Those numbers are the new coordinates: component 1, component 2, and so on.','A new point is placed by comparing it with every data point.'])}
- <div class="controls">${uBtns('kp','Run','Flip the view','')}
- ${grp('The kernel',`<div class="row seg" id="kp-k" role="group" aria-label="Kernel"><button class="btn" type="button" data-v="rbf">Nearness (RBF)</button><button class="btn" type="button" data-v="poly">Polynomial, degree 2</button><button class="btn" type="button" data-v="lin">Plain (ordinary PCA)</button></div>`+slider('kp-g','Reach of the nearness kernel: small = only close neighbours count',.15,3,.05,.8)+`<div class="row seg" id="kp-q" role="group" aria-label="Component to shade" style="margin-top:6px"><button class="btn" type="button" data-v="0">Shade Component 1</button><button class="btn" type="button" data-v="1">Shade Component 2</button><button class="btn" type="button" data-v="2">Shade Component 3</button></div>`)}
- ${grp('Data',`<div class="row"><button class="btn" id="kp-new" type="button">New data</button></div>`+upHTML('kp'))}</div>
- <dl class="read">${rd('var','Variance in components 1 and 2 (of the bent space)')}${rd('s1','A cut on component 1 alone gets right')}${rd('s12','Best straight cut using components 1 and 2','hl')}${rd('lin','Best straight cut in the original picture','hl2')}</dl>`,
- tryit:'On A Ring Inside a Ring, look at the shading for the nearness kernel: which component is high on one ring and low on the other? Press Run and watch the rings pull apart on the right. Switch the kernel to Plain. Can any cut along one axis separate the rings now? Go back to the nearness kernel and drag the reach down to 0.2 and up to 3. Where does the separation break down, and why at both ends? Try Polynomial on the rings. The squared terms a circle needs are inside that kernel, and still no straight cut on the first two components works. Why not? Then choose Two Crescents and hunt for a reach that separates them: there is a narrow window near 0.35, and it does not survive every new sample. Finally type your own point and see where it lands.',
- math:String.raw`<h4>Intuition</h4><p>Draw a small circle and a large circle around it on a sheet of rubber. No straight cut separates them. Now push the centre of the sheet up into a dome. The small circle rides up near the top and the large one stays low, and a horizontal slice separates them at once. Nothing about the points changed except the space they sit in. Kernel PCA never builds the dome explicitly. It only needs to know, for every pair of points, how similar they are, and that turns out to be enough to do PCA in the bent space.</p>
+ ${uHow('kp', ['Choose a kernel: a rule that scores how similar two points are.', 'Compute the similarity of every pair of points. With n points that is an n by n table.', 'Centre the table, so that the cloud of points in the new space has its mean at the origin.', 'Find the leading eigenvectors of the table. Each one assigns a number to every data point.', 'Those numbers are the new coordinates: component 1, component 2, and so on.', 'A new point is placed by comparing it with every data point.'])}
+ <div class="controls">${uBtns('kp', 'Run', 'Flip the view', '')}
+ ${grp('The kernel', `<div class="row seg" id="kp-k" role="group" aria-label="Kernel"><button class="btn" type="button" data-v="rbf">Nearness (RBF)</button><button class="btn" type="button" data-v="poly">Polynomial, degree 2</button><button class="btn" type="button" data-v="lin">Plain (ordinary PCA)</button></div>` + slider('kp-g', 'Reach of the nearness kernel: small = only close neighbours count', 0.15, 3, 0.05, 0.8) + `<div class="row seg" id="kp-q" role="group" aria-label="Component to shade" style="margin-top:6px"><button class="btn" type="button" data-v="0">Shade Component 1</button><button class="btn" type="button" data-v="1">Shade Component 2</button><button class="btn" type="button" data-v="2">Shade Component 3</button></div>`)}
+ ${grp('Data', `<div class="row"><button class="btn" id="kp-new" type="button">New data</button></div>` + upHTML('kp'))}</div>
+ <dl class="read">${rd('var', 'Variance in components 1 and 2 (of the bent space)')}${rd('s1', 'A cut on component 1 alone gets right')}${rd('s12', 'Best straight cut using components 1 and 2', 'hl')}${rd('lin', 'Best straight cut in the original picture', 'hl2')}</dl>`,
+  tryit:
+    'On A Ring Inside a Ring, look at the shading for the nearness kernel: which component is high on one ring and low on the other? Press Run and watch the rings pull apart on the right. Switch the kernel to Plain. Can any cut along one axis separate the rings now? Go back to the nearness kernel and drag the reach down to 0.2 and up to 3. Where does the separation break down, and why at both ends? Try Polynomial on the rings. The squared terms a circle needs are inside that kernel, and still no straight cut on the first two components works. Why not? Then choose Two Crescents and hunt for a reach that separates them: there is a narrow window near 0.35, and it does not survive every new sample. Finally type your own point and see where it lands.',
+  math: String.raw`<h4>Intuition</h4><p>Draw a small circle and a large circle around it on a sheet of rubber. No straight cut separates them. Now push the centre of the sheet up into a dome. The small circle rides up near the top and the large one stays low, and a horizontal slice separates them at once. Nothing about the points changed except the space they sit in. Kernel PCA never builds the dome explicitly. It only needs to know, for every pair of points, how similar they are, and that turns out to be enough to do PCA in the bent space.</p>
  <h4>PCA written with inner products</h4><p>Map each point to a new space, \(\mathbf x\mapsto\phi(\mathbf x)\), and do ordinary PCA there. Every principal direction is a combination of the mapped data points, \(\mathbf v=\sum_i\alpha_i\,\phi(\mathbf x_i)\), so everything can be written using only the inner products</p>$$K_{ij}=\phi(\mathbf x_i)^{\top}\phi(\mathbf x_j)=k(\mathbf x_i,\mathbf x_j).$$<p>The function \(k\) is the <b>kernel</b>. If we can compute \(k\) directly, we never need \(\phi\). This is the kernel trick (Schölkopf, Smola and Müller, 1998).</p>
  <h4>Kernels on this page</h4>$$k_{\text{RBF}}(\mathbf x,\mathbf z)=\exp\!\Big(-\frac{\lVert\mathbf x-\mathbf z\rVert^2}{2s^2}\Big),\qquad k_{\text{poly}}(\mathbf x,\mathbf z)=(1+\mathbf x^{\top}\mathbf z)^2,\qquad k_{\text{plain}}(\mathbf x,\mathbf z)=\mathbf x^{\top}\mathbf z.$$<p>The slider is the reach \(s\). With the plain kernel the method is exactly ordinary PCA.</p>
  <h4>The algorithm</h4><p>Centre the kernel matrix, which is the same as subtracting the mean in the new space:</p>$$\tilde{\mathbf K}=\mathbf K-\mathbf 1\mathbf K-\mathbf K\mathbf 1+\mathbf 1\mathbf K\mathbf 1,\qquad\mathbf 1_{ij}=\tfrac1n.$$<p>Solve the eigenproblem \(\tilde{\mathbf K}\boldsymbol\alpha_m=\lambda_m\boldsymbol\alpha_m\) and scale each \(\boldsymbol\alpha_m\) to length \(1/\sqrt{\lambda_m}\). The coordinate of any point \(\mathbf x\) on component \(m\) is then</p>$$z_m(\mathbf x)=\sum_{i=1}^{n}\alpha_{m,i}\,\tilde k(\mathbf x,\mathbf x_i),$$<p>where \(\tilde k\) is the kernel centred in the same way. That formula works for points that were not in the data, which is how the shading and your own point are computed.</p>
  <h4>Choosing the reach</h4><p>If the reach is very small, each point is similar only to itself. The kernel matrix is close to the identity, every direction is as good as any other, and the components pick out individual points. If the reach is very large, the kernel is nearly constant over the data and the method drifts back towards ordinary PCA. Useful structure appears when the reach is comparable to the distance between neighbouring points within a group and smaller than the distance between groups.</p>
  <h4>Cost and caveats</h4><p>The eigenproblem is \(n\times n\), so the method costs \(O(n^3)\) and needs all the data kept in memory to place a new point. Unlike PCA, there is in general no way to map a point in the new space back to the original one. And the method is unsupervised: it does not know the groups. It keeps the directions of greatest variance in the bent space, which need not be the directions that separate anything. With the polynomial kernel on the rings, the squared radius is one of the available directions, but the first components are still dominated by plain \(x\) and \(y\), which vary more. On the crescents the nearness kernel separates the groups only for a narrow range of reach. The coloured dots and the "best single cut" readouts are there only so that you can judge the result.</p>`,
- q:'With the nearness kernel and a reach of 3, the rings stop separating. The reach of 3 is larger than the whole data set. What has the kernel turned into?',a:'When the reach is much larger than every distance in the data, the exponent is small everywhere and the kernel is approximately 1 minus the squared distance over 2s². After centring, the constant drops out and what remains behaves like the plain inner product of the points. So kernel PCA with a very long reach is close to ordinary PCA, and ordinary PCA cannot separate concentric rings because both rings have the same mean and vary equally in every straight direction.',
- init(root){const c=$('#kp-c',root),cr=$('#kp-r',root),live=$('#kp-live',root),S={d:'rings',k:'rbf',g:.8,q:0},GW=44,GH=33;let D=[],lab=[],Z=[],ZL=[],al=null,Km=null,Kt=0,fld=null,fmin=0,fmax=1,st={},u=0,seed=1,msg='',cu=0,pb,V=null,hasLab=true;
-  const kern=(a,b)=>S.k==='rbf'?Math.exp(-((a[0]-b[0])**2+(a[1]-b[1])**2)/(2*S.g*S.g)):S.k==='poly'?(1+a[0]*b[0]+a[1]*b[1])**2:a[0]*b[0]+a[1]*b[1];
-  const gen=()=>{const r=rng(seed*11+S.d.length),rn=randnFrom(r);D=[];lab=[];hasLab=true;for(let i=0;i<110;i++){const k=i%2;let p;if(S.d==='rings'){const a=2*Math.PI*r(),rad=k?2.2:.7;p=[rad*Math.cos(a)+.13*rn(),rad*Math.sin(a)+.13*rn()]}else if(S.d==='moons'){const a=Math.PI*r();p=k?[1.6*Math.cos(a)-.8+.03*rn(),1.6*Math.sin(a)-.4+.03*rn()]:[.8-1.6*Math.cos(a)+.03*rn(),.4-1.6*Math.sin(a)+.03*rn()]}else p=[(k?1.5:-1.5)+.6*rn(),(k?.6:-.6)+.6*rn()];D.push(p);lab.push(k)}};
-  const proj=x=>{const n=D.length,kx=D.map(d=>kern(x,d)),mk=kx.reduce((s,v)=>s+v,0)/n;return al.map(a=>{let s=0;for(let i=0;i<n;i++)s+=a[i]*(kx[i]-mk-Km[i]+Kt);return s})};
-  const cut=vals=>{if(!hasLab)return NaN;const o=vals.map((v,i)=>[v,lab[i]]).sort((a,b)=>a[0]-b[0]),n=o.length,n1=lab.reduce((s,v)=>s+v,0);let best=0,l1=0;for(let i=0;i<n;i++){l1+=o[i][1];const acc=Math.max(l1+(n-i-1)-(n1-l1),(i+1-l1)+(n1-l1))/n;best=Math.max(best,acc)}return best};
-  const cut2=P=>{let b=0;for(let a=0;a<36;a++){const cs=Math.cos(a*Math.PI/36),sn=Math.sin(a*Math.PI/36);b=Math.max(b,cut(P.map(p=>p[0]*cs+p[1]*sn)))}return b};
-  const solve=()=>{const n=D.length,K=D.map(a=>D.map(b=>kern(a,b)));Km=K.map(r=>r.reduce((s,v)=>s+v,0)/n);Kt=Km.reduce((s,v)=>s+v,0)/n;const Kc=K.map((r,i)=>r.map((v,j)=>v-Km[i]-Km[j]+Kt)),{vals,vecs}=laTop(Kc,3),tr=Kc.reduce((s,r,i)=>s+r[i],0);al=vecs.map((v,m)=>v.map(x=>x/Math.sqrt(Math.max(vals[m],1e-9))));Z=D.map(d=>proj(d));
-   for(let m=0;m<3;m++){const mx=Math.max(...Z.map(z=>Math.abs(z[m])))||1;Z.forEach(z=>z[m]=z[m]/mx)}
-   let cxx=0,cxy=0,cyy=0,mx=0,my=0;D.forEach(d=>{mx+=d[0]/n;my+=d[1]/n});D.forEach(d=>{cxx+=(d[0]-mx)**2;cxy+=(d[0]-mx)*(d[1]-my);cyy+=(d[1]-my)**2});const th=.5*Math.atan2(2*cxy,cxx-cyy);ZL=D.map(d=>(d[0]-mx)*Math.cos(th)+(d[1]-my)*Math.sin(th));
-   st={v:(vals[0]+vals[1])/tr,s1:cut(Z.map(z=>z[0])),s12:cut2(Z),lin:cut2(D)};field();u=RM?1:0;cu=4;const b=st.s12;msg=hasLab?(b>.97?'In the new coordinates a single straight cut tells the two groups apart ('+pct(b)+' right'+(st.s1>.97?', and component 1 alone is enough':'')+'). In the original picture the best straight cut gets '+pct(st.lin)+'.':'Even in the new coordinates no straight cut separates the groups cleanly (best '+pct(b)+'). In the original picture the best straight cut gets '+pct(st.lin)+'.'):'Components computed for your data.'};
-  const field=()=>{fld=new Float64Array(GW*GH);fmin=1e9;fmax=-1e9;for(let r=0;r<GH;r++)for(let q=0;q<GW;q++){const v=proj([-4+8*(q+.5)/GW,3-6*(r+.5)/GH])[S.q];fld[r*GW+q]=v;if(v<fmin)fmin=v;if(v>fmax)fmax=v}};
-  const tp=testPoint(root,'kp',['Your x','Your y'],[0,.7],[[-4,4],[-3,3]]);
-  const draw=()=>{const t=T(),cs=[t.accent,t.gold];V=uView(c);{const{g,w,h,X,Y}=V;for(let r=0;r<GH;r++)for(let q=0;q<GW;q++){const v=(fld[r*GW+q]-fmin)/((fmax-fmin)||1);g.fillStyle=mix(t.bg,t.ink,v*.42);const xa=Math.round(X(-4+8*q/GW)),xb=Math.round(X(-4+8*(q+1)/GW)),ya=Math.round(Y(3-6*r/GH)),yb=Math.round(Y(3-6*(r+1)/GH));g.fillRect(xa,ya,xb-xa,yb-ya)}
-    D.forEach((d,i)=>{g.lineWidth=1.2;dotAt(g,X(d[0]),Y(d[1]),4,hasLab?cs[lab[i]]:t.accent,t.bg)});markTP(g,X(tp.v[0]),Y(tp.v[1]),t);g2Note(g,t,h,'shading: component '+(S.q+1)+', dark = high')}
-   const zt=proj(tp.v),mxs=[0,1].map(m=>1);{const{g,w,h}=fit(cr),s=u*u*(3-2*u),sc=Math.min(w/8,h/6),X=x=>w/2+x*sc,Y=y=>h/2-y*sc;g.strokeStyle=t.line;g.lineWidth=1;g.beginPath();g.moveTo(X(-4),Y(0));g.lineTo(X(4),Y(0));g.moveTo(X(0),Y(-3));g.lineTo(X(0),Y(3));g.stroke();
-    D.forEach((d,i)=>{const x=d[0]+(Z[i][0]*3.3-d[0])*s,y=d[1]+(Z[i][1]*2.4-d[1])*s;g.lineWidth=1.2;dotAt(g,X(x),Y(y),4,hasLab?cs[lab[i]]:t.accent,t.bg)});g.font=MONO;g.fillStyle=t.muted;g.textAlign='right';g.fillText(s>.5?'component 1 →':'x →',w-6,h-6);g.textAlign='left';g.fillText(s>.5?'↑ component 2':'↑ y',6,12)}
-   tp.out.textContent='Your point ('+f2(tp.v[0])+', '+f2(tp.v[1])+') has component 1 = '+f3(zt[0])+', component 2 = '+f3(zt[1])+' and component 3 = '+f3(zt[2])+', found by comparing it with all '+D.length+' data points.';
-   live.textContent=msg;uCur(root,'kp',cu);setR(root,'var',pct(st.v));setR(root,'s1',hasLab?pct(st.s1):'–');setR(root,'s12',hasLab?pct(st.s12):'–');setR(root,'lin',hasLab?pct(st.lin):'–')};
-  tp.on=()=>draw();gen();solve();
-  const anim=Anim(()=>{u=clamp(u+.012,0,1);if(u>=1)pb.stop();draw()});pb=playBtn($('#kp-play',root),anim);{const s0=pb.start;pb.start=()=>{if(u>=1)u=0;s0()}}
-  const re=()=>{pb.stop();solve();draw();pb.start()};$('#kp-step',root).onclick=()=>{pb.stop();u=u<.5?1:0;draw()};$('#kp-reset',root).onclick=()=>{pb.stop();u=0;draw()};$('#kp-new',root).onclick=()=>{seed++;gen();re()};
-  bind(root,'kp-g',v=>{S.g=v;pb.stop();solve();u=1;draw()});segBind(root,'kp-d',S.d,v=>{S.d=v;gen();re()});segBind(root,'kp-k',S.k,v=>{S.k=v;re()});segBind(root,'kp-q','0',v=>{S.q=+v;field();draw()});
-  xyUp(root,'kp',q=>{D=q.slice(0,160);lab=D.map(()=>0);hasLab=false;re()});
-  return{draw,stop:()=>pb.stop(),auto:()=>{u=0;draw();pb.start()}}}}
-);
-UNS.push(
-{id:'factor-analysis',tab:'Factor analysis',title:'Factor analysis: the hidden causes behind things that move together',
- lede:'Students who do well in algebra tend to do well in geometry. Students who read well tend to write well. Nobody can measure "mathematical ability" or "verbal ability" directly, but six test scores that rise and fall in two groups suggest that two hidden quantities are driving them. Factor analysis works backwards from the pattern of correlations to the hidden causes, and at the same time works out how much of each test is just its own noise.',
- stage:`<div class="row seg" id="fa-d" role="group" aria-label="Data"><button class="btn" type="button" data-v="two">Two Hidden Abilities</button><button class="btn" type="button" data-v="one">One General Ability</button><button class="btn" type="button" data-v="noisy">One Unreliable Test</button></div>
+  q: 'With the nearness kernel and a reach of 3, the rings stop separating. The reach of 3 is larger than the whole data set. What has the kernel turned into?',
+  a: 'When the reach is much larger than every distance in the data, the exponent is small everywhere and the kernel is approximately 1 minus the squared distance over 2s². After centring, the constant drops out and what remains behaves like the plain inner product of the points. So kernel PCA with a very long reach is close to ordinary PCA, and ordinary PCA cannot separate concentric rings because both rings have the same mean and vary equally in every straight direction.',
+  init(root) {
+    const c = $('#kp-c', root),
+      cr = $('#kp-r', root),
+      live = $('#kp-live', root),
+      S = { d: 'rings', k: 'rbf', g: 0.8, q: 0 },
+      GW = 44,
+      GH = 33;
+    let D = [],
+      lab = [],
+      Z = [],
+      ZL = [],
+      al = null,
+      Km = null,
+      Kt = 0,
+      fld = null,
+      fmin = 0,
+      fmax = 1,
+      st = {},
+      u = 0,
+      seed = 1,
+      msg = '',
+      cu = 0,
+      pb,
+      V = null,
+      hasLab = true;
+    const kern = (a, b) =>
+      S.k === 'rbf'
+        ? Math.exp(-((a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2) / (2 * S.g * S.g))
+        : S.k === 'poly'
+          ? (1 + a[0] * b[0] + a[1] * b[1]) ** 2
+          : a[0] * b[0] + a[1] * b[1];
+    const gen = () => {
+      const r = rng(seed * 11 + S.d.length),
+        rn = randnFrom(r);
+      D = [];
+      lab = [];
+      hasLab = true;
+      for (let i = 0; i < 110; i++) {
+        const k = i % 2;
+        let p;
+        if (S.d === 'rings') {
+          const a = 2 * Math.PI * r(),
+            rad = k ? 2.2 : 0.7;
+          p = [rad * Math.cos(a) + 0.13 * rn(), rad * Math.sin(a) + 0.13 * rn()];
+        } else if (S.d === 'moons') {
+          const a = Math.PI * r();
+          p = k
+            ? [1.6 * Math.cos(a) - 0.8 + 0.03 * rn(), 1.6 * Math.sin(a) - 0.4 + 0.03 * rn()]
+            : [0.8 - 1.6 * Math.cos(a) + 0.03 * rn(), 0.4 - 1.6 * Math.sin(a) + 0.03 * rn()];
+        } else p = [(k ? 1.5 : -1.5) + 0.6 * rn(), (k ? 0.6 : -0.6) + 0.6 * rn()];
+        D.push(p);
+        lab.push(k);
+      }
+    };
+    const proj = (x) => {
+      const n = D.length,
+        kx = D.map((d) => kern(x, d)),
+        mk = kx.reduce((s, v) => s + v, 0) / n;
+      return al.map((a) => {
+        let s = 0;
+        for (let i = 0; i < n; i++) s += a[i] * (kx[i] - mk - Km[i] + Kt);
+        return s;
+      });
+    };
+    const cut = (vals) => {
+      if (!hasLab) return NaN;
+      const o = vals.map((v, i) => [v, lab[i]]).sort((a, b) => a[0] - b[0]),
+        n = o.length,
+        n1 = lab.reduce((s, v) => s + v, 0);
+      let best = 0,
+        l1 = 0;
+      for (let i = 0; i < n; i++) {
+        l1 += o[i][1];
+        const acc = Math.max(l1 + (n - i - 1) - (n1 - l1), i + 1 - l1 + (n1 - l1)) / n;
+        best = Math.max(best, acc);
+      }
+      return best;
+    };
+    const cut2 = (P) => {
+      let b = 0;
+      for (let a = 0; a < 36; a++) {
+        const cs = Math.cos((a * Math.PI) / 36),
+          sn = Math.sin((a * Math.PI) / 36);
+        b = Math.max(b, cut(P.map((p) => p[0] * cs + p[1] * sn)));
+      }
+      return b;
+    };
+    const solve = () => {
+      const n = D.length,
+        K = D.map((a) => D.map((b) => kern(a, b)));
+      Km = K.map((r) => r.reduce((s, v) => s + v, 0) / n);
+      Kt = Km.reduce((s, v) => s + v, 0) / n;
+      const Kc = K.map((r, i) => r.map((v, j) => v - Km[i] - Km[j] + Kt)),
+        { vals, vecs } = laTop(Kc, 3),
+        tr = Kc.reduce((s, r, i) => s + r[i], 0);
+      al = vecs.map((v, m) => v.map((x) => x / Math.sqrt(Math.max(vals[m], 1e-9))));
+      Z = D.map((d) => proj(d));
+      for (let m = 0; m < 3; m++) {
+        const mx = Math.max(...Z.map((z) => Math.abs(z[m]))) || 1;
+        Z.forEach((z) => (z[m] = z[m] / mx));
+      }
+      let cxx = 0,
+        cxy = 0,
+        cyy = 0,
+        mx = 0,
+        my = 0;
+      D.forEach((d) => {
+        mx += d[0] / n;
+        my += d[1] / n;
+      });
+      D.forEach((d) => {
+        cxx += (d[0] - mx) ** 2;
+        cxy += (d[0] - mx) * (d[1] - my);
+        cyy += (d[1] - my) ** 2;
+      });
+      const th = 0.5 * Math.atan2(2 * cxy, cxx - cyy);
+      ZL = D.map((d) => (d[0] - mx) * Math.cos(th) + (d[1] - my) * Math.sin(th));
+      st = { v: (vals[0] + vals[1]) / tr, s1: cut(Z.map((z) => z[0])), s12: cut2(Z), lin: cut2(D) };
+      field();
+      u = RM ? 1 : 0;
+      cu = 4;
+      const b = st.s12;
+      msg = hasLab
+        ? b > 0.97
+          ? 'In the new coordinates a single straight cut tells the two groups apart (' +
+            pct(b) +
+            ' right' +
+            (st.s1 > 0.97 ? ', and component 1 alone is enough' : '') +
+            '). In the original picture the best straight cut gets ' +
+            pct(st.lin) +
+            '.'
+          : 'Even in the new coordinates no straight cut separates the groups cleanly (best ' +
+            pct(b) +
+            '). In the original picture the best straight cut gets ' +
+            pct(st.lin) +
+            '.'
+        : 'Components computed for your data.';
+    };
+    const field = () => {
+      fld = new Float64Array(GW * GH);
+      fmin = 1e9;
+      fmax = -1e9;
+      for (let r = 0; r < GH; r++)
+        for (let q = 0; q < GW; q++) {
+          const v = proj([-4 + (8 * (q + 0.5)) / GW, 3 - (6 * (r + 0.5)) / GH])[S.q];
+          fld[r * GW + q] = v;
+          if (v < fmin) fmin = v;
+          if (v > fmax) fmax = v;
+        }
+    };
+    const tp = testPoint(
+      root,
+      'kp',
+      ['Your x', 'Your y'],
+      [0, 0.7],
+      [
+        [-4, 4],
+        [-3, 3],
+      ],
+    );
+    const draw = () => {
+      const t = T(),
+        cs = [t.accent, t.gold];
+      V = uView(c);
+      {
+        const { g, w, h, X, Y } = V;
+        for (let r = 0; r < GH; r++)
+          for (let q = 0; q < GW; q++) {
+            const v = (fld[r * GW + q] - fmin) / (fmax - fmin || 1);
+            g.fillStyle = mix(t.bg, t.ink, v * 0.42);
+            const xa = Math.round(X(-4 + (8 * q) / GW)),
+              xb = Math.round(X(-4 + (8 * (q + 1)) / GW)),
+              ya = Math.round(Y(3 - (6 * r) / GH)),
+              yb = Math.round(Y(3 - (6 * (r + 1)) / GH));
+            g.fillRect(xa, ya, xb - xa, yb - ya);
+          }
+        D.forEach((d, i) => {
+          g.lineWidth = 1.2;
+          dotAt(g, X(d[0]), Y(d[1]), 4, hasLab ? cs[lab[i]] : t.accent, t.bg);
+        });
+        markTP(g, X(tp.v[0]), Y(tp.v[1]), t);
+        g2Note(g, t, h, 'shading: component ' + (S.q + 1) + ', dark = high');
+      }
+      const zt = proj(tp.v),
+        mxs = [0, 1].map((m) => 1);
+      {
+        const { g, w, h } = fit(cr),
+          s = u * u * (3 - 2 * u),
+          sc = Math.min(w / 8, h / 6),
+          X = (x) => w / 2 + x * sc,
+          Y = (y) => h / 2 - y * sc;
+        g.strokeStyle = t.line;
+        g.lineWidth = 1;
+        g.beginPath();
+        g.moveTo(X(-4), Y(0));
+        g.lineTo(X(4), Y(0));
+        g.moveTo(X(0), Y(-3));
+        g.lineTo(X(0), Y(3));
+        g.stroke();
+        D.forEach((d, i) => {
+          const x = d[0] + (Z[i][0] * 3.3 - d[0]) * s,
+            y = d[1] + (Z[i][1] * 2.4 - d[1]) * s;
+          g.lineWidth = 1.2;
+          dotAt(g, X(x), Y(y), 4, hasLab ? cs[lab[i]] : t.accent, t.bg);
+        });
+        g.font = MONO;
+        g.fillStyle = t.muted;
+        g.textAlign = 'right';
+        g.fillText(s > 0.5 ? 'component 1 →' : 'x →', w - 6, h - 6);
+        g.textAlign = 'left';
+        g.fillText(s > 0.5 ? '↑ component 2' : '↑ y', 6, 12);
+      }
+      tp.out.textContent =
+        'Your point (' +
+        f2(tp.v[0]) +
+        ', ' +
+        f2(tp.v[1]) +
+        ') has component 1 = ' +
+        f3(zt[0]) +
+        ', component 2 = ' +
+        f3(zt[1]) +
+        ' and component 3 = ' +
+        f3(zt[2]) +
+        ', found by comparing it with all ' +
+        D.length +
+        ' data points.';
+      live.textContent = msg;
+      uCur(root, 'kp', cu);
+      setR(root, 'var', pct(st.v));
+      setR(root, 's1', hasLab ? pct(st.s1) : '–');
+      setR(root, 's12', hasLab ? pct(st.s12) : '–');
+      setR(root, 'lin', hasLab ? pct(st.lin) : '–');
+    };
+    tp.on = () => draw();
+    gen();
+    solve();
+    const anim = Anim(() => {
+      u = clamp(u + 0.012, 0, 1);
+      if (u >= 1) pb.stop();
+      draw();
+    });
+    pb = playBtn($('#kp-play', root), anim);
+    {
+      const s0 = pb.start;
+      pb.start = () => {
+        if (u >= 1) u = 0;
+        s0();
+      };
+    }
+    const re = () => {
+      pb.stop();
+      solve();
+      draw();
+      pb.start();
+    };
+    $('#kp-step', root).onclick = () => {
+      pb.stop();
+      u = u < 0.5 ? 1 : 0;
+      draw();
+    };
+    $('#kp-reset', root).onclick = () => {
+      pb.stop();
+      u = 0;
+      draw();
+    };
+    $('#kp-new', root).onclick = () => {
+      seed++;
+      gen();
+      re();
+    };
+    bind(root, 'kp-g', (v) => {
+      S.g = v;
+      pb.stop();
+      solve();
+      u = 1;
+      draw();
+    });
+    segBind(root, 'kp-d', S.d, (v) => {
+      S.d = v;
+      gen();
+      re();
+    });
+    segBind(root, 'kp-k', S.k, (v) => {
+      S.k = v;
+      re();
+    });
+    segBind(root, 'kp-q', '0', (v) => {
+      S.q = +v;
+      field();
+      draw();
+    });
+    xyUp(root, 'kp', (q) => {
+      D = q.slice(0, 160);
+      lab = D.map(() => 0);
+      hasLab = false;
+      re();
+    });
+    return {
+      draw,
+      stop: () => pb.stop(),
+      auto: () => {
+        u = 0;
+        draw();
+        pb.start();
+      },
+    };
+  },
+});
+UNS.push({
+  id: 'factor-analysis',
+  tab: 'Factor analysis',
+  title: 'Factor analysis: the hidden causes behind things that move together',
+  lede: 'Students who do well in algebra tend to do well in geometry. Students who read well tend to write well. Nobody can measure "mathematical ability" or "verbal ability" directly, but six test scores that rise and fall in two groups suggest that two hidden quantities are driving them. Factor analysis works backwards from the pattern of correlations to the hidden causes, and at the same time works out how much of each test is just its own noise.',
+  stage: `<div class="row seg" id="fa-d" role="group" aria-label="Data"><button class="btn" type="button" data-v="two">Two Hidden Abilities</button><button class="btn" type="button" data-v="one">One General Ability</button><button class="btn" type="button" data-v="noisy">One Unreliable Test</button></div>
  <div class="stage"><figure class="fig"><figcaption>Left grid: how the six test scores vary together in the data (covariance; the diagonal is each test’s own variance). Right grid: what the current model says they should be. Fitting makes the right grid match the left</figcaption><canvas class="short" id="fa-c" role="img" aria-label="Observed and model covariance matrices"></canvas></figure>
  <figure class="fig"><figcaption>Top: loadings, how strongly each hidden factor drives each test. Grey bars: the share of each test that no factor explains (its own noise). Bottom: the log-likelihood rising as the fit improves</figcaption><canvas class="short" id="fa-r" role="img" aria-label="Loadings, uniquenesses and log-likelihood"></canvas></figure></div>
- ${uHow('fa',['Guess the loadings (how each factor drives each test) and each test’s own noise.','E-step: for every student, work out the most plausible values of the hidden factors given their scores and the current guess.','M-step: with those factor values, refit the loadings as a regression of the scores on the factors.','Set each test’s own noise to whatever variance the factors left unexplained.','The model’s covariance is loadings × loadingsᵀ plus the noise on the diagonal. Compare it with the data.','Repeat until the log-likelihood stops rising.'])}
- <div class="controls">${uBtns('fa','Run','One step','steps')}
- ${grp('The model',slider('fa-k','Number of hidden factors',1,3,1,2)+`<label class="check" for="fa-rot"><input type="checkbox" id="fa-rot" checked>Rotate the factors so each test leans on as few as possible (varimax)</label>`)}
- ${grp('Data',`<div class="row"><button class="btn" id="fa-new" type="button">New class of students</button></div>`)}</div>
- <dl class="read">${rd('it','Steps so far')}${rd('ll','Log-likelihood per student','hl')}${rd('gap','Largest mismatch between the two grids','hl2')}${rd('pc','First principal component leans most on')}${rd('f1','First factor leans most on')}</dl>`,
- tryit:'Run it on Two Hidden Abilities and read the loadings: which tests share a factor? Set the number of factors to 1 and run again. Look at the right-hand grid: which block of the left grid can one factor not reproduce? Now choose One Unreliable Test, where the statistics exam was marked carelessly and its scores are very noisy. Compare the last two readouts. PCA chases the largest variance. Where does factor analysis put that noise instead? Untick the rotation box: the fit does not change at all. Why not?',
- math:String.raw`<h4>Intuition</h4><p>A doctor cannot see "health" but can take a temperature, a pulse and a blood pressure, and knows these tend to go wrong together. Factor analysis treats every measurement as a sum of two things: a part driven by a few hidden quantities that many measurements share, and a private part that belongs to that measurement alone, such as a noisy thermometer. Things that move together are explained by the shared part. Everything else goes in the private part. The method is given only the measurements and has to deduce both.</p>
+ ${uHow('fa', ['Guess the loadings (how each factor drives each test) and each test’s own noise.', 'E-step: for every student, work out the most plausible values of the hidden factors given their scores and the current guess.', 'M-step: with those factor values, refit the loadings as a regression of the scores on the factors.', 'Set each test’s own noise to whatever variance the factors left unexplained.', 'The model’s covariance is loadings × loadingsᵀ plus the noise on the diagonal. Compare it with the data.', 'Repeat until the log-likelihood stops rising.'])}
+ <div class="controls">${uBtns('fa', 'Run', 'One step', 'steps')}
+ ${grp('The model', slider('fa-k', 'Number of hidden factors', 1, 3, 1, 2) + `<label class="check" for="fa-rot"><input type="checkbox" id="fa-rot" checked>Rotate the factors so each test leans on as few as possible (varimax)</label>`)}
+ ${grp('Data', `<div class="row"><button class="btn" id="fa-new" type="button">New class of students</button></div>`)}</div>
+ <dl class="read">${rd('it', 'Steps so far')}${rd('ll', 'Log-likelihood per student', 'hl')}${rd('gap', 'Largest mismatch between the two grids', 'hl2')}${rd('pc', 'First principal component leans most on')}${rd('f1', 'First factor leans most on')}</dl>`,
+  tryit:
+    'Run it on Two Hidden Abilities and read the loadings: which tests share a factor? Set the number of factors to 1 and run again. Look at the right-hand grid: which block of the left grid can one factor not reproduce? Now choose One Unreliable Test, where the statistics exam was marked carelessly and its scores are very noisy. Compare the last two readouts. PCA chases the largest variance. Where does factor analysis put that noise instead? Untick the rotation box: the fit does not change at all. Why not?',
+  math: String.raw`<h4>Intuition</h4><p>A doctor cannot see "health" but can take a temperature, a pulse and a blood pressure, and knows these tend to go wrong together. Factor analysis treats every measurement as a sum of two things: a part driven by a few hidden quantities that many measurements share, and a private part that belongs to that measurement alone, such as a noisy thermometer. Things that move together are explained by the shared part. Everything else goes in the private part. The method is given only the measurements and has to deduce both.</p>
  <h4>The model</h4><p>Each observation \(\mathbf x\in\mathbb R^p\) is generated from \(k<p\) hidden factors \(\mathbf z\):</p>$$\mathbf z\sim\mathcal N(\mathbf 0,\mathbf I_k),\qquad\mathbf x=\boldsymbol\mu+\boldsymbol\Lambda\mathbf z+\boldsymbol\varepsilon,\qquad\boldsymbol\varepsilon\sim\mathcal N(\mathbf 0,\boldsymbol\Psi),\quad\boldsymbol\Psi\text{ diagonal}.$$<p>\(\boldsymbol\Lambda\) is the \(p\times k\) matrix of <b>loadings</b> and the diagonal entries of \(\boldsymbol\Psi\) are the <b>uniquenesses</b>. Integrating out \(\mathbf z\) gives the covariance the model implies:</p>$$\operatorname{Cov}(\mathbf x)=\boldsymbol\Lambda\boldsymbol\Lambda^{\top}+\boldsymbol\Psi.$$<p>All the correlation between different tests has to come from \(\boldsymbol\Lambda\boldsymbol\Lambda^{\top}\), because \(\boldsymbol\Psi\) only touches the diagonal.</p>
  <h4>Fitting by EM</h4><p>The factors are hidden, so the model is fitted by expectation-maximization (Rubin and Thayer, 1982). With sample covariance \(\mathbf S\):</p>$$\textbf{E-step:}\quad\boldsymbol\beta=\boldsymbol\Lambda^{\top}(\boldsymbol\Lambda\boldsymbol\Lambda^{\top}+\boldsymbol\Psi)^{-1},\qquad\mathbb E[\mathbf z\mid\mathbf x]=\boldsymbol\beta(\mathbf x-\boldsymbol\mu),\qquad\mathbf C_{zz}=\mathbf I-\boldsymbol\beta\boldsymbol\Lambda+\boldsymbol\beta\mathbf S\boldsymbol\beta^{\top}.$$$$\textbf{M-step:}\quad\boldsymbol\Lambda\leftarrow\mathbf S\boldsymbol\beta^{\top}\mathbf C_{zz}^{-1},\qquad\boldsymbol\Psi\leftarrow\operatorname{diag}\big(\mathbf S-\boldsymbol\Lambda\boldsymbol\beta\mathbf S\big).$$<p>Each step cannot lower the log-likelihood</p>$$\ell=-\tfrac12\Big[p\log2\pi+\log\lvert\boldsymbol\Sigma\rvert+\operatorname{tr}(\boldsymbol\Sigma^{-1}\mathbf S)\Big],\qquad\boldsymbol\Sigma=\boldsymbol\Lambda\boldsymbol\Lambda^{\top}+\boldsymbol\Psi,$$<p>shown per student. The run stops when a step raises it by less than \(10^{-7}\). EM for factor analysis is slow near the end, so expect a few hundred steps.</p>
  <h4>How it differs from PCA</h4><p>PCA looks for directions of largest total variance and makes no distinction between shared variation and private noise. If one test is very noisy, its variance is large and the first principal component points at it. Factor analysis gives every test its own noise term, so a noisy test gets a large uniqueness and is otherwise ignored. If all the uniquenesses are forced to be equal, factor analysis becomes probabilistic PCA.</p>
  <h4>Rotation</h4><p>For any rotation \(\mathbf R\), the loadings \(\boldsymbol\Lambda\mathbf R\) give the same \(\boldsymbol\Lambda\boldsymbol\Lambda^{\top}\) and so exactly the same fit. The factors are identified only up to rotation. Analysts choose the rotation that is easiest to read. <b>Varimax</b> picks the one in which each test loads heavily on as few factors as possible, by maximizing the variance of the squared loadings within each factor. It changes the description, not the model.</p>
  <h4>How many factors</h4><p>More factors always raise the likelihood. With \(p\) tests and \(k\) factors the model has \(pk+p-k(k-1)/2\) free parameters against \(p(p+1)/2\) covariances, so with six tests three factors already use up every degree of freedom, which is why the slider stops there. In practice the number is chosen by a likelihood-ratio test, an information criterion, or interpretability.</p>`,
- q:'On One Unreliable Test, the first principal component leans most on the statistics exam, while the first factor does not. Both methods saw the same scores. Why do they disagree?',a:'The statistics exam has by far the largest variance, because careless marking added a lot of random noise to it. PCA maximizes explained variance and has no way to tell shared variation from private noise, so its first direction points at the biggest variance it can find. Factor analysis has a separate noise term for every test. The statistics noise is uncorrelated with the other five tests, so no shared factor can explain it and it is absorbed into that test’s uniqueness. The factors are left to describe only what the tests have in common.',
- init(root){const c=$('#fa-c',root),cr=$('#fa-r',root),live=$('#fa-live',root),S={d:'two',k:2,rot:true},NM=['Algebra','Geometry','Statistics','Reading','Writing','Vocabulary'],p=6;let Sm=null,L=null,Ps=null,it=0,ll=NaN,hist=[],fin=false,seed=1,msg='',cu=0,pb,chk=()=>false,pc1=0;
-  const gen=()=>{const r=rng(seed*19+S.d.length),rn=randnFrom(r),n=300,X=[];for(let i=0;i<n;i++){const m=rn(),v=S.d==='one'?m:.35*m+Math.sqrt(1-.35*.35)*rn(),ld=S.d==='one'?[.9,.8,.85,.8,.85,.75]:[.9,.85,.8,.85,.9,.8],ns=[.5,.6,S.d==='noisy'?2.2:.6,.55,.5,.65];X.push(ld.map((l,j)=>l*(j<3?m:v)+ns[j]*rn()))}
-   const mu=Array.from({length:p},(_,j)=>X.reduce((s,x)=>s+x[j],0)/n);Sm=Array.from({length:p},(_,a)=>Array.from({length:p},(_,b)=>X.reduce((s,x)=>s+(x[a]-mu[a])*(x[b]-mu[b]),0)/n));const e=laTop(Sm,1).vecs[0];pc1=e.reduce((m,v,i)=>Math.abs(v)>Math.abs(e[m])?i:m,0)};
-  const sig=()=>L.map((r,a)=>L.map((q,b)=>r.reduce((s,v,j)=>s+v*q[j],0)+(a===b?Ps[a]:0)));
-  const loglik=()=>{const Sg=sig(),C=laChol(Sg),iv=laInv(Sg);let ld=0,tr=0;for(let i=0;i<p;i++){ld+=2*Math.log(C[i][i]);for(let j=0;j<p;j++)tr+=iv[i][j]*Sm[j][i]}return-.5*(p*Math.log(2*Math.PI)+ld+tr)};
-  const reset=()=>{const r=randnFrom(rng(seed*5+S.k));L=Array.from({length:p},(_,a)=>Array.from({length:S.k},()=>.4*Math.sqrt(Sm[a][a])*r()));Ps=Sm.map((r,a)=>r[a]);it=0;fin=false;ll=loglik();hist=[ll];cu=0;msg='A random first guess for the loadings; every test’s own noise starts at its full variance. Press One step or Run.'};
-  const step=()=>{if(fin)return;const k=S.k,iv=laInv(sig()),B=laMul(laT(L),iv),BL=laMul(B,L),BSB=laMul(laMul(B,Sm),laT(B)),C=BL.map((r,a)=>r.map((v,b)=>(a===b?1:0)-v+BSB[a][b])),SB=laMul(Sm,laT(B));L=laMul(SB,laInv(C));const LBS=laMul(laMul(L,B),Sm);Ps=Sm.map((r,a)=>Math.max(1e-4,r[a]-LBS[a][a]));it++;const nl=loglik(),gain=nl-ll;ll=nl;hist.push(ll);cu=it%2?1:2;msg='Step '+it+': log-likelihood per student '+ll.toFixed(4)+' (+'+(gain<1e-3?gain.toExponential(1):f3(gain))+').';
-   if(gain<1e-7||it>=1500){fin=true;cu=5;const R=view(),top=m=>{const col=R.map(r=>Math.abs(r[m]));return NM.filter((_,i)=>col[i]>.5*Math.max(...col)).join(', ')};msg='Stopped after '+it+' steps: the log-likelihood has stopped rising. '+(S.k===1?'The single factor drives '+top(0)+'.':'Factor 1 drives '+top(0)+'; factor 2 drives '+top(1)+(S.k===3?'; factor 3 drives '+top(2):'')+'.')+' Largest mismatch between the grids: '+f3(gap())+'.'}};
-  const gap=()=>{const Sg=sig();let m=0;for(let a=0;a<p;a++)for(let b=0;b<p;b++)m=Math.max(m,Math.abs(Sg[a][b]-Sm[a][b]));return m};
-  const view=()=>{let R=L.map(r=>r.slice());const k=S.k;if(S.rot&&k>1){for(let sweep=0;sweep<25;sweep++)for(let a=0;a<k;a++)for(let b=a+1;b<k;b++){let A=0,B=0,C=0,Dd=0;for(let i=0;i<p;i++){const x=R[i][a],y=R[i][b],uu=x*x-y*y,vv=2*x*y;A+=uu;B+=vv;C+=uu*uu-vv*vv;Dd+=2*uu*vv}const ph=.25*Math.atan2(Dd-2*A*B/p,C-(A*A-B*B)/p),cs=Math.cos(ph),sn=Math.sin(ph);for(let i=0;i<p;i++){const x=R[i][a],y=R[i][b];R[i][a]=cs*x+sn*y;R[i][b]=-sn*x+cs*y}}}
-   const ord=Array.from({length:k},(_,m)=>m).sort((a,b)=>R.reduce((s,r)=>s+r[b]*r[b],0)-R.reduce((s,r)=>s+r[a]*r[a],0));R=R.map(r=>ord.map(m=>r[m]));for(let m=0;m<k;m++){if(R.reduce((s,r)=>s+r[m],0)<0)R.forEach(r=>r[m]=-r[m])}return R};
-  const grid=(g,t,M,x0,y0,sz,title,mx)=>{const cs=sz/p;g.font=MONO;g.fillStyle=t.muted;g.textAlign='center';g.fillText(title,x0+sz/2,y0-8);for(let a=0;a<p;a++)for(let b=0;b<p;b++){const v=M[a][b];g.fillStyle=v>=0?mix(t.bg,t.accent,clamp(v/mx,0,1)*.9):mix(t.bg,t.cut,clamp(-v/mx,0,1)*.9);g.fillRect(x0+b*cs+1,y0+a*cs+1,cs-2,cs-2);if(cs>30){g.fillStyle=Math.abs(v)/mx>.55?t.bg:t.ink;g.font='10px "JetBrains Mono",monospace';g.fillText(v.toFixed(2),x0+b*cs+cs/2,y0+a*cs+cs/2+3)}}};
-  const draw=()=>{const t=T(),Sg=sig(),R=view();{const{g,w,h}=fit(c),lm=64,sz=Math.min((w-lm-24)/2,h-52),y0=30,mx=Math.max(...Sm.map((r,a)=>Math.max(...r.map((v,b)=>a===b?0:Math.abs(v)))))*1.15;grid(g,t,Sm,lm,y0,sz,'data',mx);grid(g,t,Sg,lm+sz+18,y0,sz,'model',mx);g.font=MONO;g.fillStyle=t.muted;g.textAlign='right';NM.forEach((nm,a)=>g.fillText(nm.slice(0,7),lm-5,y0+(a+.5)*sz/p+4));g.textAlign='left';g.fillText('colour is capped at the largest off-diagonal value',lm,y0+sz+16)}
-   {const{g,w,h}=fit(cr),h1=h*.6,m={l:74,r:10,t:22,b:8},rh=(h1-m.t-m.b)/p,cols=[t.accent,t.gold,t.ok],mx=Math.max(1,...R.flat().map(Math.abs),...Ps.map(Math.sqrt)),x0=m.l+(w-m.l-m.r)*.38,sc=(w-m.l-m.r)*.6/mx;g.font=MONO;g.fillStyle=t.muted;g.textAlign='left';g.fillText('loadings (coloured, one per factor) and own noise (grey, as a standard deviation)',8,13);g.strokeStyle=t.line;g.beginPath();g.moveTo(x0,m.t);g.lineTo(x0,h1-m.b);g.stroke();
-    for(let a=0;a<p;a++){const y=m.t+a*rh,bh=(rh-6)/(S.k+1);g.fillStyle=t.muted;g.textAlign='right';g.fillText(NM[a],m.l-6,y+rh/2+4);for(let q=0;q<S.k;q++){g.fillStyle=cols[q];const v=R[a][q]*sc;g.fillRect(v>=0?x0:x0+v,y+3+q*bh,Math.abs(v),bh-1.5)}g.fillStyle=mix(t.muted,t.muted,0,.55);g.fillRect(x0,y+3+S.k*bh,Math.sqrt(Ps[a])*sc,bh-1.5)}
-    const lo=Math.min(...hist.slice(Math.min(3,hist.length-1))),hi=Math.max(...hist),B=uLine(g,t,0,h1,w,h-h1,hist,{title:'log-likelihood per student',n:Math.max(30,hist.length),y1:lo-.02*(hi-lo+1e-9),ym:hi+.05*(hi-lo+1e-9)});g.save();g.beginPath();g.rect(0,h1+16,w,h-h1-34);g.clip();g.strokeStyle=t.accent;g.lineWidth=2;g.beginPath();hist.forEach((v,i)=>i?g.lineTo(B.X(i),B.Y(v)):g.moveTo(B.X(i),B.Y(v)));g.stroke();g.restore()}
-   const f1=R.reduce((m,r,i)=>Math.abs(r[0])>Math.abs(R[m][0])?i:m,0);live.textContent=msg;uCur(root,'fa',cu);setR(root,'it',it+(fin?' (stopped)':''));setR(root,'ll',ll.toFixed(4));setR(root,'gap',f3(gap()));setR(root,'pc',NM[pc1]);setR(root,'f1',it?NM[f1]:'–')};
-  gen();reset();if(RM){while(!fin)step()}
-  const anim=Anim(()=>{if(fin){pb.stop();return}const k=it<12?1:it<60?3:8;if(it<12&&(++fr%8))return;for(let i=0;i<k&&!fin;i++)step();draw();chk()});let fr=0;pb=playBtn($('#fa-play',root),anim);chk=runCtl(pb,root,'fa',{done:()=>fin,restart:reset,count:()=>it,what:'steps'});
-  const go=()=>{pb.stop();reset();draw();pb.start()};$('#fa-step',root).onclick=()=>{pb.stop();if(fin)reset();else step();draw()};$('#fa-reset',root).onclick=()=>{pb.stop();reset();draw()};$('#fa-new',root).onclick=()=>{seed++;gen();go()};
-  const kB=bind(root,'fa-k',v=>{S.k=v;go()},v=>String(+v));segBind(root,'fa-d',S.d,v=>{S.d=v;S.k=v==='one'?1:2;kB.set(S.k);gen();go()});$('#fa-rot',root).onchange=e=>{S.rot=e.target.checked;draw()};
-  return{draw,stop:()=>pb.stop(),auto:()=>{reset();draw();pb.start()}}}}
-);
-UNS.push(
-{id:'ica',tab:'Independent component analysis',title:'Independent component analysis: unmixing two voices from two microphones',
- lede:'Two people talk at once in a room with two microphones. Each microphone records a different blend of the two voices. Nobody tells you what either voice sounds like or how they were blended. Independent component analysis recovers both voices anyway, from one assumption: the two sources have nothing to do with each other, and neither is plain Gaussian noise.',
- stage:`<div class="row seg" id="ic-d" role="group" aria-label="Sources"><button class="btn" type="button" data-v="wave">A Hum and a Sawtooth</button><button class="btn" type="button" data-v="talk">Bursty Speech and a Square Wave</button><button class="btn" type="button" data-v="gauss">Two Gaussian Noises</button></div>
+  q: 'On One Unreliable Test, the first principal component leans most on the statistics exam, while the first factor does not. Both methods saw the same scores. Why do they disagree?',
+  a: 'The statistics exam has by far the largest variance, because careless marking added a lot of random noise to it. PCA maximizes explained variance and has no way to tell shared variation from private noise, so its first direction points at the biggest variance it can find. Factor analysis has a separate noise term for every test. The statistics noise is uncorrelated with the other five tests, so no shared factor can explain it and it is absorbed into that test’s uniqueness. The factors are left to describe only what the tests have in common.',
+  init(root) {
+    const c = $('#fa-c', root),
+      cr = $('#fa-r', root),
+      live = $('#fa-live', root),
+      S = { d: 'two', k: 2, rot: true },
+      NM = ['Algebra', 'Geometry', 'Statistics', 'Reading', 'Writing', 'Vocabulary'],
+      p = 6;
+    let Sm = null,
+      L = null,
+      Ps = null,
+      it = 0,
+      ll = NaN,
+      hist = [],
+      fin = false,
+      seed = 1,
+      msg = '',
+      cu = 0,
+      pb,
+      chk = () => false,
+      pc1 = 0;
+    const gen = () => {
+      const r = rng(seed * 19 + S.d.length),
+        rn = randnFrom(r),
+        n = 300,
+        X = [];
+      for (let i = 0; i < n; i++) {
+        const m = rn(),
+          v = S.d === 'one' ? m : 0.35 * m + Math.sqrt(1 - 0.35 * 0.35) * rn(),
+          ld = S.d === 'one' ? [0.9, 0.8, 0.85, 0.8, 0.85, 0.75] : [0.9, 0.85, 0.8, 0.85, 0.9, 0.8],
+          ns = [0.5, 0.6, S.d === 'noisy' ? 2.2 : 0.6, 0.55, 0.5, 0.65];
+        X.push(ld.map((l, j) => l * (j < 3 ? m : v) + ns[j] * rn()));
+      }
+      const mu = Array.from({ length: p }, (_, j) => X.reduce((s, x) => s + x[j], 0) / n);
+      Sm = Array.from({ length: p }, (_, a) =>
+        Array.from(
+          { length: p },
+          (_, b) => X.reduce((s, x) => s + (x[a] - mu[a]) * (x[b] - mu[b]), 0) / n,
+        ),
+      );
+      const e = laTop(Sm, 1).vecs[0];
+      pc1 = e.reduce((m, v, i) => (Math.abs(v) > Math.abs(e[m]) ? i : m), 0);
+    };
+    const sig = () =>
+      L.map((r, a) =>
+        L.map((q, b) => r.reduce((s, v, j) => s + v * q[j], 0) + (a === b ? Ps[a] : 0)),
+      );
+    const loglik = () => {
+      const Sg = sig(),
+        C = laChol(Sg),
+        iv = laInv(Sg);
+      let ld = 0,
+        tr = 0;
+      for (let i = 0; i < p; i++) {
+        ld += 2 * Math.log(C[i][i]);
+        for (let j = 0; j < p; j++) tr += iv[i][j] * Sm[j][i];
+      }
+      return -0.5 * (p * Math.log(2 * Math.PI) + ld + tr);
+    };
+    const reset = () => {
+      const r = randnFrom(rng(seed * 5 + S.k));
+      L = Array.from({ length: p }, (_, a) =>
+        Array.from({ length: S.k }, () => 0.4 * Math.sqrt(Sm[a][a]) * r()),
+      );
+      Ps = Sm.map((r, a) => r[a]);
+      it = 0;
+      fin = false;
+      ll = loglik();
+      hist = [ll];
+      cu = 0;
+      msg =
+        'A random first guess for the loadings; every test’s own noise starts at its full variance. Press One step or Run.';
+    };
+    const step = () => {
+      if (fin) return;
+      const k = S.k,
+        iv = laInv(sig()),
+        B = laMul(laT(L), iv),
+        BL = laMul(B, L),
+        BSB = laMul(laMul(B, Sm), laT(B)),
+        C = BL.map((r, a) => r.map((v, b) => (a === b ? 1 : 0) - v + BSB[a][b])),
+        SB = laMul(Sm, laT(B));
+      L = laMul(SB, laInv(C));
+      const LBS = laMul(laMul(L, B), Sm);
+      Ps = Sm.map((r, a) => Math.max(1e-4, r[a] - LBS[a][a]));
+      it++;
+      const nl = loglik(),
+        gain = nl - ll;
+      ll = nl;
+      hist.push(ll);
+      cu = it % 2 ? 1 : 2;
+      msg =
+        'Step ' +
+        it +
+        ': log-likelihood per student ' +
+        ll.toFixed(4) +
+        ' (+' +
+        (gain < 1e-3 ? gain.toExponential(1) : f3(gain)) +
+        ').';
+      if (gain < 1e-7 || it >= 1500) {
+        fin = true;
+        cu = 5;
+        const R = view(),
+          top = (m) => {
+            const col = R.map((r) => Math.abs(r[m]));
+            return NM.filter((_, i) => col[i] > 0.5 * Math.max(...col)).join(', ');
+          };
+        msg =
+          'Stopped after ' +
+          it +
+          ' steps: the log-likelihood has stopped rising. ' +
+          (S.k === 1
+            ? 'The single factor drives ' + top(0) + '.'
+            : 'Factor 1 drives ' +
+              top(0) +
+              '; factor 2 drives ' +
+              top(1) +
+              (S.k === 3 ? '; factor 3 drives ' + top(2) : '') +
+              '.') +
+          ' Largest mismatch between the grids: ' +
+          f3(gap()) +
+          '.';
+      }
+    };
+    const gap = () => {
+      const Sg = sig();
+      let m = 0;
+      for (let a = 0; a < p; a++)
+        for (let b = 0; b < p; b++) m = Math.max(m, Math.abs(Sg[a][b] - Sm[a][b]));
+      return m;
+    };
+    const view = () => {
+      let R = L.map((r) => r.slice());
+      const k = S.k;
+      if (S.rot && k > 1) {
+        for (let sweep = 0; sweep < 25; sweep++)
+          for (let a = 0; a < k; a++)
+            for (let b = a + 1; b < k; b++) {
+              let A = 0,
+                B = 0,
+                C = 0,
+                Dd = 0;
+              for (let i = 0; i < p; i++) {
+                const x = R[i][a],
+                  y = R[i][b],
+                  uu = x * x - y * y,
+                  vv = 2 * x * y;
+                A += uu;
+                B += vv;
+                C += uu * uu - vv * vv;
+                Dd += 2 * uu * vv;
+              }
+              const ph = 0.25 * Math.atan2(Dd - (2 * A * B) / p, C - (A * A - B * B) / p),
+                cs = Math.cos(ph),
+                sn = Math.sin(ph);
+              for (let i = 0; i < p; i++) {
+                const x = R[i][a],
+                  y = R[i][b];
+                R[i][a] = cs * x + sn * y;
+                R[i][b] = -sn * x + cs * y;
+              }
+            }
+      }
+      const ord = Array.from({ length: k }, (_, m) => m).sort(
+        (a, b) => R.reduce((s, r) => s + r[b] * r[b], 0) - R.reduce((s, r) => s + r[a] * r[a], 0),
+      );
+      R = R.map((r) => ord.map((m) => r[m]));
+      for (let m = 0; m < k; m++) {
+        if (R.reduce((s, r) => s + r[m], 0) < 0) R.forEach((r) => (r[m] = -r[m]));
+      }
+      return R;
+    };
+    const grid = (g, t, M, x0, y0, sz, title, mx) => {
+      const cs = sz / p;
+      g.font = MONO;
+      g.fillStyle = t.muted;
+      g.textAlign = 'center';
+      g.fillText(title, x0 + sz / 2, y0 - 8);
+      for (let a = 0; a < p; a++)
+        for (let b = 0; b < p; b++) {
+          const v = M[a][b];
+          g.fillStyle =
+            v >= 0
+              ? mix(t.bg, t.accent, clamp(v / mx, 0, 1) * 0.9)
+              : mix(t.bg, t.cut, clamp(-v / mx, 0, 1) * 0.9);
+          g.fillRect(x0 + b * cs + 1, y0 + a * cs + 1, cs - 2, cs - 2);
+          if (cs > 30) {
+            g.fillStyle = Math.abs(v) / mx > 0.55 ? t.bg : t.ink;
+            g.font = '10px "JetBrains Mono",monospace';
+            g.fillText(v.toFixed(2), x0 + b * cs + cs / 2, y0 + a * cs + cs / 2 + 3);
+          }
+        }
+    };
+    const draw = () => {
+      const t = T(),
+        Sg = sig(),
+        R = view();
+      {
+        const { g, w, h } = fit(c),
+          lm = 64,
+          sz = Math.min((w - lm - 24) / 2, h - 52),
+          y0 = 30,
+          mx =
+            Math.max(
+              ...Sm.map((r, a) => Math.max(...r.map((v, b) => (a === b ? 0 : Math.abs(v))))),
+            ) * 1.15;
+        grid(g, t, Sm, lm, y0, sz, 'data', mx);
+        grid(g, t, Sg, lm + sz + 18, y0, sz, 'model', mx);
+        g.font = MONO;
+        g.fillStyle = t.muted;
+        g.textAlign = 'right';
+        NM.forEach((nm, a) => g.fillText(nm.slice(0, 7), lm - 5, y0 + ((a + 0.5) * sz) / p + 4));
+        g.textAlign = 'left';
+        g.fillText('colour is capped at the largest off-diagonal value', lm, y0 + sz + 16);
+      }
+      {
+        const { g, w, h } = fit(cr),
+          h1 = h * 0.6,
+          m = { l: 74, r: 10, t: 22, b: 8 },
+          rh = (h1 - m.t - m.b) / p,
+          cols = [t.accent, t.gold, t.ok],
+          mx = Math.max(1, ...R.flat().map(Math.abs), ...Ps.map(Math.sqrt)),
+          x0 = m.l + (w - m.l - m.r) * 0.38,
+          sc = ((w - m.l - m.r) * 0.6) / mx;
+        g.font = MONO;
+        g.fillStyle = t.muted;
+        g.textAlign = 'left';
+        g.fillText(
+          'loadings (coloured, one per factor) and own noise (grey, as a standard deviation)',
+          8,
+          13,
+        );
+        g.strokeStyle = t.line;
+        g.beginPath();
+        g.moveTo(x0, m.t);
+        g.lineTo(x0, h1 - m.b);
+        g.stroke();
+        for (let a = 0; a < p; a++) {
+          const y = m.t + a * rh,
+            bh = (rh - 6) / (S.k + 1);
+          g.fillStyle = t.muted;
+          g.textAlign = 'right';
+          g.fillText(NM[a], m.l - 6, y + rh / 2 + 4);
+          for (let q = 0; q < S.k; q++) {
+            g.fillStyle = cols[q];
+            const v = R[a][q] * sc;
+            g.fillRect(v >= 0 ? x0 : x0 + v, y + 3 + q * bh, Math.abs(v), bh - 1.5);
+          }
+          g.fillStyle = mix(t.muted, t.muted, 0, 0.55);
+          g.fillRect(x0, y + 3 + S.k * bh, Math.sqrt(Ps[a]) * sc, bh - 1.5);
+        }
+        const lo = Math.min(...hist.slice(Math.min(3, hist.length - 1))),
+          hi = Math.max(...hist),
+          B = uLine(g, t, 0, h1, w, h - h1, hist, {
+            title: 'log-likelihood per student',
+            n: Math.max(30, hist.length),
+            y1: lo - 0.02 * (hi - lo + 1e-9),
+            ym: hi + 0.05 * (hi - lo + 1e-9),
+          });
+        g.save();
+        g.beginPath();
+        g.rect(0, h1 + 16, w, h - h1 - 34);
+        g.clip();
+        g.strokeStyle = t.accent;
+        g.lineWidth = 2;
+        g.beginPath();
+        hist.forEach((v, i) => (i ? g.lineTo(B.X(i), B.Y(v)) : g.moveTo(B.X(i), B.Y(v))));
+        g.stroke();
+        g.restore();
+      }
+      const f1 = R.reduce((m, r, i) => (Math.abs(r[0]) > Math.abs(R[m][0]) ? i : m), 0);
+      live.textContent = msg;
+      uCur(root, 'fa', cu);
+      setR(root, 'it', it + (fin ? ' (stopped)' : ''));
+      setR(root, 'll', ll.toFixed(4));
+      setR(root, 'gap', f3(gap()));
+      setR(root, 'pc', NM[pc1]);
+      setR(root, 'f1', it ? NM[f1] : '–');
+    };
+    gen();
+    reset();
+    if (RM) {
+      while (!fin) step();
+    }
+    const anim = Anim(() => {
+      if (fin) {
+        pb.stop();
+        return;
+      }
+      const k = it < 12 ? 1 : it < 60 ? 3 : 8;
+      if (it < 12 && ++fr % 8) return;
+      for (let i = 0; i < k && !fin; i++) step();
+      draw();
+      chk();
+    });
+    let fr = 0;
+    pb = playBtn($('#fa-play', root), anim);
+    chk = runCtl(pb, root, 'fa', {
+      done: () => fin,
+      restart: reset,
+      count: () => it,
+      what: 'steps',
+    });
+    const go = () => {
+      pb.stop();
+      reset();
+      draw();
+      pb.start();
+    };
+    $('#fa-step', root).onclick = () => {
+      pb.stop();
+      if (fin) reset();
+      else step();
+      draw();
+    };
+    $('#fa-reset', root).onclick = () => {
+      pb.stop();
+      reset();
+      draw();
+    };
+    $('#fa-new', root).onclick = () => {
+      seed++;
+      gen();
+      go();
+    };
+    const kB = bind(
+      root,
+      'fa-k',
+      (v) => {
+        S.k = v;
+        go();
+      },
+      (v) => String(+v),
+    );
+    segBind(root, 'fa-d', S.d, (v) => {
+      S.d = v;
+      S.k = v === 'one' ? 1 : 2;
+      kB.set(S.k);
+      gen();
+      go();
+    });
+    $('#fa-rot', root).onchange = (e) => {
+      S.rot = e.target.checked;
+      draw();
+    };
+    return {
+      draw,
+      stop: () => pb.stop(),
+      auto: () => {
+        reset();
+        draw();
+        pb.start();
+      },
+    };
+  },
+});
+UNS.push({
+  id: 'ica',
+  tab: 'Independent component analysis',
+  title: 'Independent component analysis: unmixing two voices from two microphones',
+  lede: 'Two people talk at once in a room with two microphones. Each microphone records a different blend of the two voices. Nobody tells you what either voice sounds like or how they were blended. Independent component analysis recovers both voices anyway, from one assumption: the two sources have nothing to do with each other, and neither is plain Gaussian noise.',
+  stage: `<div class="row seg" id="ic-d" role="group" aria-label="Sources"><button class="btn" type="button" data-v="wave">A Hum and a Sawtooth</button><button class="btn" type="button" data-v="talk">Bursty Speech and a Square Wave</button><button class="btn" type="button" data-v="gauss">Two Gaussian Noises</button></div>
  <div class="stage"><figure class="fig"><figcaption>Every moment in time is one dot: microphone 1 across, microphone 2 up. The method first rescales the cloud until it is round (whitening), then turns it. Gold lines: the two directions currently being read off as sources</figcaption><canvas class="short" id="ic-c" role="img" aria-label="Scatter of the two signals with unmixing directions"></canvas></figure>
  <figure class="fig"><figcaption>From the top: the two true sources (hidden from the method), the two microphone recordings, and the two signals recovered so far. Bottom: how un-Gaussian the outputs are at every possible turning angle, with the current angle marked</figcaption><canvas class="short" id="ic-r" role="img" aria-label="Waveforms and the contrast function"></canvas></figure></div>
- ${uHow('ic',['Record the two mixtures. In the scatter plot they form a slanted parallelogram or blob.','Centre the data and whiten it: rotate and rescale so that the cloud is round, with no correlation left.','After whitening, the only freedom left is a rotation. Pick a starting angle.','Measure how far from Gaussian each of the two outputs is, using kurtosis.','Turn a little in the direction that makes the outputs less Gaussian.','Stop when turning no longer helps. The two axes are now the sources.'])}
- <div class="controls">${uBtns('ic','Run','One step','steps')}
- ${grp('The room',slider('ic-a','How strongly voice 2 leaks into microphone 1',0,.95,.05,.6)+slider('ic-b','How strongly voice 1 leaks into microphone 2',0,.95,.05,.45)+`<div class="row"><button class="btn" id="ic-new" type="button">New recording</button></div>`)}</div>
- <dl class="read">${rd('it','Steps so far')}${rd('ang','Turning angle')}${rd('kur','Kurtosis of the two outputs')}${rd('m','Match with the true sources','hl')}${rd('mw','Match after whitening only (what PCA gives)','hl2')}${rd('mm','Match of the raw microphones')}</dl>`,
- tryit:'Press Run and watch three things: the cloud becoming round, then turning, and the bottom two traces on the right snapping into a clean hum and a clean sawtooth. Compare the last three readouts. Whitening alone is what PCA would give you. Is that enough? Slide the leak sliders to change the room and run again. Then choose Two Gaussian Noises. Look at the curve at the bottom right: where is its peak? What does the method do, and why can it not succeed here whatever the algorithm?',
- math:String.raw`<h4>Intuition</h4><p>Mix two paints and you get a colour that looks more like mud than either original. Mixing independent signals does something similar: a blend of several independent things looks more like a bell curve than any one of them, which is the central limit theorem at work. So run the film backwards. Search for the two ways of combining the microphone recordings that look <i>least</i> like a bell curve. Those combinations must be the originals, because any leftover mixing would have made them more bell-shaped.</p>
+ ${uHow('ic', ['Record the two mixtures. In the scatter plot they form a slanted parallelogram or blob.', 'Centre the data and whiten it: rotate and rescale so that the cloud is round, with no correlation left.', 'After whitening, the only freedom left is a rotation. Pick a starting angle.', 'Measure how far from Gaussian each of the two outputs is, using kurtosis.', 'Turn a little in the direction that makes the outputs less Gaussian.', 'Stop when turning no longer helps. The two axes are now the sources.'])}
+ <div class="controls">${uBtns('ic', 'Run', 'One step', 'steps')}
+ ${grp('The room', slider('ic-a', 'How strongly voice 2 leaks into microphone 1', 0, 0.95, 0.05, 0.6) + slider('ic-b', 'How strongly voice 1 leaks into microphone 2', 0, 0.95, 0.05, 0.45) + `<div class="row"><button class="btn" id="ic-new" type="button">New recording</button></div>`)}</div>
+ <dl class="read">${rd('it', 'Steps so far')}${rd('ang', 'Turning angle')}${rd('kur', 'Kurtosis of the two outputs')}${rd('m', 'Match with the true sources', 'hl')}${rd('mw', 'Match after whitening only (what PCA gives)', 'hl2')}${rd('mm', 'Match of the raw microphones')}</dl>`,
+  tryit:
+    'Press Run and watch three things: the cloud becoming round, then turning, and the bottom two traces on the right snapping into a clean hum and a clean sawtooth. Compare the last three readouts. Whitening alone is what PCA would give you. Is that enough? Slide the leak sliders to change the room and run again. Then choose Two Gaussian Noises. Look at the curve at the bottom right: where is its peak? What does the method do, and why can it not succeed here whatever the algorithm?',
+  math: String.raw`<h4>Intuition</h4><p>Mix two paints and you get a colour that looks more like mud than either original. Mixing independent signals does something similar: a blend of several independent things looks more like a bell curve than any one of them, which is the central limit theorem at work. So run the film backwards. Search for the two ways of combining the microphone recordings that look <i>least</i> like a bell curve. Those combinations must be the originals, because any leftover mixing would have made them more bell-shaped.</p>
  <h4>The model</h4><p>Sources \(\mathbf s(t)\in\mathbb R^2\) with independent components are mixed by an unknown matrix:</p>$$\mathbf x(t)=\mathbf A\,\mathbf s(t).$$<p>We observe only \(\mathbf x\) and want an unmixing matrix \(\mathbf W\) with \(\mathbf y=\mathbf W\mathbf x\approx\mathbf s\). The order and scale of the sources can never be recovered, since any such change can be absorbed into \(\mathbf A\).</p>
  <h4>Step one: whitening</h4><p>Subtract the mean and transform so that the covariance is the identity:</p>$$\mathbf z=\mathbf D^{-1/2}\mathbf E^{\top}(\mathbf x-\bar{\mathbf x}),\qquad\operatorname{Cov}(\mathbf x)=\mathbf E\mathbf D\mathbf E^{\top}.$$<p>This is PCA followed by rescaling. It removes all correlation, and it does half the job: the sources themselves are uncorrelated with unit variance, so they must be a <i>rotation</i> of \(\mathbf z\). Uncorrelated is weaker than independent, though, and any rotation of \(\mathbf z\) is still uncorrelated. Second-order statistics cannot pick the right one.</p>
  <h4>Step two: the rotation</h4><p>In two dimensions a rotation is one angle \(\theta\):</p>$$\mathbf y=\begin{pmatrix}\cos\theta&\sin\theta\\-\sin\theta&\cos\theta\end{pmatrix}\mathbf z.$$<p>Choose the angle that makes the outputs as non-Gaussian as possible. This page measures that with the excess <b>kurtosis</b>, which is zero for a Gaussian:</p>$$\operatorname{kurt}(y)=\mathbb E[y^4]-3\quad(\text{for unit variance}),\qquad J(\theta)=\operatorname{kurt}(y_1)^2+\operatorname{kurt}(y_2)^2.$$<p>The curve at the bottom right is \(J(\theta)\). The run climbs it by gradient ascent and stops when the angle changes by less than \(10^{-4}\) radians. The curve repeats every 90°, because turning by a quarter-turn only swaps the outputs and flips a sign.</p>
  <h4>Why Gaussian sources cannot be separated</h4><p>A whitened pair of independent Gaussians has a perfectly round distribution. Rotate it by any angle and it looks exactly the same. Every angle gives independent Gaussian outputs, the contrast \(J(\theta)\) is flat apart from sampling noise, and there is nothing to find. ICA can tolerate at most one Gaussian source.</p>
  <h4>Compared with PCA</h4><p>PCA finds uncorrelated directions ordered by variance. ICA finds independent directions, which need not be at right angles in the original space and have no natural order. PCA uses the covariance only. ICA needs higher-order statistics, which is why it needs non-Gaussian data.</p>
  <h4>Beyond this page</h4><p>The standard algorithm is FastICA (Hyvärinen and Oja, 2000), a fixed-point iteration that works in any number of dimensions and offers more robust measures of non-Gaussianity than kurtosis, which is sensitive to outliers. Real rooms add echoes and delays, so real audio needs convolutive versions of the model. ICA is routinely used to remove eye-blink artefacts from brain recordings and to find independent spatial patterns in brain imaging.</p>`,
- q:'After whitening, the two signals are uncorrelated. Why is that not the same as having separated the sources?',a:'Uncorrelated only means there is no straight-line relationship between the two signals. Independent means that knowing one tells you nothing at all about the other. Every rotation of a whitened cloud is still uncorrelated, so whitening leaves a whole circle of candidate answers, and only one orientation (up to swaps and signs) makes the outputs independent. You can see it in the scatter plot: after whitening the cloud is round overall but its sharp edges are tilted. Turning until the edges line up with the axes is the step that correlation cannot do and higher-order statistics can.',
- init(root){const c=$('#ic-c',root),cr=$('#ic-r',root),live=$('#ic-live',root),S={d:'wave',a:.6,b:.45},N=500;let Sr=[],X=[],Zw=[],th=0,u=0,it=0,fin=false,hist=[],Jc=[],seed=1,msg='',cu=0,pb,chk=()=>false,ad=null,mw=0,mm=0,anim=null;
-  const gen=()=>{const r=rng(seed*23+S.d.length),rn=randnFrom(r);Sr=[[],[]];let burst=0;const p1=6*r(),p2=r(),f1=.09+.04*r(),f2_=.026+.012*r();for(let t=0;t<N;t++){if(S.d==='wave'){Sr[0].push(Math.sin(t*f1+p1));Sr[1].push(2*((t*f2_+p2)%1)-1)}else if(S.d==='talk'){if(r()<.04)burst=1+3*r();burst*=.94;Sr[0].push(burst*Math.sin(t*.9)*(.6+.4*rn()));Sr[1].push(Math.sin(t*f2_*1.6+p1)>0?1:-1)}else{Sr[0].push(rn());Sr[1].push(rn())}}
-   Sr=Sr.map(s=>{const m=s.reduce((a,v)=>a+v,0)/N,sd=Math.sqrt(s.reduce((a,v)=>a+(v-m)**2,0)/N);return s.map(v=>(v-m)/sd)})};
-  const corr=(a,b)=>{let s=0;for(let i=0;i<N;i++)s+=a[i]*b[i];const na=Math.sqrt(a.reduce((q,v)=>q+v*v,0)),nb=Math.sqrt(b.reduce((q,v)=>q+v*v,0));return s/(na*nb)};
-  const match=Y=>{const c00=Math.abs(corr(Y[0],Sr[0])),c11=Math.abs(corr(Y[1],Sr[1])),c01=Math.abs(corr(Y[0],Sr[1])),c10=Math.abs(corr(Y[1],Sr[0]));return Math.max((c00+c11)/2,(c01+c10)/2)};
-  const rot=t=>{const cs=Math.cos(t),sn=Math.sin(t);return[Zw[0].map((v,i)=>cs*v+sn*Zw[1][i]),Zw[0].map((v,i)=>-sn*v+cs*Zw[1][i])]};
-  const kurt=y=>{let s=0;for(const v of y)s+=v**4;return s/N-3};const J=t=>{const Y=rot(t);return kurt(Y[0])**2+kurt(Y[1])**2};
-  const mix_=()=>{X=[Sr[0].map((v,i)=>v+S.a*Sr[1][i]),Sr[1].map((v,i)=>v+S.b*Sr[0][i])];X=X.map(s=>{const m=s.reduce((a,v)=>a+v,0)/N;return s.map(v=>v-m)});let a=0,b=0,d=0;for(let i=0;i<N;i++){a+=X[0][i]**2/N;b+=X[0][i]*X[1][i]/N;d+=X[1][i]**2/N}const tr=a+d,dt=a*d-b*b,l1=tr/2+Math.sqrt(Math.max(0,tr*tr/4-dt)),l2=Math.max(1e-9,tr/2-Math.sqrt(Math.max(0,tr*tr/4-dt))),ph=Math.abs(b)<1e-12?0:Math.atan2(l1-a,b),e1=[Math.cos(ph),Math.sin(ph)],e2=[-Math.sin(ph),Math.cos(ph)];
-   const z1=X[0].map((v,i)=>(e1[0]*v+e1[1]*X[1][i])/Math.sqrt(l1)),z2=X[0].map((v,i)=>(e2[0]*v+e2[1]*X[1][i])/Math.sqrt(l2));Zw=[z1,z2];mw=match(Zw);mm=match(X);Jc=Array.from({length:91},(_,k)=>J(k*Math.PI/180))};
-  const reset=()=>{th=0;u=0;it=0;fin=false;hist=[];ad=null;cu=0;msg='Two microphones, each a blend of both sources. The cloud is slanted because the recordings are correlated. Press Run or One step.'};
-  const step=()=>{if(fin)return;if(u<1){u=Math.min(1,u+(anim&&anim.on?.03:1));cu=1;msg=u>=1?'Whitened: the cloud is round and the two signals are uncorrelated. They match the sources '+pct(mw)+', which is not yet a separation. Now the turning begins.':'Whitening: rotating and rescaling the cloud until it is round.';return}
-   if(!ad)ad={m:0,v:0,t:0};const gr=(J(th+1e-3)-J(th-1e-3))/2e-3;ad.t++;ad.m=.7*ad.m+.3*gr;ad.v=.99*ad.v+.01*gr*gr;const d=.03*(ad.m/(1-.7**ad.t))/(Math.sqrt(ad.v/(1-.99**ad.t))+1e-9);th+=d;it++;hist.push(Math.abs(d));cu=4;const Y=rot(th);msg='Step '+it+': turned by '+(d*180/Math.PI).toFixed(2)+'° to '+(th*180/Math.PI).toFixed(1)+'°. Match with the true sources: '+pct(match(Y))+'.';
-   if(it>=8&&Math.max(...hist.slice(-4))<1e-4||it>=400){fin=true;cu=5;const m=match(Y),flat=Math.max(...Jc)<.3;msg='Stopped after '+it+' steps at '+(th*180/Math.PI).toFixed(1)+'°. '+(flat?'The contrast curve is almost flat, so this angle is no better than any other: Gaussian sources cannot be separated. Match '+pct(m)+'.':'The recovered signals match the true sources '+pct(m)+', against '+pct(mw)+' after whitening alone and '+pct(mm)+' for the raw microphones.')}};
-  const draw=()=>{const t=T(),s=u*u*(3-2*u),Y=rot(th);{const V=uView(c),{g,w,h,X:PX,Y:PY}=V;uFrame(V,t,s<.5?'microphone 1':'output 1',s<.5?'microphone 2':'output 2');const k=1.15;for(let i=0;i<N;i++){const x=X[0][i]*(1-s)+Y[0][i]*s,y=X[1][i]*(1-s)+Y[1][i]*s;dotAt(g,PX(x*k),PY(y*k),2,mix(t.accent,t.accent,0,.55))}
-    if(u>=1){g.strokeStyle=mix(t.muted,t.muted,0,.7);g.lineWidth=1;g.setLineDash([4,4]);for(const a of[-th,-th+Math.PI/2]){g.beginPath();g.moveTo(PX(-2.8*Math.cos(a)),PY(-2.8*Math.sin(a)));g.lineTo(PX(2.8*Math.cos(a)),PY(2.8*Math.sin(a)));g.stroke()}g.setLineDash([]);g.strokeStyle=t.gold;g.lineWidth=2.5;for(const a of[0,Math.PI/2]){g.beginPath();g.moveTo(PX(0),PY(0));g.lineTo(PX(2.6*Math.cos(a)),PY(2.6*Math.sin(a)));g.stroke()}}
-    g2Note(g,t,h,u<1?'the slanted cloud of raw recordings':'dashed: where the axes were after whitening; the cloud has turned '+(th*180/Math.PI).toFixed(1)+'°')}
-   {const{g,w,h}=fit(cr),h1=h*.74,rows=[[Sr[0],'true source 1',t.muted],[Sr[1],'true source 2',t.muted],[X[0],'microphone 1',t.cut],[X[1],'microphone 2',t.cut],[u<1?X[0].map((v,i)=>v*(1-s)+Zw[0][i]*s):Y[0],'recovered 1',t.accent],[u<1?X[1].map((v,i)=>v*(1-s)+Zw[1][i]*s):Y[1],'recovered 2',t.accent]],rh=h1/6,M=220;g.font=MONO;
-    rows.forEach(([y,nm,col],r)=>{const mx=Math.max(...y.slice(0,M).map(Math.abs))||1;g.strokeStyle=col;g.lineWidth=1.3;g.beginPath();for(let i=0;i<M;i++){const px=98+(w-106)*i/(M-1),py=r*rh+rh/2-y[i]/mx*(rh/2-3);i?g.lineTo(px,py):g.moveTo(px,py)}g.stroke();g.fillStyle=t.muted;g.textAlign='left';g.fillText(nm,4,r*rh+rh/2+4)});
-    const jm=Math.max(...Jc,1e-6),A=uLine(g,t,0,h1,w,h-h1,Jc,{title:'how un-Gaussian the outputs are, at turning angles 0° to 90°',n:91,ym:Math.max(jm*1.1,.3),y1:0});g.strokeStyle=t.gold;g.lineWidth=2;g.beginPath();Jc.forEach((v,i)=>i?g.lineTo(A.X(i),A.Y(v)):g.moveTo(A.X(i),A.Y(v)));g.stroke();const ad_=((th*180/Math.PI)%90+90)%90;dotAt(g,A.X(ad_),A.Y(J(th)),5,t.accent,t.bg)}
-   live.textContent=msg;uCur(root,'ic',cu);setR(root,'it',it+(fin?' (stopped)':''));setR(root,'ang',(th*180/Math.PI).toFixed(1)+'°');setR(root,'kur',u>=1?f2(kurt(Y[0]))+' and '+f2(kurt(Y[1])):'–');setR(root,'m',u>=1?pct(match(Y)):'–');setR(root,'mw',pct(mw));setR(root,'mm',pct(mm))};
-  gen();mix_();reset();if(RM){while(!fin)step()}
-  let fr=0;anim=Anim(()=>{if(fin){pb.stop();return}if(u>=1&&(++fr%4))return;step();draw();chk()});pb=playBtn($('#ic-play',root),anim);chk=runCtl(pb,root,'ic',{done:()=>fin,restart:reset,count:()=>it,what:'steps'});
-  const go=()=>{pb.stop();mix_();reset();draw();pb.start()};$('#ic-step',root).onclick=()=>{pb.stop();if(fin)reset();else step();draw()};$('#ic-reset',root).onclick=()=>{pb.stop();reset();draw()};$('#ic-new',root).onclick=()=>{seed++;gen();go()};
-  bind(root,'ic-a',v=>{S.a=v;pb.stop();mix_();reset();draw()});bind(root,'ic-b',v=>{S.b=v;pb.stop();mix_();reset();draw()});segBind(root,'ic-d',S.d,v=>{S.d=v;gen();go()});
-  return{draw,stop:()=>pb.stop(),auto:()=>{reset();draw();pb.start()}}}}
-);
-UNS.push(
-{id:'anomaly',tab:'Anomaly detection',title:'Anomaly detection: finding the points that do not belong',
- lede:'A fraudulent card payment, a failing engine bearing, a typing error in a database. Nobody hands you labelled examples of what is wrong, and there are too few of them to learn from anyway. Anomaly detection works from the other end: learn what normal looks like, and flag whatever is far from it. Three ways of measuring "far" live on this page, and they do not always agree.',
- stage:`<div class="row seg" id="an-d" role="group" aria-label="Data"><button class="btn" type="button" data-v="blob">One Cloud</button><button class="btn" type="button" data-v="two">Two Clouds</button><button class="btn" type="button" data-v="arc">A Curved Band</button></div>
+  q: 'After whitening, the two signals are uncorrelated. Why is that not the same as having separated the sources?',
+  a: 'Uncorrelated only means there is no straight-line relationship between the two signals. Independent means that knowing one tells you nothing at all about the other. Every rotation of a whitened cloud is still uncorrelated, so whitening leaves a whole circle of candidate answers, and only one orientation (up to swaps and signs) makes the outputs independent. You can see it in the scatter plot: after whitening the cloud is round overall but its sharp edges are tilted. Turning until the edges line up with the axes is the step that correlation cannot do and higher-order statistics can.',
+  init(root) {
+    const c = $('#ic-c', root),
+      cr = $('#ic-r', root),
+      live = $('#ic-live', root),
+      S = { d: 'wave', a: 0.6, b: 0.45 },
+      N = 500;
+    let Sr = [],
+      X = [],
+      Zw = [],
+      th = 0,
+      u = 0,
+      it = 0,
+      fin = false,
+      hist = [],
+      Jc = [],
+      seed = 1,
+      msg = '',
+      cu = 0,
+      pb,
+      chk = () => false,
+      ad = null,
+      mw = 0,
+      mm = 0,
+      anim = null;
+    const gen = () => {
+      const r = rng(seed * 23 + S.d.length),
+        rn = randnFrom(r);
+      Sr = [[], []];
+      let burst = 0;
+      const p1 = 6 * r(),
+        p2 = r(),
+        f1 = 0.09 + 0.04 * r(),
+        f2_ = 0.026 + 0.012 * r();
+      for (let t = 0; t < N; t++) {
+        if (S.d === 'wave') {
+          Sr[0].push(Math.sin(t * f1 + p1));
+          Sr[1].push(2 * ((t * f2_ + p2) % 1) - 1);
+        } else if (S.d === 'talk') {
+          if (r() < 0.04) burst = 1 + 3 * r();
+          burst *= 0.94;
+          Sr[0].push(burst * Math.sin(t * 0.9) * (0.6 + 0.4 * rn()));
+          Sr[1].push(Math.sin(t * f2_ * 1.6 + p1) > 0 ? 1 : -1);
+        } else {
+          Sr[0].push(rn());
+          Sr[1].push(rn());
+        }
+      }
+      Sr = Sr.map((s) => {
+        const m = s.reduce((a, v) => a + v, 0) / N,
+          sd = Math.sqrt(s.reduce((a, v) => a + (v - m) ** 2, 0) / N);
+        return s.map((v) => (v - m) / sd);
+      });
+    };
+    const corr = (a, b) => {
+      let s = 0;
+      for (let i = 0; i < N; i++) s += a[i] * b[i];
+      const na = Math.sqrt(a.reduce((q, v) => q + v * v, 0)),
+        nb = Math.sqrt(b.reduce((q, v) => q + v * v, 0));
+      return s / (na * nb);
+    };
+    const match = (Y) => {
+      const c00 = Math.abs(corr(Y[0], Sr[0])),
+        c11 = Math.abs(corr(Y[1], Sr[1])),
+        c01 = Math.abs(corr(Y[0], Sr[1])),
+        c10 = Math.abs(corr(Y[1], Sr[0]));
+      return Math.max((c00 + c11) / 2, (c01 + c10) / 2);
+    };
+    const rot = (t) => {
+      const cs = Math.cos(t),
+        sn = Math.sin(t);
+      return [
+        Zw[0].map((v, i) => cs * v + sn * Zw[1][i]),
+        Zw[0].map((v, i) => -sn * v + cs * Zw[1][i]),
+      ];
+    };
+    const kurt = (y) => {
+      let s = 0;
+      for (const v of y) s += v ** 4;
+      return s / N - 3;
+    };
+    const J = (t) => {
+      const Y = rot(t);
+      return kurt(Y[0]) ** 2 + kurt(Y[1]) ** 2;
+    };
+    const mix_ = () => {
+      X = [Sr[0].map((v, i) => v + S.a * Sr[1][i]), Sr[1].map((v, i) => v + S.b * Sr[0][i])];
+      X = X.map((s) => {
+        const m = s.reduce((a, v) => a + v, 0) / N;
+        return s.map((v) => v - m);
+      });
+      let a = 0,
+        b = 0,
+        d = 0;
+      for (let i = 0; i < N; i++) {
+        a += X[0][i] ** 2 / N;
+        b += (X[0][i] * X[1][i]) / N;
+        d += X[1][i] ** 2 / N;
+      }
+      const tr = a + d,
+        dt = a * d - b * b,
+        l1 = tr / 2 + Math.sqrt(Math.max(0, (tr * tr) / 4 - dt)),
+        l2 = Math.max(1e-9, tr / 2 - Math.sqrt(Math.max(0, (tr * tr) / 4 - dt))),
+        ph = Math.abs(b) < 1e-12 ? 0 : Math.atan2(l1 - a, b),
+        e1 = [Math.cos(ph), Math.sin(ph)],
+        e2 = [-Math.sin(ph), Math.cos(ph)];
+      const z1 = X[0].map((v, i) => (e1[0] * v + e1[1] * X[1][i]) / Math.sqrt(l1)),
+        z2 = X[0].map((v, i) => (e2[0] * v + e2[1] * X[1][i]) / Math.sqrt(l2));
+      Zw = [z1, z2];
+      mw = match(Zw);
+      mm = match(X);
+      Jc = Array.from({ length: 91 }, (_, k) => J((k * Math.PI) / 180));
+    };
+    const reset = () => {
+      th = 0;
+      u = 0;
+      it = 0;
+      fin = false;
+      hist = [];
+      ad = null;
+      cu = 0;
+      msg =
+        'Two microphones, each a blend of both sources. The cloud is slanted because the recordings are correlated. Press Run or One step.';
+    };
+    const step = () => {
+      if (fin) return;
+      if (u < 1) {
+        u = Math.min(1, u + (anim && anim.on ? 0.03 : 1));
+        cu = 1;
+        msg =
+          u >= 1
+            ? 'Whitened: the cloud is round and the two signals are uncorrelated. They match the sources ' +
+              pct(mw) +
+              ', which is not yet a separation. Now the turning begins.'
+            : 'Whitening: rotating and rescaling the cloud until it is round.';
+        return;
+      }
+      if (!ad) ad = { m: 0, v: 0, t: 0 };
+      const gr = (J(th + 1e-3) - J(th - 1e-3)) / 2e-3;
+      ad.t++;
+      ad.m = 0.7 * ad.m + 0.3 * gr;
+      ad.v = 0.99 * ad.v + 0.01 * gr * gr;
+      const d = (0.03 * (ad.m / (1 - 0.7 ** ad.t))) / (Math.sqrt(ad.v / (1 - 0.99 ** ad.t)) + 1e-9);
+      th += d;
+      it++;
+      hist.push(Math.abs(d));
+      cu = 4;
+      const Y = rot(th);
+      msg =
+        'Step ' +
+        it +
+        ': turned by ' +
+        ((d * 180) / Math.PI).toFixed(2) +
+        '° to ' +
+        ((th * 180) / Math.PI).toFixed(1) +
+        '°. Match with the true sources: ' +
+        pct(match(Y)) +
+        '.';
+      if ((it >= 8 && Math.max(...hist.slice(-4)) < 1e-4) || it >= 400) {
+        fin = true;
+        cu = 5;
+        const m = match(Y),
+          flat = Math.max(...Jc) < 0.3;
+        msg =
+          'Stopped after ' +
+          it +
+          ' steps at ' +
+          ((th * 180) / Math.PI).toFixed(1) +
+          '°. ' +
+          (flat
+            ? 'The contrast curve is almost flat, so this angle is no better than any other: Gaussian sources cannot be separated. Match ' +
+              pct(m) +
+              '.'
+            : 'The recovered signals match the true sources ' +
+              pct(m) +
+              ', against ' +
+              pct(mw) +
+              ' after whitening alone and ' +
+              pct(mm) +
+              ' for the raw microphones.');
+      }
+    };
+    const draw = () => {
+      const t = T(),
+        s = u * u * (3 - 2 * u),
+        Y = rot(th);
+      {
+        const V = uView(c),
+          { g, w, h, X: PX, Y: PY } = V;
+        uFrame(V, t, s < 0.5 ? 'microphone 1' : 'output 1', s < 0.5 ? 'microphone 2' : 'output 2');
+        const k = 1.15;
+        for (let i = 0; i < N; i++) {
+          const x = X[0][i] * (1 - s) + Y[0][i] * s,
+            y = X[1][i] * (1 - s) + Y[1][i] * s;
+          dotAt(g, PX(x * k), PY(y * k), 2, mix(t.accent, t.accent, 0, 0.55));
+        }
+        if (u >= 1) {
+          g.strokeStyle = mix(t.muted, t.muted, 0, 0.7);
+          g.lineWidth = 1;
+          g.setLineDash([4, 4]);
+          for (const a of [-th, -th + Math.PI / 2]) {
+            g.beginPath();
+            g.moveTo(PX(-2.8 * Math.cos(a)), PY(-2.8 * Math.sin(a)));
+            g.lineTo(PX(2.8 * Math.cos(a)), PY(2.8 * Math.sin(a)));
+            g.stroke();
+          }
+          g.setLineDash([]);
+          g.strokeStyle = t.gold;
+          g.lineWidth = 2.5;
+          for (const a of [0, Math.PI / 2]) {
+            g.beginPath();
+            g.moveTo(PX(0), PY(0));
+            g.lineTo(PX(2.6 * Math.cos(a)), PY(2.6 * Math.sin(a)));
+            g.stroke();
+          }
+        }
+        g2Note(
+          g,
+          t,
+          h,
+          u < 1
+            ? 'the slanted cloud of raw recordings'
+            : 'dashed: where the axes were after whitening; the cloud has turned ' +
+                ((th * 180) / Math.PI).toFixed(1) +
+                '°',
+        );
+      }
+      {
+        const { g, w, h } = fit(cr),
+          h1 = h * 0.74,
+          rows = [
+            [Sr[0], 'true source 1', t.muted],
+            [Sr[1], 'true source 2', t.muted],
+            [X[0], 'microphone 1', t.cut],
+            [X[1], 'microphone 2', t.cut],
+            [
+              u < 1 ? X[0].map((v, i) => v * (1 - s) + Zw[0][i] * s) : Y[0],
+              'recovered 1',
+              t.accent,
+            ],
+            [
+              u < 1 ? X[1].map((v, i) => v * (1 - s) + Zw[1][i] * s) : Y[1],
+              'recovered 2',
+              t.accent,
+            ],
+          ],
+          rh = h1 / 6,
+          M = 220;
+        g.font = MONO;
+        rows.forEach(([y, nm, col], r) => {
+          const mx = Math.max(...y.slice(0, M).map(Math.abs)) || 1;
+          g.strokeStyle = col;
+          g.lineWidth = 1.3;
+          g.beginPath();
+          for (let i = 0; i < M; i++) {
+            const px = 98 + ((w - 106) * i) / (M - 1),
+              py = r * rh + rh / 2 - (y[i] / mx) * (rh / 2 - 3);
+            i ? g.lineTo(px, py) : g.moveTo(px, py);
+          }
+          g.stroke();
+          g.fillStyle = t.muted;
+          g.textAlign = 'left';
+          g.fillText(nm, 4, r * rh + rh / 2 + 4);
+        });
+        const jm = Math.max(...Jc, 1e-6),
+          A = uLine(g, t, 0, h1, w, h - h1, Jc, {
+            title: 'how un-Gaussian the outputs are, at turning angles 0° to 90°',
+            n: 91,
+            ym: Math.max(jm * 1.1, 0.3),
+            y1: 0,
+          });
+        g.strokeStyle = t.gold;
+        g.lineWidth = 2;
+        g.beginPath();
+        Jc.forEach((v, i) => (i ? g.lineTo(A.X(i), A.Y(v)) : g.moveTo(A.X(i), A.Y(v))));
+        g.stroke();
+        const ad_ = ((((th * 180) / Math.PI) % 90) + 90) % 90;
+        dotAt(g, A.X(ad_), A.Y(J(th)), 5, t.accent, t.bg);
+      }
+      live.textContent = msg;
+      uCur(root, 'ic', cu);
+      setR(root, 'it', it + (fin ? ' (stopped)' : ''));
+      setR(root, 'ang', ((th * 180) / Math.PI).toFixed(1) + '°');
+      setR(root, 'kur', u >= 1 ? f2(kurt(Y[0])) + ' and ' + f2(kurt(Y[1])) : '–');
+      setR(root, 'm', u >= 1 ? pct(match(Y)) : '–');
+      setR(root, 'mw', pct(mw));
+      setR(root, 'mm', pct(mm));
+    };
+    gen();
+    mix_();
+    reset();
+    if (RM) {
+      while (!fin) step();
+    }
+    let fr = 0;
+    anim = Anim(() => {
+      if (fin) {
+        pb.stop();
+        return;
+      }
+      if (u >= 1 && ++fr % 4) return;
+      step();
+      draw();
+      chk();
+    });
+    pb = playBtn($('#ic-play', root), anim);
+    chk = runCtl(pb, root, 'ic', {
+      done: () => fin,
+      restart: reset,
+      count: () => it,
+      what: 'steps',
+    });
+    const go = () => {
+      pb.stop();
+      mix_();
+      reset();
+      draw();
+      pb.start();
+    };
+    $('#ic-step', root).onclick = () => {
+      pb.stop();
+      if (fin) reset();
+      else step();
+      draw();
+    };
+    $('#ic-reset', root).onclick = () => {
+      pb.stop();
+      reset();
+      draw();
+    };
+    $('#ic-new', root).onclick = () => {
+      seed++;
+      gen();
+      go();
+    };
+    bind(root, 'ic-a', (v) => {
+      S.a = v;
+      pb.stop();
+      mix_();
+      reset();
+      draw();
+    });
+    bind(root, 'ic-b', (v) => {
+      S.b = v;
+      pb.stop();
+      mix_();
+      reset();
+      draw();
+    });
+    segBind(root, 'ic-d', S.d, (v) => {
+      S.d = v;
+      gen();
+      go();
+    });
+    return {
+      draw,
+      stop: () => pb.stop(),
+      auto: () => {
+        reset();
+        draw();
+        pb.start();
+      },
+    };
+  },
+});
+UNS.push({
+  id: 'anomaly',
+  tab: 'Anomaly detection',
+  title: 'Anomaly detection: finding the points that do not belong',
+  lede: 'A fraudulent card payment, a failing engine bearing, a typing error in a database. Nobody hands you labelled examples of what is wrong, and there are too few of them to learn from anyway. Anomaly detection works from the other end: learn what normal looks like, and flag whatever is far from it. Three ways of measuring "far" live on this page, and they do not always agree.',
+  stage: `<div class="row seg" id="an-d" role="group" aria-label="Data"><button class="btn" type="button" data-v="blob">One Cloud</button><button class="btn" type="button" data-v="two">Two Clouds</button><button class="btn" type="button" data-v="arc">A Curved Band</button></div>
  <div class="row seg" id="an-m" role="group" aria-label="Method" style="margin-top:8px"><button class="btn" type="button" data-v="iso">Isolation Forest</button><button class="btn" type="button" data-v="knn">Distance to Neighbours</button><button class="btn" type="button" data-v="gauss">Distance from the Centre</button></div>
  <div class="stage"><figure class="fig"><figcaption>Shading: how unusual each place is, darker for more unusual. Ringed dots: flagged. Crosses: the anomalies that were planted (the method is never told). Straight lines: the random cuts one tree used to isolate your point. Click anywhere to move your point</figcaption><canvas class="short" id="an-c" role="img" aria-label="Data with anomaly score field"></canvas></figure>
  <figure class="fig"><figcaption>Top: every point’s score, sorted from most to least unusual, with the cut-off for flagging. Planted anomalies are amber. Bottom: how many random cuts it took to isolate your point in each tree so far, against a typical point</figcaption><canvas class="short" id="an-r" role="img" aria-label="Sorted scores and path lengths"></canvas></figure></div>
- ${uHow('an',['Take a random handful of the data.','Pick a feature at random and a cut point at random between its smallest and largest value. That splits the handful in two.','Keep cutting each part the same way until every point is alone. This is one tree.','Count how many cuts it took to isolate each point. A point far from the rest is cut off early.','Build many trees and average the counts.','Short average path = easy to isolate = anomaly. Flag the points with the shortest paths.'])}
- <div class="controls">${uBtns('an','Run','Add one tree','trees')}
- ${grp('Flagging',slider('an-q','Share of points to flag',1,20,1,6)+slider('an-k','Neighbours used by the neighbour method',1,15,1,5))}
- ${grp('Data',`<div class="row"><button class="btn" id="an-new" type="button">New data</button></div>`+upHTML('an'))}</div>
- <dl class="read">${rd('tr','Trees in the forest')}${rd('fl','Points flagged')}${rd('hit','Planted anomalies caught','hl')}${rd('fa','Normal points flagged by mistake','hl2')}${rd('auc','Ranking quality (1 = every anomaly ranked above every normal point)','hl')}</dl>`,
- tryit:'Press Add one tree a few times and watch the cuts that isolate your point. Click far from the data, then in the middle of a cloud, and compare the number of cuts. Now press Run and watch the shading settle as trees are added. On A Curved Band, switch between the three methods. One of them shades the hollow inside the curve as perfectly normal, one flags it firmly, and one is unsure. Which is which, and why? On Two Clouds, compare how the three treat the gap between the clouds. Then drag the flagging slider: the method ranks points, and you decide where to draw the line.',
- math:String.raw`<h4>Intuition</h4><p>Play twenty questions to single out one person in a crowd. For someone ordinary you need many questions, because whatever you ask, plenty of others give the same answer. For the one person wearing a diving suit you need one. Being easy to describe apart from everyone else is what it means to be unusual. An isolation forest plays this game with random questions, many times over, and counts how quickly each point ends up alone.</p>
+ ${uHow('an', ['Take a random handful of the data.', 'Pick a feature at random and a cut point at random between its smallest and largest value. That splits the handful in two.', 'Keep cutting each part the same way until every point is alone. This is one tree.', 'Count how many cuts it took to isolate each point. A point far from the rest is cut off early.', 'Build many trees and average the counts.', 'Short average path = easy to isolate = anomaly. Flag the points with the shortest paths.'])}
+ <div class="controls">${uBtns('an', 'Run', 'Add one tree', 'trees')}
+ ${grp('Flagging', slider('an-q', 'Share of points to flag', 1, 20, 1, 6) + slider('an-k', 'Neighbours used by the neighbour method', 1, 15, 1, 5))}
+ ${grp('Data', `<div class="row"><button class="btn" id="an-new" type="button">New data</button></div>` + upHTML('an'))}</div>
+ <dl class="read">${rd('tr', 'Trees in the forest')}${rd('fl', 'Points flagged')}${rd('hit', 'Planted anomalies caught', 'hl')}${rd('fa', 'Normal points flagged by mistake', 'hl2')}${rd('auc', 'Ranking quality (1 = every anomaly ranked above every normal point)', 'hl')}</dl>`,
+  tryit:
+    'Press Add one tree a few times and watch the cuts that isolate your point. Click far from the data, then in the middle of a cloud, and compare the number of cuts. Now press Run and watch the shading settle as trees are added. On A Curved Band, switch between the three methods. One of them shades the hollow inside the curve as perfectly normal, one flags it firmly, and one is unsure. Which is which, and why? On Two Clouds, compare how the three treat the gap between the clouds. Then drag the flagging slider: the method ranks points, and you decide where to draw the line.',
+  math: String.raw`<h4>Intuition</h4><p>Play twenty questions to single out one person in a crowd. For someone ordinary you need many questions, because whatever you ask, plenty of others give the same answer. For the one person wearing a diving suit you need one. Being easy to describe apart from everyone else is what it means to be unusual. An isolation forest plays this game with random questions, many times over, and counts how quickly each point ends up alone.</p>
  <h4>The setting</h4><p>We have data \(\mathbf x_1,\dots,\mathbf x_n\), mostly normal, with no labels. The goal is a score \(s(\mathbf x)\) that is high for points unlike the bulk. A threshold on the score, or a fixed share of points to flag, turns the ranking into decisions. Where to put the threshold is a judgement about costs: a missed fraud against a blocked customer.</p>
  <h4>Distance from the centre</h4><p>Fit one Gaussian to all the data and measure how many standard deviations away each point is, allowing for the shape of the cloud. This is the <b>Mahalanobis distance</b>:</p>$$s(\mathbf x)=\sqrt{(\mathbf x-\boldsymbol\mu)^{\top}\boldsymbol\Sigma^{-1}(\mathbf x-\boldsymbol\mu)}.$$<p>It is fast and easy to explain, and it assumes that normal data form a single elliptical cloud. When they do not, the centre may be an empty place that the method considers the most normal of all.</p>
  <h4>Distance to neighbours</h4><p>Score each point by the distance to its \(k\)-th nearest neighbour:</p>$$s(\mathbf x)=\lVert\mathbf x-\mathbf x_{(k)}\rVert.$$<p>Normal points have close neighbours and anomalies do not. This follows any shape, since it is purely local. It needs a meaningful distance, costs \(O(n)\) per query without an index, and depends on \(k\): with \(k=1\), two anomalies that happen to sit side by side hide each other.</p>
@@ -413,55 +3533,576 @@ UNS.push(
  <h4>Judging a detector</h4><p>The page planted a few anomalies so that the result can be checked. The <b>ranking quality</b> readout is the area under the ROC curve: the probability that a randomly chosen planted anomaly scores higher than a randomly chosen normal point. It does not depend on the threshold. In real use there are no planted answers, and evaluation is the hardest part of the problem.</p>
  <h4>When the run stops</h4><p>The forest keeps growing until the set of flagged points has not changed for 25 trees in a row, with at least 40 trees, or until it reaches 200.</p>
  <h4>Things that go wrong</h4><p>Features on very different scales distort every distance, so standardize first. In many dimensions distances concentrate and everything looks equally far from everything else. If anomalies are common enough to form their own cluster, they stop being isolated and look normal. And a point can be unusual without being wrong: the detector raises a flag, and a person or a second system has to decide what it means.</p>`,
- q:'On A Curved Band, the distance-from-the-centre method rates a point in the hollow of the curve as completely normal, the neighbour method flags it firmly, and the isolation forest is somewhere in between. No data point is anywhere near it. What explains the three answers?',a:'The Mahalanobis distance assumes the normal data form one elliptical cloud around their mean. For a curved band the mean lies in the hollow, where there are no data at all, and the fitted ellipse covers the hollow and the band alike. So the emptiest region gets the best score. The neighbour method makes no assumption about overall shape. It asks only whether there are data points nearby, and in the hollow there are none, so it flags the point. The isolation forest asks how quickly random cuts parallel to the axes leave the point alone. The hollow has data to its left, to its right and above it, so a cut in either coordinate usually leaves some of the band on the same side, and the point takes longer to isolate than a true outsider would. Its score rises, but not as far.',
- init(root){const c=$('#an-c',root),cr=$('#an-r',root),live=$('#an-live',root),S={d:'blob',m:'iso',q:6,k:5},GW=48,GH=36,PSI=64,cF=n=>n<=1?0:2*(Math.log(n-1)+.5772)-2*(n-1)/n,CP=cF(PSI);
-  let D=[],pl=[],trees=[],sumD=null,sumG=null,sc=[],fld=null,flag=[],tp=[2.6,1.8],tpPaths=[],lastCuts=[],it=0,fin=false,same=0,prev='',seed=1,msg='',cu=0,pb,chk=()=>false,V=null,mu=null,Si=null,auc=NaN,hasPl=true;
-  const gen=()=>{const r=rng(seed*29+S.d.length),rn=randnFrom(r);D=[];pl=[];hasPl=true;const n=150;for(let i=0;i<n;i++){let p;if(S.d==='blob')p=[.9*rn()+.55*rn(),.7*rn()];else if(S.d==='two')p=i%2?[-1.9+.5*rn(),-.6+.5*rn()]:[1.7+.6*rn(),.7+.45*rn()];else{const a=Math.PI*(.05+.9*r());p=[2.6*Math.cos(a)+.17*rn(),2.6*Math.sin(a)-1.6+.17*rn()]}D.push(p);pl.push(0)}
-   const A={blob:[[3,1.9],[-2.9,1.6],[2.6,-2],[-3,-1.7],[.2,2.5],[-.4,-2.4],[3.4,.2]],two:[[0,.1],[-.2,1.9],[.4,-2],[3.5,-1.6],[-3.5,1.5],[-.1,-.7],[1.7,2.6]],arc:[[0,-.6],[.5,.1],[-.7,-.2],[3.4,1.9],[-3.3,2],[0,2.6],[.1,-1.4]]}[S.d];for(const a of A){D.push([a[0]+.1*rn(),a[1]+.1*rn()]);pl.push(1)}};
-  const build=(idx,depth,r)=>{if(idx.length<=1||depth>=7)return{n:idx.length};const d=r()<.5?0:1;let lo=1e9,hi=-1e9;for(const i of idx){lo=Math.min(lo,D[i][d]);hi=Math.max(hi,D[i][d])}if(hi-lo<1e-9)return{n:idx.length};const sp=lo+(hi-lo)*r();return{d,sp,l:build(idx.filter(i=>D[i][d]<sp),depth+1,r),r:build(idx.filter(i=>D[i][d]>=sp),depth+1,r)}};
-  const path=(T_,p,cuts)=>{let nd=T_,h=0,bx=[-4,4,-3,3];while(nd.d!==undefined){if(cuts)cuts.push({d:nd.d,sp:nd.sp,b:bx.slice()});if(p[nd.d]<nd.sp){bx[nd.d*2+1]=nd.sp;nd=nd.l}else{bx[nd.d*2]=nd.sp;nd=nd.r}h++}return h+cF(nd.n)};
-  const prep=()=>{const n=D.length;mu=[0,1].map(j=>D.reduce((s,p)=>s+p[j],0)/n);let a=0,b=0,d=0;for(const p of D){a+=(p[0]-mu[0])**2/n;b+=(p[0]-mu[0])*(p[1]-mu[1])/n;d+=(p[1]-mu[1])**2/n}const dt=a*d-b*b;Si=[d/dt,-b/dt,a/dt]};
-  const sGauss=p=>{const x=p[0]-mu[0],y=p[1]-mu[1];return Math.sqrt(Si[0]*x*x+2*Si[1]*x*y+Si[2]*y*y)};
-  const sKnn=(p,self)=>{const ds=[];for(let i=0;i<D.length;i++){if(i===self)continue;ds.push(Math.hypot(p[0]-D[i][0],p[1]-D[i][1]))}ds.sort((x,y)=>x-y);return ds[Math.min(S.k,ds.length)-1]};
-  const gridP=k=>[-4+8*((k%GW)+.5)/GW,3-6*(Math.floor(k/GW)+.5)/GH];
-  const score=()=>{const n=D.length;if(S.m==='iso'){const T_=Math.max(1,trees.length);sc=Array.from(sumD,v=>trees.length?2**(-(v/T_)/CP):.5);fld=Array.from(sumG,v=>trees.length?2**(-(v/T_)/CP):.5)}else{const f=S.m==='gauss'?p=>sGauss(p):(p,i)=>sKnn(p,i);sc=D.map((p,i)=>f(p,i));fld=Array.from({length:GW*GH},(_,k)=>f(gridP(k),-1))}
-   const ord=sc.map((_,i)=>i).sort((a,b)=>sc[b]-sc[a]),nf=Math.max(1,Math.round(n*S.q/100));flag=new Array(n).fill(false);ord.slice(0,nf).forEach(i=>flag[i]=true);if(hasPl){let pairs=0,win=0;for(let i=0;i<n;i++)if(pl[i])for(let j=0;j<n;j++)if(!pl[j]){pairs++;win+=sc[i]>sc[j]?1:sc[i]===sc[j]?.5:0}auc=win/pairs}return ord.slice(0,nf).sort((a,b)=>a-b).join(',')};
-  const reset=()=>{prep();trees=[];sumD=new Float64Array(D.length);sumG=new Float64Array(GW*GH);tpPaths=[];lastCuts=[];it=0;fin=S.m!=='iso';same=0;prev=score();cu=0;msg=S.m==='iso'?'An empty forest: every place scores the same. Press Add one tree, or Run.':(S.m==='knn'?'Each point is scored by the distance to its '+S.k+(S.k===1?'st':S.k===2?'nd':S.k===3?'rd':'th')+' nearest neighbour.':'One Gaussian is fitted to all the data; each point is scored by how many standard deviations it lies from the centre.')+' This method needs no iterations, so there is nothing to run. '+summary()};
-  const summary=()=>{if(!hasPl)return flag.filter(Boolean).length+' points flagged.';const hit=flag.filter((f,i)=>f&&pl[i]).length,np=pl.reduce((s,v)=>s+v,0);return'Caught '+hit+' of '+np+' planted anomalies, with '+(flag.filter(Boolean).length-hit)+' false alarms.'};
-  const step=()=>{if(fin||S.m!=='iso')return;const r=rng(seed*1000+trees.length*7+3),idx=[];const all=D.map((_,i)=>i);for(let i=0;i<Math.min(PSI,all.length);i++){const j=i+Math.floor(r()*(all.length-i));[all[i],all[j]]=[all[j],all[i]];idx.push(all[i])}const T_=build(idx,0,r);trees.push(T_);for(let i=0;i<D.length;i++)sumD[i]+=path(T_,D[i]);for(let k=0;k<GW*GH;k++)sumG[k]+=path(T_,gridP(k));lastCuts=[];const h=path(T_,tp,lastCuts);tpPaths.push(lastCuts.length);it++;const key=score();same=key===prev?same+1:0;prev=key;cu=it<3?it:4;
-   msg='Tree '+it+': your point at ('+f2(tp[0])+', '+f2(tp[1])+') was isolated after '+lastCuts.length+' cut'+(lastCuts.length===1?'':'s')+'. A typical point in a tree of '+PSI+' needs about '+CP.toFixed(1)+'.';
-   if(it>=40&&same>=25||it>=200){fin=true;cu=5;msg='Stopped at '+it+' trees: the flagged set has not changed for '+same+' trees. '+summary()}};
-  const draw=()=>{const t=T();V=uView(c);{const{g,w,h,X,Y}=V,lo=Math.min(...fld),hi=Math.max(...fld);for(let k=0;k<GW*GH;k++){const q=k%GW,r=Math.floor(k/GW),v=(fld[k]-lo)/((hi-lo)||1);g.fillStyle=mix(t.bg,t.cut,v*.6);const xa=Math.round(X(-4+8*q/GW)),xb=Math.round(X(-4+8*(q+1)/GW)),ya=Math.round(Y(3-6*r/GH)),yb=Math.round(Y(3-6*(r+1)/GH));g.fillRect(xa,ya,xb-xa,yb-ya)}
-    if(S.m==='iso'&&lastCuts.length){g.strokeStyle=t.ink;g.lineWidth=1.3;lastCuts.forEach((q,i)=>{g.globalAlpha=1-.1*i;g.beginPath();if(q.d===0){g.moveTo(X(q.sp),Y(q.b[2]));g.lineTo(X(q.sp),Y(q.b[3]))}else{g.moveTo(X(q.b[0]),Y(q.sp));g.lineTo(X(q.b[1]),Y(q.sp))}g.stroke()});g.globalAlpha=1}
-    D.forEach((p,i)=>{const x=X(p[0]),y=Y(p[1]);if(pl[i]&&hasPl){g.strokeStyle=t.ink;g.lineWidth=2;g.beginPath();g.moveTo(x-4,y-4);g.lineTo(x+4,y+4);g.moveTo(x+4,y-4);g.lineTo(x-4,y+4);g.stroke()}else dotAt(g,x,y,3,mix(t.accent,t.accent,0,.85));if(flag[i]){g.lineWidth=2;dotAt(g,x,y,8,null,t.cut)}});markTP(g,X(tp[0]),Y(tp[1]),t)}
-   {const{g,w,h}=fit(cr),h1=h*.55,n=D.length,ord=sc.map((_,i)=>i).sort((a,b)=>sc[b]-sc[a]),lo=Math.min(...sc),hi=Math.max(...sc),A=uLine(g,t,0,0,w,h1,[],{title:'scores of all '+n+' points, most unusual first',n:n+1,ym:hi+(hi-lo)*.05,y1:lo-(hi-lo)*.02}),bw=A.X(1)-A.X(0);ord.forEach((i,k)=>{g.fillStyle=pl[i]&&hasPl?t.cut:mix(t.accent,t.accent,0,.55);g.fillRect(A.X(k),A.Y(sc[i]),Math.max(1,bw-.6),A.Y(lo-(hi-lo)*.02)-A.Y(sc[i]))});const nf=flag.filter(Boolean).length;g.strokeStyle=t.ink;g.lineWidth=1.5;g.setLineDash([5,4]);g.beginPath();g.moveTo(A.X(nf),A.Y(hi));g.lineTo(A.X(nf),A.Y(lo));g.stroke();g.setLineDash([]);g.font=MONO;g.fillStyle=t.muted;g.textAlign='left';g.fillText('← flagged',A.X(nf)+5,A.Y(hi)+10);
-    if(S.m==='iso'){const B=uLine(g,t,0,h1,w,h-h1,tpPaths,{title:'cuts needed to isolate your point, tree by tree',n:Math.max(30,tpPaths.length),ym:8,y1:0});g.strokeStyle=t.muted;g.setLineDash([4,4]);g.lineWidth=1;g.beginPath();g.moveTo(B.X(0),B.Y(CP));g.lineTo(B.X(Math.max(30,tpPaths.length)-1),B.Y(CP));g.stroke();g.setLineDash([]);g.fillStyle=t.muted;g.textAlign='right';g.fillText('typical point',w-14,B.Y(CP)-4);tpPaths.forEach((v,i)=>dotAt(g,B.X(i),B.Y(Math.min(8,v)),2.5,t.gold))}
-    else{g.font=MONO;g.fillStyle=t.muted;g.textAlign='left';g.fillText('this method computes every score in one pass: no trees',8,h1+16)}}
-   const myS=S.m==='iso'?(trees.length?2**(-(trees.reduce((s,T_)=>s+path(T_,tp),0)/trees.length)/CP):.5):S.m==='gauss'?sGauss(tp):sKnn(tp,-1),above=sc.filter(v=>v<myS).length;tpo.textContent='Your point ('+f2(tp[0])+', '+f2(tp[1])+') scores '+f2(myS)+': more unusual than '+pct(above/sc.length)+' of the data.'+(S.m==='iso'&&!trees.length?' (Add trees first.)':'');
-   const hit=flag.filter((f,i)=>f&&pl[i]).length,np=pl.reduce((s,v)=>s+v,0),nf=flag.filter(Boolean).length;live.textContent=msg;uCur(root,'an',cu);setR(root,'tr',S.m==='iso'?it+(fin?' (stopped)':''):'not used');setR(root,'fl',nf+' of '+D.length);setR(root,'hit',hasPl?hit+' of '+np:'–');setR(root,'fa',hasPl?String(nf-hit):'–');setR(root,'auc',hasPl&&(S.m!=='iso'||trees.length)?f3(auc):'–')};
-  root.querySelector('.controls').insertAdjacentHTML('beforeend',grp('Your point','<p class="tpout" id="an-tpo" role="status"></p>'));const tpo=$('#an-tpo',root);
-  gen();reset();if(RM){while(!fin)step()}
-  let fr=0;const anim=Anim(()=>{if(fin){pb.stop();return}if(it<6&&(++fr%20))return;step();draw();chk()});pb=playBtn($('#an-play',root),anim);chk=runCtl(pb,root,'an',{done:()=>fin,restart:reset,count:()=>it,what:'trees'});
-  const go=()=>{pb.stop();reset();draw();if(S.m==='iso'){fr=0;pb.start()}};$('#an-step',root).onclick=()=>{pb.stop();if(fin)reset();else step();draw()};$('#an-reset',root).onclick=()=>{pb.stop();reset();draw()};$('#an-new',root).onclick=()=>{seed++;gen();go()};
-  bind(root,'an-q',v=>{S.q=v;prev=score();same=0;draw()},v=>(+v)+'%');bind(root,'an-k',v=>{S.k=v;if(S.m==='knn'){reset();draw()}},v=>String(+v));segBind(root,'an-d',S.d,v=>{S.d=v;gen();go()});segBind(root,'an-m',S.m,v=>{S.m=v;go()});
-  xyUp(root,'an',q=>{D=q.slice(0,300);pl=D.map(()=>0);hasPl=false;go()});
-  c.style.cursor='crosshair';c.addEventListener('click',e=>{if(!V)return;const[x,y]=canvasXY(c,V,e);tp=[clamp(x,-4,4),clamp(y,-3,3)];tpPaths=trees.map(T_=>{const cs=[];path(T_,tp,cs);return cs.length});lastCuts=[];if(trees.length)path(trees[trees.length-1],tp,lastCuts);draw()});
-  return{draw,stop:()=>pb.stop(),auto:()=>{reset();draw();fr=0;pb.start()}}}}
-);
-NNL.push(
-{id:'batch-norm',tab:'Batch normalization',title:'Batch normalization: keep every layer’s inputs in a sensible range',
- lede:'In a deep network each layer feeds the next. If the numbers leaving one layer are a little too small, they shrink again at the next layer and fade to nothing. If they are a little too large, the units saturate. Either way learning stalls. Batch normalization puts a small correction after every layer: shift and rescale its outputs so that, over the current batch, they have mean 0 and spread 1. Two identical networks train side by side here, one with the correction and one without.',
- stage:`<div class="row seg" id="bn-d" role="group" aria-label="Data"><button class="btn" type="button" data-v="spiral">Two Spirals</button><button class="btn" type="button" data-v="rings">A Ring Inside a Ring</button><button class="btn" type="button" data-v="moons">Two Crescents</button></div>
+  q: 'On A Curved Band, the distance-from-the-centre method rates a point in the hollow of the curve as completely normal, the neighbour method flags it firmly, and the isolation forest is somewhere in between. No data point is anywhere near it. What explains the three answers?',
+  a: 'The Mahalanobis distance assumes the normal data form one elliptical cloud around their mean. For a curved band the mean lies in the hollow, where there are no data at all, and the fitted ellipse covers the hollow and the band alike. So the emptiest region gets the best score. The neighbour method makes no assumption about overall shape. It asks only whether there are data points nearby, and in the hollow there are none, so it flags the point. The isolation forest asks how quickly random cuts parallel to the axes leave the point alone. The hollow has data to its left, to its right and above it, so a cut in either coordinate usually leaves some of the band on the same side, and the point takes longer to isolate than a true outsider would. Its score rises, but not as far.',
+  init(root) {
+    const c = $('#an-c', root),
+      cr = $('#an-r', root),
+      live = $('#an-live', root),
+      S = { d: 'blob', m: 'iso', q: 6, k: 5 },
+      GW = 48,
+      GH = 36,
+      PSI = 64,
+      cF = (n) => (n <= 1 ? 0 : 2 * (Math.log(n - 1) + 0.5772) - (2 * (n - 1)) / n),
+      CP = cF(PSI);
+    let D = [],
+      pl = [],
+      trees = [],
+      sumD = null,
+      sumG = null,
+      sc = [],
+      fld = null,
+      flag = [],
+      tp = [2.6, 1.8],
+      tpPaths = [],
+      lastCuts = [],
+      it = 0,
+      fin = false,
+      same = 0,
+      prev = '',
+      seed = 1,
+      msg = '',
+      cu = 0,
+      pb,
+      chk = () => false,
+      V = null,
+      mu = null,
+      Si = null,
+      auc = NaN,
+      hasPl = true;
+    const gen = () => {
+      const r = rng(seed * 29 + S.d.length),
+        rn = randnFrom(r);
+      D = [];
+      pl = [];
+      hasPl = true;
+      const n = 150;
+      for (let i = 0; i < n; i++) {
+        let p;
+        if (S.d === 'blob') p = [0.9 * rn() + 0.55 * rn(), 0.7 * rn()];
+        else if (S.d === 'two')
+          p =
+            i % 2 ? [-1.9 + 0.5 * rn(), -0.6 + 0.5 * rn()] : [1.7 + 0.6 * rn(), 0.7 + 0.45 * rn()];
+        else {
+          const a = Math.PI * (0.05 + 0.9 * r());
+          p = [2.6 * Math.cos(a) + 0.17 * rn(), 2.6 * Math.sin(a) - 1.6 + 0.17 * rn()];
+        }
+        D.push(p);
+        pl.push(0);
+      }
+      const A = {
+        blob: [
+          [3, 1.9],
+          [-2.9, 1.6],
+          [2.6, -2],
+          [-3, -1.7],
+          [0.2, 2.5],
+          [-0.4, -2.4],
+          [3.4, 0.2],
+        ],
+        two: [
+          [0, 0.1],
+          [-0.2, 1.9],
+          [0.4, -2],
+          [3.5, -1.6],
+          [-3.5, 1.5],
+          [-0.1, -0.7],
+          [1.7, 2.6],
+        ],
+        arc: [
+          [0, -0.6],
+          [0.5, 0.1],
+          [-0.7, -0.2],
+          [3.4, 1.9],
+          [-3.3, 2],
+          [0, 2.6],
+          [0.1, -1.4],
+        ],
+      }[S.d];
+      for (const a of A) {
+        D.push([a[0] + 0.1 * rn(), a[1] + 0.1 * rn()]);
+        pl.push(1);
+      }
+    };
+    const build = (idx, depth, r) => {
+      if (idx.length <= 1 || depth >= 7) return { n: idx.length };
+      const d = r() < 0.5 ? 0 : 1;
+      let lo = 1e9,
+        hi = -1e9;
+      for (const i of idx) {
+        lo = Math.min(lo, D[i][d]);
+        hi = Math.max(hi, D[i][d]);
+      }
+      if (hi - lo < 1e-9) return { n: idx.length };
+      const sp = lo + (hi - lo) * r();
+      return {
+        d,
+        sp,
+        l: build(
+          idx.filter((i) => D[i][d] < sp),
+          depth + 1,
+          r,
+        ),
+        r: build(
+          idx.filter((i) => D[i][d] >= sp),
+          depth + 1,
+          r,
+        ),
+      };
+    };
+    const path = (T_, p, cuts) => {
+      let nd = T_,
+        h = 0,
+        bx = [-4, 4, -3, 3];
+      while (nd.d !== undefined) {
+        if (cuts) cuts.push({ d: nd.d, sp: nd.sp, b: bx.slice() });
+        if (p[nd.d] < nd.sp) {
+          bx[nd.d * 2 + 1] = nd.sp;
+          nd = nd.l;
+        } else {
+          bx[nd.d * 2] = nd.sp;
+          nd = nd.r;
+        }
+        h++;
+      }
+      return h + cF(nd.n);
+    };
+    const prep = () => {
+      const n = D.length;
+      mu = [0, 1].map((j) => D.reduce((s, p) => s + p[j], 0) / n);
+      let a = 0,
+        b = 0,
+        d = 0;
+      for (const p of D) {
+        a += (p[0] - mu[0]) ** 2 / n;
+        b += ((p[0] - mu[0]) * (p[1] - mu[1])) / n;
+        d += (p[1] - mu[1]) ** 2 / n;
+      }
+      const dt = a * d - b * b;
+      Si = [d / dt, -b / dt, a / dt];
+    };
+    const sGauss = (p) => {
+      const x = p[0] - mu[0],
+        y = p[1] - mu[1];
+      return Math.sqrt(Si[0] * x * x + 2 * Si[1] * x * y + Si[2] * y * y);
+    };
+    const sKnn = (p, self) => {
+      const ds = [];
+      for (let i = 0; i < D.length; i++) {
+        if (i === self) continue;
+        ds.push(Math.hypot(p[0] - D[i][0], p[1] - D[i][1]));
+      }
+      ds.sort((x, y) => x - y);
+      return ds[Math.min(S.k, ds.length) - 1];
+    };
+    const gridP = (k) => [
+      -4 + (8 * ((k % GW) + 0.5)) / GW,
+      3 - (6 * (Math.floor(k / GW) + 0.5)) / GH,
+    ];
+    const score = () => {
+      const n = D.length;
+      if (S.m === 'iso') {
+        const T_ = Math.max(1, trees.length);
+        sc = Array.from(sumD, (v) => (trees.length ? 2 ** (-(v / T_) / CP) : 0.5));
+        fld = Array.from(sumG, (v) => (trees.length ? 2 ** (-(v / T_) / CP) : 0.5));
+      } else {
+        const f = S.m === 'gauss' ? (p) => sGauss(p) : (p, i) => sKnn(p, i);
+        sc = D.map((p, i) => f(p, i));
+        fld = Array.from({ length: GW * GH }, (_, k) => f(gridP(k), -1));
+      }
+      const ord = sc.map((_, i) => i).sort((a, b) => sc[b] - sc[a]),
+        nf = Math.max(1, Math.round((n * S.q) / 100));
+      flag = new Array(n).fill(false);
+      ord.slice(0, nf).forEach((i) => (flag[i] = true));
+      if (hasPl) {
+        let pairs = 0,
+          win = 0;
+        for (let i = 0; i < n; i++)
+          if (pl[i])
+            for (let j = 0; j < n; j++)
+              if (!pl[j]) {
+                pairs++;
+                win += sc[i] > sc[j] ? 1 : sc[i] === sc[j] ? 0.5 : 0;
+              }
+        auc = win / pairs;
+      }
+      return ord
+        .slice(0, nf)
+        .sort((a, b) => a - b)
+        .join(',');
+    };
+    const reset = () => {
+      prep();
+      trees = [];
+      sumD = new Float64Array(D.length);
+      sumG = new Float64Array(GW * GH);
+      tpPaths = [];
+      lastCuts = [];
+      it = 0;
+      fin = S.m !== 'iso';
+      same = 0;
+      prev = score();
+      cu = 0;
+      msg =
+        S.m === 'iso'
+          ? 'An empty forest: every place scores the same. Press Add one tree, or Run.'
+          : (S.m === 'knn'
+              ? 'Each point is scored by the distance to its ' +
+                S.k +
+                (S.k === 1 ? 'st' : S.k === 2 ? 'nd' : S.k === 3 ? 'rd' : 'th') +
+                ' nearest neighbour.'
+              : 'One Gaussian is fitted to all the data; each point is scored by how many standard deviations it lies from the centre.') +
+            ' This method needs no iterations, so there is nothing to run. ' +
+            summary();
+    };
+    const summary = () => {
+      if (!hasPl) return flag.filter(Boolean).length + ' points flagged.';
+      const hit = flag.filter((f, i) => f && pl[i]).length,
+        np = pl.reduce((s, v) => s + v, 0);
+      return (
+        'Caught ' +
+        hit +
+        ' of ' +
+        np +
+        ' planted anomalies, with ' +
+        (flag.filter(Boolean).length - hit) +
+        ' false alarms.'
+      );
+    };
+    const step = () => {
+      if (fin || S.m !== 'iso') return;
+      const r = rng(seed * 1000 + trees.length * 7 + 3),
+        idx = [];
+      const all = D.map((_, i) => i);
+      for (let i = 0; i < Math.min(PSI, all.length); i++) {
+        const j = i + Math.floor(r() * (all.length - i));
+        [all[i], all[j]] = [all[j], all[i]];
+        idx.push(all[i]);
+      }
+      const T_ = build(idx, 0, r);
+      trees.push(T_);
+      for (let i = 0; i < D.length; i++) sumD[i] += path(T_, D[i]);
+      for (let k = 0; k < GW * GH; k++) sumG[k] += path(T_, gridP(k));
+      lastCuts = [];
+      const h = path(T_, tp, lastCuts);
+      tpPaths.push(lastCuts.length);
+      it++;
+      const key = score();
+      same = key === prev ? same + 1 : 0;
+      prev = key;
+      cu = it < 3 ? it : 4;
+      msg =
+        'Tree ' +
+        it +
+        ': your point at (' +
+        f2(tp[0]) +
+        ', ' +
+        f2(tp[1]) +
+        ') was isolated after ' +
+        lastCuts.length +
+        ' cut' +
+        (lastCuts.length === 1 ? '' : 's') +
+        '. A typical point in a tree of ' +
+        PSI +
+        ' needs about ' +
+        CP.toFixed(1) +
+        '.';
+      if ((it >= 40 && same >= 25) || it >= 200) {
+        fin = true;
+        cu = 5;
+        msg =
+          'Stopped at ' +
+          it +
+          ' trees: the flagged set has not changed for ' +
+          same +
+          ' trees. ' +
+          summary();
+      }
+    };
+    const draw = () => {
+      const t = T();
+      V = uView(c);
+      {
+        const { g, w, h, X, Y } = V,
+          lo = Math.min(...fld),
+          hi = Math.max(...fld);
+        for (let k = 0; k < GW * GH; k++) {
+          const q = k % GW,
+            r = Math.floor(k / GW),
+            v = (fld[k] - lo) / (hi - lo || 1);
+          g.fillStyle = mix(t.bg, t.cut, v * 0.6);
+          const xa = Math.round(X(-4 + (8 * q) / GW)),
+            xb = Math.round(X(-4 + (8 * (q + 1)) / GW)),
+            ya = Math.round(Y(3 - (6 * r) / GH)),
+            yb = Math.round(Y(3 - (6 * (r + 1)) / GH));
+          g.fillRect(xa, ya, xb - xa, yb - ya);
+        }
+        if (S.m === 'iso' && lastCuts.length) {
+          g.strokeStyle = t.ink;
+          g.lineWidth = 1.3;
+          lastCuts.forEach((q, i) => {
+            g.globalAlpha = 1 - 0.1 * i;
+            g.beginPath();
+            if (q.d === 0) {
+              g.moveTo(X(q.sp), Y(q.b[2]));
+              g.lineTo(X(q.sp), Y(q.b[3]));
+            } else {
+              g.moveTo(X(q.b[0]), Y(q.sp));
+              g.lineTo(X(q.b[1]), Y(q.sp));
+            }
+            g.stroke();
+          });
+          g.globalAlpha = 1;
+        }
+        D.forEach((p, i) => {
+          const x = X(p[0]),
+            y = Y(p[1]);
+          if (pl[i] && hasPl) {
+            g.strokeStyle = t.ink;
+            g.lineWidth = 2;
+            g.beginPath();
+            g.moveTo(x - 4, y - 4);
+            g.lineTo(x + 4, y + 4);
+            g.moveTo(x + 4, y - 4);
+            g.lineTo(x - 4, y + 4);
+            g.stroke();
+          } else dotAt(g, x, y, 3, mix(t.accent, t.accent, 0, 0.85));
+          if (flag[i]) {
+            g.lineWidth = 2;
+            dotAt(g, x, y, 8, null, t.cut);
+          }
+        });
+        markTP(g, X(tp[0]), Y(tp[1]), t);
+      }
+      {
+        const { g, w, h } = fit(cr),
+          h1 = h * 0.55,
+          n = D.length,
+          ord = sc.map((_, i) => i).sort((a, b) => sc[b] - sc[a]),
+          lo = Math.min(...sc),
+          hi = Math.max(...sc),
+          A = uLine(g, t, 0, 0, w, h1, [], {
+            title: 'scores of all ' + n + ' points, most unusual first',
+            n: n + 1,
+            ym: hi + (hi - lo) * 0.05,
+            y1: lo - (hi - lo) * 0.02,
+          }),
+          bw = A.X(1) - A.X(0);
+        ord.forEach((i, k) => {
+          g.fillStyle = pl[i] && hasPl ? t.cut : mix(t.accent, t.accent, 0, 0.55);
+          g.fillRect(
+            A.X(k),
+            A.Y(sc[i]),
+            Math.max(1, bw - 0.6),
+            A.Y(lo - (hi - lo) * 0.02) - A.Y(sc[i]),
+          );
+        });
+        const nf = flag.filter(Boolean).length;
+        g.strokeStyle = t.ink;
+        g.lineWidth = 1.5;
+        g.setLineDash([5, 4]);
+        g.beginPath();
+        g.moveTo(A.X(nf), A.Y(hi));
+        g.lineTo(A.X(nf), A.Y(lo));
+        g.stroke();
+        g.setLineDash([]);
+        g.font = MONO;
+        g.fillStyle = t.muted;
+        g.textAlign = 'left';
+        g.fillText('← flagged', A.X(nf) + 5, A.Y(hi) + 10);
+        if (S.m === 'iso') {
+          const B = uLine(g, t, 0, h1, w, h - h1, tpPaths, {
+            title: 'cuts needed to isolate your point, tree by tree',
+            n: Math.max(30, tpPaths.length),
+            ym: 8,
+            y1: 0,
+          });
+          g.strokeStyle = t.muted;
+          g.setLineDash([4, 4]);
+          g.lineWidth = 1;
+          g.beginPath();
+          g.moveTo(B.X(0), B.Y(CP));
+          g.lineTo(B.X(Math.max(30, tpPaths.length) - 1), B.Y(CP));
+          g.stroke();
+          g.setLineDash([]);
+          g.fillStyle = t.muted;
+          g.textAlign = 'right';
+          g.fillText('typical point', w - 14, B.Y(CP) - 4);
+          tpPaths.forEach((v, i) => dotAt(g, B.X(i), B.Y(Math.min(8, v)), 2.5, t.gold));
+        } else {
+          g.font = MONO;
+          g.fillStyle = t.muted;
+          g.textAlign = 'left';
+          g.fillText('this method computes every score in one pass: no trees', 8, h1 + 16);
+        }
+      }
+      const myS =
+          S.m === 'iso'
+            ? trees.length
+              ? 2 ** (-(trees.reduce((s, T_) => s + path(T_, tp), 0) / trees.length) / CP)
+              : 0.5
+            : S.m === 'gauss'
+              ? sGauss(tp)
+              : sKnn(tp, -1),
+        above = sc.filter((v) => v < myS).length;
+      tpo.textContent =
+        'Your point (' +
+        f2(tp[0]) +
+        ', ' +
+        f2(tp[1]) +
+        ') scores ' +
+        f2(myS) +
+        ': more unusual than ' +
+        pct(above / sc.length) +
+        ' of the data.' +
+        (S.m === 'iso' && !trees.length ? ' (Add trees first.)' : '');
+      const hit = flag.filter((f, i) => f && pl[i]).length,
+        np = pl.reduce((s, v) => s + v, 0),
+        nf = flag.filter(Boolean).length;
+      live.textContent = msg;
+      uCur(root, 'an', cu);
+      setR(root, 'tr', S.m === 'iso' ? it + (fin ? ' (stopped)' : '') : 'not used');
+      setR(root, 'fl', nf + ' of ' + D.length);
+      setR(root, 'hit', hasPl ? hit + ' of ' + np : '–');
+      setR(root, 'fa', hasPl ? String(nf - hit) : '–');
+      setR(root, 'auc', hasPl && (S.m !== 'iso' || trees.length) ? f3(auc) : '–');
+    };
+    root
+      .querySelector('.controls')
+      .insertAdjacentHTML(
+        'beforeend',
+        grp('Your point', '<p class="tpout" id="an-tpo" role="status"></p>'),
+      );
+    const tpo = $('#an-tpo', root);
+    gen();
+    reset();
+    if (RM) {
+      while (!fin) step();
+    }
+    let fr = 0;
+    const anim = Anim(() => {
+      if (fin) {
+        pb.stop();
+        return;
+      }
+      if (it < 6 && ++fr % 20) return;
+      step();
+      draw();
+      chk();
+    });
+    pb = playBtn($('#an-play', root), anim);
+    chk = runCtl(pb, root, 'an', {
+      done: () => fin,
+      restart: reset,
+      count: () => it,
+      what: 'trees',
+    });
+    const go = () => {
+      pb.stop();
+      reset();
+      draw();
+      if (S.m === 'iso') {
+        fr = 0;
+        pb.start();
+      }
+    };
+    $('#an-step', root).onclick = () => {
+      pb.stop();
+      if (fin) reset();
+      else step();
+      draw();
+    };
+    $('#an-reset', root).onclick = () => {
+      pb.stop();
+      reset();
+      draw();
+    };
+    $('#an-new', root).onclick = () => {
+      seed++;
+      gen();
+      go();
+    };
+    bind(
+      root,
+      'an-q',
+      (v) => {
+        S.q = v;
+        prev = score();
+        same = 0;
+        draw();
+      },
+      (v) => +v + '%',
+    );
+    bind(
+      root,
+      'an-k',
+      (v) => {
+        S.k = v;
+        if (S.m === 'knn') {
+          reset();
+          draw();
+        }
+      },
+      (v) => String(+v),
+    );
+    segBind(root, 'an-d', S.d, (v) => {
+      S.d = v;
+      gen();
+      go();
+    });
+    segBind(root, 'an-m', S.m, (v) => {
+      S.m = v;
+      go();
+    });
+    xyUp(root, 'an', (q) => {
+      D = q.slice(0, 300);
+      pl = D.map(() => 0);
+      hasPl = false;
+      go();
+    });
+    c.style.cursor = 'crosshair';
+    c.addEventListener('click', (e) => {
+      if (!V) return;
+      const [x, y] = canvasXY(c, V, e);
+      tp = [clamp(x, -4, 4), clamp(y, -3, 3)];
+      tpPaths = trees.map((T_) => {
+        const cs = [];
+        path(T_, tp, cs);
+        return cs.length;
+      });
+      lastCuts = [];
+      if (trees.length) path(trees[trees.length - 1], tp, lastCuts);
+      draw();
+    });
+    return {
+      draw,
+      stop: () => pb.stop(),
+      auto: () => {
+        reset();
+        draw();
+        fr = 0;
+        pb.start();
+      },
+    };
+  },
+});
+NNL.push({
+  id: 'batch-norm',
+  tab: 'Batch normalization',
+  title: 'Batch normalization: keep every layer’s inputs in a sensible range',
+  lede: 'In a deep network each layer feeds the next. If the numbers leaving one layer are a little too small, they shrink again at the next layer and fade to nothing. If they are a little too large, the units saturate. Either way learning stalls. Batch normalization puts a small correction after every layer: shift and rescale its outputs so that, over the current batch, they have mean 0 and spread 1. Two identical networks train side by side here, one with the correction and one without.',
+  stage: `<div class="row seg" id="bn-d" role="group" aria-label="Data"><button class="btn" type="button" data-v="spiral">Two Spirals</button><button class="btn" type="button" data-v="rings">A Ring Inside a Ring</button><button class="btn" type="button" data-v="moons">Two Crescents</button></div>
  <div class="stage"><figure class="fig"><figcaption>The two networks’ current answers. Left half: the plain network. Right half: the same network with batch normalization. Shading is the predicted class; dots are the training data</figcaption><canvas class="short" id="bn-c" role="img" aria-label="Decision regions of the two networks"></canvas></figure>
  <figure class="fig"><figcaption>Top: training loss of both networks. Bottom: what goes into the activation function at each hidden layer, shown as the range holding the middle 90% of values. A bar that has shrunk to a sliver means the signal has faded away. A bar reaching far beyond the dashed lines means the tanh units are saturated</figcaption><canvas class="short" id="bn-r" role="img" aria-label="Loss curves and pre-activation ranges by layer"></canvas></figure></div>
  <figure class="fig" style="margin-top:18px"><figcaption>One unit, one batch, worked out (first hidden layer of the normalized network)</figcaption><div class="eq" id="bn-eq" aria-live="polite" style="min-height:8em;margin-top:6px"></div></figure>
- ${uHow('bn',['Take a small batch of training examples and pass it through a layer.','For each unit, compute the mean and the standard deviation of its values over the batch.','Subtract the mean and divide by the standard deviation. The unit’s values now have mean 0 and spread 1.','Multiply by a learned scale γ and add a learned shift β, so the network can undo the step if that is better.','Apply the activation function and move to the next layer. Gradients flow back through all of this.','At test time there is no batch, so use running averages of the means and spreads collected during training.'])}
- <div class="controls">${uBtns('bn','Run','One pass','passes through the data')}
- ${grp('What makes training hard',slider('bn-w','Size of the starting weights (1 = the careful choice)',.1,5,.1,.3)+slider('bn-lr','Learning rate',.01,.5,.01,.1)+slider('bn-b','Batch size',2,64,2,16)+slider('bn-L','Hidden layers',2,8,1,6))}
- ${grp('Data',`<div class="row"><button class="btn" id="bn-new" type="button">New starting weights</button></div>`)}</div>
- <dl class="read">${rd('ep','Passes through the data')}${rd('lp','Loss: plain network','hl2')}${rd('lb','Loss: with batch normalization','hl')}${rd('ap','Training accuracy: plain')}${rd('ab','Training accuracy: with batch normalization')}${rd('sat','Typical size of what enters the last hidden layer: plain / normalized')}</dl>`,
- tryit:'Let it run with the default starting weights, which are a third of the careful size. Watch the bottom-right chart: what happens to the plain network’s bars from layer 1 to layer 6, and what does its loss do? Now set the weight size to 1 and start over. Which network ends with the lower training loss this time? Set the weight size to 4 with 8 hidden layers: the bars now overflow instead of vanishing. Across all three settings, which network did not care? Finally go back to weight size 1 and set the batch size to 2. Why would a tiny batch hurt the method that depends on batch statistics?',
- math:String.raw`<h4>Intuition</h4><p>Picture a line of people passing a message by whispering. If each person speaks slightly too loudly, a few places down the line everyone is shouting and the words are lost. If each speaks slightly too softly, the message fades to nothing. A deep network has the same problem with numbers, and tanh units make it concrete: feed them values far from zero and they answer +1 or −1 whatever the input, with a slope of almost nothing, so no learning signal gets back through them. Batch normalization gives every person in the line a volume control that is reset at each step: whatever arrives, it is brought back to a standard level before being passed on.</p>
+ ${uHow('bn', ['Take a small batch of training examples and pass it through a layer.', 'For each unit, compute the mean and the standard deviation of its values over the batch.', 'Subtract the mean and divide by the standard deviation. The unit’s values now have mean 0 and spread 1.', 'Multiply by a learned scale γ and add a learned shift β, so the network can undo the step if that is better.', 'Apply the activation function and move to the next layer. Gradients flow back through all of this.', 'At test time there is no batch, so use running averages of the means and spreads collected during training.'])}
+ <div class="controls">${uBtns('bn', 'Run', 'One pass', 'passes through the data')}
+ ${grp('What makes training hard', slider('bn-w', 'Size of the starting weights (1 = the careful choice)', 0.1, 5, 0.1, 0.3) + slider('bn-lr', 'Learning rate', 0.01, 0.5, 0.01, 0.1) + slider('bn-b', 'Batch size', 2, 64, 2, 16) + slider('bn-L', 'Hidden layers', 2, 8, 1, 6))}
+ ${grp('Data', `<div class="row"><button class="btn" id="bn-new" type="button">New starting weights</button></div>`)}</div>
+ <dl class="read">${rd('ep', 'Passes through the data')}${rd('lp', 'Loss: plain network', 'hl2')}${rd('lb', 'Loss: with batch normalization', 'hl')}${rd('ap', 'Training accuracy: plain')}${rd('ab', 'Training accuracy: with batch normalization')}${rd('sat', 'Typical size of what enters the last hidden layer: plain / normalized')}</dl>`,
+  tryit:
+    'Let it run with the default starting weights, which are a third of the careful size. Watch the bottom-right chart: what happens to the plain network’s bars from layer 1 to layer 6, and what does its loss do? Now set the weight size to 1 and start over. Which network ends with the lower training loss this time? Set the weight size to 4 with 8 hidden layers: the bars now overflow instead of vanishing. Across all three settings, which network did not care? Finally go back to weight size 1 and set the batch size to 2. Why would a tiny batch hurt the method that depends on batch statistics?',
+  math: String.raw`<h4>Intuition</h4><p>Picture a line of people passing a message by whispering. If each person speaks slightly too loudly, a few places down the line everyone is shouting and the words are lost. If each speaks slightly too softly, the message fades to nothing. A deep network has the same problem with numbers, and tanh units make it concrete: feed them values far from zero and they answer +1 or −1 whatever the input, with a slope of almost nothing, so no learning signal gets back through them. Batch normalization gives every person in the line a volume control that is reset at each step: whatever arrives, it is brought back to a standard level before being passed on.</p>
  <h4>The transformation</h4><p>For one unit with values \(z_1,\dots,z_m\) over a batch of size \(m\) (Ioffe and Szegedy, 2015):</p>$$\mu_B=\frac1m\sum_{i=1}^{m}z_i,\qquad\sigma_B^2=\frac1m\sum_{i=1}^{m}(z_i-\mu_B)^2,\qquad\hat z_i=\frac{z_i-\mu_B}{\sqrt{\sigma_B^2+\epsilon}},\qquad y_i=\gamma\,\hat z_i+\beta.$$<p>\(\gamma\) and \(\beta\) are learned, one pair per unit, starting at 1 and 0. They let the network choose any mean and spread it likes for each unit. What changes is that these are now set directly by two parameters instead of emerging from every weight in every earlier layer.</p>
  <h4>Backpropagation through it</h4><p>The batch mean and variance depend on every example, so the gradient has three paths. With \(\partial L/\partial y_i\) arriving from above:</p>$$\frac{\partial L}{\partial\hat z_i}=\gamma\frac{\partial L}{\partial y_i},\qquad\frac{\partial L}{\partial z_i}=\frac{1}{m\sqrt{\sigma_B^2+\epsilon}}\Big(m\frac{\partial L}{\partial\hat z_i}-\sum_j\frac{\partial L}{\partial\hat z_j}-\hat z_i\sum_j\frac{\partial L}{\partial\hat z_j}\hat z_j\Big),$$$$\frac{\partial L}{\partial\gamma}=\sum_i\frac{\partial L}{\partial y_i}\hat z_i,\qquad\frac{\partial L}{\partial\beta}=\sum_i\frac{\partial L}{\partial y_i}.$$<p>The division by \(\sigma_B\) has a useful side effect. If all the weights into a unit are doubled, \(z\) doubles, \(\sigma_B\) doubles, and \(\hat z\) is unchanged: the layer's output no longer depends on the scale of its weights. That is why the normalized network shrugs off badly sized starting weights, too small or too large.</p>
  <h4>Training and testing differ</h4><p>During training each example's output depends on which other examples share its batch. At test time predictions must not depend on that, so the batch statistics are replaced by running averages gathered during training:</p>$$\mu_{\text{run}}\leftarrow(1-\rho)\,\mu_{\text{run}}+\rho\,\mu_B,\qquad\sigma^2_{\text{run}}\leftarrow(1-\rho)\,\sigma^2_{\text{run}}+\rho\,\sigma^2_B.$$<p>The shading on the left-hand chart uses the running averages, as a deployed network would.</p>
@@ -469,50 +4110,549 @@ NNL.push(
  <h4>What you will see on this page</h4><p>The benefit here is robustness, not a better final answer. With starting weights of the careful size, the plain network trains just as fast on these small problems and usually ends with a <i>lower</i> training loss, because the batch-to-batch noise in the normalized network keeps its loss from settling all the way down. Move the weight size away from 1 in either direction and the plain network slows or stops, while the normalized one barely notices. In very deep networks a careful starting size is much harder to get right, which is where the method earns its place.</p>
  <h4>When it hurts</h4><p>With a very small batch, the mean and variance are estimated from a handful of numbers and jump about from step to step. The normalization becomes a source of noise, and the running averages become poor stand-ins for it at test time. Layer normalization and group normalization avoid this by computing statistics within each example instead of across the batch, which is why transformers use layer normalization.</p>
  <h4>What this page runs</h4><p>Two fully connected tanh networks with 10 units per hidden layer, the same starting weights (the Glorot value times the slider), the same batches and plain gradient descent. The run stops when the normalized network's loss has changed by less than 0.002 over 25 passes, or after 300 passes.</p>`,
- q:'With starting weights a third of the careful size, the plain network’s loss sits at 0.693 while the normalized one learns at once. Both have exactly the same weights at the start. What is different inside them, and why 0.693?',a:'In the plain network every layer multiplies the signal by weights that are too small, so its spread shrinks by roughly the same factor at each layer. After six layers what reaches the output is essentially zero whatever the input was, so the network gives every example a probability of one half, and the loss of that answer is ln 2 = 0.693. The gradients shrink by the same factor at every layer on the way back, so the early weights receive almost no signal and nothing moves. In the normalized network each layer’s values are divided by their own batch standard deviation before the activation, which restores a spread of about 1 whatever the size of the weights. Information gets through in both directions from the first step.',
- init(root){const c=$('#bn-c',root),cr=$('#bn-r',root),live=$('#bn-live',root),eq=$('#bn-eq',root),S={d:'spiral',w:.3,lr:.1,b:16,L:6},H=10;let D=[],Y=[],nets=[],ep=0,fin=false,hist=[[],[]],acc=[0,0],rng_=null,seed=1,msg='',cu=0,pb,chk=()=>false,fld=[null,null],GW=30,GH=30,work=null;
-  const gen=()=>{const r=rng(41+S.d.length),rn=randnFrom(r);D=[];Y=[];for(let i=0;i<160;i++){const k=i%2;let p;if(S.d==='spiral'){const t=.35+2.3*r()*Math.PI*.75,s=k?1:-1;p=[s*t*.55*Math.cos(t)+.07*rn(),s*t*.55*Math.sin(t)+.07*rn()]}else if(S.d==='rings'){const a=2*Math.PI*r(),rad=k?2.1:.7;p=[rad*Math.cos(a)+.14*rn(),rad*Math.sin(a)+.14*rn()]}else{const a=Math.PI*r();p=k?[1.5*Math.cos(a)-.7+.12*rn(),1.5*Math.sin(a)-.4+.12*rn()]:[.7-1.5*Math.cos(a)+.12*rn(),.4-1.5*Math.sin(a)+.12*rn()]}D.push(p);Y.push(k)}};
-  const mk=bn=>{const r=randnFrom(rng(seed*97+5)),sz=[2,...Array(S.L).fill(H),1],W=[],B=[],G=[],Be=[],RM_=[],RV=[];for(let l=0;l<sz.length-1;l++){const sd=S.w*Math.sqrt(2/(sz[l]+sz[l+1]));W.push(Array.from({length:sz[l+1]},()=>Array.from({length:sz[l]},()=>sd*r())));B.push(new Array(sz[l+1]).fill(0));G.push(new Array(sz[l+1]).fill(1));Be.push(new Array(sz[l+1]).fill(0));RM_.push(new Array(sz[l+1]).fill(0));RV.push(new Array(sz[l+1]).fill(1))}return{bn,W,B,G,Be,RM:RM_,RV,pre:[]}};
-  const fwd=(N,X,train,keep)=>{const m=X.length,L=N.W.length,cache={A:[X],Z:[],Zh:[],sd:[]};let A=X;N.pre=[];for(let l=0;l<L;l++){const no=N.W[l].length,Z=A.map(a=>N.W[l].map((w,j)=>{let s=N.B[l][j];for(let k=0;k<w.length;k++)s+=w[k]*a[k];return s}));cache.Z.push(Z);if(l===L-1){A=Z.map(z=>[1/(1+Math.exp(-clamp(z[0],-30,30)))]);cache.A.push(A);break}
-    let U=Z;if(N.bn){const mu=new Array(no).fill(0),va=new Array(no).fill(0);if(train){for(const z of Z)for(let j=0;j<no;j++)mu[j]+=z[j]/m;for(const z of Z)for(let j=0;j<no;j++)va[j]+=(z[j]-mu[j])**2/m;for(let j=0;j<no;j++){N.RM[l][j]=.9*N.RM[l][j]+.1*mu[j];N.RV[l][j]=.9*N.RV[l][j]+.1*va[j]}}else for(let j=0;j<no;j++){mu[j]=N.RM[l][j];va[j]=N.RV[l][j]}const sd=va.map(v=>Math.sqrt(v+1e-5)),Zh=Z.map(z=>z.map((v,j)=>(v-mu[j])/sd[j]));cache.Zh.push(Zh);cache.sd.push(sd);cache.mu=cache.mu||[];cache.mu.push(mu);U=Zh.map(z=>z.map((v,j)=>N.G[l][j]*v+N.Be[l][j]))}else{cache.Zh.push(null);cache.sd.push(null)}
-    if(keep)N.pre.push(U.flat());cache.U=cache.U||[];cache.U.push(U);A=U.map(u=>u.map(Math.tanh));cache.A.push(A)}return cache};
-  const train=(N,X,y)=>{const m=X.length,L=N.W.length,C=fwd(N,X,true,false);let dZ=C.A[L].map((a,i)=>[(a[0]-y[i])/m]);for(let l=L-1;l>=0;l--){const Ain=C.A[l],no=N.W[l].length,ni=N.W[l][0].length;let dA=null;if(l>0){dA=Ain.map(()=>new Array(ni).fill(0));for(let i=0;i<m;i++)for(let j=0;j<no;j++){const d=dZ[i][j],w=N.W[l][j];for(let k=0;k<ni;k++)dA[i][k]+=d*w[k]}}
-    for(let j=0;j<no;j++){let gb=0;const w=N.W[l][j],gw=new Array(ni).fill(0);for(let i=0;i<m;i++){const d=dZ[i][j];gb+=d;for(let k=0;k<ni;k++)gw[k]+=d*Ain[i][k]}for(let k=0;k<ni;k++)w[k]-=S.lr*clamp(gw[k],-5,5);N.B[l][j]-=S.lr*clamp(gb,-5,5)}
-    if(l>0){const lp=l-1,U=C.U[lp],dU=dA.map((r,i)=>r.map((v,j)=>v*(1-Math.tanh(U[i][j])**2)));if(N.bn){const Zh=C.Zh[lp],sd=C.sd[lp],n2=N.W[lp].length;dZ=dU.map(r=>r.slice());for(let j=0;j<n2;j++){let s1=0,s2=0,gg=0,gb=0;for(let i=0;i<m;i++){const dh=dU[i][j]*N.G[lp][j];s1+=dh;s2+=dh*Zh[i][j];gg+=dU[i][j]*Zh[i][j];gb+=dU[i][j]}for(let i=0;i<m;i++){const dh=dU[i][j]*N.G[lp][j];dZ[i][j]=(m*dh-s1-Zh[i][j]*s2)/(m*sd[j])}N.G[lp][j]-=S.lr*clamp(gg,-5,5);N.Be[lp][j]-=S.lr*clamp(gb,-5,5)}}else dZ=dU}}};
-  const evalN=N=>{const C=fwd(N,D,false,true),P=C.A[N.W.length];let l=0,a=0;P.forEach((p,i)=>{const q=clamp(p[0],1e-7,1-1e-7);l-=Y[i]*Math.log(q)+(1-Y[i])*Math.log(1-q);if((q>.5?1:0)===Y[i])a++});return[l/D.length,a/D.length]};
-  const field=k=>{const X=[];for(let r=0;r<GH;r++)for(let q=0;q<GW;q++)X.push([-3+6*(q+.5)/GW,3-6*(r+.5)/GH]);const keep=nets[k].pre;const P=fwd(nets[k],X,false,false).A[nets[k].W.length];nets[k].pre=keep;fld[k]=P.map(p=>p[0])};
-  const reset=()=>{nets=[mk(false),mk(true)];for(let w=0;w<3;w++)fwd(nets[1],D,true,false);ep=0;fin=false;hist=[[],[]];rng_=rng(seed*3+1);for(const k of[0,1]){const[l,a]=evalN(nets[k]);hist[k].push(l);acc[k]=a;field(k)}cu=0;work=null;msg='Two networks with identical starting weights'+(S.w>1.5?', '+f2(S.w)+' times larger than the careful choice':S.w<.7?', '+f2(S.w)+' times the careful size, so too small':'')+'. Press Run.';eqShow(eq,['No batch yet. Press One pass or Run.'],0)};
-  const pass=()=>{if(fin)return;const n=D.length,idx=D.map((_,i)=>i);for(let i=n-1;i>0;i--){const j=Math.floor(rng_()*(i+1));[idx[i],idx[j]]=[idx[j],idx[i]]}for(let s=0;s+1<n;s+=S.b){const bi=idx.slice(s,s+S.b);if(bi.length<2)continue;const X=bi.map(i=>D[i]),y=bi.map(i=>Y[i]);if(s===0){const z=X.map(a=>nets[1].W[0][0][0]*a[0]+nets[1].W[0][0][1]*a[1]+nets[1].B[0][0]).slice(0,5),mu=z.reduce((p,v)=>p+v,0)/z.length,sd=Math.sqrt(z.reduce((p,v)=>p+(v-mu)**2,0)/z.length+1e-5);work={z,mu,sd,g:nets[1].G[0][0],b:nets[1].Be[0][0]}}for(const N of nets)train(N,X,y)}
-   ep++;for(const k of[0,1]){const[l,a]=evalN(nets[k]);hist[k].push(l);acc[k]=a;if(ep%2===0||ep<6)field(k)}cu=ep%5;const h=hist[1];msg='Pass '+ep+': loss '+f3(hist[0][ep])+' for the plain network and '+f3(h[ep])+' with batch normalization.';
-   if(work)eqShow(eq,['First '+work.z.length+' values of one unit in this batch: '+work.z.map(f2).join(', '),'batch mean μ = <b>'+f3(work.mu)+'</b>, batch standard deviation σ = <b>'+f3(work.sd)+'</b>','normalized: (z − μ) ÷ σ = '+work.z.map(v=>f2((v-work.mu)/work.sd)).join(', '),'learned scale γ = '+f3(work.g)+', learned shift β = '+f3(work.b),'into tanh: γ × normalized + β = <b>'+work.z.map(v=>f2(work.g*(v-work.mu)/work.sd+work.b)).join(', ')+'</b>'],0);
-   if(ep>=40&&Math.abs(h[ep]-h[ep-25])<.002||ep>=300){fin=true;for(const k of[0,1])field(k);msg='Stopped after '+ep+' passes: the normalized network’s loss has levelled off. Plain network: loss '+f3(hist[0][ep])+', accuracy '+pct(acc[0])+'. With batch normalization: loss '+f3(h[ep])+', accuracy '+pct(acc[1])+'.'}};
-  const q90=a=>{const s=Float64Array.from(a).sort();return[s[Math.floor(s.length*.05)],s[Math.floor(s.length*.95)]]};
-  const draw=()=>{const t=T();{const{g,w,h}=fit(c),pw=(w-14)/2,sz=Math.min(pw,h-26);for(const k of[0,1]){const x0=k*(pw+14)+(pw-sz)/2,y0=22,X=x=>x0+(x+3)/6*sz,Yc=y=>y0+(3-y)/6*sz;for(let r=0;r<GH;r++)for(let q=0;q<GW;q++){const v=fld[k][r*GW+q];g.fillStyle=v>.5?mix(t.bg,t.gold,(v-.5)*.9):mix(t.bg,t.accent,(.5-v)*.9);const xa=Math.round(x0+q*sz/GW),xb=Math.round(x0+(q+1)*sz/GW),ya=Math.round(y0+r*sz/GH),yb=Math.round(y0+(r+1)*sz/GH);g.fillRect(xa,ya,xb-xa,yb-ya)}
-     D.forEach((p,i)=>{g.lineWidth=1;dotAt(g,X(p[0]),Yc(p[1]),2.6,Y[i]?t.gold:t.accent,t.bg)});g.font=MONO;g.fillStyle=t.muted;g.textAlign='center';g.fillText(k?'with batch normalization':'plain network',x0+sz/2,14)}}
-   {const{g,w,h}=fit(cr),h1=h*.46,ym=Math.max(.75,...hist[0].slice(0,3),...hist[1].slice(0,3))*1.05,A=uLine(g,t,0,0,w,h1,[],{title:'training loss: plain (amber), batch normalization (green)',n:Math.max(40,ep+1),ym,y1:0});g.save();g.beginPath();g.rect(0,16,w,h1-34);g.clip();[[0,t.cut],[1,t.accent]].forEach(([k,col])=>{g.strokeStyle=col;g.lineWidth=2.2;g.beginPath();hist[k].forEach((v,i)=>i?g.lineTo(A.X(i),A.Y(Math.min(v,ym*2))):g.moveTo(A.X(i),A.Y(Math.min(v,ym*2))));g.stroke()});g.restore();
-    const y0=h1+6,H2=h-y0,m={l:86,r:14,t:24,b:8},rh=(H2-m.t-m.b)/S.L,R=8,X=v=>m.l+(clamp(v,-R,R)+R)/(2*R)*(w-m.l-m.r);g.font=MONO;g.fillStyle=t.muted;g.textAlign='left';g.fillText('inputs to tanh at each hidden layer (−8 to 8)',8,y0+12);g.strokeStyle=t.muted;g.setLineDash([4,4]);g.lineWidth=1;for(const v of[-2,2]){g.beginPath();g.moveTo(X(v),y0+m.t);g.lineTo(X(v),h-m.b);g.stroke()}g.setLineDash([]);
-    for(let l=0;l<S.L;l++){const yy=y0+m.t+l*rh;g.fillStyle=t.muted;g.textAlign='right';g.fillText('layer '+(l+1),m.l-8,yy+rh/2+4);[[0,t.cut],[1,t.accent]].forEach(([k,col])=>{const pr=nets[k].pre[l];if(!pr)return;const[a,b]=q90(pr);g.fillStyle=col;g.fillRect(X(a),yy+3+k*(rh/2-2),Math.max(2,X(b)-X(a)),rh/2-5)})}}
-   const sat=k=>{const pr=nets[k].pre[S.L-1];if(!pr)return NaN;let s=0;for(const v of pr)s+=v*v;return Math.sqrt(s/pr.length)};live.textContent=msg;uCur(root,'bn',cu);setR(root,'ep',ep+(fin?' (stopped)':''));setR(root,'lp',f3(hist[0][ep]));setR(root,'lb',f3(hist[1][ep]));setR(root,'ap',pct(acc[0]));setR(root,'ab',pct(acc[1]));setR(root,'sat',f3(sat(0))+' / '+f3(sat(1)))};
-  gen();reset();
-  const anim=Anim(()=>{if(fin){pb.stop();return}pass();draw();chk()});pb=playBtn($('#bn-play',root),anim);chk=runCtl(pb,root,'bn',{done:()=>fin,restart:reset,count:()=>ep,what:'passes'});
-  const go=()=>{pb.stop();reset();draw();pb.start()},ch=()=>{pb.stop();reset();draw()};$('#bn-step',root).onclick=()=>{pb.stop();if(fin)reset();else pass();draw()};$('#bn-reset',root).onclick=ch;$('#bn-new',root).onclick=()=>{seed++;go()};
-  bind(root,'bn-w',v=>{S.w=v;ch()},v=>(+v).toFixed(1)+'×');bind(root,'bn-lr',v=>{S.lr=v},f3);bind(root,'bn-b',v=>{S.b=v},v=>String(+v));bind(root,'bn-L',v=>{S.L=v;ch()},v=>String(+v));segBind(root,'bn-d',S.d,v=>{S.d=v;gen();go()});
-  return{draw,stop:()=>pb.stop(),auto:()=>{reset();draw();pb.start()}}}}
-);
-PML.push(
-{id:'variational-bayes',tab:'Variational Bayes',title:'Variational Bayes: replace a hard belief with the closest easy one',
- lede:'MCMC answers "what does this awkward belief look like?" by wandering over it for a long time. Variational Bayes takes a shortcut. Pick a simple family of distributions, here a bell curve, and slide and stretch it until it sits as close to the true belief as that family allows. Sampling becomes optimization, and it is fast. What you pay is that the answer is an approximation with a characteristic bias, which you can watch on this page.',
- stage:`<div class="row seg" id="vb-tg" role="group" aria-label="Target distribution"><button class="btn" type="button" data-v="corr">A Slanted Bell</button><button class="btn" type="button" data-v="banana">A Banana</button><button class="btn" type="button" data-v="two">Two Islands</button></div>
+  q: 'With starting weights a third of the careful size, the plain network’s loss sits at 0.693 while the normalized one learns at once. Both have exactly the same weights at the start. What is different inside them, and why 0.693?',
+  a: 'In the plain network every layer multiplies the signal by weights that are too small, so its spread shrinks by roughly the same factor at each layer. After six layers what reaches the output is essentially zero whatever the input was, so the network gives every example a probability of one half, and the loss of that answer is ln 2 = 0.693. The gradients shrink by the same factor at every layer on the way back, so the early weights receive almost no signal and nothing moves. In the normalized network each layer’s values are divided by their own batch standard deviation before the activation, which restores a spread of about 1 whatever the size of the weights. Information gets through in both directions from the first step.',
+  init(root) {
+    const c = $('#bn-c', root),
+      cr = $('#bn-r', root),
+      live = $('#bn-live', root),
+      eq = $('#bn-eq', root),
+      S = { d: 'spiral', w: 0.3, lr: 0.1, b: 16, L: 6 },
+      H = 10;
+    let D = [],
+      Y = [],
+      nets = [],
+      ep = 0,
+      fin = false,
+      hist = [[], []],
+      acc = [0, 0],
+      rng_ = null,
+      seed = 1,
+      msg = '',
+      cu = 0,
+      pb,
+      chk = () => false,
+      fld = [null, null],
+      GW = 30,
+      GH = 30,
+      work = null;
+    const gen = () => {
+      const r = rng(41 + S.d.length),
+        rn = randnFrom(r);
+      D = [];
+      Y = [];
+      for (let i = 0; i < 160; i++) {
+        const k = i % 2;
+        let p;
+        if (S.d === 'spiral') {
+          const t = 0.35 + 2.3 * r() * Math.PI * 0.75,
+            s = k ? 1 : -1;
+          p = [s * t * 0.55 * Math.cos(t) + 0.07 * rn(), s * t * 0.55 * Math.sin(t) + 0.07 * rn()];
+        } else if (S.d === 'rings') {
+          const a = 2 * Math.PI * r(),
+            rad = k ? 2.1 : 0.7;
+          p = [rad * Math.cos(a) + 0.14 * rn(), rad * Math.sin(a) + 0.14 * rn()];
+        } else {
+          const a = Math.PI * r();
+          p = k
+            ? [1.5 * Math.cos(a) - 0.7 + 0.12 * rn(), 1.5 * Math.sin(a) - 0.4 + 0.12 * rn()]
+            : [0.7 - 1.5 * Math.cos(a) + 0.12 * rn(), 0.4 - 1.5 * Math.sin(a) + 0.12 * rn()];
+        }
+        D.push(p);
+        Y.push(k);
+      }
+    };
+    const mk = (bn) => {
+      const r = randnFrom(rng(seed * 97 + 5)),
+        sz = [2, ...Array(S.L).fill(H), 1],
+        W = [],
+        B = [],
+        G = [],
+        Be = [],
+        RM_ = [],
+        RV = [];
+      for (let l = 0; l < sz.length - 1; l++) {
+        const sd = S.w * Math.sqrt(2 / (sz[l] + sz[l + 1]));
+        W.push(
+          Array.from({ length: sz[l + 1] }, () => Array.from({ length: sz[l] }, () => sd * r())),
+        );
+        B.push(new Array(sz[l + 1]).fill(0));
+        G.push(new Array(sz[l + 1]).fill(1));
+        Be.push(new Array(sz[l + 1]).fill(0));
+        RM_.push(new Array(sz[l + 1]).fill(0));
+        RV.push(new Array(sz[l + 1]).fill(1));
+      }
+      return { bn, W, B, G, Be, RM: RM_, RV, pre: [] };
+    };
+    const fwd = (N, X, train, keep) => {
+      const m = X.length,
+        L = N.W.length,
+        cache = { A: [X], Z: [], Zh: [], sd: [] };
+      let A = X;
+      N.pre = [];
+      for (let l = 0; l < L; l++) {
+        const no = N.W[l].length,
+          Z = A.map((a) =>
+            N.W[l].map((w, j) => {
+              let s = N.B[l][j];
+              for (let k = 0; k < w.length; k++) s += w[k] * a[k];
+              return s;
+            }),
+          );
+        cache.Z.push(Z);
+        if (l === L - 1) {
+          A = Z.map((z) => [1 / (1 + Math.exp(-clamp(z[0], -30, 30)))]);
+          cache.A.push(A);
+          break;
+        }
+        let U = Z;
+        if (N.bn) {
+          const mu = new Array(no).fill(0),
+            va = new Array(no).fill(0);
+          if (train) {
+            for (const z of Z) for (let j = 0; j < no; j++) mu[j] += z[j] / m;
+            for (const z of Z) for (let j = 0; j < no; j++) va[j] += (z[j] - mu[j]) ** 2 / m;
+            for (let j = 0; j < no; j++) {
+              N.RM[l][j] = 0.9 * N.RM[l][j] + 0.1 * mu[j];
+              N.RV[l][j] = 0.9 * N.RV[l][j] + 0.1 * va[j];
+            }
+          } else
+            for (let j = 0; j < no; j++) {
+              mu[j] = N.RM[l][j];
+              va[j] = N.RV[l][j];
+            }
+          const sd = va.map((v) => Math.sqrt(v + 1e-5)),
+            Zh = Z.map((z) => z.map((v, j) => (v - mu[j]) / sd[j]));
+          cache.Zh.push(Zh);
+          cache.sd.push(sd);
+          cache.mu = cache.mu || [];
+          cache.mu.push(mu);
+          U = Zh.map((z) => z.map((v, j) => N.G[l][j] * v + N.Be[l][j]));
+        } else {
+          cache.Zh.push(null);
+          cache.sd.push(null);
+        }
+        if (keep) N.pre.push(U.flat());
+        cache.U = cache.U || [];
+        cache.U.push(U);
+        A = U.map((u) => u.map(Math.tanh));
+        cache.A.push(A);
+      }
+      return cache;
+    };
+    const train = (N, X, y) => {
+      const m = X.length,
+        L = N.W.length,
+        C = fwd(N, X, true, false);
+      let dZ = C.A[L].map((a, i) => [(a[0] - y[i]) / m]);
+      for (let l = L - 1; l >= 0; l--) {
+        const Ain = C.A[l],
+          no = N.W[l].length,
+          ni = N.W[l][0].length;
+        let dA = null;
+        if (l > 0) {
+          dA = Ain.map(() => new Array(ni).fill(0));
+          for (let i = 0; i < m; i++)
+            for (let j = 0; j < no; j++) {
+              const d = dZ[i][j],
+                w = N.W[l][j];
+              for (let k = 0; k < ni; k++) dA[i][k] += d * w[k];
+            }
+        }
+        for (let j = 0; j < no; j++) {
+          let gb = 0;
+          const w = N.W[l][j],
+            gw = new Array(ni).fill(0);
+          for (let i = 0; i < m; i++) {
+            const d = dZ[i][j];
+            gb += d;
+            for (let k = 0; k < ni; k++) gw[k] += d * Ain[i][k];
+          }
+          for (let k = 0; k < ni; k++) w[k] -= S.lr * clamp(gw[k], -5, 5);
+          N.B[l][j] -= S.lr * clamp(gb, -5, 5);
+        }
+        if (l > 0) {
+          const lp = l - 1,
+            U = C.U[lp],
+            dU = dA.map((r, i) => r.map((v, j) => v * (1 - Math.tanh(U[i][j]) ** 2)));
+          if (N.bn) {
+            const Zh = C.Zh[lp],
+              sd = C.sd[lp],
+              n2 = N.W[lp].length;
+            dZ = dU.map((r) => r.slice());
+            for (let j = 0; j < n2; j++) {
+              let s1 = 0,
+                s2 = 0,
+                gg = 0,
+                gb = 0;
+              for (let i = 0; i < m; i++) {
+                const dh = dU[i][j] * N.G[lp][j];
+                s1 += dh;
+                s2 += dh * Zh[i][j];
+                gg += dU[i][j] * Zh[i][j];
+                gb += dU[i][j];
+              }
+              for (let i = 0; i < m; i++) {
+                const dh = dU[i][j] * N.G[lp][j];
+                dZ[i][j] = (m * dh - s1 - Zh[i][j] * s2) / (m * sd[j]);
+              }
+              N.G[lp][j] -= S.lr * clamp(gg, -5, 5);
+              N.Be[lp][j] -= S.lr * clamp(gb, -5, 5);
+            }
+          } else dZ = dU;
+        }
+      }
+    };
+    const evalN = (N) => {
+      const C = fwd(N, D, false, true),
+        P = C.A[N.W.length];
+      let l = 0,
+        a = 0;
+      P.forEach((p, i) => {
+        const q = clamp(p[0], 1e-7, 1 - 1e-7);
+        l -= Y[i] * Math.log(q) + (1 - Y[i]) * Math.log(1 - q);
+        if ((q > 0.5 ? 1 : 0) === Y[i]) a++;
+      });
+      return [l / D.length, a / D.length];
+    };
+    const field = (k) => {
+      const X = [];
+      for (let r = 0; r < GH; r++)
+        for (let q = 0; q < GW; q++) X.push([-3 + (6 * (q + 0.5)) / GW, 3 - (6 * (r + 0.5)) / GH]);
+      const keep = nets[k].pre;
+      const P = fwd(nets[k], X, false, false).A[nets[k].W.length];
+      nets[k].pre = keep;
+      fld[k] = P.map((p) => p[0]);
+    };
+    const reset = () => {
+      nets = [mk(false), mk(true)];
+      for (let w = 0; w < 3; w++) fwd(nets[1], D, true, false);
+      ep = 0;
+      fin = false;
+      hist = [[], []];
+      rng_ = rng(seed * 3 + 1);
+      for (const k of [0, 1]) {
+        const [l, a] = evalN(nets[k]);
+        hist[k].push(l);
+        acc[k] = a;
+        field(k);
+      }
+      cu = 0;
+      work = null;
+      msg =
+        'Two networks with identical starting weights' +
+        (S.w > 1.5
+          ? ', ' + f2(S.w) + ' times larger than the careful choice'
+          : S.w < 0.7
+            ? ', ' + f2(S.w) + ' times the careful size, so too small'
+            : '') +
+        '. Press Run.';
+      eqShow(eq, ['No batch yet. Press One pass or Run.'], 0);
+    };
+    const pass = () => {
+      if (fin) return;
+      const n = D.length,
+        idx = D.map((_, i) => i);
+      for (let i = n - 1; i > 0; i--) {
+        const j = Math.floor(rng_() * (i + 1));
+        [idx[i], idx[j]] = [idx[j], idx[i]];
+      }
+      for (let s = 0; s + 1 < n; s += S.b) {
+        const bi = idx.slice(s, s + S.b);
+        if (bi.length < 2) continue;
+        const X = bi.map((i) => D[i]),
+          y = bi.map((i) => Y[i]);
+        if (s === 0) {
+          const z = X.map(
+              (a) => nets[1].W[0][0][0] * a[0] + nets[1].W[0][0][1] * a[1] + nets[1].B[0][0],
+            ).slice(0, 5),
+            mu = z.reduce((p, v) => p + v, 0) / z.length,
+            sd = Math.sqrt(z.reduce((p, v) => p + (v - mu) ** 2, 0) / z.length + 1e-5);
+          work = { z, mu, sd, g: nets[1].G[0][0], b: nets[1].Be[0][0] };
+        }
+        for (const N of nets) train(N, X, y);
+      }
+      ep++;
+      for (const k of [0, 1]) {
+        const [l, a] = evalN(nets[k]);
+        hist[k].push(l);
+        acc[k] = a;
+        if (ep % 2 === 0 || ep < 6) field(k);
+      }
+      cu = ep % 5;
+      const h = hist[1];
+      msg =
+        'Pass ' +
+        ep +
+        ': loss ' +
+        f3(hist[0][ep]) +
+        ' for the plain network and ' +
+        f3(h[ep]) +
+        ' with batch normalization.';
+      if (work)
+        eqShow(
+          eq,
+          [
+            'First ' +
+              work.z.length +
+              ' values of one unit in this batch: ' +
+              work.z.map(f2).join(', '),
+            'batch mean μ = <b>' +
+              f3(work.mu) +
+              '</b>, batch standard deviation σ = <b>' +
+              f3(work.sd) +
+              '</b>',
+            'normalized: (z − μ) ÷ σ = ' +
+              work.z.map((v) => f2((v - work.mu) / work.sd)).join(', '),
+            'learned scale γ = ' + f3(work.g) + ', learned shift β = ' + f3(work.b),
+            'into tanh: γ × normalized + β = <b>' +
+              work.z.map((v) => f2((work.g * (v - work.mu)) / work.sd + work.b)).join(', ') +
+              '</b>',
+          ],
+          0,
+        );
+      if ((ep >= 40 && Math.abs(h[ep] - h[ep - 25]) < 0.002) || ep >= 300) {
+        fin = true;
+        for (const k of [0, 1]) field(k);
+        msg =
+          'Stopped after ' +
+          ep +
+          ' passes: the normalized network’s loss has levelled off. Plain network: loss ' +
+          f3(hist[0][ep]) +
+          ', accuracy ' +
+          pct(acc[0]) +
+          '. With batch normalization: loss ' +
+          f3(h[ep]) +
+          ', accuracy ' +
+          pct(acc[1]) +
+          '.';
+      }
+    };
+    const q90 = (a) => {
+      const s = Float64Array.from(a).sort();
+      return [s[Math.floor(s.length * 0.05)], s[Math.floor(s.length * 0.95)]];
+    };
+    const draw = () => {
+      const t = T();
+      {
+        const { g, w, h } = fit(c),
+          pw = (w - 14) / 2,
+          sz = Math.min(pw, h - 26);
+        for (const k of [0, 1]) {
+          const x0 = k * (pw + 14) + (pw - sz) / 2,
+            y0 = 22,
+            X = (x) => x0 + ((x + 3) / 6) * sz,
+            Yc = (y) => y0 + ((3 - y) / 6) * sz;
+          for (let r = 0; r < GH; r++)
+            for (let q = 0; q < GW; q++) {
+              const v = fld[k][r * GW + q];
+              g.fillStyle =
+                v > 0.5 ? mix(t.bg, t.gold, (v - 0.5) * 0.9) : mix(t.bg, t.accent, (0.5 - v) * 0.9);
+              const xa = Math.round(x0 + (q * sz) / GW),
+                xb = Math.round(x0 + ((q + 1) * sz) / GW),
+                ya = Math.round(y0 + (r * sz) / GH),
+                yb = Math.round(y0 + ((r + 1) * sz) / GH);
+              g.fillRect(xa, ya, xb - xa, yb - ya);
+            }
+          D.forEach((p, i) => {
+            g.lineWidth = 1;
+            dotAt(g, X(p[0]), Yc(p[1]), 2.6, Y[i] ? t.gold : t.accent, t.bg);
+          });
+          g.font = MONO;
+          g.fillStyle = t.muted;
+          g.textAlign = 'center';
+          g.fillText(k ? 'with batch normalization' : 'plain network', x0 + sz / 2, 14);
+        }
+      }
+      {
+        const { g, w, h } = fit(cr),
+          h1 = h * 0.46,
+          ym = Math.max(0.75, ...hist[0].slice(0, 3), ...hist[1].slice(0, 3)) * 1.05,
+          A = uLine(g, t, 0, 0, w, h1, [], {
+            title: 'training loss: plain (amber), batch normalization (green)',
+            n: Math.max(40, ep + 1),
+            ym,
+            y1: 0,
+          });
+        g.save();
+        g.beginPath();
+        g.rect(0, 16, w, h1 - 34);
+        g.clip();
+        [
+          [0, t.cut],
+          [1, t.accent],
+        ].forEach(([k, col]) => {
+          g.strokeStyle = col;
+          g.lineWidth = 2.2;
+          g.beginPath();
+          hist[k].forEach((v, i) =>
+            i
+              ? g.lineTo(A.X(i), A.Y(Math.min(v, ym * 2)))
+              : g.moveTo(A.X(i), A.Y(Math.min(v, ym * 2))),
+          );
+          g.stroke();
+        });
+        g.restore();
+        const y0 = h1 + 6,
+          H2 = h - y0,
+          m = { l: 86, r: 14, t: 24, b: 8 },
+          rh = (H2 - m.t - m.b) / S.L,
+          R = 8,
+          X = (v) => m.l + ((clamp(v, -R, R) + R) / (2 * R)) * (w - m.l - m.r);
+        g.font = MONO;
+        g.fillStyle = t.muted;
+        g.textAlign = 'left';
+        g.fillText('inputs to tanh at each hidden layer (−8 to 8)', 8, y0 + 12);
+        g.strokeStyle = t.muted;
+        g.setLineDash([4, 4]);
+        g.lineWidth = 1;
+        for (const v of [-2, 2]) {
+          g.beginPath();
+          g.moveTo(X(v), y0 + m.t);
+          g.lineTo(X(v), h - m.b);
+          g.stroke();
+        }
+        g.setLineDash([]);
+        for (let l = 0; l < S.L; l++) {
+          const yy = y0 + m.t + l * rh;
+          g.fillStyle = t.muted;
+          g.textAlign = 'right';
+          g.fillText('layer ' + (l + 1), m.l - 8, yy + rh / 2 + 4);
+          [
+            [0, t.cut],
+            [1, t.accent],
+          ].forEach(([k, col]) => {
+            const pr = nets[k].pre[l];
+            if (!pr) return;
+            const [a, b] = q90(pr);
+            g.fillStyle = col;
+            g.fillRect(X(a), yy + 3 + k * (rh / 2 - 2), Math.max(2, X(b) - X(a)), rh / 2 - 5);
+          });
+        }
+      }
+      const sat = (k) => {
+        const pr = nets[k].pre[S.L - 1];
+        if (!pr) return NaN;
+        let s = 0;
+        for (const v of pr) s += v * v;
+        return Math.sqrt(s / pr.length);
+      };
+      live.textContent = msg;
+      uCur(root, 'bn', cu);
+      setR(root, 'ep', ep + (fin ? ' (stopped)' : ''));
+      setR(root, 'lp', f3(hist[0][ep]));
+      setR(root, 'lb', f3(hist[1][ep]));
+      setR(root, 'ap', pct(acc[0]));
+      setR(root, 'ab', pct(acc[1]));
+      setR(root, 'sat', f3(sat(0)) + ' / ' + f3(sat(1)));
+    };
+    gen();
+    reset();
+    const anim = Anim(() => {
+      if (fin) {
+        pb.stop();
+        return;
+      }
+      pass();
+      draw();
+      chk();
+    });
+    pb = playBtn($('#bn-play', root), anim);
+    chk = runCtl(pb, root, 'bn', {
+      done: () => fin,
+      restart: reset,
+      count: () => ep,
+      what: 'passes',
+    });
+    const go = () => {
+        pb.stop();
+        reset();
+        draw();
+        pb.start();
+      },
+      ch = () => {
+        pb.stop();
+        reset();
+        draw();
+      };
+    $('#bn-step', root).onclick = () => {
+      pb.stop();
+      if (fin) reset();
+      else pass();
+      draw();
+    };
+    $('#bn-reset', root).onclick = ch;
+    $('#bn-new', root).onclick = () => {
+      seed++;
+      go();
+    };
+    bind(
+      root,
+      'bn-w',
+      (v) => {
+        S.w = v;
+        ch();
+      },
+      (v) => (+v).toFixed(1) + '×',
+    );
+    bind(
+      root,
+      'bn-lr',
+      (v) => {
+        S.lr = v;
+      },
+      f3,
+    );
+    bind(
+      root,
+      'bn-b',
+      (v) => {
+        S.b = v;
+      },
+      (v) => String(+v),
+    );
+    bind(
+      root,
+      'bn-L',
+      (v) => {
+        S.L = v;
+        ch();
+      },
+      (v) => String(+v),
+    );
+    segBind(root, 'bn-d', S.d, (v) => {
+      S.d = v;
+      gen();
+      go();
+    });
+    return {
+      draw,
+      stop: () => pb.stop(),
+      auto: () => {
+        reset();
+        draw();
+        pb.start();
+      },
+    };
+  },
+});
+PML.push({
+  id: 'variational-bayes',
+  tab: 'Variational Bayes',
+  title: 'Variational Bayes: replace a hard belief with the closest easy one',
+  lede: 'MCMC answers "what does this awkward belief look like?" by wandering over it for a long time. Variational Bayes takes a shortcut. Pick a simple family of distributions, here a bell curve, and slide and stretch it until it sits as close to the true belief as that family allows. Sampling becomes optimization, and it is fast. What you pay is that the answer is an approximation with a characteristic bias, which you can watch on this page.',
+  stage: `<div class="row seg" id="vb-tg" role="group" aria-label="Target distribution"><button class="btn" type="button" data-v="corr">A Slanted Bell</button><button class="btn" type="button" data-v="banana">A Banana</button><button class="btn" type="button" data-v="two">Two Islands</button></div>
  <div class="row seg" id="vb-f" role="group" aria-label="Family and criterion" style="margin-top:8px"><button class="btn" type="button" data-v="mf">Mean-Field: Independent Axes</button><button class="btn" type="button" data-v="full">A Full Bell, Free to Tilt</button><button class="btn" type="button" data-v="fwd">Moment Matching (the Other KL)</button></div>
  <div class="stage"><figure class="fig"><figcaption>Shading: the true belief. Gold ellipses: the approximation, drawn at one and two standard deviations. Gold line: the path its centre has taken. Click anywhere to restart the approximation from there</figcaption><canvas class="short" id="vb-c" role="img" aria-label="Target density with the variational approximation"></canvas></figure>
  <figure class="fig"><figcaption>Top: the left-to-right spread of the true belief (line) and of the approximation (filled). Bottom: the score being climbed (the ELBO), which can never exceed the dashed line, the true log evidence</figcaption><canvas class="short" id="vb-r" role="img" aria-label="Marginals and the evidence lower bound"></canvas></figure></div>
  <figure class="fig" style="margin-top:18px"><figcaption>The last update, worked out</figcaption><div class="eq" id="vb-eq" aria-live="polite" style="min-height:7em;margin-top:6px"></div></figure>
- ${uHow('vb',['Choose a simple family for the approximation q. Mean-field means one independent bell curve per coordinate.','Start q somewhere.','Score it with the ELBO: how much of the true belief q covers, plus a reward for staying spread out.','Improve one piece of q while holding the others fixed (or take a gradient step on all of them).','Each update can only raise the ELBO. Repeat.','Stop when the ELBO stops rising. The gap left to the dashed line is the error of the approximation.'])}
- <div class="controls">${uBtns('vb','Run','One step','steps')}
- ${grp('Animation speed',slider('vb-sp','Speed',1,3,1,2))}</div>
- <dl class="read">${rd('it','Steps so far')}${rd('elbo','ELBO','hl')}${rd('lz','True log evidence (the ceiling)')}${rd('kl','Gap: KL divergence from q to the truth','hl2')}${rd('sx','Spread of q ÷ true spread: left-right, up-down','hl')}${rd('isl','Share on the right-hand side: q / truth')}</dl>`,
- tryit:'On A Slanted Bell with Mean-Field, press One step and read the panel: each step moves one coordinate of the centre to its best value given the other, and the centre zig-zags home. When it stops, compare the top-right chart. The centre is exactly right. What about the width? Switch to A Full Bell: the gap drops to almost nothing. Why? Go back to Mean-Field and choose Two Islands. Click near the left island and run, then near the right one. Now choose Moment Matching on the same target. Which answer would you rather use to say where the probability is, and which to quote a mean and a variance?',
- math:String.raw`<h4>Intuition</h4><p>You need to describe the shape of a country to someone over the phone, and all you are allowed to say is "an oval, this wide, this tall, centred here". For a country shaped like an oval the description is perfect. For a long thin country lying on a diagonal, an upright oval must choose: cover the whole length and include a great deal of sea, or stay on land and leave most of the country out. Variational Bayes always makes the second choice. It hates to put weight where the truth has none, so it fits inside, and reports a country smaller than the real one. That bias is the price of the speed.</p>
+ ${uHow('vb', ['Choose a simple family for the approximation q. Mean-field means one independent bell curve per coordinate.', 'Start q somewhere.', 'Score it with the ELBO: how much of the true belief q covers, plus a reward for staying spread out.', 'Improve one piece of q while holding the others fixed (or take a gradient step on all of them).', 'Each update can only raise the ELBO. Repeat.', 'Stop when the ELBO stops rising. The gap left to the dashed line is the error of the approximation.'])}
+ <div class="controls">${uBtns('vb', 'Run', 'One step', 'steps')}
+ ${grp('Animation speed', slider('vb-sp', 'Speed', 1, 3, 1, 2))}</div>
+ <dl class="read">${rd('it', 'Steps so far')}${rd('elbo', 'ELBO', 'hl')}${rd('lz', 'True log evidence (the ceiling)')}${rd('kl', 'Gap: KL divergence from q to the truth', 'hl2')}${rd('sx', 'Spread of q ÷ true spread: left-right, up-down', 'hl')}${rd('isl', 'Share on the right-hand side: q / truth')}</dl>`,
+  tryit:
+    'On A Slanted Bell with Mean-Field, press One step and read the panel: each step moves one coordinate of the centre to its best value given the other, and the centre zig-zags home. When it stops, compare the top-right chart. The centre is exactly right. What about the width? Switch to A Full Bell: the gap drops to almost nothing. Why? Go back to Mean-Field and choose Two Islands. Click near the left island and run, then near the right one. Now choose Moment Matching on the same target. Which answer would you rather use to say where the probability is, and which to quote a mean and a variance?',
+  math: String.raw`<h4>Intuition</h4><p>You need to describe the shape of a country to someone over the phone, and all you are allowed to say is "an oval, this wide, this tall, centred here". For a country shaped like an oval the description is perfect. For a long thin country lying on a diagonal, an upright oval must choose: cover the whole length and include a great deal of sea, or stay on land and leave most of the country out. Variational Bayes always makes the second choice. It hates to put weight where the truth has none, so it fits inside, and reports a country smaller than the real one. That bias is the price of the speed.</p>
  <h4>The problem</h4><p>After Bayes' rule the posterior is known up to a constant, \(p(\mathbf z\mid\mathbf x)=\tilde p(\mathbf z)/Z\), where \(Z=p(\mathbf x)\) is the evidence. Choose a family \(\mathcal Q\) of tractable distributions and look for the member closest to the posterior:</p>$$q^*=\arg\min_{q\in\mathcal Q}\ \mathrm{KL}\big(q\,\Vert\,p(\cdot\mid\mathbf x)\big),\qquad\mathrm{KL}(q\Vert p)=\mathbb E_q\Big[\log\frac{q(\mathbf z)}{p(\mathbf z\mid\mathbf x)}\Big].$$
  <h4>The evidence lower bound</h4><p>The KL divergence contains the unknown \(Z\). Rearranging removes it:</p>$$\log Z=\underbrace{\mathbb E_q[\log\tilde p(\mathbf z)]+\mathbb H[q]}_{\text{ELBO}(q)}+\mathrm{KL}\big(q\,\Vert\,p(\cdot\mid\mathbf x)\big).$$<p>The left side does not depend on \(q\) and the KL term is never negative. So the ELBO is a lower bound on \(\log Z\), and raising it is the same as lowering the KL. The first term rewards putting \(q\) where the belief is high. The entropy \(\mathbb H[q]\) rewards keeping \(q\) wide. On this page \(\log Z\) can be computed on a grid, so you can see the gap directly. In a real problem you see only the ELBO.</p>
  <h4>Mean-field</h4><p>The mean-field family assumes the coordinates are independent: \(q(\mathbf z)=\prod_j q_j(z_j)\). Holding all factors but one fixed, the best choice for that factor has a closed form:</p>$$\log q_j^*(z_j)=\mathbb E_{q_{-j}}\big[\log\tilde p(\mathbf z)\big]+\text{const}.$$<p>Cycling through the factors is <b>coordinate-ascent variational inference</b>. For a Gaussian target with mean \(\boldsymbol\mu\) and precision matrix \(\boldsymbol\Lambda=\boldsymbol\Sigma^{-1}\), the update for the first coordinate is itself a Gaussian with</p>$$m_1\leftarrow\mu_1-\frac{\Lambda_{12}}{\Lambda_{11}}(m_2-\mu_2),\qquad s_1^2=\frac{1}{\Lambda_{11}},$$<p>and the same with the indices swapped. The Slanted Bell with Mean-Field runs exactly these updates.</p>
@@ -520,99 +4660,1046 @@ PML.push(
  <h4>Why it hugs one mode</h4><p>\(\mathrm{KL}(q\Vert p)\) averages over \(q\). Any region where \(q\) has weight and \(p\) has almost none costs a great deal, while regions where \(p\) has weight and \(q\) has none cost nothing. So \(q\) avoids the empty gap between two islands by sitting on one of them, and which one depends on where it started. The gap it leaves on Two Islands is close to \(\ln 2\approx0.69\), which is exactly the cost of describing one of two equal halves perfectly and missing the other. The opposite divergence, \(\mathrm{KL}(p\Vert q)\), averages over \(p\) and punishes missing any of the truth. For a Gaussian \(q\) its minimizer simply matches the mean and covariance of \(p\), and it covers both islands with one wide bell that peaks in the empty middle. That is the criterion behind expectation propagation. It needs expectations under \(p\), which is the thing we could not compute, so here it is found from the grid in a single step.</p>
  <h4>Richer families and gradients</h4><p>The Full Bell adds a covariance term. It can tilt, so it fits the Slanted Bell exactly (the small gap that remains on the page comes from estimating the ELBO with a finite number of draws), but it is still one bell and cannot bend round the Banana or cover two islands. When no closed-form update exists, the ELBO is climbed by gradient ascent using the reparameterization \(\mathbf z=\mathbf m+\mathbf L\boldsymbol\epsilon\), \(\boldsymbol\epsilon\sim\mathcal N(\mathbf 0,\mathbf I)\), which is how the Banana and Islands are fitted here (with 128 fixed draws of \(\boldsymbol\epsilon\)) and how a variational autoencoder is trained. The run stops when the ELBO gains less than \(10^{-5}\) for ten steps in a row.</p>
  <h4>Against MCMC</h4><p>MCMC is asymptotically exact and slow, with no simple test for when it has finished. Variational Bayes is fast, scales to very large models, and gives a number, the ELBO, to monitor and to compare models with. Its error does not go away with more computing, and its uncertainties are usually too small.</p>`,
- q:'On the Slanted Bell, mean-field gets the centre exactly right and reports a spread about half the true one. More steps do not help. Where does the missing spread go?',a:'The true belief is wide along its diagonal because the two coordinates move together. A product of independent bell curves cannot represent "together": its ellipse must stand upright. If it were made as wide as the true left-to-right spread, its corners would stick out into regions where the truth has almost no probability, and the KL divergence from q to p punishes that severely. The best upright ellipse is therefore the one that fits inside the slanted one, whose width is the spread of one coordinate when the other is held fixed. The spread that came from the coordinates varying together has nowhere to go in this family, so it is simply lost. Allowing the bell to tilt recovers it.',
- init(root){const c=$('#vb-c',root),cr=$('#vb-r',root),live=$('#vb-live',root),eq=$('#vb-eq',root),S={tg:'corr',f:'mf',sp:2},GW=64,GH=48,XR=4,YR=3,NB=32,K=128;
-  const LP={corr:(x,y)=>-(x*x-2*.85*x*y/.9+y*y/.81)/(2*(1-.85*.85))*.8,banana:(x,y)=>-(x*x/4.5+2.2*(y+.9-.35*x*x)**2),two:(x,y)=>Math.log(Math.exp(-((x+1.9)**2+(y+.2)**2)/.55)+Math.exp(-((x-1.9)**2+(y-.2)**2)/.55)+1e-300)};
-  const LAM=(()=>{const k=.8/(1-.85*.85);return[k,-k*.85/.9,k/.81]})(),ZS=(()=>{const h=(i,b)=>{let f=1,r=0;while(i>0){f/=b;r+=f*(i%b);i=Math.floor(i/b)}return r},o=[];for(let i=1;i<=K;i++){const u=h(i,2),v=h(i,3),R=Math.sqrt(-2*Math.log(u));o.push([R*Math.cos(2*Math.PI*v),R*Math.sin(2*Math.PI*v)])}return o})();
-  let lp,dens,dmax=1,margT,lz=0,tm=[0,0],tC=[1,0,1],rT=0,th=[0,0,0,0,0],path=[],hist=[],it=0,fin=false,msg='',cu=0,pb,chk=()=>false,P=null,ad=null,small=0,start=[-2.6,1.6],fr=0;
-  const setup=()=>{lp=LP[S.tg];dens=new Float64Array(GW*GH);margT=new Float64Array(NB);let tot=0,sx=0,sy=0,sxx=0,sxy=0,syy=0,rr=0;const da=(2*XR/GW)*(2*YR/GH);for(let r=0;r<GH;r++)for(let q=0;q<GW;q++){const px=-XR+2*XR*(q+.5)/GW,py=YR-2*YR*(r+.5)/GH,d=Math.exp(lp(px,py));dens[r*GW+q]=d;tot+=d;sx+=d*px;sy+=d*py;sxx+=d*px*px;sxy+=d*px*py;syy+=d*py*py;if(px>0)rr+=d;margT[Math.min(NB-1,Math.floor((px+XR)/(2*XR)*NB))]+=d}
-   dmax=Math.max(...dens);for(let i=0;i<NB;i++)margT[i]/=tot;lz=Math.log(tot*da);tm=[sx/tot,sy/tot];tC=[sxx/tot-tm[0]**2,sxy/tot-tm[0]*tm[1],syy/tot-tm[1]**2];rT=rr/tot};
-  const cov=t=>{const a=Math.exp(t[2]),b=t[4],cc=Math.exp(t[3]);return[a*a,a*b,b*b+cc*cc]};
-  const elbo=t=>{const a=Math.exp(t[2]),b=t[4],cc=Math.exp(t[3]);let s=0;for(const z of ZS)s+=lp(t[0]+a*z[0],t[1]+b*z[0]+cc*z[1]);return s/K+t[2]+t[3]+1+Math.log(2*Math.PI)};
-  const exact=()=>S.tg==='corr'&&S.f==='mf';
-  const reset=()=>{th=[start[0],start[1],Math.log(exact()?1/Math.sqrt(LAM[0]):.6),Math.log(exact()?1/Math.sqrt(LAM[2]):.6),0];path=[[th[0],th[1]]];it=0;fin=false;ad=null;small=0;cu=1;hist=[elbo(th)];
-   if(S.f==='fwd'){const L11=Math.sqrt(tC[0]),L21=tC[1]/L11,L22=Math.sqrt(Math.max(1e-9,tC[2]-L21*L21));th=[tm[0],tm[1],Math.log(L11),Math.log(L22),L21];path=[[th[0],th[1]]];hist=[elbo(th)];fin=true;cu=5;msg='Moment matching needs no iterations: the bell is given the mean and covariance of the true belief, computed here from the grid. It covers everything the truth covers'+(S.tg==='two'?', including the empty gap between the islands, where it puts its peak.':S.tg==='banana'?', and a good deal of empty space inside the curve of the banana.':', and for a bell-shaped truth that is the exact answer.');eqShow(eq,['mean of the truth: ('+f2(tm[0])+', '+f2(tm[1])+')','variances: '+f2(tC[0])+' left-right, '+f2(tC[2])+' up-down; covariance '+f2(tC[1]),'q is the bell with exactly these moments. This minimizes KL(p ‖ q).'],0);return}
-   msg='The approximation starts at ('+f2(th[0])+', '+f2(th[1])+'). '+(exact()?'Each step will update one coordinate exactly.':'Each step is one gradient step on the ELBO.')+' Press One step or Run.';eqShow(eq,['No steps yet.'],0)};
-  const step=()=>{if(fin)return;const e0=hist[hist.length-1];if(exact()){const j=it%2,old=th[j],o=th[1-j],nv=-LAM[1]/(j?LAM[2]:LAM[0])*o;th[j]=nv;eqShow(eq,['Step '+(it+1)+': update the '+(j?'up-down':'left-right')+' coordinate, holding the other at '+f3(o)+'.','m'+(j+1)+' ← μ'+(j+1)+' − (Λ₁₂ ÷ Λ'+(j+1)+(j+1)+') × (m'+(2-j)+' − μ'+(2-j)+') = 0 − ('+f3(LAM[1])+' ÷ '+f3(j?LAM[2]:LAM[0])+') × '+f3(o)+' = <b>'+f3(nv)+'</b>','its spread stays at 1 ÷ √Λ'+(j+1)+(j+1)+' = <b>'+f3(1/Math.sqrt(j?LAM[2]:LAM[0]))+'</b> (the true spread is '+f3(Math.sqrt(j?tC[2]:tC[0]))+')','the centre moved by '+f3(Math.abs(nv-old))],0)}
-   else{if(!ad)ad={m:[0,0,0,0,0],v:[0,0,0,0,0],t:0};const np=S.f==='full'?5:4,g=[0,0,0,0,0];for(let i=0;i<np;i++){const a=th.slice(),b=th.slice();a[i]+=1e-4;b[i]-=1e-4;g[i]=(elbo(a)-elbo(b))/2e-4}ad.t++;const lr=.06/(1+ad.t/150);for(let i=0;i<np;i++){ad.m[i]=.85*ad.m[i]+.15*g[i];ad.v[i]=.99*ad.v[i]+.01*g[i]*g[i];th[i]+=lr*(ad.m[i]/(1-.85**ad.t))/(Math.sqrt(ad.v[i]/(1-.99**ad.t))+1e-8)}th[2]=clamp(th[2],-4,1.5);th[3]=clamp(th[3],-4,1.5);
-    if(it%3===0||!anim.on)eqShow(eq,['Step '+(it+1)+': slope of the ELBO with respect to the centre: ('+f3(g[0])+', '+f3(g[1])+')','slope with respect to the log-spreads: ('+f3(g[2])+', '+f3(g[3])+')'+(S.f==='full'?', and to the tilt: '+f3(g[4]):''),'centre → ('+f3(th[0])+', '+f3(th[1])+'), spreads → '+f3(Math.sqrt(cov(th)[0]))+' and '+f3(Math.sqrt(cov(th)[2]))],0)}
-   it++;path.push([th[0],th[1]]);const e1=elbo(th);hist.push(e1);cu=exact()?3:3;const gain=e1-e0;small=Math.abs(gain)<1e-5?small+1:0;msg='Step '+it+': ELBO '+f3(e1)+' ('+(gain>=0?'+':'')+(Math.abs(gain)<1e-3?gain.toExponential(1):f3(gain))+'). Gap to the true log evidence: '+f3(Math.max(0,lz-e1))+'.';
-   if(small>=(exact()?2:10)||it>=2500){fin=true;cu=5;const C=cov(th),rx=Math.sqrt(C[0]/tC[0]),ry=Math.sqrt(C[2]/tC[2]);msg='Stopped after '+it+' steps: the ELBO has stopped rising at '+f3(e1)+', '+f3(Math.max(0,lz-e1))+' below the true log evidence. '+(S.tg==='two'?'The approximation has settled on the '+(th[0]<0?'left':'right')+' island and ignores the other, which holds half of the probability.':rx<.8||ry<.8?'Its spread is '+pct(rx)+' of the truth left-to-right and '+pct(ry)+' up-down: too confident.':'Its spread matches the truth ('+pct(rx)+' and '+pct(ry)+').')}};
-  const qDens=(x,y)=>{const C=cov(th),dt=C[0]*C[2]-C[1]*C[1],dx=x-th[0],dy=y-th[1];return Math.exp(-.5*(C[2]*dx*dx-2*C[1]*dx*dy+C[0]*dy*dy)/dt)/(2*Math.PI*Math.sqrt(dt))};
-  const draw=()=>{const t=T(),C=cov(th);{const V=uView(c),{g,w,h,X,Y}=V;P=V;for(let r=0;r<GH;r++)for(let q=0;q<GW;q++){const v=dens[r*GW+q]/dmax;if(v<.01)continue;g.fillStyle=mix(t.accent,t.accent,0,Math.min(.85,Math.pow(v,.55)*.8));const xa=Math.round(X(-XR+2*XR*q/GW)),xb=Math.round(X(-XR+2*XR*(q+1)/GW)),ya=Math.round(Y(YR-2*YR*r/GH)),yb=Math.round(Y(YR-2*YR*(r+1)/GH));g.fillRect(xa,ya,xb-xa,yb-ya)}
-    g.strokeStyle=mix(t.gold,t.gold,0,.7);g.lineWidth=1.4;g.beginPath();path.forEach((p,i)=>i?g.lineTo(X(p[0]),Y(p[1])):g.moveTo(X(p[0]),Y(p[1])));g.stroke();g.strokeStyle=t.gold;for(const r of[1,2]){g.lineWidth=r===1?2.8:1.6;ellPath(g,X,Y,th[0],th[1],C[0],C[1],C[2],r);g.stroke()}g.lineWidth=2;dotAt(g,X(th[0]),Y(th[1]),5,t.gold,t.bg);g2Note(g,t,h,S.f==='mf'?'mean-field: the ellipse must stay upright':S.f==='full'?'full bell: the ellipse may tilt':'moment matching: same mean and covariance as the truth')}
-   {const{g,w,h}=fit(cr),h1=h*.5,qm=Array.from({length:NB},(_,i)=>{const x=-XR+2*XR*(i+.5)/NB;return Math.exp(-.5*(x-th[0])**2/C[0])/Math.sqrt(2*Math.PI*C[0])*(2*XR/NB)}),ym=Math.max(...margT,...qm)*1.08,A=uLine(g,t,0,0,w,h1,[],{title:'left-to-right spread: truth (line), approximation (filled)',n:NB,ym,y1:0});g.fillStyle=mix(t.gold,t.gold,0,.4);g.beginPath();g.moveTo(A.X(0),A.Y(0));qm.forEach((v,i)=>g.lineTo(A.X(i),A.Y(v)));g.lineTo(A.X(NB-1),A.Y(0));g.fill();g.strokeStyle=t.accent;g.lineWidth=2.2;g.beginPath();for(let i=0;i<NB;i++)i?g.lineTo(A.X(i),A.Y(margT[i])):g.moveTo(A.X(i),A.Y(margT[i]));g.stroke();
-    const lo=Math.max(Math.min(...hist),lz-6),hi=lz+.15,B=uLine(g,t,0,h1,w,h-h1,hist,{title:'ELBO (solid) and its ceiling, the true log evidence (dashed)',n:Math.max(20,hist.length),y1:lo-.1,ym:hi});g.strokeStyle=t.cut;g.setLineDash([6,4]);g.lineWidth=1.6;g.beginPath();g.moveTo(B.X(0),B.Y(lz));g.lineTo(B.X(Math.max(20,hist.length)-1),B.Y(lz));g.stroke();g.setLineDash([]);g.save();g.beginPath();g.rect(0,h1+16,w,h-h1-34);g.clip();g.strokeStyle=t.accent;g.lineWidth=2.2;g.beginPath();hist.forEach((v,i)=>i?g.lineTo(B.X(i),B.Y(v)):g.moveTo(B.X(i),B.Y(v)));g.stroke();g.restore();if(hist.length===1)dotAt(g,B.X(0),B.Y(Math.max(lo,hist[0])),4,t.accent)}
-   const e=hist[hist.length-1],rq=.5*(1+erf(th[0]/Math.sqrt(2*C[0])));live.textContent=msg;uCur(root,'vb',cu);setR(root,'it',S.f==='fwd'?'none needed':it+(fin?' (stopped)':''));setR(root,'elbo',f3(e));setR(root,'lz',f3(lz));setR(root,'kl',S.f==='fwd'?f3(Math.max(0,lz-e))+' (not what this method minimizes)':f3(Math.max(0,lz-e)));setR(root,'sx',f2(Math.sqrt(C[0]/tC[0]))+', '+f2(Math.sqrt(C[2]/tC[2])));setR(root,'isl',pct(rq)+' / '+pct(rT))};
-  setup();reset();if(RM){while(!fin)step()}
-  const anim=Anim(()=>{if(fin){pb.stop();return}fr++;if(exact()||S.sp===1){if(fr%(S.sp===3?8:S.sp===2?22:40))return;step()}else{const k=S.sp===2?2:8;for(let i=0;i<k&&!fin;i++)step()}draw();chk()});pb=playBtn($('#vb-play',root),anim);chk=runCtl(pb,root,'vb',{done:()=>fin,restart:reset,count:()=>it,what:'steps'});
-  const go=()=>{pb.stop();reset();draw();if(S.f!=='fwd'){fr=0;pb.start()}};$('#vb-step',root).onclick=()=>{pb.stop();if(fin)reset();else step();draw()};$('#vb-reset',root).onclick=()=>{pb.stop();reset();draw()};
-  bind(root,'vb-sp',v=>{S.sp=v},v=>['','slow','steady','fast'][+v]);segBind(root,'vb-tg',S.tg,v=>{S.tg=v;start=v==='two'?[-1,.9]:[-2.6,1.6];setup();go()});segBind(root,'vb-f',S.f,v=>{S.f=v;go()});
-  c.style.cursor='crosshair';c.addEventListener('click',e=>{if(!P)return;const[x,y]=canvasXY(c,P,e);start=[clamp(x,-XR,XR),clamp(y,-YR,YR)];go()});
-  return{draw,stop:()=>pb.stop(),auto:()=>{reset();draw();fr=0;if(S.f!=='fwd')pb.start()}}}}
-);
-CLF.push(
-{id:'semi-supervised',tab:'Semi-supervised learning',title:'Semi-supervised learning: a few labels and a great many hints',
- lede:'Labels are expensive. A radiologist has to read the scan, a person has to listen to the recording. Unlabelled examples are nearly free. Semi-supervised learning uses a handful of labelled points together with a large pile of unlabelled ones, on the bet that the shape of the unlabelled data says where the classes are. When the bet is right, six labels can do the work of hundreds. This page also shows what happens when it is wrong.',
- stage:`<div class="row seg" id="ss-d" role="group" aria-label="Data"><button class="btn" type="button" data-v="moons">Two Crescents</button><button class="btn" type="button" data-v="blobs">Two Clouds</button><button class="btn" type="button" data-v="mixed">Overlapping Clouds</button></div>
+  q: 'On the Slanted Bell, mean-field gets the centre exactly right and reports a spread about half the true one. More steps do not help. Where does the missing spread go?',
+  a: 'The true belief is wide along its diagonal because the two coordinates move together. A product of independent bell curves cannot represent "together": its ellipse must stand upright. If it were made as wide as the true left-to-right spread, its corners would stick out into regions where the truth has almost no probability, and the KL divergence from q to p punishes that severely. The best upright ellipse is therefore the one that fits inside the slanted one, whose width is the spread of one coordinate when the other is held fixed. The spread that came from the coordinates varying together has nowhere to go in this family, so it is simply lost. Allowing the bell to tilt recovers it.',
+  init(root) {
+    const c = $('#vb-c', root),
+      cr = $('#vb-r', root),
+      live = $('#vb-live', root),
+      eq = $('#vb-eq', root),
+      S = { tg: 'corr', f: 'mf', sp: 2 },
+      GW = 64,
+      GH = 48,
+      XR = 4,
+      YR = 3,
+      NB = 32,
+      K = 128;
+    const LP = {
+      corr: (x, y) =>
+        (-(x * x - (2 * 0.85 * x * y) / 0.9 + (y * y) / 0.81) / (2 * (1 - 0.85 * 0.85))) * 0.8,
+      banana: (x, y) => -((x * x) / 4.5 + 2.2 * (y + 0.9 - 0.35 * x * x) ** 2),
+      two: (x, y) =>
+        Math.log(
+          Math.exp(-((x + 1.9) ** 2 + (y + 0.2) ** 2) / 0.55) +
+            Math.exp(-((x - 1.9) ** 2 + (y - 0.2) ** 2) / 0.55) +
+            1e-300,
+        ),
+    };
+    const LAM = (() => {
+        const k = 0.8 / (1 - 0.85 * 0.85);
+        return [k, (-k * 0.85) / 0.9, k / 0.81];
+      })(),
+      ZS = (() => {
+        const h = (i, b) => {
+            let f = 1,
+              r = 0;
+            while (i > 0) {
+              f /= b;
+              r += f * (i % b);
+              i = Math.floor(i / b);
+            }
+            return r;
+          },
+          o = [];
+        for (let i = 1; i <= K; i++) {
+          const u = h(i, 2),
+            v = h(i, 3),
+            R = Math.sqrt(-2 * Math.log(u));
+          o.push([R * Math.cos(2 * Math.PI * v), R * Math.sin(2 * Math.PI * v)]);
+        }
+        return o;
+      })();
+    let lp,
+      dens,
+      dmax = 1,
+      margT,
+      lz = 0,
+      tm = [0, 0],
+      tC = [1, 0, 1],
+      rT = 0,
+      th = [0, 0, 0, 0, 0],
+      path = [],
+      hist = [],
+      it = 0,
+      fin = false,
+      msg = '',
+      cu = 0,
+      pb,
+      chk = () => false,
+      P = null,
+      ad = null,
+      small = 0,
+      start = [-2.6, 1.6],
+      fr = 0;
+    const setup = () => {
+      lp = LP[S.tg];
+      dens = new Float64Array(GW * GH);
+      margT = new Float64Array(NB);
+      let tot = 0,
+        sx = 0,
+        sy = 0,
+        sxx = 0,
+        sxy = 0,
+        syy = 0,
+        rr = 0;
+      const da = ((2 * XR) / GW) * ((2 * YR) / GH);
+      for (let r = 0; r < GH; r++)
+        for (let q = 0; q < GW; q++) {
+          const px = -XR + (2 * XR * (q + 0.5)) / GW,
+            py = YR - (2 * YR * (r + 0.5)) / GH,
+            d = Math.exp(lp(px, py));
+          dens[r * GW + q] = d;
+          tot += d;
+          sx += d * px;
+          sy += d * py;
+          sxx += d * px * px;
+          sxy += d * px * py;
+          syy += d * py * py;
+          if (px > 0) rr += d;
+          margT[Math.min(NB - 1, Math.floor(((px + XR) / (2 * XR)) * NB))] += d;
+        }
+      dmax = Math.max(...dens);
+      for (let i = 0; i < NB; i++) margT[i] /= tot;
+      lz = Math.log(tot * da);
+      tm = [sx / tot, sy / tot];
+      tC = [sxx / tot - tm[0] ** 2, sxy / tot - tm[0] * tm[1], syy / tot - tm[1] ** 2];
+      rT = rr / tot;
+    };
+    const cov = (t) => {
+      const a = Math.exp(t[2]),
+        b = t[4],
+        cc = Math.exp(t[3]);
+      return [a * a, a * b, b * b + cc * cc];
+    };
+    const elbo = (t) => {
+      const a = Math.exp(t[2]),
+        b = t[4],
+        cc = Math.exp(t[3]);
+      let s = 0;
+      for (const z of ZS) s += lp(t[0] + a * z[0], t[1] + b * z[0] + cc * z[1]);
+      return s / K + t[2] + t[3] + 1 + Math.log(2 * Math.PI);
+    };
+    const exact = () => S.tg === 'corr' && S.f === 'mf';
+    const reset = () => {
+      th = [
+        start[0],
+        start[1],
+        Math.log(exact() ? 1 / Math.sqrt(LAM[0]) : 0.6),
+        Math.log(exact() ? 1 / Math.sqrt(LAM[2]) : 0.6),
+        0,
+      ];
+      path = [[th[0], th[1]]];
+      it = 0;
+      fin = false;
+      ad = null;
+      small = 0;
+      cu = 1;
+      hist = [elbo(th)];
+      if (S.f === 'fwd') {
+        const L11 = Math.sqrt(tC[0]),
+          L21 = tC[1] / L11,
+          L22 = Math.sqrt(Math.max(1e-9, tC[2] - L21 * L21));
+        th = [tm[0], tm[1], Math.log(L11), Math.log(L22), L21];
+        path = [[th[0], th[1]]];
+        hist = [elbo(th)];
+        fin = true;
+        cu = 5;
+        msg =
+          'Moment matching needs no iterations: the bell is given the mean and covariance of the true belief, computed here from the grid. It covers everything the truth covers' +
+          (S.tg === 'two'
+            ? ', including the empty gap between the islands, where it puts its peak.'
+            : S.tg === 'banana'
+              ? ', and a good deal of empty space inside the curve of the banana.'
+              : ', and for a bell-shaped truth that is the exact answer.');
+        eqShow(
+          eq,
+          [
+            'mean of the truth: (' + f2(tm[0]) + ', ' + f2(tm[1]) + ')',
+            'variances: ' +
+              f2(tC[0]) +
+              ' left-right, ' +
+              f2(tC[2]) +
+              ' up-down; covariance ' +
+              f2(tC[1]),
+            'q is the bell with exactly these moments. This minimizes KL(p ‖ q).',
+          ],
+          0,
+        );
+        return;
+      }
+      msg =
+        'The approximation starts at (' +
+        f2(th[0]) +
+        ', ' +
+        f2(th[1]) +
+        '). ' +
+        (exact()
+          ? 'Each step will update one coordinate exactly.'
+          : 'Each step is one gradient step on the ELBO.') +
+        ' Press One step or Run.';
+      eqShow(eq, ['No steps yet.'], 0);
+    };
+    const step = () => {
+      if (fin) return;
+      const e0 = hist[hist.length - 1];
+      if (exact()) {
+        const j = it % 2,
+          old = th[j],
+          o = th[1 - j],
+          nv = (-LAM[1] / (j ? LAM[2] : LAM[0])) * o;
+        th[j] = nv;
+        eqShow(
+          eq,
+          [
+            'Step ' +
+              (it + 1) +
+              ': update the ' +
+              (j ? 'up-down' : 'left-right') +
+              ' coordinate, holding the other at ' +
+              f3(o) +
+              '.',
+            'm' +
+              (j + 1) +
+              ' ← μ' +
+              (j + 1) +
+              ' − (Λ₁₂ ÷ Λ' +
+              (j + 1) +
+              (j + 1) +
+              ') × (m' +
+              (2 - j) +
+              ' − μ' +
+              (2 - j) +
+              ') = 0 − (' +
+              f3(LAM[1]) +
+              ' ÷ ' +
+              f3(j ? LAM[2] : LAM[0]) +
+              ') × ' +
+              f3(o) +
+              ' = <b>' +
+              f3(nv) +
+              '</b>',
+            'its spread stays at 1 ÷ √Λ' +
+              (j + 1) +
+              (j + 1) +
+              ' = <b>' +
+              f3(1 / Math.sqrt(j ? LAM[2] : LAM[0])) +
+              '</b> (the true spread is ' +
+              f3(Math.sqrt(j ? tC[2] : tC[0])) +
+              ')',
+            'the centre moved by ' + f3(Math.abs(nv - old)),
+          ],
+          0,
+        );
+      } else {
+        if (!ad) ad = { m: [0, 0, 0, 0, 0], v: [0, 0, 0, 0, 0], t: 0 };
+        const np = S.f === 'full' ? 5 : 4,
+          g = [0, 0, 0, 0, 0];
+        for (let i = 0; i < np; i++) {
+          const a = th.slice(),
+            b = th.slice();
+          a[i] += 1e-4;
+          b[i] -= 1e-4;
+          g[i] = (elbo(a) - elbo(b)) / 2e-4;
+        }
+        ad.t++;
+        const lr = 0.06 / (1 + ad.t / 150);
+        for (let i = 0; i < np; i++) {
+          ad.m[i] = 0.85 * ad.m[i] + 0.15 * g[i];
+          ad.v[i] = 0.99 * ad.v[i] + 0.01 * g[i] * g[i];
+          th[i] +=
+            (lr * (ad.m[i] / (1 - 0.85 ** ad.t))) /
+            (Math.sqrt(ad.v[i] / (1 - 0.99 ** ad.t)) + 1e-8);
+        }
+        th[2] = clamp(th[2], -4, 1.5);
+        th[3] = clamp(th[3], -4, 1.5);
+        if (it % 3 === 0 || !anim.on)
+          eqShow(
+            eq,
+            [
+              'Step ' +
+                (it + 1) +
+                ': slope of the ELBO with respect to the centre: (' +
+                f3(g[0]) +
+                ', ' +
+                f3(g[1]) +
+                ')',
+              'slope with respect to the log-spreads: (' +
+                f3(g[2]) +
+                ', ' +
+                f3(g[3]) +
+                ')' +
+                (S.f === 'full' ? ', and to the tilt: ' + f3(g[4]) : ''),
+              'centre → (' +
+                f3(th[0]) +
+                ', ' +
+                f3(th[1]) +
+                '), spreads → ' +
+                f3(Math.sqrt(cov(th)[0])) +
+                ' and ' +
+                f3(Math.sqrt(cov(th)[2])),
+            ],
+            0,
+          );
+      }
+      it++;
+      path.push([th[0], th[1]]);
+      const e1 = elbo(th);
+      hist.push(e1);
+      cu = exact() ? 3 : 3;
+      const gain = e1 - e0;
+      small = Math.abs(gain) < 1e-5 ? small + 1 : 0;
+      msg =
+        'Step ' +
+        it +
+        ': ELBO ' +
+        f3(e1) +
+        ' (' +
+        (gain >= 0 ? '+' : '') +
+        (Math.abs(gain) < 1e-3 ? gain.toExponential(1) : f3(gain)) +
+        '). Gap to the true log evidence: ' +
+        f3(Math.max(0, lz - e1)) +
+        '.';
+      if (small >= (exact() ? 2 : 10) || it >= 2500) {
+        fin = true;
+        cu = 5;
+        const C = cov(th),
+          rx = Math.sqrt(C[0] / tC[0]),
+          ry = Math.sqrt(C[2] / tC[2]);
+        msg =
+          'Stopped after ' +
+          it +
+          ' steps: the ELBO has stopped rising at ' +
+          f3(e1) +
+          ', ' +
+          f3(Math.max(0, lz - e1)) +
+          ' below the true log evidence. ' +
+          (S.tg === 'two'
+            ? 'The approximation has settled on the ' +
+              (th[0] < 0 ? 'left' : 'right') +
+              ' island and ignores the other, which holds half of the probability.'
+            : rx < 0.8 || ry < 0.8
+              ? 'Its spread is ' +
+                pct(rx) +
+                ' of the truth left-to-right and ' +
+                pct(ry) +
+                ' up-down: too confident.'
+              : 'Its spread matches the truth (' + pct(rx) + ' and ' + pct(ry) + ').');
+      }
+    };
+    const qDens = (x, y) => {
+      const C = cov(th),
+        dt = C[0] * C[2] - C[1] * C[1],
+        dx = x - th[0],
+        dy = y - th[1];
+      return (
+        Math.exp((-0.5 * (C[2] * dx * dx - 2 * C[1] * dx * dy + C[0] * dy * dy)) / dt) /
+        (2 * Math.PI * Math.sqrt(dt))
+      );
+    };
+    const draw = () => {
+      const t = T(),
+        C = cov(th);
+      {
+        const V = uView(c),
+          { g, w, h, X, Y } = V;
+        P = V;
+        for (let r = 0; r < GH; r++)
+          for (let q = 0; q < GW; q++) {
+            const v = dens[r * GW + q] / dmax;
+            if (v < 0.01) continue;
+            g.fillStyle = mix(t.accent, t.accent, 0, Math.min(0.85, Math.pow(v, 0.55) * 0.8));
+            const xa = Math.round(X(-XR + (2 * XR * q) / GW)),
+              xb = Math.round(X(-XR + (2 * XR * (q + 1)) / GW)),
+              ya = Math.round(Y(YR - (2 * YR * r) / GH)),
+              yb = Math.round(Y(YR - (2 * YR * (r + 1)) / GH));
+            g.fillRect(xa, ya, xb - xa, yb - ya);
+          }
+        g.strokeStyle = mix(t.gold, t.gold, 0, 0.7);
+        g.lineWidth = 1.4;
+        g.beginPath();
+        path.forEach((p, i) => (i ? g.lineTo(X(p[0]), Y(p[1])) : g.moveTo(X(p[0]), Y(p[1]))));
+        g.stroke();
+        g.strokeStyle = t.gold;
+        for (const r of [1, 2]) {
+          g.lineWidth = r === 1 ? 2.8 : 1.6;
+          ellPath(g, X, Y, th[0], th[1], C[0], C[1], C[2], r);
+          g.stroke();
+        }
+        g.lineWidth = 2;
+        dotAt(g, X(th[0]), Y(th[1]), 5, t.gold, t.bg);
+        g2Note(
+          g,
+          t,
+          h,
+          S.f === 'mf'
+            ? 'mean-field: the ellipse must stay upright'
+            : S.f === 'full'
+              ? 'full bell: the ellipse may tilt'
+              : 'moment matching: same mean and covariance as the truth',
+        );
+      }
+      {
+        const { g, w, h } = fit(cr),
+          h1 = h * 0.5,
+          qm = Array.from({ length: NB }, (_, i) => {
+            const x = -XR + (2 * XR * (i + 0.5)) / NB;
+            return (
+              (Math.exp((-0.5 * (x - th[0]) ** 2) / C[0]) / Math.sqrt(2 * Math.PI * C[0])) *
+              ((2 * XR) / NB)
+            );
+          }),
+          ym = Math.max(...margT, ...qm) * 1.08,
+          A = uLine(g, t, 0, 0, w, h1, [], {
+            title: 'left-to-right spread: truth (line), approximation (filled)',
+            n: NB,
+            ym,
+            y1: 0,
+          });
+        g.fillStyle = mix(t.gold, t.gold, 0, 0.4);
+        g.beginPath();
+        g.moveTo(A.X(0), A.Y(0));
+        qm.forEach((v, i) => g.lineTo(A.X(i), A.Y(v)));
+        g.lineTo(A.X(NB - 1), A.Y(0));
+        g.fill();
+        g.strokeStyle = t.accent;
+        g.lineWidth = 2.2;
+        g.beginPath();
+        for (let i = 0; i < NB; i++)
+          i ? g.lineTo(A.X(i), A.Y(margT[i])) : g.moveTo(A.X(i), A.Y(margT[i]));
+        g.stroke();
+        const lo = Math.max(Math.min(...hist), lz - 6),
+          hi = lz + 0.15,
+          B = uLine(g, t, 0, h1, w, h - h1, hist, {
+            title: 'ELBO (solid) and its ceiling, the true log evidence (dashed)',
+            n: Math.max(20, hist.length),
+            y1: lo - 0.1,
+            ym: hi,
+          });
+        g.strokeStyle = t.cut;
+        g.setLineDash([6, 4]);
+        g.lineWidth = 1.6;
+        g.beginPath();
+        g.moveTo(B.X(0), B.Y(lz));
+        g.lineTo(B.X(Math.max(20, hist.length) - 1), B.Y(lz));
+        g.stroke();
+        g.setLineDash([]);
+        g.save();
+        g.beginPath();
+        g.rect(0, h1 + 16, w, h - h1 - 34);
+        g.clip();
+        g.strokeStyle = t.accent;
+        g.lineWidth = 2.2;
+        g.beginPath();
+        hist.forEach((v, i) => (i ? g.lineTo(B.X(i), B.Y(v)) : g.moveTo(B.X(i), B.Y(v))));
+        g.stroke();
+        g.restore();
+        if (hist.length === 1) dotAt(g, B.X(0), B.Y(Math.max(lo, hist[0])), 4, t.accent);
+      }
+      const e = hist[hist.length - 1],
+        rq = 0.5 * (1 + erf(th[0] / Math.sqrt(2 * C[0])));
+      live.textContent = msg;
+      uCur(root, 'vb', cu);
+      setR(root, 'it', S.f === 'fwd' ? 'none needed' : it + (fin ? ' (stopped)' : ''));
+      setR(root, 'elbo', f3(e));
+      setR(root, 'lz', f3(lz));
+      setR(
+        root,
+        'kl',
+        S.f === 'fwd'
+          ? f3(Math.max(0, lz - e)) + ' (not what this method minimizes)'
+          : f3(Math.max(0, lz - e)),
+      );
+      setR(root, 'sx', f2(Math.sqrt(C[0] / tC[0])) + ', ' + f2(Math.sqrt(C[2] / tC[2])));
+      setR(root, 'isl', pct(rq) + ' / ' + pct(rT));
+    };
+    setup();
+    reset();
+    if (RM) {
+      while (!fin) step();
+    }
+    const anim = Anim(() => {
+      if (fin) {
+        pb.stop();
+        return;
+      }
+      fr++;
+      if (exact() || S.sp === 1) {
+        if (fr % (S.sp === 3 ? 8 : S.sp === 2 ? 22 : 40)) return;
+        step();
+      } else {
+        const k = S.sp === 2 ? 2 : 8;
+        for (let i = 0; i < k && !fin; i++) step();
+      }
+      draw();
+      chk();
+    });
+    pb = playBtn($('#vb-play', root), anim);
+    chk = runCtl(pb, root, 'vb', {
+      done: () => fin,
+      restart: reset,
+      count: () => it,
+      what: 'steps',
+    });
+    const go = () => {
+      pb.stop();
+      reset();
+      draw();
+      if (S.f !== 'fwd') {
+        fr = 0;
+        pb.start();
+      }
+    };
+    $('#vb-step', root).onclick = () => {
+      pb.stop();
+      if (fin) reset();
+      else step();
+      draw();
+    };
+    $('#vb-reset', root).onclick = () => {
+      pb.stop();
+      reset();
+      draw();
+    };
+    bind(
+      root,
+      'vb-sp',
+      (v) => {
+        S.sp = v;
+      },
+      (v) => ['', 'slow', 'steady', 'fast'][+v],
+    );
+    segBind(root, 'vb-tg', S.tg, (v) => {
+      S.tg = v;
+      start = v === 'two' ? [-1, 0.9] : [-2.6, 1.6];
+      setup();
+      go();
+    });
+    segBind(root, 'vb-f', S.f, (v) => {
+      S.f = v;
+      go();
+    });
+    c.style.cursor = 'crosshair';
+    c.addEventListener('click', (e) => {
+      if (!P) return;
+      const [x, y] = canvasXY(c, P, e);
+      start = [clamp(x, -XR, XR), clamp(y, -YR, YR)];
+      go();
+    });
+    return {
+      draw,
+      stop: () => pb.stop(),
+      auto: () => {
+        reset();
+        draw();
+        fr = 0;
+        if (S.f !== 'fwd') pb.start();
+      },
+    };
+  },
+});
+CLF.push({
+  id: 'semi-supervised',
+  tab: 'Semi-supervised learning',
+  title: 'Semi-supervised learning: a few labels and a great many hints',
+  lede: 'Labels are expensive. A radiologist has to read the scan, a person has to listen to the recording. Unlabelled examples are nearly free. Semi-supervised learning uses a handful of labelled points together with a large pile of unlabelled ones, on the bet that the shape of the unlabelled data says where the classes are. When the bet is right, six labels can do the work of hundreds. This page also shows what happens when it is wrong.',
+  stage: `<div class="row seg" id="ss-d" role="group" aria-label="Data"><button class="btn" type="button" data-v="moons">Two Crescents</button><button class="btn" type="button" data-v="blobs">Two Clouds</button><button class="btn" type="button" data-v="mixed">Overlapping Clouds</button></div>
  <div class="row seg" id="ss-m" role="group" aria-label="Method" style="margin-top:8px"><button class="btn" type="button" data-v="lp">Label Propagation</button><button class="btn" type="button" data-v="self">Self-Training</button></div>
  <div class="stage"><figure class="fig"><figcaption>Ringed dots carry a real label. Every other dot is unlabelled and is coloured by the method’s current belief: grey for undecided, strong colour for sure. Click any dot to pay for its true label. The diamond is your own point</figcaption><canvas class="short" id="ss-c" role="img" aria-label="Semi-supervised labelling of the data"></canvas></figure>
  <figure class="fig"><figcaption>Top: what the labelled points alone would give you (each dot takes the label of its nearest labelled point). Bottom: accuracy on the unlabelled points as the method runs, against that labelled-only baseline (dashed)</figcaption><canvas class="short" id="ss-r" role="img" aria-label="Supervised-only baseline and accuracy over time"></canvas></figure></div>
  <div class="howto"><div><h3>How it works, step by step</h3><ol id="ss-steps"></ol></div><div><h3>What just happened</h3><p class="live" id="ss-live" role="status"></p></div></div>
- <div class="controls">${uBtns('ss','Run','One step','steps')}
- ${grp('Labels',slider('ss-n','Labelled points in each class',1,10,1,3)+slider('ss-k','Neighbours each point listens to',3,15,1,7)+`<div class="row"><button class="btn" id="ss-new" type="button">New data and labels</button></div>`)}</div>
- <dl class="read">${rd('lab','Labelled / unlabelled')}${rd('it','Steps so far')}${rd('base','Accuracy from the labels alone','hl2')}${rd('acc','Accuracy with the unlabelled data','hl')}${rd('und','Unlabelled points still undecided')}</dl>`,
- tryit:'On Two Crescents with three labels per class, compare the top-right picture with the left one once the run has finished. Where does the labelled-only answer go wrong, and why does the other not? Drop to one label per class and press New data and labels several times. How dependable is it now? Go back to three labels and choose Overlapping Clouds: compare the two accuracies over a few new data sets. What is different about this data? Switch to Self-Training on the crescents and watch the labels grow outwards from each seed. Finally click a grey or wrongly coloured dot to buy its label. Which single label helps most?',
- math:String.raw`<h4>Intuition</h4><p>You arrive at a party where you know two people, one from the chess club and one from the football team. Nobody else wears a badge. But people stand in groups, and you can see who is talking to whom. It is a fair guess that those standing with the chess player are chess people, and their neighbours too, and so on outwards until you meet the group spreading from the footballer. You have labelled the whole room from two labels and the pattern of who stands near whom. You will be wrong exactly when the pattern misleads: when the two clubs mingle, or when one sociable person links both groups.</p>
+ <div class="controls">${uBtns('ss', 'Run', 'One step', 'steps')}
+ ${grp('Labels', slider('ss-n', 'Labelled points in each class', 1, 10, 1, 3) + slider('ss-k', 'Neighbours each point listens to', 3, 15, 1, 7) + `<div class="row"><button class="btn" id="ss-new" type="button">New data and labels</button></div>`)}</div>
+ <dl class="read">${rd('lab', 'Labelled / unlabelled')}${rd('it', 'Steps so far')}${rd('base', 'Accuracy from the labels alone', 'hl2')}${rd('acc', 'Accuracy with the unlabelled data', 'hl')}${rd('und', 'Unlabelled points still undecided')}</dl>`,
+  tryit:
+    'On Two Crescents with three labels per class, compare the top-right picture with the left one once the run has finished. Where does the labelled-only answer go wrong, and why does the other not? Drop to one label per class and press New data and labels several times. How dependable is it now? Go back to three labels and choose Overlapping Clouds: compare the two accuracies over a few new data sets. What is different about this data? Switch to Self-Training on the crescents and watch the labels grow outwards from each seed. Finally click a grey or wrongly coloured dot to buy its label. Which single label helps most?',
+  math: String.raw`<h4>Intuition</h4><p>You arrive at a party where you know two people, one from the chess club and one from the football team. Nobody else wears a badge. But people stand in groups, and you can see who is talking to whom. It is a fair guess that those standing with the chess player are chess people, and their neighbours too, and so on outwards until you meet the group spreading from the footballer. You have labelled the whole room from two labels and the pattern of who stands near whom. You will be wrong exactly when the pattern misleads: when the two clubs mingle, or when one sociable person links both groups.</p>
  <h4>The setting</h4><p>There are \(l\) labelled examples \((\mathbf x_i,y_i)\) and \(u\gg l\) unlabelled examples \(\mathbf x_j\). The unlabelled points tell us about the density of \(\mathbf x\). That is useful only under an assumption connecting density to labels:</p><p><b>Cluster assumption.</b> Points in the same cluster tend to share a label, so the boundary between classes should run through regions where data are sparse.</p><p><b>Smoothness (manifold) assumption.</b> Points connected by a path through dense data tend to share a label, even if they are far apart in a straight line.</p>
  <h4>Label propagation</h4><p>Build a graph joining each point to its \(k\) nearest neighbours, with weights \(w_{ij}\) that decay with distance, and normalize each row: \(P_{ij}=w_{ij}/\sum_k w_{ik}\). Give every point a belief vector \(\mathbf f_i\) over the classes. Then repeat two steps (Zhu and Ghahramani, 2002):</p>$$\mathbf f_i\leftarrow\sum_j P_{ij}\,\mathbf f_j\quad\text{for every point},\qquad\mathbf f_i\leftarrow\text{its true label}\quad\text{for the labelled points}.$$<p>Each point replaces its belief by the average belief of its neighbours, and the labelled points are clamped back. Labels flow outwards along the graph like heat from fixed sources. The iteration converges to the <b>harmonic</b> solution, in which every unlabelled point's belief equals the weighted average of its neighbours':</p>$$\mathbf F_u=(\mathbf I-\mathbf P_{uu})^{-1}\mathbf P_{ul}\mathbf Y_l.$$<p>With very few labels the converged beliefs are nearly flat far from the labelled points, and cutting them at one half is unreliable. So the cut is placed where it gives each class the same share of the unlabelled points as it has among the labelled ones, a correction known as class mass normalization. It assumes the labelled points reflect the true class sizes. The run stops when no belief changes by more than 0.0001 in a step.</p>
  <h4>Self-training</h4><p>Train any classifier on the labelled points. Use it to predict the unlabelled ones. Take the predictions it is most confident about, treat them as if they were true labels, and retrain. Repeat until everything is labelled (Yarowsky, 1995). Here the classifier is the simplest possible, the label of the nearest labelled point, with confidence measured by how close that point is, and five points are adopted per step. Self-training wraps around any model and is simple. Its weakness is that it believes itself: a confident early mistake is never revisited and is used to label its neighbours.</p>
  <h4>When it helps and when it hurts</h4><p>On the crescents the classes are separated by a gap of empty space, and both assumptions hold. With a single label per class the same data give an excellent answer for one choice of labelled points and a poor one for another, because everything rests on where those two points happen to sit. On overlapping clouds the boundary runs through dense data, the cluster assumption fails, and the unlabelled points offer little: the two accuracies stay within a few points of each other. In general, anything that links two classes through dense data, such as a chain of intermediate examples, invites labels to flow across. Semi-supervised learning is not guaranteed to beat supervised learning. It can do worse, and the only real check is a labelled validation set, which is the very thing in short supply.</p>
  <h4>Which label to buy</h4><p>Clicking a dot reveals its label. Choosing which labels to pay for is <b>active learning</b>. Labels are worth most where the method is undecided or where two colours meet, and least deep inside a region it already has right.</p>
  <h4>Modern forms</h4><p>Deep semi-supervised methods use the same two ideas. <b>Pseudo-labelling</b> is self-training with a neural network. <b>Consistency regularization</b> asks the network to give the same answer for an unlabelled image and a distorted copy of it, which pushes the boundary away from dense regions. Pretraining a large model on unlabelled data and fine-tuning it on a few labels is the most successful version of the bet so far.</p>`,
- q:'On Two Crescents, six labels plus the unlabelled points reach about 99%. On Overlapping Clouds the same method with the same number of labels gains almost nothing over using the labels alone. The algorithm did not change. What did?',a:'What changed is whether the shape of the data carries information about the labels. The crescents are separated by a band of empty space, so "connected through dense data" and "same class" mean nearly the same thing, and a label can safely travel along a whole crescent. In the overlapping clouds there is no gap: the densest region is exactly where the two classes mix. Following the density there tells you nothing about which class a point belongs to, so propagating labels through it is no better than asking the nearest labelled point. Unlabelled data help only when their structure lines up with the classes, and nothing in the unlabelled data can tell you whether it does.',
- init(root){const c=$('#ss-c',root),cr=$('#ss-r',root),live=$('#ss-live',root),ol=$('#ss-steps',root),S={d:'moons',m:'lp',n:3,k:7};let D=[],Y=[],L=[],F=[],nb=[],base=[],hist=[],it=0,fin=false,seed=1,msg='',cu=0,pb,chk=()=>false,V=null,bacc=0,pseudo=[];
-  const HOW={lp:['Connect every point to its nearest neighbours.','Give each labelled point its label, with full confidence. Unlabelled points start undecided.','Every point takes the average belief of its neighbours.','Reset the labelled points to their true labels.','Repeat: beliefs spread outwards from the labelled points along the connections.','Stop when the beliefs no longer change.'],self:['Start with only the labelled points.','For every unlabelled point, find the nearest point that has a label. That is its prediction.','Find the five unlabelled points that are closest to a labelled one. These are the most confident predictions.','Adopt those predictions as if they were real labels.','Repeat with the larger labelled set.','Stop when every point has a label.']};
-  const gen=()=>{const r=rng(seed*37+S.d.length),rn=randnFrom(r);D=[];Y=[];for(let i=0;i<180;i++){const k=i%2;let p;if(S.d==='moons'){const a=Math.PI*r();p=k?[1.7*Math.cos(a)-.85+.1*rn(),1.7*Math.sin(a)-.6+.1*rn()]:[.85-1.7*Math.cos(a)+.1*rn(),.6-1.7*Math.sin(a)+.1*rn()]}else if(S.d==='mixed')p=[(k?.75:-.75)+.85*rn(),(k?.3:-.3)+.8*rn()];else p=[(k?1.9:-1.9)+.55*rn(),(k?.5:-.5)+.6*rn()];D.push(p);Y.push(k)}
-   if(S.d==='bridge')for(let i=0;i<14;i++){const u=(i+.5)/14;D.push([-1.3+2.6*u+.05*rn(),-.35+.7*u+.05*rn()]);Y.push(u>.5?1:0)}
-   L=D.map(()=>false);for(const k of[0,1]){const idx=D.map((_,i)=>i).filter(i=>Y[i]===k&&i<180);for(let q=0;q<S.n;q++){const j=Math.floor(r()*idx.length);L[idx.splice(j,1)[0]]=true}}};
-  const graph=()=>{nb=D.map((p,i)=>{const ds=D.map((q,j)=>[Math.hypot(p[0]-q[0],p[1]-q[1]),j]).filter(e=>e[1]!==i).sort((a,b)=>a[0]-b[0]).slice(0,S.k),sg=ds[ds.length-1][0]||1;return ds.map(([d,j])=>[j,Math.exp(-d*d/(sg*sg))])});const sym=D.map(()=>new Map());nb.forEach((a,i)=>a.forEach(([j,w])=>{sym[i].set(j,Math.max(w,sym[i].get(j)||0));sym[j].set(i,Math.max(w,sym[j].get(i)||0))}));nb=sym.map(m=>{const a=[...m.entries()],s=a.reduce((p,e)=>p+e[1],0);return a.map(([j,w])=>[j,w/s])})};
-  const nearLab=(p,lab)=>{let bd=1e9,bi=-1;for(let j=0;j<D.length;j++)if(lab[j]>=0){const d=Math.hypot(p[0]-D[j][0],p[1]-D[j][1]);if(d<bd){bd=d;bi=j}}return bi};
-  const accOf=pred=>{let ok=0,n=0;for(let i=0;i<D.length;i++)if(!L[i]){n++;if(pred[i]===Y[i])ok++}return n?ok/n:1};
-  const thr=()=>{if(S.m!=='lp')return[.5,.5];const u=F.filter((_,i)=>!L[i]).sort((a,b)=>a-b);if(!u.length)return[.5,.5];const n1=L.reduce((s,v,i)=>s+(v&&Y[i]?1:0),0),nl=L.filter(Boolean).length,q=clamp(1-n1/Math.max(1,nl),.05,.95),th=u[Math.min(u.length-1,Math.floor(q*u.length))];return[th,Math.max(1e-6,Math.min(u[u.length-1]-th,th-u[0]))]};
-  const cur=()=>{const[th,sp]=thr();return F.map(f=>Math.abs(f-th)<=.03*sp?-1:f>th?1:0)};
-  const reset=()=>{ol.innerHTML=HOW[S.m].map(s=>'<li>'+s+'</li>').join('');graph();const lab=D.map((_,i)=>L[i]?Y[i]:-1);base=D.map((p,i)=>L[i]?Y[i]:Y[nearLab(p,lab)]);bacc=accOf(base);F=D.map((_,i)=>L[i]?Y[i]:.5);pseudo=lab.slice();it=0;fin=false;hist=[accOf(cur())];cu=1;msg=L.filter(Boolean).length+' points carry a label; '+(D.length-L.filter(Boolean).length)+' do not. Using the labels alone, '+pct(bacc)+' of the unlabelled points would be classified correctly. Press Run.'};
-  const step=()=>{if(fin)return;if(S.m==='lp'){const N=F.slice();let mx=0;for(let i=0;i<D.length;i++){if(L[i])continue;let s=0;for(const[j,w]of nb[i])s+=w*F[j];N[i]=s;mx=Math.max(mx,Math.abs(s-F[i]))}F=N;it++;cu=it%2?2:3;const und=cur().filter((v,i)=>v<0&&!L[i]).length;msg='Step '+it+': the largest change in any belief was '+(mx<.01?mx.toExponential(1):f3(mx))+'. '+und+' points are still undecided.';if(mx<1e-4&&it>=5||it>=6000){fin=true}}
-   else{const cand=[];for(let i=0;i<D.length;i++){if(pseudo[i]>=0)continue;const ds=[];for(let j=0;j<D.length;j++)if(pseudo[j]>=0)ds.push([Math.hypot(D[i][0]-D[j][0],D[i][1]-D[j][1]),pseudo[j]]);let bd=1e9,bl=0;for(const e of ds)if(e[0]<bd){bd=e[0];bl=e[1]}cand.push([i,bl,0,bd])}
-    cand.sort((a,b)=>a[3]-b[3]);const take=cand.slice(0,5);for(const[i,y]of take){pseudo[i]=y;F[i]=y}it++;cu=3;const left=pseudo.filter(v=>v<0).length;msg='Step '+it+': adopted '+take.length+' confident predictions as labels. '+left+' points remain unlabelled.';if(!left)fin=true}
-   hist.push(accOf(cur()));if(fin){cu=5;const a=hist[hist.length-1];msg='Stopped after '+it+' steps: '+(S.m==='lp'?'the beliefs have stopped changing.':'every point has a label.')+' Accuracy on the unlabelled points: '+pct(a)+', against '+pct(bacc)+' from the labels alone. '+(a>bacc+.03?'The unlabelled data helped.':a<bacc-.03?'The unlabelled data made things worse here: their shape pointed the wrong way.':'The unlabelled data made little difference here.')}};
-  const tp=testPoint(root,'ss',['Your x','Your y'],[.2,1.4],[[-4,4],[-3,3]]);
-  const draw=()=>{const t=T(),cs=[t.accent,t.gold],[TH,SP]=thr(),col=f=>f>TH?mix(t.muted,cs[1],clamp((f-TH)/SP*1.5,0,1)):mix(t.muted,cs[0],clamp((TH-f)/SP*1.5,0,1));V=uView(c);{const{g,w,h,X,Y:PY}=V;if(S.m==='lp'&&D.length<260){g.strokeStyle=mix(t.ink,t.ink,0,.07);g.lineWidth=1;g.beginPath();nb.forEach((a,i)=>a.forEach(([j])=>{if(j>i){g.moveTo(X(D[i][0]),PY(D[i][1]));g.lineTo(X(D[j][0]),PY(D[j][1]))}}));g.stroke()}
-    D.forEach((p,i)=>{if(L[i])return;const wrong=fin&&cur()[i]>=0&&cur()[i]!==Y[i];g.lineWidth=1.5;dotAt(g,X(p[0]),PY(p[1]),4.2,col(F[i]),wrong?t.ink:null)});D.forEach((p,i)=>{if(!L[i])return;g.lineWidth=2.5;dotAt(g,X(p[0]),PY(p[1]),7,cs[Y[i]],t.ink)});
-    const ds=D.map((p,j)=>[Math.hypot(tp.v[0]-p[0],tp.v[1]-p[1]),j]).sort((a,b)=>a[0]-b[0]).slice(0,S.k),f=.5+clamp((ds.reduce((s,e)=>s+F[e[1]],0)/ds.length-TH)/SP,-1,1)/2,lab=D.map((_,i)=>L[i]?Y[i]:-1),bl=Y[nearLab(tp.v,lab)];markTP(g,X(tp.v[0]),PY(tp.v[1]),t);
-    tp.out.textContent='Your point: the '+S.k+' nearest data points believe "'+(f>.5?'gold':'green')+'" with strength '+pct(Math.abs(f-.5)*2)+'. The nearest labelled point alone says "'+(bl?'gold':'green')+'".';g2Note(g,t,h,fin?'black outline: classified wrongly':'ringed: labelled')}
-   {const{g,w,h}=fit(cr),h1=h*.56,sc=Math.min(w/8.4,(h1-20)/6),X=x=>w/2+x*sc,Yc=y=>10+(h1-10)/2-y*sc;g.font=MONO;g.fillStyle=t.muted;g.textAlign='left';g.fillText('labels alone: nearest labelled point decides',8,13);D.forEach((p,i)=>{g.lineWidth=1.5;if(L[i])dotAt(g,X(p[0]),Yc(p[1]),5,cs[Y[i]],t.ink);else dotAt(g,X(p[0]),Yc(p[1]),2.8,cs[base[i]],base[i]!==Y[i]?t.ink:null)});
-    const A=uLine(g,t,0,h1,w,h-h1,hist,{title:'accuracy on the unlabelled points',n:Math.max(20,hist.length),y1:.4,ym:1});g.strokeStyle=t.cut;g.setLineDash([6,4]);g.lineWidth=1.6;g.beginPath();g.moveTo(A.X(0),A.Y(Math.max(.4,bacc)));g.lineTo(A.X(Math.max(20,hist.length)-1),A.Y(Math.max(.4,bacc)));g.stroke();g.setLineDash([]);g.strokeStyle=t.accent;g.lineWidth=2.2;g.beginPath();hist.forEach((v,i)=>i?g.lineTo(A.X(i),A.Y(Math.max(.4,v))):g.moveTo(A.X(i),A.Y(Math.max(.4,v))));g.stroke()}
-   const nl=L.filter(Boolean).length;live.textContent=msg;uCur(root,'ss',cu);setR(root,'lab',nl+' / '+(D.length-nl));setR(root,'it',it+(fin?' (stopped)':''));setR(root,'base',pct(bacc));setR(root,'acc',pct(hist[hist.length-1]));setR(root,'und',String(cur().filter((v,i)=>v<0&&!L[i]).length))};
-  tp.on=()=>draw();gen();reset();if(RM){while(!fin)step()}
-  let fr=0;const anim=Anim(()=>{if(fin){pb.stop();return}fr++;if(S.m==='self'){if(fr%6)return;step()}else{const k=it<30?1:it<120?3:it<400?10:30;if(it<30&&fr%3)return;for(let i=0;i<k&&!fin;i++)step()}draw();chk()});pb=playBtn($('#ss-play',root),anim);chk=runCtl(pb,root,'ss',{done:()=>fin,restart:reset,count:()=>it,what:'steps'});
-  const go=()=>{pb.stop();reset();draw();fr=0;pb.start()};$('#ss-step',root).onclick=()=>{pb.stop();if(fin)reset();else step();draw()};$('#ss-reset',root).onclick=()=>{pb.stop();reset();draw()};$('#ss-new',root).onclick=()=>{seed++;gen();go()};
-  bind(root,'ss-n',v=>{S.n=v;gen();go()},v=>String(+v));bind(root,'ss-k',v=>{S.k=v;go()},v=>String(+v));segBind(root,'ss-d',S.d,v=>{S.d=v;gen();go()});segBind(root,'ss-m',S.m,v=>{S.m=v;go()});
-  c.style.cursor='pointer';c.addEventListener('click',e=>{if(!V)return;const[x,y]=canvasXY(c,V,e);let bi=-1,bd=14;D.forEach((p,i)=>{const d=Math.hypot((p[0]-x)*V.s,(p[1]-y)*V.s);if(d<bd){bd=d;bi=i}});if(bi>=0&&!L[bi]){L[bi]=true;go()}else if(bi<0){tp.set([clamp(x,-4,4),clamp(y,-3,3)]);draw()}});
-  return{draw,stop:()=>pb.stop(),auto:()=>{reset();draw();fr=0;pb.start()}}}}
-);
-DLL.push(
-{id:'few-shot',tab:'One-shot and few-shot learning',title:'One-shot and few-shot learning: recognize a new thing from a single example',
- lede:'Show a child one picture of a giraffe and they will know giraffes for life. A classifier trained the usual way needs thousands. Few-shot learning closes the gap by changing what is learned. The network is not taught the classes it will be asked about. It is taught, on other classes, how to compare, so that when five symbols it has never seen arrive with one example each, it can sort new drawings among them. With one example per class this is one-shot learning.',
- stage:`<div class="stage"><figure class="fig"><figcaption>One task. Each row is a symbol from an invented alphabet that the network never saw in training. Left of the line: the examples it is given (the support set). Right: new drawings to classify, outlined dark when it gets them right and amber when wrong. Press New task for different symbols</figcaption><canvas class="short" id="fs-c" role="img" aria-label="Support and query symbols for one episode"></canvas></figure>
+  q: 'On Two Crescents, six labels plus the unlabelled points reach about 99%. On Overlapping Clouds the same method with the same number of labels gains almost nothing over using the labels alone. The algorithm did not change. What did?',
+  a: 'What changed is whether the shape of the data carries information about the labels. The crescents are separated by a band of empty space, so "connected through dense data" and "same class" mean nearly the same thing, and a label can safely travel along a whole crescent. In the overlapping clouds there is no gap: the densest region is exactly where the two classes mix. Following the density there tells you nothing about which class a point belongs to, so propagating labels through it is no better than asking the nearest labelled point. Unlabelled data help only when their structure lines up with the classes, and nothing in the unlabelled data can tell you whether it does.',
+  init(root) {
+    const c = $('#ss-c', root),
+      cr = $('#ss-r', root),
+      live = $('#ss-live', root),
+      ol = $('#ss-steps', root),
+      S = { d: 'moons', m: 'lp', n: 3, k: 7 };
+    let D = [],
+      Y = [],
+      L = [],
+      F = [],
+      nb = [],
+      base = [],
+      hist = [],
+      it = 0,
+      fin = false,
+      seed = 1,
+      msg = '',
+      cu = 0,
+      pb,
+      chk = () => false,
+      V = null,
+      bacc = 0,
+      pseudo = [];
+    const HOW = {
+      lp: [
+        'Connect every point to its nearest neighbours.',
+        'Give each labelled point its label, with full confidence. Unlabelled points start undecided.',
+        'Every point takes the average belief of its neighbours.',
+        'Reset the labelled points to their true labels.',
+        'Repeat: beliefs spread outwards from the labelled points along the connections.',
+        'Stop when the beliefs no longer change.',
+      ],
+      self: [
+        'Start with only the labelled points.',
+        'For every unlabelled point, find the nearest point that has a label. That is its prediction.',
+        'Find the five unlabelled points that are closest to a labelled one. These are the most confident predictions.',
+        'Adopt those predictions as if they were real labels.',
+        'Repeat with the larger labelled set.',
+        'Stop when every point has a label.',
+      ],
+    };
+    const gen = () => {
+      const r = rng(seed * 37 + S.d.length),
+        rn = randnFrom(r);
+      D = [];
+      Y = [];
+      for (let i = 0; i < 180; i++) {
+        const k = i % 2;
+        let p;
+        if (S.d === 'moons') {
+          const a = Math.PI * r();
+          p = k
+            ? [1.7 * Math.cos(a) - 0.85 + 0.1 * rn(), 1.7 * Math.sin(a) - 0.6 + 0.1 * rn()]
+            : [0.85 - 1.7 * Math.cos(a) + 0.1 * rn(), 0.6 - 1.7 * Math.sin(a) + 0.1 * rn()];
+        } else if (S.d === 'mixed')
+          p = [(k ? 0.75 : -0.75) + 0.85 * rn(), (k ? 0.3 : -0.3) + 0.8 * rn()];
+        else p = [(k ? 1.9 : -1.9) + 0.55 * rn(), (k ? 0.5 : -0.5) + 0.6 * rn()];
+        D.push(p);
+        Y.push(k);
+      }
+      if (S.d === 'bridge')
+        for (let i = 0; i < 14; i++) {
+          const u = (i + 0.5) / 14;
+          D.push([-1.3 + 2.6 * u + 0.05 * rn(), -0.35 + 0.7 * u + 0.05 * rn()]);
+          Y.push(u > 0.5 ? 1 : 0);
+        }
+      L = D.map(() => false);
+      for (const k of [0, 1]) {
+        const idx = D.map((_, i) => i).filter((i) => Y[i] === k && i < 180);
+        for (let q = 0; q < S.n; q++) {
+          const j = Math.floor(r() * idx.length);
+          L[idx.splice(j, 1)[0]] = true;
+        }
+      }
+    };
+    const graph = () => {
+      nb = D.map((p, i) => {
+        const ds = D.map((q, j) => [Math.hypot(p[0] - q[0], p[1] - q[1]), j])
+            .filter((e) => e[1] !== i)
+            .sort((a, b) => a[0] - b[0])
+            .slice(0, S.k),
+          sg = ds[ds.length - 1][0] || 1;
+        return ds.map(([d, j]) => [j, Math.exp((-d * d) / (sg * sg))]);
+      });
+      const sym = D.map(() => new Map());
+      nb.forEach((a, i) =>
+        a.forEach(([j, w]) => {
+          sym[i].set(j, Math.max(w, sym[i].get(j) || 0));
+          sym[j].set(i, Math.max(w, sym[j].get(i) || 0));
+        }),
+      );
+      nb = sym.map((m) => {
+        const a = [...m.entries()],
+          s = a.reduce((p, e) => p + e[1], 0);
+        return a.map(([j, w]) => [j, w / s]);
+      });
+    };
+    const nearLab = (p, lab) => {
+      let bd = 1e9,
+        bi = -1;
+      for (let j = 0; j < D.length; j++)
+        if (lab[j] >= 0) {
+          const d = Math.hypot(p[0] - D[j][0], p[1] - D[j][1]);
+          if (d < bd) {
+            bd = d;
+            bi = j;
+          }
+        }
+      return bi;
+    };
+    const accOf = (pred) => {
+      let ok = 0,
+        n = 0;
+      for (let i = 0; i < D.length; i++)
+        if (!L[i]) {
+          n++;
+          if (pred[i] === Y[i]) ok++;
+        }
+      return n ? ok / n : 1;
+    };
+    const thr = () => {
+      if (S.m !== 'lp') return [0.5, 0.5];
+      const u = F.filter((_, i) => !L[i]).sort((a, b) => a - b);
+      if (!u.length) return [0.5, 0.5];
+      const n1 = L.reduce((s, v, i) => s + (v && Y[i] ? 1 : 0), 0),
+        nl = L.filter(Boolean).length,
+        q = clamp(1 - n1 / Math.max(1, nl), 0.05, 0.95),
+        th = u[Math.min(u.length - 1, Math.floor(q * u.length))];
+      return [th, Math.max(1e-6, Math.min(u[u.length - 1] - th, th - u[0]))];
+    };
+    const cur = () => {
+      const [th, sp] = thr();
+      return F.map((f) => (Math.abs(f - th) <= 0.03 * sp ? -1 : f > th ? 1 : 0));
+    };
+    const reset = () => {
+      ol.innerHTML = HOW[S.m].map((s) => '<li>' + s + '</li>').join('');
+      graph();
+      const lab = D.map((_, i) => (L[i] ? Y[i] : -1));
+      base = D.map((p, i) => (L[i] ? Y[i] : Y[nearLab(p, lab)]));
+      bacc = accOf(base);
+      F = D.map((_, i) => (L[i] ? Y[i] : 0.5));
+      pseudo = lab.slice();
+      it = 0;
+      fin = false;
+      hist = [accOf(cur())];
+      cu = 1;
+      msg =
+        L.filter(Boolean).length +
+        ' points carry a label; ' +
+        (D.length - L.filter(Boolean).length) +
+        ' do not. Using the labels alone, ' +
+        pct(bacc) +
+        ' of the unlabelled points would be classified correctly. Press Run.';
+    };
+    const step = () => {
+      if (fin) return;
+      if (S.m === 'lp') {
+        const N = F.slice();
+        let mx = 0;
+        for (let i = 0; i < D.length; i++) {
+          if (L[i]) continue;
+          let s = 0;
+          for (const [j, w] of nb[i]) s += w * F[j];
+          N[i] = s;
+          mx = Math.max(mx, Math.abs(s - F[i]));
+        }
+        F = N;
+        it++;
+        cu = it % 2 ? 2 : 3;
+        const und = cur().filter((v, i) => v < 0 && !L[i]).length;
+        msg =
+          'Step ' +
+          it +
+          ': the largest change in any belief was ' +
+          (mx < 0.01 ? mx.toExponential(1) : f3(mx)) +
+          '. ' +
+          und +
+          ' points are still undecided.';
+        if ((mx < 1e-4 && it >= 5) || it >= 6000) {
+          fin = true;
+        }
+      } else {
+        const cand = [];
+        for (let i = 0; i < D.length; i++) {
+          if (pseudo[i] >= 0) continue;
+          const ds = [];
+          for (let j = 0; j < D.length; j++)
+            if (pseudo[j] >= 0)
+              ds.push([Math.hypot(D[i][0] - D[j][0], D[i][1] - D[j][1]), pseudo[j]]);
+          let bd = 1e9,
+            bl = 0;
+          for (const e of ds)
+            if (e[0] < bd) {
+              bd = e[0];
+              bl = e[1];
+            }
+          cand.push([i, bl, 0, bd]);
+        }
+        cand.sort((a, b) => a[3] - b[3]);
+        const take = cand.slice(0, 5);
+        for (const [i, y] of take) {
+          pseudo[i] = y;
+          F[i] = y;
+        }
+        it++;
+        cu = 3;
+        const left = pseudo.filter((v) => v < 0).length;
+        msg =
+          'Step ' +
+          it +
+          ': adopted ' +
+          take.length +
+          ' confident predictions as labels. ' +
+          left +
+          ' points remain unlabelled.';
+        if (!left) fin = true;
+      }
+      hist.push(accOf(cur()));
+      if (fin) {
+        cu = 5;
+        const a = hist[hist.length - 1];
+        msg =
+          'Stopped after ' +
+          it +
+          ' steps: ' +
+          (S.m === 'lp' ? 'the beliefs have stopped changing.' : 'every point has a label.') +
+          ' Accuracy on the unlabelled points: ' +
+          pct(a) +
+          ', against ' +
+          pct(bacc) +
+          ' from the labels alone. ' +
+          (a > bacc + 0.03
+            ? 'The unlabelled data helped.'
+            : a < bacc - 0.03
+              ? 'The unlabelled data made things worse here: their shape pointed the wrong way.'
+              : 'The unlabelled data made little difference here.');
+      }
+    };
+    const tp = testPoint(
+      root,
+      'ss',
+      ['Your x', 'Your y'],
+      [0.2, 1.4],
+      [
+        [-4, 4],
+        [-3, 3],
+      ],
+    );
+    const draw = () => {
+      const t = T(),
+        cs = [t.accent, t.gold],
+        [TH, SP] = thr(),
+        col = (f) =>
+          f > TH
+            ? mix(t.muted, cs[1], clamp(((f - TH) / SP) * 1.5, 0, 1))
+            : mix(t.muted, cs[0], clamp(((TH - f) / SP) * 1.5, 0, 1));
+      V = uView(c);
+      {
+        const { g, w, h, X, Y: PY } = V;
+        if (S.m === 'lp' && D.length < 260) {
+          g.strokeStyle = mix(t.ink, t.ink, 0, 0.07);
+          g.lineWidth = 1;
+          g.beginPath();
+          nb.forEach((a, i) =>
+            a.forEach(([j]) => {
+              if (j > i) {
+                g.moveTo(X(D[i][0]), PY(D[i][1]));
+                g.lineTo(X(D[j][0]), PY(D[j][1]));
+              }
+            }),
+          );
+          g.stroke();
+        }
+        D.forEach((p, i) => {
+          if (L[i]) return;
+          const wrong = fin && cur()[i] >= 0 && cur()[i] !== Y[i];
+          g.lineWidth = 1.5;
+          dotAt(g, X(p[0]), PY(p[1]), 4.2, col(F[i]), wrong ? t.ink : null);
+        });
+        D.forEach((p, i) => {
+          if (!L[i]) return;
+          g.lineWidth = 2.5;
+          dotAt(g, X(p[0]), PY(p[1]), 7, cs[Y[i]], t.ink);
+        });
+        const ds = D.map((p, j) => [Math.hypot(tp.v[0] - p[0], tp.v[1] - p[1]), j])
+            .sort((a, b) => a[0] - b[0])
+            .slice(0, S.k),
+          f = 0.5 + clamp((ds.reduce((s, e) => s + F[e[1]], 0) / ds.length - TH) / SP, -1, 1) / 2,
+          lab = D.map((_, i) => (L[i] ? Y[i] : -1)),
+          bl = Y[nearLab(tp.v, lab)];
+        markTP(g, X(tp.v[0]), PY(tp.v[1]), t);
+        tp.out.textContent =
+          'Your point: the ' +
+          S.k +
+          ' nearest data points believe "' +
+          (f > 0.5 ? 'gold' : 'green') +
+          '" with strength ' +
+          pct(Math.abs(f - 0.5) * 2) +
+          '. The nearest labelled point alone says "' +
+          (bl ? 'gold' : 'green') +
+          '".';
+        g2Note(g, t, h, fin ? 'black outline: classified wrongly' : 'ringed: labelled');
+      }
+      {
+        const { g, w, h } = fit(cr),
+          h1 = h * 0.56,
+          sc = Math.min(w / 8.4, (h1 - 20) / 6),
+          X = (x) => w / 2 + x * sc,
+          Yc = (y) => 10 + (h1 - 10) / 2 - y * sc;
+        g.font = MONO;
+        g.fillStyle = t.muted;
+        g.textAlign = 'left';
+        g.fillText('labels alone: nearest labelled point decides', 8, 13);
+        D.forEach((p, i) => {
+          g.lineWidth = 1.5;
+          if (L[i]) dotAt(g, X(p[0]), Yc(p[1]), 5, cs[Y[i]], t.ink);
+          else dotAt(g, X(p[0]), Yc(p[1]), 2.8, cs[base[i]], base[i] !== Y[i] ? t.ink : null);
+        });
+        const A = uLine(g, t, 0, h1, w, h - h1, hist, {
+          title: 'accuracy on the unlabelled points',
+          n: Math.max(20, hist.length),
+          y1: 0.4,
+          ym: 1,
+        });
+        g.strokeStyle = t.cut;
+        g.setLineDash([6, 4]);
+        g.lineWidth = 1.6;
+        g.beginPath();
+        g.moveTo(A.X(0), A.Y(Math.max(0.4, bacc)));
+        g.lineTo(A.X(Math.max(20, hist.length) - 1), A.Y(Math.max(0.4, bacc)));
+        g.stroke();
+        g.setLineDash([]);
+        g.strokeStyle = t.accent;
+        g.lineWidth = 2.2;
+        g.beginPath();
+        hist.forEach((v, i) =>
+          i ? g.lineTo(A.X(i), A.Y(Math.max(0.4, v))) : g.moveTo(A.X(i), A.Y(Math.max(0.4, v))),
+        );
+        g.stroke();
+      }
+      const nl = L.filter(Boolean).length;
+      live.textContent = msg;
+      uCur(root, 'ss', cu);
+      setR(root, 'lab', nl + ' / ' + (D.length - nl));
+      setR(root, 'it', it + (fin ? ' (stopped)' : ''));
+      setR(root, 'base', pct(bacc));
+      setR(root, 'acc', pct(hist[hist.length - 1]));
+      setR(root, 'und', String(cur().filter((v, i) => v < 0 && !L[i]).length));
+    };
+    tp.on = () => draw();
+    gen();
+    reset();
+    if (RM) {
+      while (!fin) step();
+    }
+    let fr = 0;
+    const anim = Anim(() => {
+      if (fin) {
+        pb.stop();
+        return;
+      }
+      fr++;
+      if (S.m === 'self') {
+        if (fr % 6) return;
+        step();
+      } else {
+        const k = it < 30 ? 1 : it < 120 ? 3 : it < 400 ? 10 : 30;
+        if (it < 30 && fr % 3) return;
+        for (let i = 0; i < k && !fin; i++) step();
+      }
+      draw();
+      chk();
+    });
+    pb = playBtn($('#ss-play', root), anim);
+    chk = runCtl(pb, root, 'ss', {
+      done: () => fin,
+      restart: reset,
+      count: () => it,
+      what: 'steps',
+    });
+    const go = () => {
+      pb.stop();
+      reset();
+      draw();
+      fr = 0;
+      pb.start();
+    };
+    $('#ss-step', root).onclick = () => {
+      pb.stop();
+      if (fin) reset();
+      else step();
+      draw();
+    };
+    $('#ss-reset', root).onclick = () => {
+      pb.stop();
+      reset();
+      draw();
+    };
+    $('#ss-new', root).onclick = () => {
+      seed++;
+      gen();
+      go();
+    };
+    bind(
+      root,
+      'ss-n',
+      (v) => {
+        S.n = v;
+        gen();
+        go();
+      },
+      (v) => String(+v),
+    );
+    bind(
+      root,
+      'ss-k',
+      (v) => {
+        S.k = v;
+        go();
+      },
+      (v) => String(+v),
+    );
+    segBind(root, 'ss-d', S.d, (v) => {
+      S.d = v;
+      gen();
+      go();
+    });
+    segBind(root, 'ss-m', S.m, (v) => {
+      S.m = v;
+      go();
+    });
+    c.style.cursor = 'pointer';
+    c.addEventListener('click', (e) => {
+      if (!V) return;
+      const [x, y] = canvasXY(c, V, e);
+      let bi = -1,
+        bd = 14;
+      D.forEach((p, i) => {
+        const d = Math.hypot((p[0] - x) * V.s, (p[1] - y) * V.s);
+        if (d < bd) {
+          bd = d;
+          bi = i;
+        }
+      });
+      if (bi >= 0 && !L[bi]) {
+        L[bi] = true;
+        go();
+      } else if (bi < 0) {
+        tp.set([clamp(x, -4, 4), clamp(y, -3, 3)]);
+        draw();
+      }
+    });
+    return {
+      draw,
+      stop: () => pb.stop(),
+      auto: () => {
+        reset();
+        draw();
+        fr = 0;
+        pb.start();
+      },
+    };
+  },
+});
+DLL.push({
+  id: 'few-shot',
+  tab: 'One-shot and few-shot learning',
+  title: 'One-shot and few-shot learning: recognize a new thing from a single example',
+  lede: 'Show a child one picture of a giraffe and they will know giraffes for life. A classifier trained the usual way needs thousands. Few-shot learning closes the gap by changing what is learned. The network is not taught the classes it will be asked about. It is taught, on other classes, how to compare, so that when five symbols it has never seen arrive with one example each, it can sort new drawings among them. With one example per class this is one-shot learning.',
+  stage: `<div class="stage"><figure class="fig"><figcaption>One task. Each row is a symbol from an invented alphabet that the network never saw in training. Left of the line: the examples it is given (the support set). Right: new drawings to classify, outlined dark when it gets them right and amber when wrong. Press New task for different symbols</figcaption><canvas class="short" id="fs-c" role="img" aria-label="Support and query symbols for one episode"></canvas></figure>
  <figure class="fig"><figcaption>Top: where the network places this task’s drawings (its 8 output numbers, flattened to 2). Large dots: the class centres (prototypes). Small dots: the new drawings. Bottom: accuracy on unseen symbols as training proceeds, against comparing raw pixels (dashed)</figcaption><canvas class="short" id="fs-r" role="img" aria-label="Embedding of the episode and accuracy during training"></canvas></figure></div>
- ${uHow('fs',['Invent a small task from the training alphabets: pick a few symbols, a few examples of each, and some extra drawings to classify.','Pass every drawing through the network. Each becomes a point in an 8-dimensional space.','Average the example points of each symbol. That average is the symbol’s prototype.','Classify each extra drawing by its nearest prototype, and measure the error.','Adjust the network so that drawings land nearer their own prototype and further from the others.','Repeat with a new task. At test time do steps 2 to 4 on symbols never seen before: no retraining.'])}
- <div class="controls">${uBtns('fs','Run','Train on 20 tasks','tasks')}
- ${grp('The task',slider('fs-k','Examples given per symbol (1 = one-shot)',1,5,1,1)+slider('fs-w','Symbols to tell apart',2,6,1,5)+slider('fs-z','How sloppy the handwriting is',0,2,.1,1)+`<div class="row"><button class="btn" id="fs-new" type="button">New task</button></div>`)}
- ${grp('Draw your own',`<canvas id="fs-d" width="126" height="126" style="width:126px;height:126px;max-height:none;border:1px solid var(--line);border-radius:6px;cursor:pointer;touch-action:none" role="img" aria-label="Seven by seven grid to draw a symbol"></canvas><div class="row"><button class="btn" id="fs-copy" type="button">Start from a drawing in this task</button><button class="btn" id="fs-clr" type="button">Clear</button></div><p class="tpout" id="fs-out" role="status"></p>`)}</div>
- <dl class="read">${rd('ep','Training tasks so far')}${rd('a1','Unseen symbols, one example each','hl')}${rd('ak','Unseen symbols, at the number of examples chosen','hl')}${rd('px','Comparing raw pixels, same tasks','hl2')}${rd('this','This task')}</dl>`,
- tryit:'Before training, look at the top-right map: the drawings of different symbols are jumbled together, and the accuracy is close to what raw pixels give or worse. Press Run. Watch the groups pull apart, on symbols the network has never trained on. When it stops, compare the three accuracy readouts. Slide the examples per symbol from 1 to 5: how much does each extra example buy? Raise the number of symbols to tell apart to 6, then lower it to 2. Push the sloppiness up and see which method suffers more. Then draw your own symbol in the grid, or copy one from the task and change a few squares until the answer flips.',
- math:String.raw`<h4>Intuition</h4><p>Someone who has learned to read one alphabet finds a second one easy. They have not seen its letters before, but they know what matters about a letter: which strokes there are and how they join, not the exact position on the page or the thickness of the pen. Shown one new character, they can pick it out from others at once. What they carried over is a way of looking, not a list of answers. Few-shot learning trains a network on many small "tell these apart" exercises with ever-changing symbols, so that the only thing worth learning is that way of looking.</p>
+ ${uHow('fs', ['Invent a small task from the training alphabets: pick a few symbols, a few examples of each, and some extra drawings to classify.', 'Pass every drawing through the network. Each becomes a point in an 8-dimensional space.', 'Average the example points of each symbol. That average is the symbol’s prototype.', 'Classify each extra drawing by its nearest prototype, and measure the error.', 'Adjust the network so that drawings land nearer their own prototype and further from the others.', 'Repeat with a new task. At test time do steps 2 to 4 on symbols never seen before: no retraining.'])}
+ <div class="controls">${uBtns('fs', 'Run', 'Train on 20 tasks', 'tasks')}
+ ${grp('The task', slider('fs-k', 'Examples given per symbol (1 = one-shot)', 1, 5, 1, 1) + slider('fs-w', 'Symbols to tell apart', 2, 6, 1, 5) + slider('fs-z', 'How sloppy the handwriting is', 0, 2, 0.1, 1) + `<div class="row"><button class="btn" id="fs-new" type="button">New task</button></div>`)}
+ ${grp('Draw your own', `<canvas id="fs-d" width="126" height="126" style="width:126px;height:126px;max-height:none;border:1px solid var(--line);border-radius:6px;cursor:pointer;touch-action:none" role="img" aria-label="Seven by seven grid to draw a symbol"></canvas><div class="row"><button class="btn" id="fs-copy" type="button">Start from a drawing in this task</button><button class="btn" id="fs-clr" type="button">Clear</button></div><p class="tpout" id="fs-out" role="status"></p>`)}</div>
+ <dl class="read">${rd('ep', 'Training tasks so far')}${rd('a1', 'Unseen symbols, one example each', 'hl')}${rd('ak', 'Unseen symbols, at the number of examples chosen', 'hl')}${rd('px', 'Comparing raw pixels, same tasks', 'hl2')}${rd('this', 'This task')}</dl>`,
+  tryit:
+    'Before training, look at the top-right map: the drawings of different symbols are jumbled together, and the accuracy is close to what raw pixels give or worse. Press Run. Watch the groups pull apart, on symbols the network has never trained on. When it stops, compare the three accuracy readouts. Slide the examples per symbol from 1 to 5: how much does each extra example buy? Raise the number of symbols to tell apart to 6, then lower it to 2. Push the sloppiness up and see which method suffers more. Then draw your own symbol in the grid, or copy one from the task and change a few squares until the answer flips.',
+  math: String.raw`<h4>Intuition</h4><p>Someone who has learned to read one alphabet finds a second one easy. They have not seen its letters before, but they know what matters about a letter: which strokes there are and how they join, not the exact position on the page or the thickness of the pen. Shown one new character, they can pick it out from others at once. What they carried over is a way of looking, not a list of answers. Few-shot learning trains a network on many small "tell these apart" exercises with ever-changing symbols, so that the only thing worth learning is that way of looking.</p>
  <h4>The task</h4><p>An \(N\)-way \(K\)-shot task gives a <b>support set</b> with \(K\) labelled examples of each of \(N\) classes and asks for the classes of some <b>query</b> examples. \(K=1\) is one-shot learning and small \(K\) is few-shot. The classes at test time are disjoint from the classes used in training, so memorizing classes is useless.</p>
  <h4>Prototypical networks</h4><p>An embedding network \(f_\theta\) maps each input to a point (Snell, Swersky and Zemel, 2017). Each class is represented by the mean of its support points, its <b>prototype</b>:</p>$$\mathbf c_n=\frac1K\sum_{i\in S_n}f_\theta(\mathbf x_i).$$<p>A query is assigned to classes by a softmax over negative squared distances to the prototypes:</p>$$p(y=n\mid\mathbf x)=\frac{\exp\!\big(-\lVert f_\theta(\mathbf x)-\mathbf c_n\rVert^2\big)}{\sum_{m}\exp\!\big(-\lVert f_\theta(\mathbf x)-\mathbf c_m\rVert^2\big)}.$$<p>Nothing in this rule is specific to particular classes. Give it any support set and it classifies.</p>
  <h4>Training in episodes</h4><p>Training imitates the test. Each step samples a fresh task from the training classes, computes prototypes from its support set, and minimizes the cross-entropy of its queries:</p>$$\mathcal L(\theta)=-\sum_{(\mathbf x,y)\in Q}\log p(y\mid\mathbf x).$$<p>The gradient flows through the queries and through the prototypes into the embedding. Because the classes change every episode, the network cannot succeed by recognizing classes. It has to learn an embedding in which drawings of the same symbol land close together whatever the symbol is. This is the sense in which the method is called <b>meta-learning</b>, or learning to learn.</p>
@@ -620,47 +5707,615 @@ DLL.push(
  <h4>Relatives</h4><p><b>Siamese networks</b> (Koch and others, 2015) train a network to say whether two inputs are the same class, and classify a query by its most similar support example. <b>Matching networks</b> (Vinyals and others, 2016) classify by attention over the support set and introduced episodic training. With one example per class a prototype is just that example, so the three methods nearly coincide in the one-shot case. Optimization-based methods such as MAML take another route and learn starting weights that adapt in a few gradient steps.</p>
  <h4>The same words elsewhere</h4><p>"Few-shot" is also used for large language models, when a handful of worked examples are placed in the prompt. The mechanism differs, since no prototypes are computed and no weights change, but the idea is the same: the model was trained broadly enough to pick up a new task from a few demonstrations. Strong pretrained features with a simple classifier on top are now a very competitive few-shot method.</p>
  <h4>What this page runs</h4><p>Symbols are three random pen strokes on a 7 by 7 grid. Each drawing is redrawn with jittered stroke ends, a random shift of up to one square and a few flipped pixels. There are 200 training symbols and a separate, unlimited supply of test symbols. The embedding is a network with one hidden layer of 48 tanh units and 8 outputs, trained with Adam on 5-way tasks with 3 examples and 5 queries per class. Accuracy is measured every 100 tasks on 100 fixed test tasks of unseen symbols. Training stops when the one-shot accuracy has not improved by more than 0.7 points over 800 tasks, or after 6,000 tasks.</p>`,
- q:'After training, the network classifies drawings of symbols it has never seen, from one example each, far better than comparing pixels. Its weights were never updated on those symbols. What did training on other symbols give it?',a:'An embedding: a way of turning a drawing into a point so that drawings of the same symbol land close together and different symbols land apart, whatever the symbols are. Because every training task used a different set of symbols, the network could not lower its loss by memorizing them. The only thing that helped across all tasks was to become insensitive to what varies between two drawings of one symbol (a small shift, a wobbly stroke, a stray pixel) and sensitive to what distinguishes symbols (which strokes are present and where they join). That knowledge is about drawings in general, so it transfers. At test time the single example of each new symbol only has to mark a location in that space.',
- init(root){const c=$('#fs-c',root),cr=$('#fs-r',root),cd=$('#fs-d',root),live=$('#fs-live',root),out=$('#fs-out',root),S={k:1,w:5,z:1},G=7,P=49,DM=8,H=48,NQ=5;
-  const mkC=seed=>{const r=rng(seed*7919+13),st=[];let p=[1+Math.floor(r()*5),1+Math.floor(r()*5)];for(let k=0;k<3;k++){let q;do{q=[Math.floor(r()*G),Math.floor(r()*G)]}while(Math.hypot(q[0]-p[0],q[1]-p[1])<3);st.push([p,q]);p=r()<.6?q:[1+Math.floor(r()*5),1+Math.floor(r()*5)]}return st};
-  const render=(st,r,z)=>{const img=new Float64Array(P),dx=Math.round((r()-.5)*2*z),dy=Math.round((r()-.5)*2*z);for(const[a,b]of st){const j=[0,0,0,0].map(()=>(r()-.5)*1.2*z),n=14;for(let i=0;i<=n;i++){const x=Math.round(a[0]+j[0]+(b[0]+j[2]-a[0]-j[0])*i/n)+dx,y=Math.round(a[1]+j[1]+(b[1]+j[3]-a[1]-j[1])*i/n)+dy;if(x>=0&&x<G&&y>=0&&y<G)img[y*G+x]=1}}for(let i=0;i<P;i++)if(r()<.03*z)img[i]=1-img[i];return img};
-  const BASE=Array.from({length:200},(_,i)=>mkC(i+1)),NOV=Array.from({length:400},(_,i)=>mkC(1000+i));
-  let N=null,ep=0,fin=false,hist=[[],[]],pxA=[NaN,NaN],E=null,tseed=1,mine=new Float64Array(P),msg='',cu=0,pb,chk=()=>false,trng=null,best=0,since=0;
-  const mkNet=()=>{const r=randnFrom(rng(3));N={W1:Array.from({length:H},()=>Float64Array.from({length:P},()=>r()/7)),b1:new Float64Array(H),W2:Array.from({length:DM},()=>Float64Array.from({length:H},()=>r()/Math.sqrt(H))),b2:new Float64Array(DM),t:0,m:{},v:{}}};
-  const fwd=x=>{const h=new Float64Array(H);for(let j=0;j<H;j++){let s=N.b1[j];const w=N.W1[j];for(let i=0;i<P;i++)if(x[i])s+=w[i];h[j]=Math.tanh(s)}const e=new Float64Array(DM);for(let k=0;k<DM;k++){let s=N.b2[k];const w=N.W2[k];for(let j=0;j<H;j++)s+=w[j]*h[j];e[k]=s}return{h,e}};
-  const pick=(pool,r,way)=>{const cs=[];while(cs.length<way){const q=pool[Math.floor(r()*pool.length)];if(!cs.includes(q))cs.push(q)}return cs};
-  const protos=(fs,shot)=>fs.map(a=>{const m=new Float64Array(DM);for(const f of a)for(let k=0;k<DM;k++)m[k]+=f.e[k]/shot;return m});
-  const probs=(e,pro)=>{const ds=pro.map(q=>{let s=0;for(let k=0;k<DM;k++)s+=(e[k]-q[k])**2;return s}),mn=Math.min(...ds),ex=ds.map(v=>Math.exp(-(v-mn))),Z=ex.reduce((p,v)=>p+v,0);return ex.map(v=>v/Z)};
-  const episode=(pool,r,way,shot,z,lr)=>{const cs=pick(pool,r,way),sup=cs.map(q=>Array.from({length:shot},()=>render(q,r,z))),qry=cs.map(q=>Array.from({length:NQ},()=>render(q,r,z))),fs=sup.map(a=>a.map(fwd)),fq=qry.map(a=>a.map(fwd)),pro=protos(fs,shot);let ok=0;const tot=way*NQ,gS=fs.map(a=>a.map(()=>new Float64Array(DM))),gQ=fq.map(a=>a.map(()=>new Float64Array(DM)));
-   fq.forEach((a,y)=>a.forEach((f,qi)=>{const p=probs(f.e,pro);if(p.indexOf(Math.max(...p))===y)ok++;if(lr)for(let q=0;q<way;q++){const co=(q===y?1:0)-p[q];for(let k=0;k<DM;k++){const df=2*co*(f.e[k]-pro[q][k]);gQ[y][qi][k]+=df;for(let s=0;s<shot;s++)gS[q][s][k]-=df/shot}}}));
-   if(lr){const gW1=N.W1.map(()=>new Float64Array(P)),gb1=new Float64Array(H),gW2=N.W2.map(()=>new Float64Array(H)),gb2=new Float64Array(DM),acc=(x,f,g)=>{const dh=new Float64Array(H);for(let k=0;k<DM;k++){gb2[k]+=g[k];for(let j=0;j<H;j++){gW2[k][j]+=g[k]*f.h[j];dh[j]+=g[k]*N.W2[k][j]}}for(let j=0;j<H;j++){const tt=dh[j]*(1-f.h[j]**2);gb1[j]+=tt;for(let i=0;i<P;i++)if(x[i])gW1[j][i]+=tt}};
-    sup.forEach((a,q)=>a.forEach((x,s)=>acc(x,fs[q][s],gS[q][s])));qry.forEach((a,q)=>a.forEach((x,s)=>acc(x,fq[q][s],gQ[q][s])));N.t++;const up=(nm,w,g)=>{const m=N.m[nm]||(N.m[nm]=new Float64Array(w.length)),v=N.v[nm]||(N.v[nm]=new Float64Array(w.length));for(let i=0;i<w.length;i++){const gi=g[i]/tot;m[i]=.9*m[i]+.1*gi;v[i]=.999*v[i]+.001*gi*gi;w[i]-=lr*(m[i]/(1-.9**N.t))/(Math.sqrt(v[i]/(1-.999**N.t))+1e-8)}};N.W1.forEach((w,j)=>up('a'+j,w,gW1[j]));up('b1',N.b1,gb1);N.W2.forEach((w,k)=>up('c'+k,w,gW2[k]));up('b2',N.b2,gb2)}
-   return ok/tot};
-  const evalN=shot=>{const r=rng(99+shot);let s=0;for(let e=0;e<100;e++)s+=episode(NOV,r,S.w,shot,S.z,0);return s/100};
-  const evalPx=shot=>{const r=rng(99+shot);let s=0;for(let e=0;e<100;e++){const cs=pick(NOV,r,S.w),sup=cs.map(q=>Array.from({length:shot},()=>render(q,r,S.z))),qry=cs.map(q=>Array.from({length:NQ},()=>render(q,r,S.z))),pro=sup.map(a=>{const m=new Float64Array(P);for(const x of a)for(let i=0;i<P;i++)m[i]+=x[i]/shot;return m});let ok=0;qry.forEach((a,y)=>a.forEach(x=>{let bi=0,bd=1e9;pro.forEach((m,i)=>{let d=0;for(let k=0;k<P;k++)d+=(x[k]-m[k])**2;if(d<bd){bd=d;bi=i}});if(bi===y)ok++}));s+=ok/(S.w*NQ)}return s/100};
-  const measure=()=>{hist[0].push(evalN(1));hist[1].push(S.k===1?hist[0][hist[0].length-1]:evalN(S.k))};
-  const task=()=>{const r=rng(tseed*101+7),cs=pick(NOV,r,S.w);E={cs,sup:cs.map(q=>Array.from({length:S.k},()=>render(q,r,S.z))),qry:cs.map(q=>Array.from({length:NQ},()=>render(q,r,S.z)))}};
-  const solve=()=>{const fs=E.sup.map(a=>a.map(fwd)),fq=E.qry.map(a=>a.map(fwd));E.fs=fs;E.fq=fq;E.pro=protos(fs,S.k);E.pred=fq.map(a=>a.map(f=>{const p=probs(f.e,E.pro);return p.indexOf(Math.max(...p))}));E.ok=E.pred.reduce((s,a,y)=>s+a.filter(v=>v===y).length,0)};
-  const reset=()=>{mkNet();ep=0;fin=false;hist=[[],[]];trng=rng(7);best=0;since=0;pxA=[evalPx(1),S.k===1?NaN:evalPx(S.k)];if(S.k===1)pxA[1]=pxA[0];measure();solve();cu=0;msg='An untrained network: its map of the drawings is arbitrary. On unseen symbols with one example each it scores '+pct(hist[0][0])+'; comparing raw pixels scores '+pct(pxA[0])+'. Chance is '+pct(1/S.w)+'. Press Run.'};
-  const train=n=>{if(fin)return;for(let i=0;i<n;i++){episode(BASE,trng,5,3,S.z,.004);ep++;if(ep%100===0){measure();const a=hist[0][hist[0].length-1];if(a>best+.007){best=a;since=0}else since++;if(ep>=1500&&since>=8||ep>=6000){fin=true;break}}}solve();cu=1+(Math.floor(ep/20)%4);const a1=hist[0][hist[0].length-1];msg='After '+ep+' training tasks: '+pct(a1)+' on unseen symbols with one example each.';
-   if(fin){cu=5;msg='Stopped after '+ep+' training tasks: accuracy on unseen symbols has levelled off. One example each: '+pct(a1)+'. With '+S.k+' example'+(S.k===1?'':'s')+' each: '+pct(hist[1][hist[1].length-1])+'. Comparing raw pixels: '+pct(pxA[1])+'. Chance: '+pct(1/S.w)+'.'}};
-  const glyph=(g,img,x,y,s,t,bord)=>{const cs=s/G;g.fillStyle=mix(t.bg,t.ink,.05);g.fillRect(x,y,s,s);g.fillStyle=t.ink;for(let i=0;i<P;i++)if(img[i])g.fillRect(x+(i%G)*cs,y+Math.floor(i/G)*cs,Math.ceil(cs),Math.ceil(cs));if(bord){g.strokeStyle=bord;g.lineWidth=2.5;g.strokeRect(x-2,y-2,s+4,s+4)}};
-  const drawMine=()=>{const t=T(),g=cd.getContext('2d'),s=126;g.clearRect(0,0,s,s);glyph(g,mine,0,0,s,t,null);g.strokeStyle=t.line;g.lineWidth=1;for(let i=1;i<G;i++){g.beginPath();g.moveTo(i*18,0);g.lineTo(i*18,s);g.moveTo(0,i*18);g.lineTo(s,i*18);g.stroke()}
-   if(!mine.some(v=>v)){out.textContent='Click squares to draw a symbol, or start from one in the task.';return}const p=probs(fwd(mine).e,E.pro),bi=p.indexOf(Math.max(...p));out.textContent='Your drawing is closest to row '+(bi+1)+' ('+pct(p[bi])+'). All rows: '+p.map((v,i)=>(i+1)+': '+Math.round(100*v)+'%').join(', ')+'.'};
-  const draw=()=>{const t=T(),cols=UC(t);{const{g,w,h}=fit(c),rows=S.w,nc=S.k+NQ,gs=Math.min((h-28)/rows-8,(w-70)/(nc+.6)-8),y0=24;g.font=MONO;g.fillStyle=t.muted;g.textAlign='left';g.fillText('given',34,14);g.fillText('to classify',34+S.k*(gs+8)+18,14);
-    for(let r=0;r<rows;r++){const y=y0+r*(gs+8);g.lineWidth=1;dotAt(g,14,y+gs/2,7,cols[r%cols.length],t.bg);g.fillStyle=t.bg;g.font=MONO;g.textAlign='center';g.fillText(String(r+1),14,y+gs/2+4);E.sup[r].forEach((im,k)=>glyph(g,im,34+k*(gs+8),y,gs,t,cols[r%cols.length]));E.qry[r].forEach((im,k)=>{const okk=E.pred[r][k]===r,x=34+S.k*(gs+8)+18+k*(gs+8);glyph(g,im,x,y,gs,t,okk?mix(t.ink,t.ink,0,.55):t.cut);if(!okk){g.fillStyle=t.cut;g.font=MONO;g.textAlign='right';g.fillText('→'+(E.pred[r][k]+1),x+gs-2,y+gs-3)}})}
-    g.strokeStyle=t.line;g.lineWidth=1;g.beginPath();const lx=34+S.k*(gs+8)+5;g.moveTo(lx,y0-4);g.lineTo(lx,y0+rows*(gs+8));g.stroke()}
-   {const{g,w,h}=fit(cr),h1=h*.56,pts=[];E.fs.forEach((a,y)=>a.forEach(f=>pts.push([f.e,y,0])));E.fq.forEach((a,y)=>a.forEach((f,k)=>pts.push([f.e,y,1,E.pred[y][k]===y])));const mu=new Float64Array(DM);pts.forEach(p=>{for(let k=0;k<DM;k++)mu[k]+=p[0][k]/pts.length});const C=Array.from({length:DM},(_,a)=>Array.from({length:DM},(_,b)=>pts.reduce((s,p)=>s+(p[0][a]-mu[a])*(p[0][b]-mu[b]),0)/pts.length)),ev=laTop(C,2,5).vecs,pr=e=>ev.map(v=>{let s=0;for(let k=0;k<DM;k++)s+=v[k]*(e[k]-mu[k]);return s}),Q=pts.map(p=>pr(p[0])),mx=Math.max(1e-6,...Q.map(q=>Math.abs(q[0]))),my=Math.max(1e-6,...Q.map(q=>Math.abs(q[1]))),X=v=>w/2+v/mx*(w/2-22),Yc=v=>16+(h1-22)/2-v/my*((h1-30)/2);
-    g.font=MONO;g.fillStyle=t.muted;g.textAlign='left';g.fillText('this task in the network’s space',8,13);E.pro.forEach((q,y)=>{const z=pr(q);g.lineWidth=2;dotAt(g,X(z[0]),Yc(z[1]),10,mix(cols[y%cols.length],cols[y%cols.length],0,.35),cols[y%cols.length]);g.fillStyle=t.ink;g.textAlign='center';g.fillText(String(y+1),X(z[0]),Yc(z[1])+4)});pts.forEach((p,i)=>{if(!p[2])return;g.lineWidth=1.5;dotAt(g,X(Q[i][0]),Yc(Q[i][1]),3.6,cols[p[1]%cols.length],p[3]?null:t.cut)});
-    const n=Math.max(16,hist[0].length),A=uLine(g,t,0,h1,w,h-h1,hist[0],{title:'accuracy on unseen symbols: 1 example (green)'+(S.k>1?', '+S.k+' examples (gold)':'')+', pixels (dashed)',n,y1:0,ym:1});g.strokeStyle=t.cut;g.setLineDash([6,4]);g.lineWidth=1.5;g.beginPath();g.moveTo(A.X(0),A.Y(pxA[1]));g.lineTo(A.X(n-1),A.Y(pxA[1]));g.stroke();g.setLineDash([]);if(S.k>1){g.strokeStyle=t.gold;g.lineWidth=2;g.beginPath();hist[1].forEach((v,i)=>i?g.lineTo(A.X(i),A.Y(v)):g.moveTo(A.X(i),A.Y(v)));g.stroke()}g.strokeStyle=t.accent;g.lineWidth=2.2;g.beginPath();hist[0].forEach((v,i)=>i?g.lineTo(A.X(i),A.Y(v)):g.moveTo(A.X(i),A.Y(v)));g.stroke();if(hist[0].length===1)dotAt(g,A.X(0),A.Y(hist[0][0]),4,t.accent)}
-   drawMine();live.textContent=msg;uCur(root,'fs',cu);setR(root,'ep',ep+(fin?' (stopped)':''));setR(root,'a1',pct(hist[0][hist[0].length-1]));setR(root,'ak',pct(hist[1][hist[1].length-1])+' ('+S.k+' each)');setR(root,'px',pct(pxA[1]));setR(root,'this',E.ok+' of '+S.w*NQ+' right')};
-  task();reset();
-  const anim=Anim(()=>{if(fin){pb.stop();return}train(ep<200?4:10);draw();chk()});pb=playBtn($('#fs-play',root),anim);chk=runCtl(pb,root,'fs',{done:()=>fin,restart:reset,count:()=>ep,what:'tasks'});
-  $('#fs-step',root).onclick=()=>{pb.stop();if(fin)reset();else train(20);draw()};$('#fs-reset',root).onclick=()=>{pb.stop();reset();draw()};$('#fs-new',root).onclick=()=>{tseed++;task();solve();draw()};
-  const re=()=>{task();pxA=[evalPx(1),S.k===1?NaN:evalPx(S.k)];if(S.k===1)pxA[1]=pxA[0];hist[0]=[evalN(1)];hist[1]=[S.k===1?hist[0][0]:evalN(S.k)];solve();msg='Task changed. Accuracy on unseen symbols is now measured on '+S.w+'-way tasks with handwriting sloppiness '+f2(S.z)+'. The network keeps what it has learned.';draw()};
-  bind(root,'fs-k',v=>{S.k=v;re()},v=>String(+v));bind(root,'fs-w',v=>{S.w=v;re()},v=>String(+v));bind(root,'fs-z',v=>{S.z=v;re()},f2);
-  const tog=e=>{const r=cd.getBoundingClientRect(),x=Math.floor((e.clientX-r.left)/r.width*G),y=Math.floor((e.clientY-r.top)/r.height*G);if(x>=0&&x<G&&y>=0&&y<G){mine[y*G+x]=1-mine[y*G+x];drawMine()}};cd.addEventListener('pointerdown',tog);
-  $('#fs-copy',root).onclick=()=>{const r=Math.floor(Math.random()*S.w);mine=Float64Array.from(E.qry[r][Math.floor(Math.random()*NQ)]);drawMine()};$('#fs-clr',root).onclick=()=>{mine=new Float64Array(P);drawMine()};
-  return{draw,stop:()=>pb.stop(),auto:()=>{draw();pb.start()}}}}
-);
-{const i=PML.findIndex(l=>l.id==='variational-bayes'),j=PML.findIndex(l=>l.id==='mcmc');if(i>=0&&j>=0){const[x]=PML.splice(i,1);PML.splice(PML.findIndex(l=>l.id==='mcmc')+1,0,x)}}
+  q: 'After training, the network classifies drawings of symbols it has never seen, from one example each, far better than comparing pixels. Its weights were never updated on those symbols. What did training on other symbols give it?',
+  a: 'An embedding: a way of turning a drawing into a point so that drawings of the same symbol land close together and different symbols land apart, whatever the symbols are. Because every training task used a different set of symbols, the network could not lower its loss by memorizing them. The only thing that helped across all tasks was to become insensitive to what varies between two drawings of one symbol (a small shift, a wobbly stroke, a stray pixel) and sensitive to what distinguishes symbols (which strokes are present and where they join). That knowledge is about drawings in general, so it transfers. At test time the single example of each new symbol only has to mark a location in that space.',
+  init(root) {
+    const c = $('#fs-c', root),
+      cr = $('#fs-r', root),
+      cd = $('#fs-d', root),
+      live = $('#fs-live', root),
+      out = $('#fs-out', root),
+      S = { k: 1, w: 5, z: 1 },
+      G = 7,
+      P = 49,
+      DM = 8,
+      H = 48,
+      NQ = 5;
+    const mkC = (seed) => {
+      const r = rng(seed * 7919 + 13),
+        st = [];
+      let p = [1 + Math.floor(r() * 5), 1 + Math.floor(r() * 5)];
+      for (let k = 0; k < 3; k++) {
+        let q;
+        do {
+          q = [Math.floor(r() * G), Math.floor(r() * G)];
+        } while (Math.hypot(q[0] - p[0], q[1] - p[1]) < 3);
+        st.push([p, q]);
+        p = r() < 0.6 ? q : [1 + Math.floor(r() * 5), 1 + Math.floor(r() * 5)];
+      }
+      return st;
+    };
+    const render = (st, r, z) => {
+      const img = new Float64Array(P),
+        dx = Math.round((r() - 0.5) * 2 * z),
+        dy = Math.round((r() - 0.5) * 2 * z);
+      for (const [a, b] of st) {
+        const j = [0, 0, 0, 0].map(() => (r() - 0.5) * 1.2 * z),
+          n = 14;
+        for (let i = 0; i <= n; i++) {
+          const x = Math.round(a[0] + j[0] + ((b[0] + j[2] - a[0] - j[0]) * i) / n) + dx,
+            y = Math.round(a[1] + j[1] + ((b[1] + j[3] - a[1] - j[1]) * i) / n) + dy;
+          if (x >= 0 && x < G && y >= 0 && y < G) img[y * G + x] = 1;
+        }
+      }
+      for (let i = 0; i < P; i++) if (r() < 0.03 * z) img[i] = 1 - img[i];
+      return img;
+    };
+    const BASE = Array.from({ length: 200 }, (_, i) => mkC(i + 1)),
+      NOV = Array.from({ length: 400 }, (_, i) => mkC(1000 + i));
+    let N = null,
+      ep = 0,
+      fin = false,
+      hist = [[], []],
+      pxA = [NaN, NaN],
+      E = null,
+      tseed = 1,
+      mine = new Float64Array(P),
+      msg = '',
+      cu = 0,
+      pb,
+      chk = () => false,
+      trng = null,
+      best = 0,
+      since = 0;
+    const mkNet = () => {
+      const r = randnFrom(rng(3));
+      N = {
+        W1: Array.from({ length: H }, () => Float64Array.from({ length: P }, () => r() / 7)),
+        b1: new Float64Array(H),
+        W2: Array.from({ length: DM }, () =>
+          Float64Array.from({ length: H }, () => r() / Math.sqrt(H)),
+        ),
+        b2: new Float64Array(DM),
+        t: 0,
+        m: {},
+        v: {},
+      };
+    };
+    const fwd = (x) => {
+      const h = new Float64Array(H);
+      for (let j = 0; j < H; j++) {
+        let s = N.b1[j];
+        const w = N.W1[j];
+        for (let i = 0; i < P; i++) if (x[i]) s += w[i];
+        h[j] = Math.tanh(s);
+      }
+      const e = new Float64Array(DM);
+      for (let k = 0; k < DM; k++) {
+        let s = N.b2[k];
+        const w = N.W2[k];
+        for (let j = 0; j < H; j++) s += w[j] * h[j];
+        e[k] = s;
+      }
+      return { h, e };
+    };
+    const pick = (pool, r, way) => {
+      const cs = [];
+      while (cs.length < way) {
+        const q = pool[Math.floor(r() * pool.length)];
+        if (!cs.includes(q)) cs.push(q);
+      }
+      return cs;
+    };
+    const protos = (fs, shot) =>
+      fs.map((a) => {
+        const m = new Float64Array(DM);
+        for (const f of a) for (let k = 0; k < DM; k++) m[k] += f.e[k] / shot;
+        return m;
+      });
+    const probs = (e, pro) => {
+      const ds = pro.map((q) => {
+          let s = 0;
+          for (let k = 0; k < DM; k++) s += (e[k] - q[k]) ** 2;
+          return s;
+        }),
+        mn = Math.min(...ds),
+        ex = ds.map((v) => Math.exp(-(v - mn))),
+        Z = ex.reduce((p, v) => p + v, 0);
+      return ex.map((v) => v / Z);
+    };
+    const episode = (pool, r, way, shot, z, lr) => {
+      const cs = pick(pool, r, way),
+        sup = cs.map((q) => Array.from({ length: shot }, () => render(q, r, z))),
+        qry = cs.map((q) => Array.from({ length: NQ }, () => render(q, r, z))),
+        fs = sup.map((a) => a.map(fwd)),
+        fq = qry.map((a) => a.map(fwd)),
+        pro = protos(fs, shot);
+      let ok = 0;
+      const tot = way * NQ,
+        gS = fs.map((a) => a.map(() => new Float64Array(DM))),
+        gQ = fq.map((a) => a.map(() => new Float64Array(DM)));
+      fq.forEach((a, y) =>
+        a.forEach((f, qi) => {
+          const p = probs(f.e, pro);
+          if (p.indexOf(Math.max(...p)) === y) ok++;
+          if (lr)
+            for (let q = 0; q < way; q++) {
+              const co = (q === y ? 1 : 0) - p[q];
+              for (let k = 0; k < DM; k++) {
+                const df = 2 * co * (f.e[k] - pro[q][k]);
+                gQ[y][qi][k] += df;
+                for (let s = 0; s < shot; s++) gS[q][s][k] -= df / shot;
+              }
+            }
+        }),
+      );
+      if (lr) {
+        const gW1 = N.W1.map(() => new Float64Array(P)),
+          gb1 = new Float64Array(H),
+          gW2 = N.W2.map(() => new Float64Array(H)),
+          gb2 = new Float64Array(DM),
+          acc = (x, f, g) => {
+            const dh = new Float64Array(H);
+            for (let k = 0; k < DM; k++) {
+              gb2[k] += g[k];
+              for (let j = 0; j < H; j++) {
+                gW2[k][j] += g[k] * f.h[j];
+                dh[j] += g[k] * N.W2[k][j];
+              }
+            }
+            for (let j = 0; j < H; j++) {
+              const tt = dh[j] * (1 - f.h[j] ** 2);
+              gb1[j] += tt;
+              for (let i = 0; i < P; i++) if (x[i]) gW1[j][i] += tt;
+            }
+          };
+        sup.forEach((a, q) => a.forEach((x, s) => acc(x, fs[q][s], gS[q][s])));
+        qry.forEach((a, q) => a.forEach((x, s) => acc(x, fq[q][s], gQ[q][s])));
+        N.t++;
+        const up = (nm, w, g) => {
+          const m = N.m[nm] || (N.m[nm] = new Float64Array(w.length)),
+            v = N.v[nm] || (N.v[nm] = new Float64Array(w.length));
+          for (let i = 0; i < w.length; i++) {
+            const gi = g[i] / tot;
+            m[i] = 0.9 * m[i] + 0.1 * gi;
+            v[i] = 0.999 * v[i] + 0.001 * gi * gi;
+            w[i] -=
+              (lr * (m[i] / (1 - 0.9 ** N.t))) / (Math.sqrt(v[i] / (1 - 0.999 ** N.t)) + 1e-8);
+          }
+        };
+        N.W1.forEach((w, j) => up('a' + j, w, gW1[j]));
+        up('b1', N.b1, gb1);
+        N.W2.forEach((w, k) => up('c' + k, w, gW2[k]));
+        up('b2', N.b2, gb2);
+      }
+      return ok / tot;
+    };
+    const evalN = (shot) => {
+      const r = rng(99 + shot);
+      let s = 0;
+      for (let e = 0; e < 100; e++) s += episode(NOV, r, S.w, shot, S.z, 0);
+      return s / 100;
+    };
+    const evalPx = (shot) => {
+      const r = rng(99 + shot);
+      let s = 0;
+      for (let e = 0; e < 100; e++) {
+        const cs = pick(NOV, r, S.w),
+          sup = cs.map((q) => Array.from({ length: shot }, () => render(q, r, S.z))),
+          qry = cs.map((q) => Array.from({ length: NQ }, () => render(q, r, S.z))),
+          pro = sup.map((a) => {
+            const m = new Float64Array(P);
+            for (const x of a) for (let i = 0; i < P; i++) m[i] += x[i] / shot;
+            return m;
+          });
+        let ok = 0;
+        qry.forEach((a, y) =>
+          a.forEach((x) => {
+            let bi = 0,
+              bd = 1e9;
+            pro.forEach((m, i) => {
+              let d = 0;
+              for (let k = 0; k < P; k++) d += (x[k] - m[k]) ** 2;
+              if (d < bd) {
+                bd = d;
+                bi = i;
+              }
+            });
+            if (bi === y) ok++;
+          }),
+        );
+        s += ok / (S.w * NQ);
+      }
+      return s / 100;
+    };
+    const measure = () => {
+      hist[0].push(evalN(1));
+      hist[1].push(S.k === 1 ? hist[0][hist[0].length - 1] : evalN(S.k));
+    };
+    const task = () => {
+      const r = rng(tseed * 101 + 7),
+        cs = pick(NOV, r, S.w);
+      E = {
+        cs,
+        sup: cs.map((q) => Array.from({ length: S.k }, () => render(q, r, S.z))),
+        qry: cs.map((q) => Array.from({ length: NQ }, () => render(q, r, S.z))),
+      };
+    };
+    const solve = () => {
+      const fs = E.sup.map((a) => a.map(fwd)),
+        fq = E.qry.map((a) => a.map(fwd));
+      E.fs = fs;
+      E.fq = fq;
+      E.pro = protos(fs, S.k);
+      E.pred = fq.map((a) =>
+        a.map((f) => {
+          const p = probs(f.e, E.pro);
+          return p.indexOf(Math.max(...p));
+        }),
+      );
+      E.ok = E.pred.reduce((s, a, y) => s + a.filter((v) => v === y).length, 0);
+    };
+    const reset = () => {
+      mkNet();
+      ep = 0;
+      fin = false;
+      hist = [[], []];
+      trng = rng(7);
+      best = 0;
+      since = 0;
+      pxA = [evalPx(1), S.k === 1 ? NaN : evalPx(S.k)];
+      if (S.k === 1) pxA[1] = pxA[0];
+      measure();
+      solve();
+      cu = 0;
+      msg =
+        'An untrained network: its map of the drawings is arbitrary. On unseen symbols with one example each it scores ' +
+        pct(hist[0][0]) +
+        '; comparing raw pixels scores ' +
+        pct(pxA[0]) +
+        '. Chance is ' +
+        pct(1 / S.w) +
+        '. Press Run.';
+    };
+    const train = (n) => {
+      if (fin) return;
+      for (let i = 0; i < n; i++) {
+        episode(BASE, trng, 5, 3, S.z, 0.004);
+        ep++;
+        if (ep % 100 === 0) {
+          measure();
+          const a = hist[0][hist[0].length - 1];
+          if (a > best + 0.007) {
+            best = a;
+            since = 0;
+          } else since++;
+          if ((ep >= 1500 && since >= 8) || ep >= 6000) {
+            fin = true;
+            break;
+          }
+        }
+      }
+      solve();
+      cu = 1 + (Math.floor(ep / 20) % 4);
+      const a1 = hist[0][hist[0].length - 1];
+      msg =
+        'After ' + ep + ' training tasks: ' + pct(a1) + ' on unseen symbols with one example each.';
+      if (fin) {
+        cu = 5;
+        msg =
+          'Stopped after ' +
+          ep +
+          ' training tasks: accuracy on unseen symbols has levelled off. One example each: ' +
+          pct(a1) +
+          '. With ' +
+          S.k +
+          ' example' +
+          (S.k === 1 ? '' : 's') +
+          ' each: ' +
+          pct(hist[1][hist[1].length - 1]) +
+          '. Comparing raw pixels: ' +
+          pct(pxA[1]) +
+          '. Chance: ' +
+          pct(1 / S.w) +
+          '.';
+      }
+    };
+    const glyph = (g, img, x, y, s, t, bord) => {
+      const cs = s / G;
+      g.fillStyle = mix(t.bg, t.ink, 0.05);
+      g.fillRect(x, y, s, s);
+      g.fillStyle = t.ink;
+      for (let i = 0; i < P; i++)
+        if (img[i])
+          g.fillRect(x + (i % G) * cs, y + Math.floor(i / G) * cs, Math.ceil(cs), Math.ceil(cs));
+      if (bord) {
+        g.strokeStyle = bord;
+        g.lineWidth = 2.5;
+        g.strokeRect(x - 2, y - 2, s + 4, s + 4);
+      }
+    };
+    const drawMine = () => {
+      const t = T(),
+        g = cd.getContext('2d'),
+        s = 126;
+      g.clearRect(0, 0, s, s);
+      glyph(g, mine, 0, 0, s, t, null);
+      g.strokeStyle = t.line;
+      g.lineWidth = 1;
+      for (let i = 1; i < G; i++) {
+        g.beginPath();
+        g.moveTo(i * 18, 0);
+        g.lineTo(i * 18, s);
+        g.moveTo(0, i * 18);
+        g.lineTo(s, i * 18);
+        g.stroke();
+      }
+      if (!mine.some((v) => v)) {
+        out.textContent = 'Click squares to draw a symbol, or start from one in the task.';
+        return;
+      }
+      const p = probs(fwd(mine).e, E.pro),
+        bi = p.indexOf(Math.max(...p));
+      out.textContent =
+        'Your drawing is closest to row ' +
+        (bi + 1) +
+        ' (' +
+        pct(p[bi]) +
+        '). All rows: ' +
+        p.map((v, i) => i + 1 + ': ' + Math.round(100 * v) + '%').join(', ') +
+        '.';
+    };
+    const draw = () => {
+      const t = T(),
+        cols = UC(t);
+      {
+        const { g, w, h } = fit(c),
+          rows = S.w,
+          nc = S.k + NQ,
+          gs = Math.min((h - 28) / rows - 8, (w - 70) / (nc + 0.6) - 8),
+          y0 = 24;
+        g.font = MONO;
+        g.fillStyle = t.muted;
+        g.textAlign = 'left';
+        g.fillText('given', 34, 14);
+        g.fillText('to classify', 34 + S.k * (gs + 8) + 18, 14);
+        for (let r = 0; r < rows; r++) {
+          const y = y0 + r * (gs + 8);
+          g.lineWidth = 1;
+          dotAt(g, 14, y + gs / 2, 7, cols[r % cols.length], t.bg);
+          g.fillStyle = t.bg;
+          g.font = MONO;
+          g.textAlign = 'center';
+          g.fillText(String(r + 1), 14, y + gs / 2 + 4);
+          E.sup[r].forEach((im, k) =>
+            glyph(g, im, 34 + k * (gs + 8), y, gs, t, cols[r % cols.length]),
+          );
+          E.qry[r].forEach((im, k) => {
+            const okk = E.pred[r][k] === r,
+              x = 34 + S.k * (gs + 8) + 18 + k * (gs + 8);
+            glyph(g, im, x, y, gs, t, okk ? mix(t.ink, t.ink, 0, 0.55) : t.cut);
+            if (!okk) {
+              g.fillStyle = t.cut;
+              g.font = MONO;
+              g.textAlign = 'right';
+              g.fillText('→' + (E.pred[r][k] + 1), x + gs - 2, y + gs - 3);
+            }
+          });
+        }
+        g.strokeStyle = t.line;
+        g.lineWidth = 1;
+        g.beginPath();
+        const lx = 34 + S.k * (gs + 8) + 5;
+        g.moveTo(lx, y0 - 4);
+        g.lineTo(lx, y0 + rows * (gs + 8));
+        g.stroke();
+      }
+      {
+        const { g, w, h } = fit(cr),
+          h1 = h * 0.56,
+          pts = [];
+        E.fs.forEach((a, y) => a.forEach((f) => pts.push([f.e, y, 0])));
+        E.fq.forEach((a, y) => a.forEach((f, k) => pts.push([f.e, y, 1, E.pred[y][k] === y])));
+        const mu = new Float64Array(DM);
+        pts.forEach((p) => {
+          for (let k = 0; k < DM; k++) mu[k] += p[0][k] / pts.length;
+        });
+        const C = Array.from({ length: DM }, (_, a) =>
+            Array.from(
+              { length: DM },
+              (_, b) =>
+                pts.reduce((s, p) => s + (p[0][a] - mu[a]) * (p[0][b] - mu[b]), 0) / pts.length,
+            ),
+          ),
+          ev = laTop(C, 2, 5).vecs,
+          pr = (e) =>
+            ev.map((v) => {
+              let s = 0;
+              for (let k = 0; k < DM; k++) s += v[k] * (e[k] - mu[k]);
+              return s;
+            }),
+          Q = pts.map((p) => pr(p[0])),
+          mx = Math.max(1e-6, ...Q.map((q) => Math.abs(q[0]))),
+          my = Math.max(1e-6, ...Q.map((q) => Math.abs(q[1]))),
+          X = (v) => w / 2 + (v / mx) * (w / 2 - 22),
+          Yc = (v) => 16 + (h1 - 22) / 2 - (v / my) * ((h1 - 30) / 2);
+        g.font = MONO;
+        g.fillStyle = t.muted;
+        g.textAlign = 'left';
+        g.fillText('this task in the network’s space', 8, 13);
+        E.pro.forEach((q, y) => {
+          const z = pr(q);
+          g.lineWidth = 2;
+          dotAt(
+            g,
+            X(z[0]),
+            Yc(z[1]),
+            10,
+            mix(cols[y % cols.length], cols[y % cols.length], 0, 0.35),
+            cols[y % cols.length],
+          );
+          g.fillStyle = t.ink;
+          g.textAlign = 'center';
+          g.fillText(String(y + 1), X(z[0]), Yc(z[1]) + 4);
+        });
+        pts.forEach((p, i) => {
+          if (!p[2]) return;
+          g.lineWidth = 1.5;
+          dotAt(g, X(Q[i][0]), Yc(Q[i][1]), 3.6, cols[p[1] % cols.length], p[3] ? null : t.cut);
+        });
+        const n = Math.max(16, hist[0].length),
+          A = uLine(g, t, 0, h1, w, h - h1, hist[0], {
+            title:
+              'accuracy on unseen symbols: 1 example (green)' +
+              (S.k > 1 ? ', ' + S.k + ' examples (gold)' : '') +
+              ', pixels (dashed)',
+            n,
+            y1: 0,
+            ym: 1,
+          });
+        g.strokeStyle = t.cut;
+        g.setLineDash([6, 4]);
+        g.lineWidth = 1.5;
+        g.beginPath();
+        g.moveTo(A.X(0), A.Y(pxA[1]));
+        g.lineTo(A.X(n - 1), A.Y(pxA[1]));
+        g.stroke();
+        g.setLineDash([]);
+        if (S.k > 1) {
+          g.strokeStyle = t.gold;
+          g.lineWidth = 2;
+          g.beginPath();
+          hist[1].forEach((v, i) => (i ? g.lineTo(A.X(i), A.Y(v)) : g.moveTo(A.X(i), A.Y(v))));
+          g.stroke();
+        }
+        g.strokeStyle = t.accent;
+        g.lineWidth = 2.2;
+        g.beginPath();
+        hist[0].forEach((v, i) => (i ? g.lineTo(A.X(i), A.Y(v)) : g.moveTo(A.X(i), A.Y(v))));
+        g.stroke();
+        if (hist[0].length === 1) dotAt(g, A.X(0), A.Y(hist[0][0]), 4, t.accent);
+      }
+      drawMine();
+      live.textContent = msg;
+      uCur(root, 'fs', cu);
+      setR(root, 'ep', ep + (fin ? ' (stopped)' : ''));
+      setR(root, 'a1', pct(hist[0][hist[0].length - 1]));
+      setR(root, 'ak', pct(hist[1][hist[1].length - 1]) + ' (' + S.k + ' each)');
+      setR(root, 'px', pct(pxA[1]));
+      setR(root, 'this', E.ok + ' of ' + S.w * NQ + ' right');
+    };
+    task();
+    reset();
+    const anim = Anim(() => {
+      if (fin) {
+        pb.stop();
+        return;
+      }
+      train(ep < 200 ? 4 : 10);
+      draw();
+      chk();
+    });
+    pb = playBtn($('#fs-play', root), anim);
+    chk = runCtl(pb, root, 'fs', {
+      done: () => fin,
+      restart: reset,
+      count: () => ep,
+      what: 'tasks',
+    });
+    $('#fs-step', root).onclick = () => {
+      pb.stop();
+      if (fin) reset();
+      else train(20);
+      draw();
+    };
+    $('#fs-reset', root).onclick = () => {
+      pb.stop();
+      reset();
+      draw();
+    };
+    $('#fs-new', root).onclick = () => {
+      tseed++;
+      task();
+      solve();
+      draw();
+    };
+    const re = () => {
+      task();
+      pxA = [evalPx(1), S.k === 1 ? NaN : evalPx(S.k)];
+      if (S.k === 1) pxA[1] = pxA[0];
+      hist[0] = [evalN(1)];
+      hist[1] = [S.k === 1 ? hist[0][0] : evalN(S.k)];
+      solve();
+      msg =
+        'Task changed. Accuracy on unseen symbols is now measured on ' +
+        S.w +
+        '-way tasks with handwriting sloppiness ' +
+        f2(S.z) +
+        '. The network keeps what it has learned.';
+      draw();
+    };
+    bind(
+      root,
+      'fs-k',
+      (v) => {
+        S.k = v;
+        re();
+      },
+      (v) => String(+v),
+    );
+    bind(
+      root,
+      'fs-w',
+      (v) => {
+        S.w = v;
+        re();
+      },
+      (v) => String(+v),
+    );
+    bind(
+      root,
+      'fs-z',
+      (v) => {
+        S.z = v;
+        re();
+      },
+      f2,
+    );
+    const tog = (e) => {
+      const r = cd.getBoundingClientRect(),
+        x = Math.floor(((e.clientX - r.left) / r.width) * G),
+        y = Math.floor(((e.clientY - r.top) / r.height) * G);
+      if (x >= 0 && x < G && y >= 0 && y < G) {
+        mine[y * G + x] = 1 - mine[y * G + x];
+        drawMine();
+      }
+    };
+    cd.addEventListener('pointerdown', tog);
+    $('#fs-copy', root).onclick = () => {
+      const r = Math.floor(Math.random() * S.w);
+      mine = Float64Array.from(E.qry[r][Math.floor(Math.random() * NQ)]);
+      drawMine();
+    };
+    $('#fs-clr', root).onclick = () => {
+      mine = new Float64Array(P);
+      drawMine();
+    };
+    return {
+      draw,
+      stop: () => pb.stop(),
+      auto: () => {
+        draw();
+        pb.start();
+      },
+    };
+  },
+});
+{
+  const i = PML.findIndex((l) => l.id === 'variational-bayes'),
+    j = PML.findIndex((l) => l.id === 'mcmc');
+  if (i >= 0 && j >= 0) {
+    const [x] = PML.splice(i, 1);
+    PML.splice(PML.findIndex((l) => l.id === 'mcmc') + 1, 0, x);
+  }
+}

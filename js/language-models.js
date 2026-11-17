@@ -1,20 +1,24 @@
 /* Manifold — Language models.
    © 2026 Bahman Moraffah. All rights reserved. Load order matters: see index.html. */
 /* ============ language models ============ */
-const LML=[
-{id:'bpe',tab:'Tokenization and BPE',title:'Tokenization and BPE: how text becomes pieces',
- lede:'A language model never sees letters or words. It sees a list of numbered pieces called tokens. The pieces are chosen by a simple and slightly surprising procedure: start with single characters, find the pair that sits side by side most often, glue it into one new piece, and repeat. Common words end up as one token, rare words as several. Watch the vocabulary being built, then type your own sentence and see how it is cut.',
- stage:`<figure class="fig" style="margin:0 0 18px"><figcaption>The start of the training text, cut into its current tokens. An underscore marks the start of a word. The newest token has a gold frame</figcaption><div class="chips" id="bp-chips" aria-live="off"></div></figure>
+const LML = [
+  {
+    id: 'bpe',
+    tab: 'Tokenization and BPE',
+    title: 'Tokenization and BPE: how text becomes pieces',
+    lede: 'A language model never sees letters or words. It sees a list of numbered pieces called tokens. The pieces are chosen by a simple and slightly surprising procedure: start with single characters, find the pair that sits side by side most often, glue it into one new piece, and repeat. Common words end up as one token, rare words as several. Watch the vocabulary being built, then type your own sentence and see how it is cut.',
+    stage: `<figure class="fig" style="margin:0 0 18px"><figcaption>The start of the training text, cut into its current tokens. An underscore marks the start of a word. The newest token has a gold frame</figcaption><div class="chips" id="bp-chips" aria-live="off"></div></figure>
  <div class="stage"><figure class="fig"><figcaption>The pairs of neighbouring tokens that occur most often right now. The gold one is merged next</figcaption><canvas class="short" id="bp-c" role="img" aria-label="Most frequent pairs of neighbouring tokens"></canvas></figure>
  <figure class="fig"><figcaption>Top: how many tokens the whole text needs. Bottom: how many different tokens exist</figcaption><canvas class="short" id="bp-r" role="img" aria-label="Number of tokens in the text and size of the vocabulary, by merge"></canvas></figure></div>
  <figure class="fig" style="margin-top:20px"><figcaption>The merge rules learned so far, in order. This list is the tokenizer</figcaption><div class="ctab" id="bp-tab"></div></figure>
- ${uHow('bp',['Split the text into words and every word into single characters. Those characters are the first vocabulary.','Count every pair of neighbouring tokens inside the words.','Take the pair that occurs most often and glue it into one new token. Add it to the vocabulary and write the rule down.','Replace that pair everywhere in the text. The text now needs fewer tokens.','Repeat from step 2 until no pair occurs more than once, or until the vocabulary is as large as you want.'])}
- <div class="controls">${uBtns('bp','Run','One merge','merges')}
- ${grp('Try the tokenizer',`<label class="ctl" for="bp-try"><span>Your sentence</span><input type="text" class="num" id="bp-try" value="the slowest walker jumped lower" autocomplete="off" spellcheck="false"></label><div class="chips" id="bp-tryout" style="min-height:2.2em;margin:8px 0 4px"></div><p class="tpout" id="bp-tryst" role="status"></p>`)}
- ${grp('The text it learns from',`<textarea id="bp-text" rows="5" style="width:100%;font:inherit;font-size:.85rem;border:1px solid var(--line);background:none;color:inherit;padding:6px" aria-label="Training text"></textarea><div class="row"><button class="btn" id="bp-use" type="button">Learn From This Text</button></div><p class="status" id="bp-st" role="status"></p>`)}</div>
- <dl class="read">${rd('m','Merges learned')}${rd('v','Different tokens in the vocabulary')}${rd('n','Tokens needed for the training text','hl')}${rd('cpt','Characters per token, on average','hl2')}${rd('last','Newest token')}${rd('long','Longest token so far')}</dl>`,
- tryit:'Press One merge a few times and read the “what just happened” line: which pair wins first, and why that one? Keep going and watch whole endings such as “er”, “est” and “ing” become single tokens before most whole words do. Then press Run and let it finish. Now type sentences in the box. Try a word that is in the training text, a word that is not but is built from familiar parts (“slowest”, “talker”), and a word with nothing familiar in it (“zebra”). How many tokens does each cost? Use the stop box to halt after 20 merges and type the same sentences again. Finally paste a paragraph in another language into the training text and see what its first merges are.',
- math:String.raw`<h4>Intuition</h4><p>Imagine taking notes by hand in a lecture. At first you write every letter. Soon you notice that you keep writing "t-h-e" and invent one squiggle for it. Then one for "ing", one for "tion", and later one for a whole word that the lecturer cannot stop saying. You never decided on a list of abbreviations in advance: each one appeared because writing it out again and again was wasteful. Words you meet once you still spell out in full, and you can still write any word at all. Byte pair encoding builds a shorthand in exactly this way, by counting.</p>
+ ${uHow('bp', ['Split the text into words and every word into single characters. Those characters are the first vocabulary.', 'Count every pair of neighbouring tokens inside the words.', 'Take the pair that occurs most often and glue it into one new token. Add it to the vocabulary and write the rule down.', 'Replace that pair everywhere in the text. The text now needs fewer tokens.', 'Repeat from step 2 until no pair occurs more than once, or until the vocabulary is as large as you want.'])}
+ <div class="controls">${uBtns('bp', 'Run', 'One merge', 'merges')}
+ ${grp('Try the tokenizer', `<label class="ctl" for="bp-try"><span>Your sentence</span><input type="text" class="num" id="bp-try" value="the slowest walker jumped lower" autocomplete="off" spellcheck="false"></label><div class="chips" id="bp-tryout" style="min-height:2.2em;margin:8px 0 4px"></div><p class="tpout" id="bp-tryst" role="status"></p>`)}
+ ${grp('The text it learns from', `<textarea id="bp-text" rows="5" style="width:100%;font:inherit;font-size:.85rem;border:1px solid var(--line);background:none;color:inherit;padding:6px" aria-label="Training text"></textarea><div class="row"><button class="btn" id="bp-use" type="button">Learn From This Text</button></div><p class="status" id="bp-st" role="status"></p>`)}</div>
+ <dl class="read">${rd('m', 'Merges learned')}${rd('v', 'Different tokens in the vocabulary')}${rd('n', 'Tokens needed for the training text', 'hl')}${rd('cpt', 'Characters per token, on average', 'hl2')}${rd('last', 'Newest token')}${rd('long', 'Longest token so far')}</dl>`,
+    tryit:
+      'Press One merge a few times and read the “what just happened” line: which pair wins first, and why that one? Keep going and watch whole endings such as “er”, “est” and “ing” become single tokens before most whole words do. Then press Run and let it finish. Now type sentences in the box. Try a word that is in the training text, a word that is not but is built from familiar parts (“slowest”, “talker”), and a word with nothing familiar in it (“zebra”). How many tokens does each cost? Use the stop box to halt after 20 merges and type the same sentences again. Finally paste a paragraph in another language into the training text and see what its first merges are.',
+    math: String.raw`<h4>Intuition</h4><p>Imagine taking notes by hand in a lecture. At first you write every letter. Soon you notice that you keep writing "t-h-e" and invent one squiggle for it. Then one for "ing", one for "tion", and later one for a whole word that the lecturer cannot stop saying. You never decided on a list of abbreviations in advance: each one appeared because writing it out again and again was wasteful. Words you meet once you still spell out in full, and you can still write any word at all. Byte pair encoding builds a shorthand in exactly this way, by counting.</p>
  <h4>Why not letters, and why not words?</h4><p>A model could read one character at a time. The vocabulary would be tiny, but every sentence would become a very long list, and the model would have to rediscover spelling before it could learn anything else. It could instead read whole words. Sentences would be short, but the vocabulary would need every word in every language, every name, every typo, and any word not on the list could not be read at all. Subword tokens sit between the two: frequent words are one token, and any other string can still be spelled out of smaller pieces. Nothing is ever "out of vocabulary".</p>
  <h4>The algorithm</h4><p>Let the text be split into words, and each word into a sequence of symbols, at first single characters. Let \(c(a,b)\) be the number of times symbol \(a\) is immediately followed by symbol \(b\). One step of byte pair encoding is</p>$$(a^\star,b^\star)=\arg\max_{(a,b)}\,c(a,b),\qquad\text{then replace every }a^\star b^\star\text{ by the new symbol }a^\star b^\star .$$<p>Each step adds exactly one token to the vocabulary and removes \(c(a^\star,b^\star)\) tokens from the text. After \(M\) merges the vocabulary holds the starting characters plus \(M\) new tokens. \(M\) is the only setting. Sennrich, Haddow and Birch (2016) introduced this for machine translation, borrowing a data compression method from 1994.</p>
  <h4>Using the tokenizer on new text</h4><p>The result of training is an ordered list of merge rules. To cut a new sentence, split it into characters and apply the rules in the order they were learned. A word that was common in training passes through many rules and comes out as one token. An unfamiliar word passes through only the early, general rules and comes out as several pieces: "slowest" might become "_slow" and "est" even if that exact word was never seen. Each final piece is then replaced by its number in the vocabulary, and those numbers are what the model receives.</p>
@@ -22,51 +26,391 @@ const LML=[
  <h4>What real tokenizers add</h4><p>Production tokenizers start from the 256 possible bytes, not from letters, so any text in any script, and even emoji, can be represented. They learn tens of thousands of merges, to reach vocabularies of roughly 30,000 to 200,000 tokens, from many gigabytes of text. The space is glued to the start of the following word, as the underscore shows here. WordPiece and unigram tokenizers, used by some models, choose their pieces by a likelihood score instead of a raw count, and the result looks much the same.</p>
  <h4>Consequences worth knowing</h4><p>Prices and length limits of language models are counted in tokens, not words. For ordinary English a token is on average a little under one word, around four characters. Text in languages that were rarer in the tokenizer's training data, and unusual strings such as code or long numbers, are cut into more pieces and so cost more. And because the model sees "strawberry" as two or three opaque pieces and not as ten letters, questions about spelling or counting letters are harder for it than they look.</p>
  <h4>What this page does</h4><p>It runs the algorithm exactly as described on the text in the box, lower-cased, with punctuation marks treated as words of their own. Ties are broken in favour of the pair that appears first. It stops by itself when no pair occurs more than once, since after that every further merge would only memorise a single word.</p>`,
- q:'After training, the word “lowest” is a single token but “slowest” is cut into two. A classmate concludes that the tokenizer “knows” lowest and “does not know” slowest. What is a more accurate description?',a:'The tokenizer knows nothing about meaning. It only records which neighbouring pieces were frequent enough to be glued together. “lowest” happened to occur often enough in the training text for its pieces to be merged all the way into one token. “slowest” did not, so it is represented by pieces that were merged for other reasons, such as “_slow” and “est”. Both words are represented exactly and without loss. The model that reads the tokens later can still learn what “slowest” means, and the shared piece “est” even helps it.',
- init(root){const c=$('#bp-c',root),cr=$('#bp-r',root),live=$('#bp-live',root),ta=$('#bp-text',root),st=$('#bp-st',root),chips=$('#bp-chips',root),
-   DEF='the low lower lowest. the new newer newest. the wide wider widest. she walks, she walked, she is walking. he talks, he talked, he is talking. they jump, they jumped, they are jumping. the walker and the talker and the jumper. slow slower slowest, fast faster fastest, old older oldest. walking slowly, talking loudly, jumping quickly. lower and lower, newer and newer, faster and faster. the lowest walker walked the slowest and the newest jumper jumped the fastest.';
-  let words=[],order=[],base=[],merges=[],vocab=[],NT=[],VS=[],pairs=[],nch=0,msg='',cu=0,fr=0,pb,chk=()=>false,fin=false,tv=0,tvd=-1,flash='';
-  const pre=txt=>{const o=[];const re=/([a-zà-ÿ0-9']+)|([^\sa-zà-ÿ0-9'])/g;let m;const s=txt.toLowerCase();while((m=re.exec(s))){const sp=m.index===0||/\s/.test(s[m.index-1]);o.push((sp?'_':'')+m[0])}return o};
-  const total=()=>words.reduce((s,w)=>s+w.sym.length*w.n,0);
-  const count=()=>{const C=new Map();for(const w of words)for(let i=0;i<w.sym.length-1;i++){const k=w.sym[i]+'\u0001'+w.sym[i+1],e=C.get(k);if(e)e.n+=w.n;else C.set(k,{a:w.sym[i],b:w.sym[i+1],n:w.n})}return[...C.values()].sort((x,y)=>y.n-x.n)};
-  const apply=(sym,a,b)=>{const o=[];for(let i=0;i<sym.length;i++){if(i<sym.length-1&&sym[i]===a&&sym[i+1]===b){o.push(a+b);i++}else o.push(sym[i])}return o};
-  const load=txt=>{const P=pre(txt);if(P.length<8)return'That text is too short to learn from. Use at least a few sentences.';const M=new Map();order=P.slice(0,70);for(const p of P){const e=M.get(p);if(e)e.n++;else M.set(p,{w:p,sym:[...p],n:1})}words=[...M.values()];base=[...new Set(words.flatMap(w=>w.sym))].sort();vocab=base.slice();merges=[];nch=total();NT=[nch];VS=[vocab.length];pairs=count();fin=false;cu=0;flash='';tv++;
-   msg='The text has '+P.length+' words, split into '+nch+' single characters. There are '+base.length+' different characters, and they are the whole vocabulary so far. Press Run or One merge.';return null};
-  const step=()=>{if(fin)return;pairs=count();const p=pairs[0];if(!p||p.n<2){fin=true;cu=4;msg='No pair of neighbouring tokens occurs more than once any more, so merging further would only memorise single words. Finished with '+merges.length+' merges: '+nch+' characters are now written with '+total()+' tokens.';return}
-   for(const w of words)w.sym=apply(w.sym,p.a,p.b);merges.push(p);vocab.push(p.a+p.b);NT.push(total());VS.push(vocab.length);flash=p.a+p.b;cu=2;tv++;
-   const ex=words.filter(w=>w.sym.includes(flash)).sort((x,y)=>y.n-x.n).slice(0,4).map(w=>w.w.replace('_',''));
-   msg='Merge '+merges.length+': “'+p.a+'” followed by “'+p.b+'” occurred '+p.n+' times, more than any other pair, so they are now one token, “'+flash+'”. It appears in: '+ex.join(', ')+'. The text went from '+NT[NT.length-2]+' tokens to '+NT[NT.length-1]+'.'};
-  const encode=txt=>pre(txt).map(w=>{let s=[...w];for(const m of merges)s=apply(s,m.a,m.b);return s});
-  const chip=(tk,t,col)=>{const i=vocab.indexOf(tk),unk=i<0,cl=unk?t.cut:col[i%8];return'<span style="background:'+mix(cl,cl,0,unk?.25:.16)+';'+(tk===flash?'outline:2px solid '+t.gold+';':'')+(unk?'text-decoration:underline wavy;':'')+'">'+tk.replace(/&/g,'&amp;').replace(/</g,'&lt;')+'</span>'};
-  const tryIt=()=>{const t=T(),col=UC(t),v=$('#bp-try',root).value,E=encode(v),flat=E.flat(),ids=flat.map(k=>vocab.indexOf(k)),unk=ids.filter(i=>i<0).length;$('#bp-tryout',root).innerHTML=flat.length?E.map(s=>s.map(k=>chip(k,t,col)).join('')).join('<span style="padding:0 3px"></span>'):'';
-   $('#bp-tryst',root).textContent=flat.length?v.replace(/\s/g,'').length+' characters became '+flat.length+' token'+(flat.length>1?'s':'')+'. As numbers: '+ids.map(i=>i<0?'?':i).join(' ')+'.'+(unk?' '+unk+' character'+(unk>1?'s were':' was')+' never seen in the training text, so '+(unk>1?'they have':'it has')+' no number (shown with a wavy line). Real tokenizers avoid this by starting from all 256 bytes.':''):'Type a sentence above.'};
-  const draw=()=>{const t=T(),col=UC(t);
-   {const{g,w,h}=fit(c),P=pairs.slice(0,12),mx=Math.max(1,...P.map(p=>p.n)),rh=Math.min(30,(h-34)/12),x0=118;g.font=MONO;g.fillStyle=t.muted;g.textAlign='left';g.fillText(fin?'the most frequent pairs that remain: none occurs twice':'pair of neighbouring tokens, and how many times it occurs',8,13);
-    P.forEach((p,i)=>{const y=24+i*rh,bw=(w-x0-46)*p.n/mx,win=i===0&&!fin&&p.n>1;g.fillStyle=win?t.gold:mix(t.accent,t.accent,0,.7);g.fillRect(x0,y+3,Math.max(1,bw),rh-7);g.fillStyle=win?t.cut:t.ink;g.textAlign='right';g.font='12px '+MONO.split('px ')[1];g.fillText(p.a+' + '+p.b,x0-8,y+rh/2+4);g.textAlign='left';g.font=MONO;g.fillStyle=t.muted;g.fillText(String(p.n),x0+bw+6,y+rh/2+4)});
-    if(!P.length){g.fillStyle=t.muted;g.textAlign='center';g.fillText('every word is a single token: there are no pairs left',w/2,h/2)}}
-   {const{g,w,h}=fit(cr),n=Math.max(12,NT.length);uLine(g,t,0,0,w,h/2,NT,{title:'tokens needed to write the whole training text',n,col:t.accent,ym:nch,dots:NT.length<70});uLine(g,t,0,h/2,w,h/2,VS,{title:'different tokens in the vocabulary',n,col:t.ok,ym:Math.max(base.length+12,VS[VS.length-1]),dots:VS.length<70});g.font=MONO;g.fillStyle=t.muted;g.textAlign='right';g.fillText('merges →',w-12,h-5)}
-   if(tvd!==tv){tvd=tv;const cur=new Map(words.map(w=>[w.w,w.sym]));chips.innerHTML=order.map(w=>(cur.get(w)||[...w]).map(k=>chip(k,t,col)).join('')).join('<span style="padding:0 3px"></span>');
-    const tb=$('#bp-tab',root);tb.innerHTML=!merges.length?'<p class="status">No merges yet. The vocabulary is the '+base.length+' single characters: '+base.map(b=>b==='_'?'_':b).join(' ')+'</p>':'<table><thead><tr><th>merge</th><th>left piece</th><th>right piece</th><th>new token</th><th>number</th><th>times seen</th></tr></thead><tbody>'+merges.map((m,i)=>'<tr><td>'+(i+1)+'</td><td>'+m.a+'</td><td>'+m.b+'</td><td><b>'+m.a+m.b+'</b></td><td>'+(base.length+i)+'</td><td>'+m.n+'</td></tr>').join('')+'</tbody></table>';tb.scrollTop=tb.scrollHeight;tryIt()}
-   live.textContent=msg;uCur(root,'bp',cu);const tot=NT[NT.length-1];setR(root,'m',String(merges.length));setR(root,'v',String(vocab.length));setR(root,'n',tot+' (from '+nch+')');setR(root,'cpt',f2(nch/tot));setR(root,'last',merges.length?flash:'–');setR(root,'long',vocab.reduce((a,b)=>b.length>a.length?b:a,''))};
-  ta.value=DEF;load(DEF);
-  const anim=Anim(()=>{fr++;if(fr%(merges.length<8?40:14))return;step();draw();chk()});pb=playBtn($('#bp-play',root),anim);chk=runCtl(pb,root,'bp',{done:()=>fin,restart:()=>{if(load(ta.value)){ta.value=DEF;load(DEF)}},count:()=>merges.length,what:'merges'});
-  $('#bp-step',root).onclick=()=>{pb.stop();if(fin)load(ta.value);else step();draw()};$('#bp-reset',root).onclick=()=>{pb.stop();load(ta.value);draw()};
-  $('#bp-use',root).onclick=()=>{pb.stop();const e=load(ta.value);if(e){st.textContent=e;load(DEF);ta.value=DEF}else st.textContent='Loaded your text. Press Run.';draw()};$('#bp-try',root).addEventListener('input',tryIt);
-  if(RM){while(!fin)step()}
-  return{draw,stop:()=>pb.stop(),auto:()=>{load(ta.value);draw();pb.start()}}}},
+    q: 'After training, the word “lowest” is a single token but “slowest” is cut into two. A classmate concludes that the tokenizer “knows” lowest and “does not know” slowest. What is a more accurate description?',
+    a: 'The tokenizer knows nothing about meaning. It only records which neighbouring pieces were frequent enough to be glued together. “lowest” happened to occur often enough in the training text for its pieces to be merged all the way into one token. “slowest” did not, so it is represented by pieces that were merged for other reasons, such as “_slow” and “est”. Both words are represented exactly and without loss. The model that reads the tokens later can still learn what “slowest” means, and the shared piece “est” even helps it.',
+    init(root) {
+      const c = $('#bp-c', root),
+        cr = $('#bp-r', root),
+        live = $('#bp-live', root),
+        ta = $('#bp-text', root),
+        st = $('#bp-st', root),
+        chips = $('#bp-chips', root),
+        DEF =
+          'the low lower lowest. the new newer newest. the wide wider widest. she walks, she walked, she is walking. he talks, he talked, he is talking. they jump, they jumped, they are jumping. the walker and the talker and the jumper. slow slower slowest, fast faster fastest, old older oldest. walking slowly, talking loudly, jumping quickly. lower and lower, newer and newer, faster and faster. the lowest walker walked the slowest and the newest jumper jumped the fastest.';
+      let words = [],
+        order = [],
+        base = [],
+        merges = [],
+        vocab = [],
+        NT = [],
+        VS = [],
+        pairs = [],
+        nch = 0,
+        msg = '',
+        cu = 0,
+        fr = 0,
+        pb,
+        chk = () => false,
+        fin = false,
+        tv = 0,
+        tvd = -1,
+        flash = '';
+      const pre = (txt) => {
+        const o = [];
+        const re = /([a-zà-ÿ0-9']+)|([^\sa-zà-ÿ0-9'])/g;
+        let m;
+        const s = txt.toLowerCase();
+        while ((m = re.exec(s))) {
+          const sp = m.index === 0 || /\s/.test(s[m.index - 1]);
+          o.push((sp ? '_' : '') + m[0]);
+        }
+        return o;
+      };
+      const total = () => words.reduce((s, w) => s + w.sym.length * w.n, 0);
+      const count = () => {
+        const C = new Map();
+        for (const w of words)
+          for (let i = 0; i < w.sym.length - 1; i++) {
+            const k = w.sym[i] + '\u0001' + w.sym[i + 1],
+              e = C.get(k);
+            if (e) e.n += w.n;
+            else C.set(k, { a: w.sym[i], b: w.sym[i + 1], n: w.n });
+          }
+        return [...C.values()].sort((x, y) => y.n - x.n);
+      };
+      const apply = (sym, a, b) => {
+        const o = [];
+        for (let i = 0; i < sym.length; i++) {
+          if (i < sym.length - 1 && sym[i] === a && sym[i + 1] === b) {
+            o.push(a + b);
+            i++;
+          } else o.push(sym[i]);
+        }
+        return o;
+      };
+      const load = (txt) => {
+        const P = pre(txt);
+        if (P.length < 8)
+          return 'That text is too short to learn from. Use at least a few sentences.';
+        const M = new Map();
+        order = P.slice(0, 70);
+        for (const p of P) {
+          const e = M.get(p);
+          if (e) e.n++;
+          else M.set(p, { w: p, sym: [...p], n: 1 });
+        }
+        words = [...M.values()];
+        base = [...new Set(words.flatMap((w) => w.sym))].sort();
+        vocab = base.slice();
+        merges = [];
+        nch = total();
+        NT = [nch];
+        VS = [vocab.length];
+        pairs = count();
+        fin = false;
+        cu = 0;
+        flash = '';
+        tv++;
+        msg =
+          'The text has ' +
+          P.length +
+          ' words, split into ' +
+          nch +
+          ' single characters. There are ' +
+          base.length +
+          ' different characters, and they are the whole vocabulary so far. Press Run or One merge.';
+        return null;
+      };
+      const step = () => {
+        if (fin) return;
+        pairs = count();
+        const p = pairs[0];
+        if (!p || p.n < 2) {
+          fin = true;
+          cu = 4;
+          msg =
+            'No pair of neighbouring tokens occurs more than once any more, so merging further would only memorise single words. Finished with ' +
+            merges.length +
+            ' merges: ' +
+            nch +
+            ' characters are now written with ' +
+            total() +
+            ' tokens.';
+          return;
+        }
+        for (const w of words) w.sym = apply(w.sym, p.a, p.b);
+        merges.push(p);
+        vocab.push(p.a + p.b);
+        NT.push(total());
+        VS.push(vocab.length);
+        flash = p.a + p.b;
+        cu = 2;
+        tv++;
+        const ex = words
+          .filter((w) => w.sym.includes(flash))
+          .sort((x, y) => y.n - x.n)
+          .slice(0, 4)
+          .map((w) => w.w.replace('_', ''));
+        msg =
+          'Merge ' +
+          merges.length +
+          ': “' +
+          p.a +
+          '” followed by “' +
+          p.b +
+          '” occurred ' +
+          p.n +
+          ' times, more than any other pair, so they are now one token, “' +
+          flash +
+          '”. It appears in: ' +
+          ex.join(', ') +
+          '. The text went from ' +
+          NT[NT.length - 2] +
+          ' tokens to ' +
+          NT[NT.length - 1] +
+          '.';
+      };
+      const encode = (txt) =>
+        pre(txt).map((w) => {
+          let s = [...w];
+          for (const m of merges) s = apply(s, m.a, m.b);
+          return s;
+        });
+      const chip = (tk, t, col) => {
+        const i = vocab.indexOf(tk),
+          unk = i < 0,
+          cl = unk ? t.cut : col[i % 8];
+        return (
+          '<span style="background:' +
+          mix(cl, cl, 0, unk ? 0.25 : 0.16) +
+          ';' +
+          (tk === flash ? 'outline:2px solid ' + t.gold + ';' : '') +
+          (unk ? 'text-decoration:underline wavy;' : '') +
+          '">' +
+          tk.replace(/&/g, '&amp;').replace(/</g, '&lt;') +
+          '</span>'
+        );
+      };
+      const tryIt = () => {
+        const t = T(),
+          col = UC(t),
+          v = $('#bp-try', root).value,
+          E = encode(v),
+          flat = E.flat(),
+          ids = flat.map((k) => vocab.indexOf(k)),
+          unk = ids.filter((i) => i < 0).length;
+        $('#bp-tryout', root).innerHTML = flat.length
+          ? E.map((s) => s.map((k) => chip(k, t, col)).join('')).join(
+              '<span style="padding:0 3px"></span>',
+            )
+          : '';
+        $('#bp-tryst', root).textContent = flat.length
+          ? v.replace(/\s/g, '').length +
+            ' characters became ' +
+            flat.length +
+            ' token' +
+            (flat.length > 1 ? 's' : '') +
+            '. As numbers: ' +
+            ids.map((i) => (i < 0 ? '?' : i)).join(' ') +
+            '.' +
+            (unk
+              ? ' ' +
+                unk +
+                ' character' +
+                (unk > 1 ? 's were' : ' was') +
+                ' never seen in the training text, so ' +
+                (unk > 1 ? 'they have' : 'it has') +
+                ' no number (shown with a wavy line). Real tokenizers avoid this by starting from all 256 bytes.'
+              : '')
+          : 'Type a sentence above.';
+      };
+      const draw = () => {
+        const t = T(),
+          col = UC(t);
+        {
+          const { g, w, h } = fit(c),
+            P = pairs.slice(0, 12),
+            mx = Math.max(1, ...P.map((p) => p.n)),
+            rh = Math.min(30, (h - 34) / 12),
+            x0 = 118;
+          g.font = MONO;
+          g.fillStyle = t.muted;
+          g.textAlign = 'left';
+          g.fillText(
+            fin
+              ? 'the most frequent pairs that remain: none occurs twice'
+              : 'pair of neighbouring tokens, and how many times it occurs',
+            8,
+            13,
+          );
+          P.forEach((p, i) => {
+            const y = 24 + i * rh,
+              bw = ((w - x0 - 46) * p.n) / mx,
+              win = i === 0 && !fin && p.n > 1;
+            g.fillStyle = win ? t.gold : mix(t.accent, t.accent, 0, 0.7);
+            g.fillRect(x0, y + 3, Math.max(1, bw), rh - 7);
+            g.fillStyle = win ? t.cut : t.ink;
+            g.textAlign = 'right';
+            g.font = '12px ' + MONO.split('px ')[1];
+            g.fillText(p.a + ' + ' + p.b, x0 - 8, y + rh / 2 + 4);
+            g.textAlign = 'left';
+            g.font = MONO;
+            g.fillStyle = t.muted;
+            g.fillText(String(p.n), x0 + bw + 6, y + rh / 2 + 4);
+          });
+          if (!P.length) {
+            g.fillStyle = t.muted;
+            g.textAlign = 'center';
+            g.fillText('every word is a single token: there are no pairs left', w / 2, h / 2);
+          }
+        }
+        {
+          const { g, w, h } = fit(cr),
+            n = Math.max(12, NT.length);
+          uLine(g, t, 0, 0, w, h / 2, NT, {
+            title: 'tokens needed to write the whole training text',
+            n,
+            col: t.accent,
+            ym: nch,
+            dots: NT.length < 70,
+          });
+          uLine(g, t, 0, h / 2, w, h / 2, VS, {
+            title: 'different tokens in the vocabulary',
+            n,
+            col: t.ok,
+            ym: Math.max(base.length + 12, VS[VS.length - 1]),
+            dots: VS.length < 70,
+          });
+          g.font = MONO;
+          g.fillStyle = t.muted;
+          g.textAlign = 'right';
+          g.fillText('merges →', w - 12, h - 5);
+        }
+        if (tvd !== tv) {
+          tvd = tv;
+          const cur = new Map(words.map((w) => [w.w, w.sym]));
+          chips.innerHTML = order
+            .map((w) => (cur.get(w) || [...w]).map((k) => chip(k, t, col)).join(''))
+            .join('<span style="padding:0 3px"></span>');
+          const tb = $('#bp-tab', root);
+          tb.innerHTML = !merges.length
+            ? '<p class="status">No merges yet. The vocabulary is the ' +
+              base.length +
+              ' single characters: ' +
+              base.map((b) => (b === '_' ? '_' : b)).join(' ') +
+              '</p>'
+            : '<table><thead><tr><th>merge</th><th>left piece</th><th>right piece</th><th>new token</th><th>number</th><th>times seen</th></tr></thead><tbody>' +
+              merges
+                .map(
+                  (m, i) =>
+                    '<tr><td>' +
+                    (i + 1) +
+                    '</td><td>' +
+                    m.a +
+                    '</td><td>' +
+                    m.b +
+                    '</td><td><b>' +
+                    m.a +
+                    m.b +
+                    '</b></td><td>' +
+                    (base.length + i) +
+                    '</td><td>' +
+                    m.n +
+                    '</td></tr>',
+                )
+                .join('') +
+              '</tbody></table>';
+          tb.scrollTop = tb.scrollHeight;
+          tryIt();
+        }
+        live.textContent = msg;
+        uCur(root, 'bp', cu);
+        const tot = NT[NT.length - 1];
+        setR(root, 'm', String(merges.length));
+        setR(root, 'v', String(vocab.length));
+        setR(root, 'n', tot + ' (from ' + nch + ')');
+        setR(root, 'cpt', f2(nch / tot));
+        setR(root, 'last', merges.length ? flash : '–');
+        setR(
+          root,
+          'long',
+          vocab.reduce((a, b) => (b.length > a.length ? b : a), ''),
+        );
+      };
+      ta.value = DEF;
+      load(DEF);
+      const anim = Anim(() => {
+        fr++;
+        if (fr % (merges.length < 8 ? 40 : 14)) return;
+        step();
+        draw();
+        chk();
+      });
+      pb = playBtn($('#bp-play', root), anim);
+      chk = runCtl(pb, root, 'bp', {
+        done: () => fin,
+        restart: () => {
+          if (load(ta.value)) {
+            ta.value = DEF;
+            load(DEF);
+          }
+        },
+        count: () => merges.length,
+        what: 'merges',
+      });
+      $('#bp-step', root).onclick = () => {
+        pb.stop();
+        if (fin) load(ta.value);
+        else step();
+        draw();
+      };
+      $('#bp-reset', root).onclick = () => {
+        pb.stop();
+        load(ta.value);
+        draw();
+      };
+      $('#bp-use', root).onclick = () => {
+        pb.stop();
+        const e = load(ta.value);
+        if (e) {
+          st.textContent = e;
+          load(DEF);
+          ta.value = DEF;
+        } else st.textContent = 'Loaded your text. Press Run.';
+        draw();
+      };
+      $('#bp-try', root).addEventListener('input', tryIt);
+      if (RM) {
+        while (!fin) step();
+      }
+      return {
+        draw,
+        stop: () => pb.stop(),
+        auto: () => {
+          load(ta.value);
+          draw();
+          pb.start();
+        },
+      };
+    },
+  },
 
-{id:'next-token',tab:'Next-token sampling',title:'Next-token sampling: temperature, top-k and top-p',
- lede:'A language model does not write. It produces a list of probabilities for the next word, and a separate, very small piece of code picks one. That picking rule decides whether the text is dull and repetitive, lively, or nonsense, and it is the part you control with settings such as temperature and top-p. Here a small neural network learns from a few dozen sentences, and you choose how its next word is picked.',
- stage:`<p class="cap" id="ns-out" role="status" style="font-family:var(--font-mono);min-height:5.5em;white-space:pre-wrap"></p>
+  {
+    id: 'next-token',
+    tab: 'Next-token sampling',
+    title: 'Next-token sampling: temperature, top-k and top-p',
+    lede: 'A language model does not write. It produces a list of probabilities for the next word, and a separate, very small piece of code picks one. That picking rule decides whether the text is dull and repetitive, lively, or nonsense, and it is the part you control with settings such as temperature and top-p. Here a small neural network learns from a few dozen sentences, and you choose how its next word is picked.',
+    stage: `<p class="cap" id="ns-out" role="status" style="font-family:var(--font-mono);min-height:5.5em;white-space:pre-wrap"></p>
  <div class="stage"><figure class="fig"><figcaption>The model’s probabilities for the next word. Faint bar: after temperature. Solid bar: after the cuts, rescaled. Struck-out words were cut. The gold word was picked</figcaption><canvas class="short" id="ns-c" role="img" aria-label="Next-word probabilities before and after the cuts"></canvas></figure>
  <figure class="fig"><figcaption>Top: how surprising each chosen word was. Bottom: how many real choices the model had at each step</figcaption><canvas class="short" id="ns-r" role="img" aria-label="Surprise of each chosen word and the effective number of choices"></canvas></figure></div>
- ${uHow('ns',['Train: the network reads the sentences and learns to give a probability to every word in its vocabulary, given the three words before.','Write: feed in the last three words. The network returns a score for every word.','Temperature: divide the scores by the temperature and turn them into probabilities. Low temperature sharpens them, high temperature flattens them.','Top-k: keep only the k most likely words. Top-p: keep the most likely words until their probabilities add up to p. Everything else is cut.','Rescale what is left so that it adds up to 1, and draw one word at random from it.','Add the word to the text and go back to step 2.'])}
- <div class="controls">${uBtns('ns','Run','One word','words')}
- ${grp('How the next word is picked',`<div class="row seg" id="ns-pre" role="group" aria-label="Presets"><button class="btn" type="button" data-v="greedy">Greedy</button><button class="btn" type="button" data-v="pure">Plain Sampling</button><button class="btn" type="button" data-v="topk">Top-k = 5</button><button class="btn" type="button" data-v="topp">Top-p = 0.9</button><button class="btn" type="button" data-v="hot">Hot</button></div>`+slider('ns-t','Temperature',.1,2.5,.05,1)+slider('ns-k','Top-k: words kept',1,40,1,40)+slider('ns-p','Top-p: probability kept',.05,1,.05,1))}
- ${grp('The start of the text',`<label class="ctl" for="ns-pr"><span>Prompt</span><select id="ns-pr"><option>the cat</option><option>the dog chased</option><option>a small</option><option>the girl</option><option>the sun was</option></select></label><p class="status" id="ns-st" role="status"></p>`)}</div>
- <dl class="read">${rd('ph','Stage')}${rd('n','Words written')}${rd('pk','Probability of the word just picked')}${rd('al','Words still allowed after the cuts','hl')}${rd('ef','Effective number of choices before the cuts')}${rd('sp','Average surprise, bits per word','hl2')}${rd('rp','Three-word phrases that came up more than once')}</dl>`,
- tryit:'When training finishes, press Greedy and Run. The text is correct and soon starts going round in circles: count the repeated phrases. Press Plain Sampling and run again several times. More variety, and now and then an odd sentence. Raise the temperature to 2.5: what happens to the bars, and to the text? Bring it back to 1 and press Top-k = 5, then Top-p = 0.9. Step one word at a time and compare how many words each rule keeps at a step where the model is sure (after “on”) and at a step where it is not (after “the”). Which of the two rules adapts to the situation?',
- math:String.raw`<h4>Intuition</h4><p>Think of a jazz player choosing the next note. At every moment some notes are obvious, some are interesting, and some are simply wrong. Always playing the most obvious note gives a tune that is correct and lifeless, and tends to loop. Choosing with no regard for what fits gives noise. Good playing stays among the notes that fit and does not always take the first one. A language model supplies the "how well does each note fit" numbers. The sampling rule is the player's taste.</p>
+ ${uHow('ns', ['Train: the network reads the sentences and learns to give a probability to every word in its vocabulary, given the three words before.', 'Write: feed in the last three words. The network returns a score for every word.', 'Temperature: divide the scores by the temperature and turn them into probabilities. Low temperature sharpens them, high temperature flattens them.', 'Top-k: keep only the k most likely words. Top-p: keep the most likely words until their probabilities add up to p. Everything else is cut.', 'Rescale what is left so that it adds up to 1, and draw one word at random from it.', 'Add the word to the text and go back to step 2.'])}
+ <div class="controls">${uBtns('ns', 'Run', 'One word', 'words')}
+ ${grp('How the next word is picked', `<div class="row seg" id="ns-pre" role="group" aria-label="Presets"><button class="btn" type="button" data-v="greedy">Greedy</button><button class="btn" type="button" data-v="pure">Plain Sampling</button><button class="btn" type="button" data-v="topk">Top-k = 5</button><button class="btn" type="button" data-v="topp">Top-p = 0.9</button><button class="btn" type="button" data-v="hot">Hot</button></div>` + slider('ns-t', 'Temperature', 0.1, 2.5, 0.05, 1) + slider('ns-k', 'Top-k: words kept', 1, 40, 1, 40) + slider('ns-p', 'Top-p: probability kept', 0.05, 1, 0.05, 1))}
+ ${grp('The start of the text', `<label class="ctl" for="ns-pr"><span>Prompt</span><select id="ns-pr"><option>the cat</option><option>the dog chased</option><option>a small</option><option>the girl</option><option>the sun was</option></select></label><p class="status" id="ns-st" role="status"></p>`)}</div>
+ <dl class="read">${rd('ph', 'Stage')}${rd('n', 'Words written')}${rd('pk', 'Probability of the word just picked')}${rd('al', 'Words still allowed after the cuts', 'hl')}${rd('ef', 'Effective number of choices before the cuts')}${rd('sp', 'Average surprise, bits per word', 'hl2')}${rd('rp', 'Three-word phrases that came up more than once')}</dl>`,
+    tryit:
+      'When training finishes, press Greedy and Run. The text is correct and soon starts going round in circles: count the repeated phrases. Press Plain Sampling and run again several times. More variety, and now and then an odd sentence. Raise the temperature to 2.5: what happens to the bars, and to the text? Bring it back to 1 and press Top-k = 5, then Top-p = 0.9. Step one word at a time and compare how many words each rule keeps at a step where the model is sure (after “on”) and at a step where it is not (after “the”). Which of the two rules adapts to the situation?',
+    math: String.raw`<h4>Intuition</h4><p>Think of a jazz player choosing the next note. At every moment some notes are obvious, some are interesting, and some are simply wrong. Always playing the most obvious note gives a tune that is correct and lifeless, and tends to loop. Choosing with no regard for what fits gives noise. Good playing stays among the notes that fit and does not always take the first one. A language model supplies the "how well does each note fit" numbers. The sampling rule is the player's taste.</p>
  <h4>From scores to probabilities</h4><p>For a given context the network outputs one score, or logit, \(z_i\) for every word \(i\) in the vocabulary. The softmax turns scores into probabilities. The <b>temperature</b> \(T\) rescales the scores first:</p>$$p_i=\frac{e^{z_i/T}}{\sum_j e^{z_j/T}} .$$<p>With \(T=1\) these are the probabilities the model learned. As \(T\to0\) all the probability moves to the single highest score, which is <b>greedy</b> decoding. As \(T\) grows, the probabilities approach equal shares for every word, including the absurd ones. Temperature changes the gaps between words and never their order.</p>
  <h4>Top-k</h4><p>Sort the words by probability and keep only the \(k\) most likely. Set the others to zero and rescale:</p>$$p_i'=\frac{p_i}{\sum_{j\in\text{top-}k}p_j}\ \text{ for } i\in\text{top-}k,\qquad p_i'=0\ \text{ otherwise}.$$<p>This removes the long tail of unlikely words, where most nonsense comes from. Its weakness is that \(k\) is fixed. When the model is sure, five words is too many and lets poor ones in. When many continuations are reasonable, five is too few.</p>
  <h4>Top-p, or nucleus sampling</h4><p>Keep the smallest set of most likely words whose probabilities add up to at least \(p\) (Holtzman and others, 2020):</p>$$\text{keep the first } m \text{ words, where } m=\min\Big\{m:\ \sum_{i=1}^{m}p_{(i)}\ge p\Big\}.$$<p>The number of words kept now adapts. If one word has probability 0.95, the set is that one word. If the model is unsure, the set is wide. This is why top-p is the usual default. The two cuts can be combined, and they are applied after the temperature.</p>
@@ -74,57 +418,566 @@ const LML=[
  <h4>Why the most likely text is not the best text</h4><p>It seems natural to want the most probable continuation. In practice the most probable long text is bland and repetitive: once a phrase has appeared, repeating it is likely, and that makes repeating it again more likely still. Human writing carries a steady, moderate amount of surprise. Sampling with a mild temperature and a top-p cut imitates that. For tasks with one right answer, such as arithmetic, extracting a date, or writing code that must compile, a low temperature is the better choice, because there the obvious note is the correct one.</p>
  <h4>Other rules you may meet</h4><p><b>Beam search</b> keeps several partial texts alive and extends the best ones. It suits translation, where the output is tightly determined, and gives dull open-ended text. A <b>repetition penalty</b> lowers the scores of words already used. <b>Min-p</b> keeps every word whose probability is at least a set fraction of the top word's.</p>
  <h4>What this page trains</h4><p>A network in the style of Bengio and others (2003): each of the three previous words is looked up in a table of 12 learned numbers, the 36 numbers pass through one hidden layer of 48 neurons, and the output is one score for each word in the vocabulary. It is trained with Adam on about forty short sentences for 700 steps. It knows nothing else about the world, so its text never leaves cats, dogs and cheese. The sampling rules are exactly the ones used with large models.</p>`,
- q:'A student sets the temperature to 0.1 and top-p to 0.9 and is surprised that changing top-p no longer does anything. Why not?',a:'The temperature is applied first. At 0.1 the differences between scores are multiplied by ten before the softmax, so almost all of the probability lands on the single most likely word, often more than 0.99 of it. Top-p then keeps the smallest set of words that reaches 0.9, and that set is already just the one word. The cut has nothing left to remove. The two settings are not independent: a low temperature makes every cut irrelevant, and a very high temperature makes the cut do all the work.',
- init(root){const c=$('#ns-c',root),cr=$('#ns-r',root),live=$('#ns-live',root),outEl=$('#ns-out',root),S={t:1,k:40,p:1},CTX=3,ED=12,MAXS=700,MAXW=40,
-   SENT=['the cat sat on the mat','the dog sat on the rug','the cat chased the mouse','the dog chased the cat','the mouse ate the cheese','the cat drank the milk','the dog ate the bone','the bird sang in the tree','the cat slept in the sun','the dog slept on the rug','the mouse hid under the mat','the bird flew over the tree','a small cat sat in the sun','a big dog sat under the tree','the small mouse ate the old cheese','the big dog chased the small cat','the old cat slept on the warm mat','the bird sang and the cat slept','the dog barked and the cat ran','the cat ran up the tree','the mouse ran under the rug','the bird ate the bread','the girl fed the cat','the boy fed the dog','the girl saw a small bird','the boy saw a big dog','the girl sat in the sun','the boy ran after the dog','the cat looked at the bird','the dog looked at the bone','the sun was warm and the cat was happy','the rain fell and the dog was sad','the girl was happy and the boy was happy','the mouse was small and the cheese was old','a small bird sat on the old tree','the big dog drank the milk','the girl saw the mouse and the mouse ran','the boy sat on the warm rug','the old dog slept in the sun','the cat hid under the rug'];
-  const VOC=['.',...new Set(SENT.join(' ').split(' '))],V=VOC.length,ix=w=>VOC.indexOf(w);
-  let E,W1,b1,W2,b2,ps,ts=0,LL=[],sm=[],phase='train',PX=[],PY=[],text=[],np0=0,dist=null,msg='',cu=0,fr=0,pb,chk=()=>false,run=1,SUR=[],EFF=[],lastP=NaN,lastAl=NaN,pickI=-1;
-  const fwd=ctxs=>{const B=ctxs.length/CTX,x=AD.gather(E,Array.from(ctxs));x.sh=[B,CTX*ED];return AD.addb(AD.mm(AD.tanh(AD.addb(AD.mm(x,W1),b1)),W2),b2)};
-  const build=()=>{const rn=randnFrom(rng(run*13+7)),r=rng(run*5+1);E=AD.param([V,ED],.5,rn);W1=AD.param([CTX*ED,48],Math.sqrt(1/(CTX*ED)),rn);b1=AD.param([48],0,rn);W2=AD.param([48,V],Math.sqrt(1/48),rn);b2=AD.param([V],0,rn);ps=[E,W1,b1,W2,b2];PX=[];PY=[];
-   for(let e=0;e<6;e++){const o=SENT.map((s,i)=>[r(),i]).sort((a,b)=>a[0]-b[0]).map(q=>SENT[q[1]]),st=['.','.','.'].concat(o.join(' . ').split(' '),['.']).map(ix);for(let i=CTX;i<st.length;i++){PX.push(st[i-3],st[i-2],st[i-1]);PY.push(st[i])}}
-   ts=0;LL=[];sm=[];phase='train';cu=0;setPrompt();msg='The network has '+V+' words in its vocabulary and random weights. Every word is equally likely to it. Press Run: it trains for a few seconds, then starts writing.'};
-  const setPrompt=()=>{text=['.','.','.'].concat($('#ns-pr',root).value.split(' ')).map(ix);np0=text.length;SUR=[];EFF=[];dist=null;lastP=NaN;lastAl=NaN;pickI=-1};
-  const train=k=>{const B=64,N=PY.length;for(let q=0;q<k&&ts<MAXS;q++){const cx=new Int32Array(B*CTX),tg=new Int32Array(B);for(let i=0;i<B;i++){const j=Math.floor(Math.random()*N);cx[3*i]=PX[3*j];cx[3*i+1]=PX[3*j+1];cx[3*i+2]=PX[3*j+2];tg[i]=PY[j]}const l=AD.ce(fwd(cx),tg,0);LL.push(l.v[0]);AD.backward(l);AD.adam(ps,.01*Math.pow(.2,ts/MAXS),++ts,1);if(ts%10===0){let s=0;for(let j=ts-10;j<ts;j++)s+=LL[j];sm.push(s/10)}}
-   cu=0;calc();msg='Training step '+ts+' of '+MAXS+': the network was shown 64 groups of three words and asked for the next word each time. Its average surprise is '+f2((sm.length?sm[sm.length-1]:LL[ts-1])/Math.LN2)+' bits per word (a blind guess among '+V+' words costs '+f2(Math.log2(V))+' bits). The bars show what it currently expects after “'+text.slice(-3).map(i=>VOC[i]).join(' ').replace(/^[. ]+/,'')+'”.';
-   if(ts>=MAXS){phase='gen';cu=1;msg='Training is finished. The bars show the network’s probabilities for the word after “'+text.slice(np0-2).map(i=>VOC[i]).join(' ')+'”, with your settings applied. Press Run or One word.'}};
-  const calc=()=>{const z=fwd(Int32Array.from(text.slice(-3)));AD.clear();const n=V,p1=new Float64Array(n),pt=new Float64Array(n);let mx=-1e30;for(let i=0;i<n;i++)mx=Math.max(mx,z.v[i]);let s1=0,st=0;for(let i=0;i<n;i++){p1[i]=Math.exp(z.v[i]-mx);s1+=p1[i];pt[i]=Math.exp((z.v[i]-mx)/S.t);st+=pt[i]}let H=0;for(let i=0;i<n;i++){p1[i]/=s1;pt[i]/=st;if(pt[i]>1e-12)H-=pt[i]*Math.log2(pt[i])}
-   const ord=Array.from({length:n},(_,i)=>i).sort((a,b)=>pt[b]-pt[a]),keep=new Uint8Array(n);let cum=0,m=0;for(const i of ord){if(m>=S.k)break;keep[i]=1;m++;cum+=pt[i];if(cum>=S.p-1e-9)break}const pf=new Float64Array(n);for(let i=0;i<n;i++)if(keep[i])pf[i]=pt[i]/cum;dist={p1,pt,pf,ord,keep,m,eff:Math.pow(2,H)}};
-  const gstep=()=>{if(phase!=='gen'||text.length-np0>=MAXW)return;calc();let u=Math.random(),pick=dist.ord[0];for(const i of dist.ord){if(!dist.keep[i])continue;u-=dist.pf[i];pick=i;if(u<=0)break}const prev=text.slice(-3).map(i=>VOC[i]).join(' ').replace(/^[. ]+/,'');text.push(pick);SUR.push(-Math.log2(Math.max(1e-9,dist.p1[pick])));EFF.push(dist.eff);lastP=dist.pf[pick];lastAl=dist.m;pickI=pick;cu=4;const rk=dist.ord.indexOf(pick)+1;
-   msg='After “'+prev+'” the network gave probabilities to all '+V+' words. With temperature '+f2(S.t)+' that amounts to about '+f2(dist.eff)+' real choices. The cuts left '+dist.m+' word'+(dist.m>1?'s':'')+'. The word drawn was “'+VOC[pick]+'”, the network’s choice number '+rk+', with probability '+pct(lastP)+' after rescaling.'+(text.length-np0>=MAXW?' That is '+MAXW+' words: finished.':'')};
-  const reps=()=>{const w=text.slice(3),C=new Map();let r=0;for(let i=0;i+3<=w.length;i++){const k=w.slice(i,i+3).join(',');C.set(k,(C.get(k)||0)+1)}for(const v of C.values())if(v>1)r++;return r};
-  const draw=()=>{const t=T();
-   {const{g,w,h}=fit(c);g.font=MONO;if(!dist){g.fillStyle=t.muted;g.textAlign='center';g.fillText('press Run',w/2,h/2)}else{const NB=14,rh=Math.min(28,(h-30)/NB),x0=86,mx=Math.max(.05,dist.pt[dist.ord[0]],...Array.from(dist.pf)),W=w-x0-64;g.fillStyle=t.muted;g.textAlign='left';g.fillText(pickI>=0&&phase==='gen'?'the choice just made: the 14 most likely words, of '+V:'the 14 most likely next words, of '+V,8,13);
-     for(let r=0;r<NB;r++){const i=dist.ord[r],y=22+r*rh,kept=dist.keep[i],pk=i===pickI&&phase==='gen';g.fillStyle=mix(t.accent,t.accent,0,.25);g.fillRect(x0,y+3,Math.max(1,W*dist.pt[i]/mx),rh-7);if(kept){g.fillStyle=pk?t.gold:t.accent;g.fillRect(x0,y+rh*.3,Math.max(1,W*dist.pf[i]/mx),rh*.4)}
-      g.font='12px '+MONO.split('px ')[1];g.textAlign='right';g.fillStyle=kept?(pk?t.cut:t.ink):t.muted;const lab=VOC[i]==='.'?'. (end)':VOC[i];g.fillText(lab,x0-8,y+rh/2+4);if(!kept){const tw=g.measureText(lab).width;g.strokeStyle=t.muted;g.lineWidth=1;g.beginPath();g.moveTo(x0-8-tw,y+rh/2);g.lineTo(x0-8,y+rh/2);g.stroke()}
-      g.font=MONO;g.textAlign='left';g.fillStyle=t.muted;g.fillText(kept?(100*dist.pf[i]).toFixed(1)+'%':'cut',x0+Math.max(W*dist.pt[i]/mx,kept?W*dist.pf[i]/mx:0)+6,y+rh/2+4)}}}
-   {const{g,w,h}=fit(cr);if(phase==='train')uLine(g,t,0,0,w,h,sm.map(v=>v/Math.LN2),{title:'training: average surprise at the true next word, in bits',n:MAXS/10,col:t.ok,ym:Math.log2(V)*1.05});
-    else{const n=Math.max(MAXW,SUR.length),A=uLine(g,t,0,0,w,h/2,[],{title:'surprise of each chosen word, in bits (by the network’s own odds)',n,ym:Math.max(6,...SUR)}),bw=(w-A.m.l-A.m.r)/n;SUR.forEach((v,i)=>{g.fillStyle=i===SUR.length-1?t.gold:mix(t.accent,t.accent,0,.75);g.fillRect(A.m.l+i*bw+1,A.Y(v),Math.max(1,bw-2),A.Y(0)-A.Y(v))});
-     uLine(g,t,0,h/2,w,h/2,EFF,{title:'effective number of choices at each step, before the cuts',n,col:t.ok,ym:Math.max(8,...EFF),dots:EFF.length<45});g.font=MONO;g.fillStyle=t.muted;g.textAlign='right';g.fillText('words written →',w-12,h-5)}}
-   const wd=text.slice(3).map(i=>VOC[i]),pr=wd.slice(0,np0-3).join(' '),rest=wd.slice(np0-3);let s='';rest.forEach(x=>{s+=x==='.'?'.':' '+x});outEl.innerHTML='<b>'+pr+'</b>'+s.replace(/\. /g,'. ')+(phase==='gen'&&rest.length<MAXW?' ▌':'');
-   live.textContent=msg;uCur(root,'ns',cu);setR(root,'ph',phase==='train'?(ts?'Training, step '+ts+' of '+MAXS:'Not started'):rest.length>=MAXW?'Finished':'Writing');setR(root,'n',rest.length+' of '+MAXW);setR(root,'pk',isFinite(lastP)?pct(lastP):'–');setR(root,'al',dist?dist.m+' of '+V:'–');setR(root,'ef',dist?f2(dist.eff):'–');setR(root,'sp',SUR.length?f2(SUR.reduce((a,b)=>a+b,0)/SUR.length):'–');setR(root,'rp',rest.length?String(reps()):'–')};
-  build();calc();if(RM){train(MAXS);while(text.length-np0<MAXW)gstep()}
-  const anim=Anim(()=>{fr++;if(phase==='train'){train(ts<40?1:4);draw();chk();return}if(fr%22===0){gstep();draw();chk()}});pb=playBtn($('#ns-play',root),anim);chk=runCtl(pb,root,'ns',{done:()=>phase==='gen'&&text.length-np0>=MAXW,restart:()=>{setPrompt();calc()},count:()=>phase==='train'?0:text.length-np0,what:'words'});
-  const re=()=>{if(phase!=='gen')return;calc();pickI=-1;draw()};
-  $('#ns-step',root).onclick=()=>{pb.stop();if(phase==='train')train(50);else if(text.length-np0>=MAXW){setPrompt();calc();msg='The text is back to the prompt. Press Run or One word.'}else gstep();draw()};$('#ns-reset',root).onclick=()=>{pb.stop();run++;build();calc();draw()};
-  const bt=bind(root,'ns-t',v=>{S.t=+v;re()},f2),bk=bind(root,'ns-k',v=>{S.k=+v;re()},v=>+v>=40?'all':String(v)),bp=bind(root,'ns-p',v=>{S.p=+v;re()},f2);
-  const PRE={greedy:[.1,1,1],pure:[1,40,1],topk:[1,5,1],topp:[1,40,.9],hot:[2.2,40,1]};segBind(root,'ns-pre','pure',v=>{const q=PRE[v];S.t=q[0];S.k=q[1];S.p=q[2];bt.set(q[0]);bk.set(q[1]);bp.set(q[2]);if(phase==='gen'){pb.stop();setPrompt();calc();draw();pb.start()}});
-  $('#ns-pr',root).onchange=()=>{pb.stop();setPrompt();if(phase==='gen'){calc();msg='New prompt. The bars show what the network expects next.'}else calc();draw()};
-  return{draw,stop:()=>pb.stop(),auto:()=>{run++;build();calc();draw();pb.start()}}}},
-{id:'rag',tab:'Retrieval-augmented generation',title:'Retrieval-augmented generation: look it up, then answer',
- lede:'A language model only knows what was in its training text. It has never read your course handbook, last week’s report, or anything written after it was trained, and when asked about them it may invent an answer. Retrieval-augmented generation, or RAG, is the fix used almost everywhere: first search a collection of documents for the passages closest to the question, then hand those passages to the model together with the question. Here the search is real, and you can add your own passage and ask about it.',
- stage:`<div class="row seg" id="rg-q" role="group" aria-label="Example questions"></div>
+    q: 'A student sets the temperature to 0.1 and top-p to 0.9 and is surprised that changing top-p no longer does anything. Why not?',
+    a: 'The temperature is applied first. At 0.1 the differences between scores are multiplied by ten before the softmax, so almost all of the probability lands on the single most likely word, often more than 0.99 of it. Top-p then keeps the smallest set of words that reaches 0.9, and that set is already just the one word. The cut has nothing left to remove. The two settings are not independent: a low temperature makes every cut irrelevant, and a very high temperature makes the cut do all the work.',
+    init(root) {
+      const c = $('#ns-c', root),
+        cr = $('#ns-r', root),
+        live = $('#ns-live', root),
+        outEl = $('#ns-out', root),
+        S = { t: 1, k: 40, p: 1 },
+        CTX = 3,
+        ED = 12,
+        MAXS = 700,
+        MAXW = 40,
+        SENT = [
+          'the cat sat on the mat',
+          'the dog sat on the rug',
+          'the cat chased the mouse',
+          'the dog chased the cat',
+          'the mouse ate the cheese',
+          'the cat drank the milk',
+          'the dog ate the bone',
+          'the bird sang in the tree',
+          'the cat slept in the sun',
+          'the dog slept on the rug',
+          'the mouse hid under the mat',
+          'the bird flew over the tree',
+          'a small cat sat in the sun',
+          'a big dog sat under the tree',
+          'the small mouse ate the old cheese',
+          'the big dog chased the small cat',
+          'the old cat slept on the warm mat',
+          'the bird sang and the cat slept',
+          'the dog barked and the cat ran',
+          'the cat ran up the tree',
+          'the mouse ran under the rug',
+          'the bird ate the bread',
+          'the girl fed the cat',
+          'the boy fed the dog',
+          'the girl saw a small bird',
+          'the boy saw a big dog',
+          'the girl sat in the sun',
+          'the boy ran after the dog',
+          'the cat looked at the bird',
+          'the dog looked at the bone',
+          'the sun was warm and the cat was happy',
+          'the rain fell and the dog was sad',
+          'the girl was happy and the boy was happy',
+          'the mouse was small and the cheese was old',
+          'a small bird sat on the old tree',
+          'the big dog drank the milk',
+          'the girl saw the mouse and the mouse ran',
+          'the boy sat on the warm rug',
+          'the old dog slept in the sun',
+          'the cat hid under the rug',
+        ];
+      const VOC = ['.', ...new Set(SENT.join(' ').split(' '))],
+        V = VOC.length,
+        ix = (w) => VOC.indexOf(w);
+      let E,
+        W1,
+        b1,
+        W2,
+        b2,
+        ps,
+        ts = 0,
+        LL = [],
+        sm = [],
+        phase = 'train',
+        PX = [],
+        PY = [],
+        text = [],
+        np0 = 0,
+        dist = null,
+        msg = '',
+        cu = 0,
+        fr = 0,
+        pb,
+        chk = () => false,
+        run = 1,
+        SUR = [],
+        EFF = [],
+        lastP = NaN,
+        lastAl = NaN,
+        pickI = -1;
+      const fwd = (ctxs) => {
+        const B = ctxs.length / CTX,
+          x = AD.gather(E, Array.from(ctxs));
+        x.sh = [B, CTX * ED];
+        return AD.addb(AD.mm(AD.tanh(AD.addb(AD.mm(x, W1), b1)), W2), b2);
+      };
+      const build = () => {
+        const rn = randnFrom(rng(run * 13 + 7)),
+          r = rng(run * 5 + 1);
+        E = AD.param([V, ED], 0.5, rn);
+        W1 = AD.param([CTX * ED, 48], Math.sqrt(1 / (CTX * ED)), rn);
+        b1 = AD.param([48], 0, rn);
+        W2 = AD.param([48, V], Math.sqrt(1 / 48), rn);
+        b2 = AD.param([V], 0, rn);
+        ps = [E, W1, b1, W2, b2];
+        PX = [];
+        PY = [];
+        for (let e = 0; e < 6; e++) {
+          const o = SENT.map((s, i) => [r(), i])
+              .sort((a, b) => a[0] - b[0])
+              .map((q) => SENT[q[1]]),
+            st = ['.', '.', '.'].concat(o.join(' . ').split(' '), ['.']).map(ix);
+          for (let i = CTX; i < st.length; i++) {
+            PX.push(st[i - 3], st[i - 2], st[i - 1]);
+            PY.push(st[i]);
+          }
+        }
+        ts = 0;
+        LL = [];
+        sm = [];
+        phase = 'train';
+        cu = 0;
+        setPrompt();
+        msg =
+          'The network has ' +
+          V +
+          ' words in its vocabulary and random weights. Every word is equally likely to it. Press Run: it trains for a few seconds, then starts writing.';
+      };
+      const setPrompt = () => {
+        text = ['.', '.', '.'].concat($('#ns-pr', root).value.split(' ')).map(ix);
+        np0 = text.length;
+        SUR = [];
+        EFF = [];
+        dist = null;
+        lastP = NaN;
+        lastAl = NaN;
+        pickI = -1;
+      };
+      const train = (k) => {
+        const B = 64,
+          N = PY.length;
+        for (let q = 0; q < k && ts < MAXS; q++) {
+          const cx = new Int32Array(B * CTX),
+            tg = new Int32Array(B);
+          for (let i = 0; i < B; i++) {
+            const j = Math.floor(Math.random() * N);
+            cx[3 * i] = PX[3 * j];
+            cx[3 * i + 1] = PX[3 * j + 1];
+            cx[3 * i + 2] = PX[3 * j + 2];
+            tg[i] = PY[j];
+          }
+          const l = AD.ce(fwd(cx), tg, 0);
+          LL.push(l.v[0]);
+          AD.backward(l);
+          AD.adam(ps, 0.01 * Math.pow(0.2, ts / MAXS), ++ts, 1);
+          if (ts % 10 === 0) {
+            let s = 0;
+            for (let j = ts - 10; j < ts; j++) s += LL[j];
+            sm.push(s / 10);
+          }
+        }
+        cu = 0;
+        calc();
+        msg =
+          'Training step ' +
+          ts +
+          ' of ' +
+          MAXS +
+          ': the network was shown 64 groups of three words and asked for the next word each time. Its average surprise is ' +
+          f2((sm.length ? sm[sm.length - 1] : LL[ts - 1]) / Math.LN2) +
+          ' bits per word (a blind guess among ' +
+          V +
+          ' words costs ' +
+          f2(Math.log2(V)) +
+          ' bits). The bars show what it currently expects after “' +
+          text
+            .slice(-3)
+            .map((i) => VOC[i])
+            .join(' ')
+            .replace(/^[. ]+/, '') +
+          '”.';
+        if (ts >= MAXS) {
+          phase = 'gen';
+          cu = 1;
+          msg =
+            'Training is finished. The bars show the network’s probabilities for the word after “' +
+            text
+              .slice(np0 - 2)
+              .map((i) => VOC[i])
+              .join(' ') +
+            '”, with your settings applied. Press Run or One word.';
+        }
+      };
+      const calc = () => {
+        const z = fwd(Int32Array.from(text.slice(-3)));
+        AD.clear();
+        const n = V,
+          p1 = new Float64Array(n),
+          pt = new Float64Array(n);
+        let mx = -1e30;
+        for (let i = 0; i < n; i++) mx = Math.max(mx, z.v[i]);
+        let s1 = 0,
+          st = 0;
+        for (let i = 0; i < n; i++) {
+          p1[i] = Math.exp(z.v[i] - mx);
+          s1 += p1[i];
+          pt[i] = Math.exp((z.v[i] - mx) / S.t);
+          st += pt[i];
+        }
+        let H = 0;
+        for (let i = 0; i < n; i++) {
+          p1[i] /= s1;
+          pt[i] /= st;
+          if (pt[i] > 1e-12) H -= pt[i] * Math.log2(pt[i]);
+        }
+        const ord = Array.from({ length: n }, (_, i) => i).sort((a, b) => pt[b] - pt[a]),
+          keep = new Uint8Array(n);
+        let cum = 0,
+          m = 0;
+        for (const i of ord) {
+          if (m >= S.k) break;
+          keep[i] = 1;
+          m++;
+          cum += pt[i];
+          if (cum >= S.p - 1e-9) break;
+        }
+        const pf = new Float64Array(n);
+        for (let i = 0; i < n; i++) if (keep[i]) pf[i] = pt[i] / cum;
+        dist = { p1, pt, pf, ord, keep, m, eff: Math.pow(2, H) };
+      };
+      const gstep = () => {
+        if (phase !== 'gen' || text.length - np0 >= MAXW) return;
+        calc();
+        let u = Math.random(),
+          pick = dist.ord[0];
+        for (const i of dist.ord) {
+          if (!dist.keep[i]) continue;
+          u -= dist.pf[i];
+          pick = i;
+          if (u <= 0) break;
+        }
+        const prev = text
+          .slice(-3)
+          .map((i) => VOC[i])
+          .join(' ')
+          .replace(/^[. ]+/, '');
+        text.push(pick);
+        SUR.push(-Math.log2(Math.max(1e-9, dist.p1[pick])));
+        EFF.push(dist.eff);
+        lastP = dist.pf[pick];
+        lastAl = dist.m;
+        pickI = pick;
+        cu = 4;
+        const rk = dist.ord.indexOf(pick) + 1;
+        msg =
+          'After “' +
+          prev +
+          '” the network gave probabilities to all ' +
+          V +
+          ' words. With temperature ' +
+          f2(S.t) +
+          ' that amounts to about ' +
+          f2(dist.eff) +
+          ' real choices. The cuts left ' +
+          dist.m +
+          ' word' +
+          (dist.m > 1 ? 's' : '') +
+          '. The word drawn was “' +
+          VOC[pick] +
+          '”, the network’s choice number ' +
+          rk +
+          ', with probability ' +
+          pct(lastP) +
+          ' after rescaling.' +
+          (text.length - np0 >= MAXW ? ' That is ' + MAXW + ' words: finished.' : '');
+      };
+      const reps = () => {
+        const w = text.slice(3),
+          C = new Map();
+        let r = 0;
+        for (let i = 0; i + 3 <= w.length; i++) {
+          const k = w.slice(i, i + 3).join(',');
+          C.set(k, (C.get(k) || 0) + 1);
+        }
+        for (const v of C.values()) if (v > 1) r++;
+        return r;
+      };
+      const draw = () => {
+        const t = T();
+        {
+          const { g, w, h } = fit(c);
+          g.font = MONO;
+          if (!dist) {
+            g.fillStyle = t.muted;
+            g.textAlign = 'center';
+            g.fillText('press Run', w / 2, h / 2);
+          } else {
+            const NB = 14,
+              rh = Math.min(28, (h - 30) / NB),
+              x0 = 86,
+              mx = Math.max(0.05, dist.pt[dist.ord[0]], ...Array.from(dist.pf)),
+              W = w - x0 - 64;
+            g.fillStyle = t.muted;
+            g.textAlign = 'left';
+            g.fillText(
+              pickI >= 0 && phase === 'gen'
+                ? 'the choice just made: the 14 most likely words, of ' + V
+                : 'the 14 most likely next words, of ' + V,
+              8,
+              13,
+            );
+            for (let r = 0; r < NB; r++) {
+              const i = dist.ord[r],
+                y = 22 + r * rh,
+                kept = dist.keep[i],
+                pk = i === pickI && phase === 'gen';
+              g.fillStyle = mix(t.accent, t.accent, 0, 0.25);
+              g.fillRect(x0, y + 3, Math.max(1, (W * dist.pt[i]) / mx), rh - 7);
+              if (kept) {
+                g.fillStyle = pk ? t.gold : t.accent;
+                g.fillRect(x0, y + rh * 0.3, Math.max(1, (W * dist.pf[i]) / mx), rh * 0.4);
+              }
+              g.font = '12px ' + MONO.split('px ')[1];
+              g.textAlign = 'right';
+              g.fillStyle = kept ? (pk ? t.cut : t.ink) : t.muted;
+              const lab = VOC[i] === '.' ? '. (end)' : VOC[i];
+              g.fillText(lab, x0 - 8, y + rh / 2 + 4);
+              if (!kept) {
+                const tw = g.measureText(lab).width;
+                g.strokeStyle = t.muted;
+                g.lineWidth = 1;
+                g.beginPath();
+                g.moveTo(x0 - 8 - tw, y + rh / 2);
+                g.lineTo(x0 - 8, y + rh / 2);
+                g.stroke();
+              }
+              g.font = MONO;
+              g.textAlign = 'left';
+              g.fillStyle = t.muted;
+              g.fillText(
+                kept ? (100 * dist.pf[i]).toFixed(1) + '%' : 'cut',
+                x0 + Math.max((W * dist.pt[i]) / mx, kept ? (W * dist.pf[i]) / mx : 0) + 6,
+                y + rh / 2 + 4,
+              );
+            }
+          }
+        }
+        {
+          const { g, w, h } = fit(cr);
+          if (phase === 'train')
+            uLine(
+              g,
+              t,
+              0,
+              0,
+              w,
+              h,
+              sm.map((v) => v / Math.LN2),
+              {
+                title: 'training: average surprise at the true next word, in bits',
+                n: MAXS / 10,
+                col: t.ok,
+                ym: Math.log2(V) * 1.05,
+              },
+            );
+          else {
+            const n = Math.max(MAXW, SUR.length),
+              A = uLine(g, t, 0, 0, w, h / 2, [], {
+                title: 'surprise of each chosen word, in bits (by the network’s own odds)',
+                n,
+                ym: Math.max(6, ...SUR),
+              }),
+              bw = (w - A.m.l - A.m.r) / n;
+            SUR.forEach((v, i) => {
+              g.fillStyle = i === SUR.length - 1 ? t.gold : mix(t.accent, t.accent, 0, 0.75);
+              g.fillRect(A.m.l + i * bw + 1, A.Y(v), Math.max(1, bw - 2), A.Y(0) - A.Y(v));
+            });
+            uLine(g, t, 0, h / 2, w, h / 2, EFF, {
+              title: 'effective number of choices at each step, before the cuts',
+              n,
+              col: t.ok,
+              ym: Math.max(8, ...EFF),
+              dots: EFF.length < 45,
+            });
+            g.font = MONO;
+            g.fillStyle = t.muted;
+            g.textAlign = 'right';
+            g.fillText('words written →', w - 12, h - 5);
+          }
+        }
+        const wd = text.slice(3).map((i) => VOC[i]),
+          pr = wd.slice(0, np0 - 3).join(' '),
+          rest = wd.slice(np0 - 3);
+        let s = '';
+        rest.forEach((x) => {
+          s += x === '.' ? '.' : ' ' + x;
+        });
+        outEl.innerHTML =
+          '<b>' +
+          pr +
+          '</b>' +
+          s.replace(/\. /g, '. ') +
+          (phase === 'gen' && rest.length < MAXW ? ' ▌' : '');
+        live.textContent = msg;
+        uCur(root, 'ns', cu);
+        setR(
+          root,
+          'ph',
+          phase === 'train'
+            ? ts
+              ? 'Training, step ' + ts + ' of ' + MAXS
+              : 'Not started'
+            : rest.length >= MAXW
+              ? 'Finished'
+              : 'Writing',
+        );
+        setR(root, 'n', rest.length + ' of ' + MAXW);
+        setR(root, 'pk', isFinite(lastP) ? pct(lastP) : '–');
+        setR(root, 'al', dist ? dist.m + ' of ' + V : '–');
+        setR(root, 'ef', dist ? f2(dist.eff) : '–');
+        setR(root, 'sp', SUR.length ? f2(SUR.reduce((a, b) => a + b, 0) / SUR.length) : '–');
+        setR(root, 'rp', rest.length ? String(reps()) : '–');
+      };
+      build();
+      calc();
+      if (RM) {
+        train(MAXS);
+        while (text.length - np0 < MAXW) gstep();
+      }
+      const anim = Anim(() => {
+        fr++;
+        if (phase === 'train') {
+          train(ts < 40 ? 1 : 4);
+          draw();
+          chk();
+          return;
+        }
+        if (fr % 22 === 0) {
+          gstep();
+          draw();
+          chk();
+        }
+      });
+      pb = playBtn($('#ns-play', root), anim);
+      chk = runCtl(pb, root, 'ns', {
+        done: () => phase === 'gen' && text.length - np0 >= MAXW,
+        restart: () => {
+          setPrompt();
+          calc();
+        },
+        count: () => (phase === 'train' ? 0 : text.length - np0),
+        what: 'words',
+      });
+      const re = () => {
+        if (phase !== 'gen') return;
+        calc();
+        pickI = -1;
+        draw();
+      };
+      $('#ns-step', root).onclick = () => {
+        pb.stop();
+        if (phase === 'train') train(50);
+        else if (text.length - np0 >= MAXW) {
+          setPrompt();
+          calc();
+          msg = 'The text is back to the prompt. Press Run or One word.';
+        } else gstep();
+        draw();
+      };
+      $('#ns-reset', root).onclick = () => {
+        pb.stop();
+        run++;
+        build();
+        calc();
+        draw();
+      };
+      const bt = bind(
+          root,
+          'ns-t',
+          (v) => {
+            S.t = +v;
+            re();
+          },
+          f2,
+        ),
+        bk = bind(
+          root,
+          'ns-k',
+          (v) => {
+            S.k = +v;
+            re();
+          },
+          (v) => (+v >= 40 ? 'all' : String(v)),
+        ),
+        bp = bind(
+          root,
+          'ns-p',
+          (v) => {
+            S.p = +v;
+            re();
+          },
+          f2,
+        );
+      const PRE = {
+        greedy: [0.1, 1, 1],
+        pure: [1, 40, 1],
+        topk: [1, 5, 1],
+        topp: [1, 40, 0.9],
+        hot: [2.2, 40, 1],
+      };
+      segBind(root, 'ns-pre', 'pure', (v) => {
+        const q = PRE[v];
+        S.t = q[0];
+        S.k = q[1];
+        S.p = q[2];
+        bt.set(q[0]);
+        bk.set(q[1]);
+        bp.set(q[2]);
+        if (phase === 'gen') {
+          pb.stop();
+          setPrompt();
+          calc();
+          draw();
+          pb.start();
+        }
+      });
+      $('#ns-pr', root).onchange = () => {
+        pb.stop();
+        setPrompt();
+        if (phase === 'gen') {
+          calc();
+          msg = 'New prompt. The bars show what the network expects next.';
+        } else calc();
+        draw();
+      };
+      return {
+        draw,
+        stop: () => pb.stop(),
+        auto: () => {
+          run++;
+          build();
+          calc();
+          draw();
+          pb.start();
+        },
+      };
+    },
+  },
+  {
+    id: 'rag',
+    tab: 'Retrieval-augmented generation',
+    title: 'Retrieval-augmented generation: look it up, then answer',
+    lede: 'A language model only knows what was in its training text. It has never read your course handbook, last week’s report, or anything written after it was trained, and when asked about them it may invent an answer. Retrieval-augmented generation, or RAG, is the fix used almost everywhere: first search a collection of documents for the passages closest to the question, then hand those passages to the model together with the question. Here the search is real, and you can add your own passage and ask about it.',
+    stage: `<div class="row seg" id="rg-q" role="group" aria-label="Example questions"></div>
  <p style="margin:14px 0 2px;font-size:.86rem;color:var(--muted)">Or type your own question and press Enter</p><input type="text" id="rg-in" aria-label="Your question" autocomplete="off" spellcheck="false" style="display:block;width:100%;max-width:760px;font:inherit;font-size:1.08rem;padding:7px 2px;border:0;border-bottom:1px solid var(--muted);background:none;color:inherit;margin:0 0 20px">
  <div class="stage"><figure class="fig"><figcaption>Every passage as a point, placed by the words it uses and squeezed from many dimensions into two. The gold diamond is the question. Lines join it to the passages that were retrieved</figcaption><canvas class="short" id="rg-c" role="img" aria-label="Map of passages and the question"></canvas></figure>
  <figure class="fig"><figcaption>The exact similarity between the question and every passage, best first. Gold bars are the ones sent to the model</figcaption><canvas class="short" id="rg-r" role="img" aria-label="Similarity of each passage to the question"></canvas></figure></div>
  <div class="stage" style="margin-top:22px"><figure class="fig"><figcaption>The prompt that is actually sent to the language model</figcaption><pre class="ragbox" id="rg-prompt"></pre></figure>
  <figure class="fig"><figcaption>The answer</figcaption><p class="ragans" id="rg-ans" role="status"></p></figure></div>
- ${uHow('rg',['Beforehand: cut the documents into passages and turn each passage into a list of numbers, its embedding. Store them.','A question arrives. Turn it into an embedding in exactly the same way.','Compare the question with every stored passage and score how close they are.','Keep the k closest passages.','Write a prompt: the retrieved passages, then the question, then an instruction to answer only from the passages.','The language model answers from what is in front of it, and can say which passage it used.'])}
- <div class="controls">${uBtns('rg','Run','One step')}
- ${grp('Retrieval',slider('rg-k','Passages to retrieve, k',1,5,1,2)+`<div class="row seg" id="rg-mode" role="group" aria-label="Mode"><button class="btn" type="button" data-v="on">With Retrieval</button><button class="btn" type="button" data-v="off">Without Retrieval</button></div>`)}
- ${grp('Add your own passage',`<textarea id="rg-add" rows="3" style="width:100%;font:inherit;font-size:.85rem;border:1px solid var(--line);background:none;color:inherit;padding:6px" aria-label="A new passage" placeholder="For example: The chess club meets on Fridays at 4 pm in room 12."></textarea><div class="row"><button class="btn" id="rg-addb" type="button">Add to the Collection</button><button class="btn" id="rg-resetc" type="button">Back to the Original Collection</button></div><p class="status" id="rg-st" role="status"></p>`)}</div>
- <dl class="read">${rd('nd','Passages in the collection')}${rd('nv','Different words: the number of dimensions')}${rd('qw','Words of the question that carry weight')}${rd('best','Best similarity found','hl')}${rd('sent','Passages sent to the model')}${rd('pl','Length of the prompt, in words','hl2')}</dl>`,
- tryit:'Press One step repeatedly and follow the question through the pipeline. Then try the example questions. For “Who teaches machine learning?” set k to 1 and then to 2: which passage holds the answer, and was it ranked first? The search matched on “machine learning” and missed that “teaches” and “taught” are the same idea. Ask “What is the wifi password?”: nothing in the handbook covers it, and the system should say so. Switch to Without Retrieval and ask about the final project: what can a model do with only the question? Then write a passage of your own, add it, and ask a question about it. Finally ask the same thing using different words from the ones in your passage. Does the search still find it?',
- math:String.raw`<h4>Intuition</h4><p>There are two kinds of exam. In a closed-book exam you answer from memory, and when memory fails you are tempted to write something that merely sounds right. In an open-book exam you first find the right page and then answer from what it says. A language model on its own always sits the closed-book exam. Retrieval turns it into an open-book one. The model does not become more knowledgeable. It is handed the right page at the moment it needs it. Everything then depends on finding the right page.</p>
+ ${uHow('rg', ['Beforehand: cut the documents into passages and turn each passage into a list of numbers, its embedding. Store them.', 'A question arrives. Turn it into an embedding in exactly the same way.', 'Compare the question with every stored passage and score how close they are.', 'Keep the k closest passages.', 'Write a prompt: the retrieved passages, then the question, then an instruction to answer only from the passages.', 'The language model answers from what is in front of it, and can say which passage it used.'])}
+ <div class="controls">${uBtns('rg', 'Run', 'One step')}
+ ${grp('Retrieval', slider('rg-k', 'Passages to retrieve, k', 1, 5, 1, 2) + `<div class="row seg" id="rg-mode" role="group" aria-label="Mode"><button class="btn" type="button" data-v="on">With Retrieval</button><button class="btn" type="button" data-v="off">Without Retrieval</button></div>`)}
+ ${grp('Add your own passage', `<textarea id="rg-add" rows="3" style="width:100%;font:inherit;font-size:.85rem;border:1px solid var(--line);background:none;color:inherit;padding:6px" aria-label="A new passage" placeholder="For example: The chess club meets on Fridays at 4 pm in room 12."></textarea><div class="row"><button class="btn" id="rg-addb" type="button">Add to the Collection</button><button class="btn" id="rg-resetc" type="button">Back to the Original Collection</button></div><p class="status" id="rg-st" role="status"></p>`)}</div>
+ <dl class="read">${rd('nd', 'Passages in the collection')}${rd('nv', 'Different words: the number of dimensions')}${rd('qw', 'Words of the question that carry weight')}${rd('best', 'Best similarity found', 'hl')}${rd('sent', 'Passages sent to the model')}${rd('pl', 'Length of the prompt, in words', 'hl2')}</dl>`,
+    tryit:
+      'Press One step repeatedly and follow the question through the pipeline. Then try the example questions. For “Who teaches machine learning?” set k to 1 and then to 2: which passage holds the answer, and was it ranked first? The search matched on “machine learning” and missed that “teaches” and “taught” are the same idea. Ask “What is the wifi password?”: nothing in the handbook covers it, and the system should say so. Switch to Without Retrieval and ask about the final project: what can a model do with only the question? Then write a passage of your own, add it, and ask a question about it. Finally ask the same thing using different words from the ones in your passage. Does the search still find it?',
+    math: String.raw`<h4>Intuition</h4><p>There are two kinds of exam. In a closed-book exam you answer from memory, and when memory fails you are tempted to write something that merely sounds right. In an open-book exam you first find the right page and then answer from what it says. A language model on its own always sits the closed-book exam. Retrieval turns it into an open-book one. The model does not become more knowledgeable. It is handed the right page at the moment it needs it. Everything then depends on finding the right page.</p>
  <h4>Embeddings: text as a point</h4><p>To search by meaning, every passage \(d\) is turned into a vector \(\mathbf e(d)\). This page uses the classical choice, <b>TF-IDF</b>. There is one coordinate for every word \(w\) in the collection, and its value is</p>$$e_w(d)=\mathrm{tf}(w,d)\cdot\log\frac{N+1}{\mathrm{df}(w)+1},$$<p>where \(\mathrm{tf}\) counts how often the word occurs in the passage, \(N\) is the number of passages and \(\mathrm{df}(w)\) is the number of passages that contain the word. A word that appears everywhere, such as "student", gets a small weight. A word that appears in one passage, such as "parking", gets a large one. Very common words like "the" are dropped. The question is embedded in the same way.</p>
  <h4>Scoring</h4><p>Closeness is measured by <b>cosine similarity</b>, the cosine of the angle between two vectors:</p>$$\mathrm{sim}(q,d)=\frac{\mathbf e(q)\cdot\mathbf e(d)}{\lVert\mathbf e(q)\rVert\,\lVert\mathbf e(d)\rVert}.$$<p>It is 1 when the two texts use the same words in the same proportions and 0 when they share no weighted word. Dividing by the lengths means a long passage does not win merely by being long. The right-hand chart shows this number for every passage.</p>
  <h4>Retrieve, then generate</h4><p>The \(k\) passages with the highest similarity are pasted into the prompt in front of the question. The model then computes its usual next-token probabilities, now conditioned on the retrieved text:</p>$$p(\text{answer}\mid\text{question})\ \longrightarrow\ p\big(\text{answer}\mid\text{passage}_1,\dots,\text{passage}_k,\ \text{question}\big).$$<p>Nothing about the model changes: no training, no new weights. That is the appeal. Updating what the system knows means editing the collection, which takes seconds.</p>
@@ -132,64 +985,536 @@ const LML=[
  <h4>Where it fails</h4><p>Most failures of RAG are failures of the search, and you can produce each of them here. <b>Vocabulary mismatch</b>: the question says "teaches" and the passage says "taught", so a word-matching search sees no overlap. <b>Nothing relevant exists</b>: the search still returns its \(k\) best passages, however poor, so a good system checks the score and is told to say "I do not know". <b>The answer is split</b> across two passages and only one is retrieved. <b>Bad chunking</b>: a passage was cut in the middle of the fact.</p>
  <h4>Dense embeddings</h4><p>Modern systems replace TF-IDF with a neural network that maps text to a vector of a few hundred to a few thousand numbers, trained so that texts with the same meaning land close together even when they share no words. With such embeddings "who teaches" and "is taught by" are neighbours. The rest of the pipeline is exactly what you see here: embed, score with cosine similarity, take the top \(k\), build the prompt. Many systems combine the two kinds of search, because exact word matching is still the best way to find names, codes and numbers.</p>
  <h4>What this page does, and what stands in for the model</h4><p>The embedding, the similarity scores, the ranking and the prompt are all computed for real in your browser. The map squeezes the embeddings into two dimensions with PCA, so nearness on the map is only a rough guide and the bar chart is the exact picture. There is no large language model inside this page. Its place is taken by a simple reader that picks, from the retrieved passages, the sentence that best matches the question and the kind of answer asked for (a name for “who”, a number for “how many”), and that refuses when the best similarity is below 0.12. A real model would phrase the answer in its own words and could combine several passages. It could not do better than the passages it was given.</p>`,
- q:'A company adds retrieval to its chatbot, and the bot still answers a question about the refund policy wrongly. The refund policy is in the document collection. Name two different places the failure could be, and how you would tell them apart.',a:'First look at what was retrieved. If the refund passage is not among the k passages in the prompt, the search failed: perhaps the customer’s wording shares no words with the passage, or the passage was cut badly, or k is too small. The fix is in the retrieval. If the passage is in the prompt and the answer is still wrong, the model failed to use it: perhaps it was buried among many irrelevant passages, or the instruction to answer only from the passages was weak. Reading the actual prompt, as this page lets you do, separates the two cases at once.',
- init(root){const c=$('#rg-c',root),cr=$('#rg-r',root),live=$('#rg-live',root),inp=$('#rg-in',root),st=$('#rg-st',root),S={k:2,mode:'on'},TH=.12,
-   BASE=['The library is open from 8 am to 10 pm on weekdays and from 10 am to 6 pm on weekends.','Students may borrow up to twelve books at a time. Each loan lasts three weeks and can be renewed twice.','The machine learning course is taught by Professor Okafor on Tuesday and Thursday mornings in room 204.','The final project for the machine learning course is due on December 12. It counts for forty percent of the grade.','Homework may be submitted up to two days late. The penalty is ten percent per day.','The computing cluster has sixteen graphics cards. Each student may reserve one card for up to eight hours a day.','To reserve the computing cluster, book a slot on the lab calendar at least one day in advance.','The cafeteria serves lunch from 11:30 am to 2 pm. A vegetarian meal costs six dollars.','Parking permits cost forty dollars per semester. They are sold at the security office in the Hale building.','The tutoring centre offers free help with statistics and programming every afternoon from 3 pm to 5 pm.','Exam results are published on the student portal within ten working days of the exam.','A student who misses an exam because of illness must send a doctor’s note to the registrar within five days.','The campus shuttle runs every twenty minutes between the main gate and the train station until 9 pm.','Printing costs five cents per page in black and white and twenty cents per page in colour.'],
-   QS=['When is the final project due?','How many books can I borrow?','How much does a parking permit cost?','Who teaches machine learning?','Can I hand in homework late?','What is the wifi password?'],
-   STOP=new Set('a an the is are was were be been of to in on at by for from with and or it its this that these those i me my we you your he she they them do does did can could may might must will would should what when where who whom which how why as up per each every than then there here not no so if into about over under out any some much many have has had get'.split(' '));
-  let docs=BASE.slice(),voc=[],idf=[],DV=[],PC=[],ax=null,mean=null,q='',qv=null,qxy=[0,0],sims=[],rank=[],ph=0,msg='',fr=0,pb,qtop=[],flyU=1;
-  const stem=w=>{w=w.replace(/[’']s$/,'');if(w.length>4&&w.endsWith('ies'))return w.slice(0,-3)+'y';if(w.length>4&&/(ches|shes|sses|xes)$/.test(w))return w.slice(0,-2);if(w.length>3&&w.endsWith('s')&&!/(ss|us|is)$/.test(w))w=w.slice(0,-1);return w};
-  const toks=s=>(s.toLowerCase().match(/[a-zà-ÿ0-9:’']+/g)||[]).map(stem).filter(w=>w&&!STOP.has(w));
-  const vec=s=>{const v=new Float64Array(voc.length);for(const w of toks(s)){const i=voc.indexOf(w);if(i>=0)v[i]+=idf[i]}return v};
-  const nrm=v=>Math.sqrt(v.reduce((s,x)=>s+x*x,0)),cosv=(a,b)=>{const na=nrm(a),nb=nrm(b);if(!na||!nb)return 0;let s=0;for(let i=0;i<a.length;i++)s+=a[i]*b[i];return s/(na*nb)};
-  const index=()=>{const T2=docs.map(toks);voc=[...new Set(T2.flat())];const N=docs.length;idf=voc.map(w=>Math.log((N+1)/(T2.filter(t=>t.includes(w)).length+1)));DV=docs.map(vec).map(v=>{const n=nrm(v)||1;return v.map(x=>x/n)});
-   mean=new Float64Array(voc.length);DV.forEach(v=>v.forEach((x,i)=>mean[i]+=x/N));const Xc=DV.map(v=>v.map((x,i)=>x-mean[i])),G=Xc.map(a=>Xc.map(b=>{let s=0;for(let i=0;i<a.length;i++)s+=a[i]*b[i];return s})),J=jacobi(G);
-   ax=[0,1].map(j=>{const u=new Float64Array(voc.length),l=Math.sqrt(Math.max(1e-12,J.val[j]));Xc.forEach((x,i)=>{for(let d=0;d<u.length;d++)u[d]+=x[d]*J.vec[j][i]/l});return u});PC=Xc.map(x=>ax.map(u=>{let s=0;for(let d=0;d<u.length;d++)s+=x[d]*u[d];return s}))};
-  const ask=()=>{q=inp.value.trim();const v=vec(q),n=nrm(v)||1;qv=v.map(x=>x/n);qxy=nrm(v)?ax.map(u=>{let s=0;for(let d=0;d<u.length;d++)s+=(qv[d]-mean[d])*u[d];return s}):[0,0];sims=DV.map(d=>cosv(qv,d));rank=sims.map((s,i)=>i).sort((a,b)=>sims[b]-sims[a]);
-   qtop=[...new Set(toks(q))].map(w=>[w,voc.indexOf(w)]).map(([w,i])=>[w,i<0?0:idf[i]]).sort((a,b)=>b[1]-a[1])};
-  const sentBest=()=>{const ql=q.toLowerCase(),kind=/^who\b/.test(ql)?/Professor|Dr\.|Ms\.|Mr\./:/^when\b|what time|what day/.test(ql)?/\d|monday|tuesday|wednesday|thursday|friday|saturday|sunday|january|february|march|april|june|july|august|september|october|november|december/i:/^how (much|many|long|often)/.test(ql)?/\d|\b(one|two|three|four|five|six|eight|ten|twelve|sixteen|twenty|forty)\b/i:null;let best='',bs=-1,bd=-1;for(const i of rank.slice(0,S.k))for(const s of docs[i].match(/[^.!?]+(?:[.!?](?=\s|$)|$)/g)||[docs[i]]){const sc=cosv(qv,vec(s))+.15*sims[i]+(kind&&kind.test(s)?.25:0);if(sc>bs){bs=sc;best=s.trim();bd=i}}return{best,bd}};
-  const prompt=()=>S.mode==='off'?'Question: '+q+'\n\nAnswer:':'Answer the question using only the passages below. If the answer is not in them, say that you do not know.\n\n'+rank.slice(0,S.k).map((i,j)=>'Passage '+(j+1)+': '+docs[i]).join('\n')+'\n\nQuestion: '+q+'\n\nAnswer:';
-  const MSG=()=>{const known=qtop.filter(x=>x[1]>0),b=rank[0];return['The collection holds '+docs.length+' passages. Each has been turned into a list of '+voc.length+' numbers, one for every different word, and stored. Press Run or One step to send the question through.',
-    'The question was turned into numbers in the same way. '+(known.length?'The words that carry weight are: '+known.slice(0,5).map(x=>x[0]+' ('+f2(x[1])+')').join(', ')+'.':'None of its words appears anywhere in the collection, so its embedding is empty.')+(qtop.length>known.length?' Not in any passage, so ignored: '+qtop.filter(x=>x[1]<=0).map(x=>x[0]).join(', ')+'.':''),
-    'The question was compared with all '+docs.length+' passages. The closest scores '+f2(sims[b])+': “'+docs[b].slice(0,70)+(docs[b].length>70?'…':'')+'”. '+(sims[b]<TH?'That is a very weak match.':'The next best scores '+f2(sims[rank[1]])+'.'),
-    'The '+S.k+' closest passage'+(S.k>1?'s are':' is')+' kept: number'+(S.k>1?'s ':' ')+rank.slice(0,S.k).map(i=>i+1).join(', ')+' in the collection. The other '+(docs.length-S.k)+' are never shown to the model.',
-    S.mode==='off'?'Without retrieval the prompt is only the question, '+prompt().split(/\s+/).length+' words. The model has nothing to read.':'The prompt has been written: an instruction, the '+S.k+' retrieved passage'+(S.k>1?'s':'')+', then the question. It is '+prompt().split(/\s+/).length+' words long. This text is everything the model will see.',
-    S.mode==='off'?'The model answered from memory alone, and this handbook was never in its memory.':sims[b]<TH?'The best match was below '+TH+', so the reader declined to answer instead of guessing.':'The reader found its answer in passage '+(sentBest().bd+1)+' and copied the sentence that fits the question best.'][ph]};
-  const answer=()=>{const el=$('#rg-ans',root);if(ph<5){el.textContent='…';el.style.opacity=.4;return}el.style.opacity=1;if(S.mode==='off'){el.innerHTML='<b>No passages were supplied.</b> A model that has never read this handbook cannot know the answer. A careful one says so. A careless one produces a fluent guess, and nothing in the guess would tell you it was invented.';return}
-   if(!sims.length||sims[rank[0]]<TH){el.innerHTML='<b>I do not know.</b> Nothing in the collection is close enough to this question (best similarity '+f2(sims[rank[0]]||0)+').';return}const a=sentBest();el.innerHTML='<b>'+a.best.replace(/</g,'&lt;')+'</b><br><span style="color:var(--muted);font-size:.86rem">Source: passage '+(a.bd+1)+' of the collection, similarity '+f2(sims[a.bd])+'. Copied by a simple reader that stands in for the language model.</span>'};
-  const draw=()=>{const t=T(),top=new Set(ph>=3&&S.mode==='on'?rank.slice(0,S.k):[]);
-   {const{g,w,h}=fit(c),xs=PC.map(p=>p[0]).concat(ph>=1?[qxy[0]]:[]),ys=PC.map(p=>p[1]).concat(ph>=1?[qxy[1]]:[]),x0=Math.min(...xs),x1=Math.max(...xs),y0=Math.min(...ys),y1=Math.max(...ys),X=v=>50+(v-x0)/((x1-x0)||1)*(w-150),Y=v=>h-34-(v-y0)/((y1-y0)||1)*(h-70);
-    const qx=X(qxy[0]),qy=Y(qxy[1]);if(ph>=3&&S.mode==='on')rank.slice(0,S.k).forEach(i=>{g.strokeStyle=t.gold;g.lineWidth=1+5*sims[i];g.beginPath();g.moveTo(qx,qy);g.lineTo(qx+(X(PC[i][0])-qx)*flyU,qy+(Y(PC[i][1])-qy)*flyU);g.stroke()});
-    PC.forEach((p,i)=>{const hot=top.has(i),s=ph>=2?sims[i]:0;g.beginPath();g.arc(X(p[0]),Y(p[1]),hot?8:5+6*s,0,7);g.fillStyle=hot?t.gold:mix(t.accent,t.accent,0,.35+.6*Math.min(1,s*2));g.fill();g.strokeStyle=t.bg;g.lineWidth=1.5;g.stroke();g.font=MONO;g.fillStyle=hot?t.cut:t.muted;g.textAlign='left';const lab=(i+1)+' '+toks(docs[i]).sort((a,b)=>idf[voc.indexOf(b)]-idf[voc.indexOf(a)]).slice(0,2).join(' ');g.fillText(lab,X(p[0])+10,Y(p[1])+4)});
-    if(ph>=1)markTP(g,qx,qy,t,false);g.font=MONO;g.fillStyle=t.muted;g.textAlign='left';g.fillText('each label: passage number and its two most distinctive words',8,h-8)}
-   {const{g,w,h}=fit(cr),n=docs.length,rh=Math.min(24,(h-30)/n),x0=88,W=w-x0-50;g.font=MONO;g.fillStyle=t.muted;g.textAlign='left';g.fillText(ph>=2?'cosine similarity to the question, best first':'the scores appear at step 3',8,13);
-    if(ph>=2){rank.forEach((i,r)=>{const y=22+r*rh,hot=top.has(i);g.fillStyle=hot?t.gold:mix(t.accent,t.accent,0,.6);g.fillRect(x0,y+3,Math.max(1,W*sims[i]),rh-6);g.fillStyle=hot?t.cut:t.muted;g.textAlign='right';g.fillText('passage '+(i+1),x0-6,y+rh/2+4);g.textAlign='left';g.fillText(f2(sims[i]),x0+W*sims[i]+6,y+rh/2+4)});
-     g.setLineDash([4,4]);g.strokeStyle=t.cut;g.lineWidth=1;g.beginPath();g.moveTo(x0+W*TH,20);g.lineTo(x0+W*TH,22+n*rh);g.stroke();g.setLineDash([]);g.fillStyle=t.cut;g.textAlign='left';g.fillText('below this line: too weak to trust',x0+W*TH+5,22+n*rh+12)}}
-   const pe=$('#rg-prompt',root);pe.textContent=ph>=4?prompt():'The prompt is written at step 5.';pe.style.opacity=ph>=4?1:.4;answer();live.textContent=MSG();uCur(root,'rg',ph);
-   setR(root,'nd',String(docs.length));setR(root,'nv',String(voc.length));setR(root,'qw',ph>=1?(qtop.filter(x=>x[1]>0).map(x=>x[0]).join(', ')||'none'):'–');setR(root,'best',ph>=2?f2(sims[rank[0]]):'–');setR(root,'sent',ph>=3?(S.mode==='on'?String(S.k):'0'):'–');setR(root,'pl',ph>=4?String(prompt().split(/\s+/).length):'–')};
-  const go2=p=>{ph=p;if(p===3)flyU=RM?1:0};
-  $('#rg-q',root).innerHTML=QS.map((s,i)=>'<button class="btn" type="button" data-v="'+i+'">'+s+'</button>').join('');inp.value=QS[0];index();ask();if(RM)ph=5;
-  const anim=Anim(()=>{fr++;if(flyU<1){flyU=Math.min(1,flyU+.06);draw();return}if(fr%70)return;if(ph>=5){pb.stop();return}go2(ph+1);draw();if(ph>=5)pb.stop()});pb=playBtn($('#rg-play',root),anim);const st0=pb.start;pb.start=()=>{if(ph>=5){ph=0;draw()}st0()};
-  const again=()=>{pb.stop();ask();ph=0;flyU=1;draw();pb.start()};
-  $('#rg-step',root).onclick=()=>{pb.stop();go2(ph>=5?0:ph+1);flyU=1;draw()};$('#rg-reset',root).onclick=()=>{pb.stop();ask();ph=0;draw()};
-  segBind(root,'rg-q','0',v=>{inp.value=QS[+v];again()});inp.addEventListener('change',again);inp.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();again()}});
-  bind(root,'rg-k',v=>{S.k=Math.min(+v,docs.length);if(ph>=3){flyU=1;draw()}},v=>String(v));segBind(root,'rg-mode',S.mode,v=>{S.mode=v;draw()});
-  $('#rg-addb',root).onclick=()=>{const v=$('#rg-add',root).value.trim().replace(/\s+/g,' ');if(v.split(' ').length<4){st.textContent='Write a full sentence or two, then press the button.';return}if(docs.length>=22){st.textContent='The collection is full at 22 passages. Go back to the original collection to add more.';return}docs.push(v);$('#rg-add',root).value='';index();st.textContent='Added as passage '+docs.length+' and embedded. Now ask a question about it.';again()};
-  $('#rg-resetc',root).onclick=()=>{docs=BASE.slice();index();st.textContent='Back to the original 14 passages.';again()};
-  return{draw,stop:()=>pb.stop(),auto:()=>{ask();ph=0;draw();pb.start()}}}},
+    q: 'A company adds retrieval to its chatbot, and the bot still answers a question about the refund policy wrongly. The refund policy is in the document collection. Name two different places the failure could be, and how you would tell them apart.',
+    a: 'First look at what was retrieved. If the refund passage is not among the k passages in the prompt, the search failed: perhaps the customer’s wording shares no words with the passage, or the passage was cut badly, or k is too small. The fix is in the retrieval. If the passage is in the prompt and the answer is still wrong, the model failed to use it: perhaps it was buried among many irrelevant passages, or the instruction to answer only from the passages was weak. Reading the actual prompt, as this page lets you do, separates the two cases at once.',
+    init(root) {
+      const c = $('#rg-c', root),
+        cr = $('#rg-r', root),
+        live = $('#rg-live', root),
+        inp = $('#rg-in', root),
+        st = $('#rg-st', root),
+        S = { k: 2, mode: 'on' },
+        TH = 0.12,
+        BASE = [
+          'The library is open from 8 am to 10 pm on weekdays and from 10 am to 6 pm on weekends.',
+          'Students may borrow up to twelve books at a time. Each loan lasts three weeks and can be renewed twice.',
+          'The machine learning course is taught by Professor Okafor on Tuesday and Thursday mornings in room 204.',
+          'The final project for the machine learning course is due on December 12. It counts for forty percent of the grade.',
+          'Homework may be submitted up to two days late. The penalty is ten percent per day.',
+          'The computing cluster has sixteen graphics cards. Each student may reserve one card for up to eight hours a day.',
+          'To reserve the computing cluster, book a slot on the lab calendar at least one day in advance.',
+          'The cafeteria serves lunch from 11:30 am to 2 pm. A vegetarian meal costs six dollars.',
+          'Parking permits cost forty dollars per semester. They are sold at the security office in the Hale building.',
+          'The tutoring centre offers free help with statistics and programming every afternoon from 3 pm to 5 pm.',
+          'Exam results are published on the student portal within ten working days of the exam.',
+          'A student who misses an exam because of illness must send a doctor’s note to the registrar within five days.',
+          'The campus shuttle runs every twenty minutes between the main gate and the train station until 9 pm.',
+          'Printing costs five cents per page in black and white and twenty cents per page in colour.',
+        ],
+        QS = [
+          'When is the final project due?',
+          'How many books can I borrow?',
+          'How much does a parking permit cost?',
+          'Who teaches machine learning?',
+          'Can I hand in homework late?',
+          'What is the wifi password?',
+        ],
+        STOP = new Set(
+          'a an the is are was were be been of to in on at by for from with and or it its this that these those i me my we you your he she they them do does did can could may might must will would should what when where who whom which how why as up per each every than then there here not no so if into about over under out any some much many have has had get'.split(
+            ' ',
+          ),
+        );
+      let docs = BASE.slice(),
+        voc = [],
+        idf = [],
+        DV = [],
+        PC = [],
+        ax = null,
+        mean = null,
+        q = '',
+        qv = null,
+        qxy = [0, 0],
+        sims = [],
+        rank = [],
+        ph = 0,
+        msg = '',
+        fr = 0,
+        pb,
+        qtop = [],
+        flyU = 1;
+      const stem = (w) => {
+        w = w.replace(/[’']s$/, '');
+        if (w.length > 4 && w.endsWith('ies')) return w.slice(0, -3) + 'y';
+        if (w.length > 4 && /(ches|shes|sses|xes)$/.test(w)) return w.slice(0, -2);
+        if (w.length > 3 && w.endsWith('s') && !/(ss|us|is)$/.test(w)) w = w.slice(0, -1);
+        return w;
+      };
+      const toks = (s) =>
+        (s.toLowerCase().match(/[a-zà-ÿ0-9:’']+/g) || [])
+          .map(stem)
+          .filter((w) => w && !STOP.has(w));
+      const vec = (s) => {
+        const v = new Float64Array(voc.length);
+        for (const w of toks(s)) {
+          const i = voc.indexOf(w);
+          if (i >= 0) v[i] += idf[i];
+        }
+        return v;
+      };
+      const nrm = (v) => Math.sqrt(v.reduce((s, x) => s + x * x, 0)),
+        cosv = (a, b) => {
+          const na = nrm(a),
+            nb = nrm(b);
+          if (!na || !nb) return 0;
+          let s = 0;
+          for (let i = 0; i < a.length; i++) s += a[i] * b[i];
+          return s / (na * nb);
+        };
+      const index = () => {
+        const T2 = docs.map(toks);
+        voc = [...new Set(T2.flat())];
+        const N = docs.length;
+        idf = voc.map((w) => Math.log((N + 1) / (T2.filter((t) => t.includes(w)).length + 1)));
+        DV = docs.map(vec).map((v) => {
+          const n = nrm(v) || 1;
+          return v.map((x) => x / n);
+        });
+        mean = new Float64Array(voc.length);
+        DV.forEach((v) => v.forEach((x, i) => (mean[i] += x / N)));
+        const Xc = DV.map((v) => v.map((x, i) => x - mean[i])),
+          G = Xc.map((a) =>
+            Xc.map((b) => {
+              let s = 0;
+              for (let i = 0; i < a.length; i++) s += a[i] * b[i];
+              return s;
+            }),
+          ),
+          J = jacobi(G);
+        ax = [0, 1].map((j) => {
+          const u = new Float64Array(voc.length),
+            l = Math.sqrt(Math.max(1e-12, J.val[j]));
+          Xc.forEach((x, i) => {
+            for (let d = 0; d < u.length; d++) u[d] += (x[d] * J.vec[j][i]) / l;
+          });
+          return u;
+        });
+        PC = Xc.map((x) =>
+          ax.map((u) => {
+            let s = 0;
+            for (let d = 0; d < u.length; d++) s += x[d] * u[d];
+            return s;
+          }),
+        );
+      };
+      const ask = () => {
+        q = inp.value.trim();
+        const v = vec(q),
+          n = nrm(v) || 1;
+        qv = v.map((x) => x / n);
+        qxy = nrm(v)
+          ? ax.map((u) => {
+              let s = 0;
+              for (let d = 0; d < u.length; d++) s += (qv[d] - mean[d]) * u[d];
+              return s;
+            })
+          : [0, 0];
+        sims = DV.map((d) => cosv(qv, d));
+        rank = sims.map((s, i) => i).sort((a, b) => sims[b] - sims[a]);
+        qtop = [...new Set(toks(q))]
+          .map((w) => [w, voc.indexOf(w)])
+          .map(([w, i]) => [w, i < 0 ? 0 : idf[i]])
+          .sort((a, b) => b[1] - a[1]);
+      };
+      const sentBest = () => {
+        const ql = q.toLowerCase(),
+          kind = /^who\b/.test(ql)
+            ? /Professor|Dr\.|Ms\.|Mr\./
+            : /^when\b|what time|what day/.test(ql)
+              ? /\d|monday|tuesday|wednesday|thursday|friday|saturday|sunday|january|february|march|april|june|july|august|september|october|november|december/i
+              : /^how (much|many|long|often)/.test(ql)
+                ? /\d|\b(one|two|three|four|five|six|eight|ten|twelve|sixteen|twenty|forty)\b/i
+                : null;
+        let best = '',
+          bs = -1,
+          bd = -1;
+        for (const i of rank.slice(0, S.k))
+          for (const s of docs[i].match(/[^.!?]+(?:[.!?](?=\s|$)|$)/g) || [docs[i]]) {
+            const sc = cosv(qv, vec(s)) + 0.15 * sims[i] + (kind && kind.test(s) ? 0.25 : 0);
+            if (sc > bs) {
+              bs = sc;
+              best = s.trim();
+              bd = i;
+            }
+          }
+        return { best, bd };
+      };
+      const prompt = () =>
+        S.mode === 'off'
+          ? 'Question: ' + q + '\n\nAnswer:'
+          : 'Answer the question using only the passages below. If the answer is not in them, say that you do not know.\n\n' +
+            rank
+              .slice(0, S.k)
+              .map((i, j) => 'Passage ' + (j + 1) + ': ' + docs[i])
+              .join('\n') +
+            '\n\nQuestion: ' +
+            q +
+            '\n\nAnswer:';
+      const MSG = () => {
+        const known = qtop.filter((x) => x[1] > 0),
+          b = rank[0];
+        return [
+          'The collection holds ' +
+            docs.length +
+            ' passages. Each has been turned into a list of ' +
+            voc.length +
+            ' numbers, one for every different word, and stored. Press Run or One step to send the question through.',
+          'The question was turned into numbers in the same way. ' +
+            (known.length
+              ? 'The words that carry weight are: ' +
+                known
+                  .slice(0, 5)
+                  .map((x) => x[0] + ' (' + f2(x[1]) + ')')
+                  .join(', ') +
+                '.'
+              : 'None of its words appears anywhere in the collection, so its embedding is empty.') +
+            (qtop.length > known.length
+              ? ' Not in any passage, so ignored: ' +
+                qtop
+                  .filter((x) => x[1] <= 0)
+                  .map((x) => x[0])
+                  .join(', ') +
+                '.'
+              : ''),
+          'The question was compared with all ' +
+            docs.length +
+            ' passages. The closest scores ' +
+            f2(sims[b]) +
+            ': “' +
+            docs[b].slice(0, 70) +
+            (docs[b].length > 70 ? '…' : '') +
+            '”. ' +
+            (sims[b] < TH
+              ? 'That is a very weak match.'
+              : 'The next best scores ' + f2(sims[rank[1]]) + '.'),
+          'The ' +
+            S.k +
+            ' closest passage' +
+            (S.k > 1 ? 's are' : ' is') +
+            ' kept: number' +
+            (S.k > 1 ? 's ' : ' ') +
+            rank
+              .slice(0, S.k)
+              .map((i) => i + 1)
+              .join(', ') +
+            ' in the collection. The other ' +
+            (docs.length - S.k) +
+            ' are never shown to the model.',
+          S.mode === 'off'
+            ? 'Without retrieval the prompt is only the question, ' +
+              prompt().split(/\s+/).length +
+              ' words. The model has nothing to read.'
+            : 'The prompt has been written: an instruction, the ' +
+              S.k +
+              ' retrieved passage' +
+              (S.k > 1 ? 's' : '') +
+              ', then the question. It is ' +
+              prompt().split(/\s+/).length +
+              ' words long. This text is everything the model will see.',
+          S.mode === 'off'
+            ? 'The model answered from memory alone, and this handbook was never in its memory.'
+            : sims[b] < TH
+              ? 'The best match was below ' +
+                TH +
+                ', so the reader declined to answer instead of guessing.'
+              : 'The reader found its answer in passage ' +
+                (sentBest().bd + 1) +
+                ' and copied the sentence that fits the question best.',
+        ][ph];
+      };
+      const answer = () => {
+        const el = $('#rg-ans', root);
+        if (ph < 5) {
+          el.textContent = '…';
+          el.style.opacity = 0.4;
+          return;
+        }
+        el.style.opacity = 1;
+        if (S.mode === 'off') {
+          el.innerHTML =
+            '<b>No passages were supplied.</b> A model that has never read this handbook cannot know the answer. A careful one says so. A careless one produces a fluent guess, and nothing in the guess would tell you it was invented.';
+          return;
+        }
+        if (!sims.length || sims[rank[0]] < TH) {
+          el.innerHTML =
+            '<b>I do not know.</b> Nothing in the collection is close enough to this question (best similarity ' +
+            f2(sims[rank[0]] || 0) +
+            ').';
+          return;
+        }
+        const a = sentBest();
+        el.innerHTML =
+          '<b>' +
+          a.best.replace(/</g, '&lt;') +
+          '</b><br><span style="color:var(--muted);font-size:.86rem">Source: passage ' +
+          (a.bd + 1) +
+          ' of the collection, similarity ' +
+          f2(sims[a.bd]) +
+          '. Copied by a simple reader that stands in for the language model.</span>';
+      };
+      const draw = () => {
+        const t = T(),
+          top = new Set(ph >= 3 && S.mode === 'on' ? rank.slice(0, S.k) : []);
+        {
+          const { g, w, h } = fit(c),
+            xs = PC.map((p) => p[0]).concat(ph >= 1 ? [qxy[0]] : []),
+            ys = PC.map((p) => p[1]).concat(ph >= 1 ? [qxy[1]] : []),
+            x0 = Math.min(...xs),
+            x1 = Math.max(...xs),
+            y0 = Math.min(...ys),
+            y1 = Math.max(...ys),
+            X = (v) => 50 + ((v - x0) / (x1 - x0 || 1)) * (w - 150),
+            Y = (v) => h - 34 - ((v - y0) / (y1 - y0 || 1)) * (h - 70);
+          const qx = X(qxy[0]),
+            qy = Y(qxy[1]);
+          if (ph >= 3 && S.mode === 'on')
+            rank.slice(0, S.k).forEach((i) => {
+              g.strokeStyle = t.gold;
+              g.lineWidth = 1 + 5 * sims[i];
+              g.beginPath();
+              g.moveTo(qx, qy);
+              g.lineTo(qx + (X(PC[i][0]) - qx) * flyU, qy + (Y(PC[i][1]) - qy) * flyU);
+              g.stroke();
+            });
+          PC.forEach((p, i) => {
+            const hot = top.has(i),
+              s = ph >= 2 ? sims[i] : 0;
+            g.beginPath();
+            g.arc(X(p[0]), Y(p[1]), hot ? 8 : 5 + 6 * s, 0, 7);
+            g.fillStyle = hot
+              ? t.gold
+              : mix(t.accent, t.accent, 0, 0.35 + 0.6 * Math.min(1, s * 2));
+            g.fill();
+            g.strokeStyle = t.bg;
+            g.lineWidth = 1.5;
+            g.stroke();
+            g.font = MONO;
+            g.fillStyle = hot ? t.cut : t.muted;
+            g.textAlign = 'left';
+            const lab =
+              i +
+              1 +
+              ' ' +
+              toks(docs[i])
+                .sort((a, b) => idf[voc.indexOf(b)] - idf[voc.indexOf(a)])
+                .slice(0, 2)
+                .join(' ');
+            g.fillText(lab, X(p[0]) + 10, Y(p[1]) + 4);
+          });
+          if (ph >= 1) markTP(g, qx, qy, t, false);
+          g.font = MONO;
+          g.fillStyle = t.muted;
+          g.textAlign = 'left';
+          g.fillText('each label: passage number and its two most distinctive words', 8, h - 8);
+        }
+        {
+          const { g, w, h } = fit(cr),
+            n = docs.length,
+            rh = Math.min(24, (h - 30) / n),
+            x0 = 88,
+            W = w - x0 - 50;
+          g.font = MONO;
+          g.fillStyle = t.muted;
+          g.textAlign = 'left';
+          g.fillText(
+            ph >= 2
+              ? 'cosine similarity to the question, best first'
+              : 'the scores appear at step 3',
+            8,
+            13,
+          );
+          if (ph >= 2) {
+            rank.forEach((i, r) => {
+              const y = 22 + r * rh,
+                hot = top.has(i);
+              g.fillStyle = hot ? t.gold : mix(t.accent, t.accent, 0, 0.6);
+              g.fillRect(x0, y + 3, Math.max(1, W * sims[i]), rh - 6);
+              g.fillStyle = hot ? t.cut : t.muted;
+              g.textAlign = 'right';
+              g.fillText('passage ' + (i + 1), x0 - 6, y + rh / 2 + 4);
+              g.textAlign = 'left';
+              g.fillText(f2(sims[i]), x0 + W * sims[i] + 6, y + rh / 2 + 4);
+            });
+            g.setLineDash([4, 4]);
+            g.strokeStyle = t.cut;
+            g.lineWidth = 1;
+            g.beginPath();
+            g.moveTo(x0 + W * TH, 20);
+            g.lineTo(x0 + W * TH, 22 + n * rh);
+            g.stroke();
+            g.setLineDash([]);
+            g.fillStyle = t.cut;
+            g.textAlign = 'left';
+            g.fillText('below this line: too weak to trust', x0 + W * TH + 5, 22 + n * rh + 12);
+          }
+        }
+        const pe = $('#rg-prompt', root);
+        pe.textContent = ph >= 4 ? prompt() : 'The prompt is written at step 5.';
+        pe.style.opacity = ph >= 4 ? 1 : 0.4;
+        answer();
+        live.textContent = MSG();
+        uCur(root, 'rg', ph);
+        setR(root, 'nd', String(docs.length));
+        setR(root, 'nv', String(voc.length));
+        setR(
+          root,
+          'qw',
+          ph >= 1
+            ? qtop
+                .filter((x) => x[1] > 0)
+                .map((x) => x[0])
+                .join(', ') || 'none'
+            : '–',
+        );
+        setR(root, 'best', ph >= 2 ? f2(sims[rank[0]]) : '–');
+        setR(root, 'sent', ph >= 3 ? (S.mode === 'on' ? String(S.k) : '0') : '–');
+        setR(root, 'pl', ph >= 4 ? String(prompt().split(/\s+/).length) : '–');
+      };
+      const go2 = (p) => {
+        ph = p;
+        if (p === 3) flyU = RM ? 1 : 0;
+      };
+      $('#rg-q', root).innerHTML = QS.map(
+        (s, i) => '<button class="btn" type="button" data-v="' + i + '">' + s + '</button>',
+      ).join('');
+      inp.value = QS[0];
+      index();
+      ask();
+      if (RM) ph = 5;
+      const anim = Anim(() => {
+        fr++;
+        if (flyU < 1) {
+          flyU = Math.min(1, flyU + 0.06);
+          draw();
+          return;
+        }
+        if (fr % 70) return;
+        if (ph >= 5) {
+          pb.stop();
+          return;
+        }
+        go2(ph + 1);
+        draw();
+        if (ph >= 5) pb.stop();
+      });
+      pb = playBtn($('#rg-play', root), anim);
+      const st0 = pb.start;
+      pb.start = () => {
+        if (ph >= 5) {
+          ph = 0;
+          draw();
+        }
+        st0();
+      };
+      const again = () => {
+        pb.stop();
+        ask();
+        ph = 0;
+        flyU = 1;
+        draw();
+        pb.start();
+      };
+      $('#rg-step', root).onclick = () => {
+        pb.stop();
+        go2(ph >= 5 ? 0 : ph + 1);
+        flyU = 1;
+        draw();
+      };
+      $('#rg-reset', root).onclick = () => {
+        pb.stop();
+        ask();
+        ph = 0;
+        draw();
+      };
+      segBind(root, 'rg-q', '0', (v) => {
+        inp.value = QS[+v];
+        again();
+      });
+      inp.addEventListener('change', again);
+      inp.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          again();
+        }
+      });
+      bind(
+        root,
+        'rg-k',
+        (v) => {
+          S.k = Math.min(+v, docs.length);
+          if (ph >= 3) {
+            flyU = 1;
+            draw();
+          }
+        },
+        (v) => String(v),
+      );
+      segBind(root, 'rg-mode', S.mode, (v) => {
+        S.mode = v;
+        draw();
+      });
+      $('#rg-addb', root).onclick = () => {
+        const v = $('#rg-add', root).value.trim().replace(/\s+/g, ' ');
+        if (v.split(' ').length < 4) {
+          st.textContent = 'Write a full sentence or two, then press the button.';
+          return;
+        }
+        if (docs.length >= 22) {
+          st.textContent =
+            'The collection is full at 22 passages. Go back to the original collection to add more.';
+          return;
+        }
+        docs.push(v);
+        $('#rg-add', root).value = '';
+        index();
+        st.textContent =
+          'Added as passage ' + docs.length + ' and embedded. Now ask a question about it.';
+        again();
+      };
+      $('#rg-resetc', root).onclick = () => {
+        docs = BASE.slice();
+        index();
+        st.textContent = 'Back to the original 14 passages.';
+        again();
+      };
+      return {
+        draw,
+        stop: () => pb.stop(),
+        auto: () => {
+          ask();
+          ph = 0;
+          draw();
+          pb.start();
+        },
+      };
+    },
+  },
 
-{id:'lora',tab:'LoRA and fine-tuning',title:'LoRA and fine-tuning: teach an old network a new task cheaply',
- lede:'A model that was expensive to train can be taught something new by continuing its training on new examples. That is fine-tuning. Changing every weight works, but it produces a complete second copy of the model for every new task. LoRA freezes the original weights and learns a small correction beside them, built from two thin matrices. Here a network first learns one task, then is adapted to a second in three different ways, and you can see what each way changes and what it costs.',
- stage:`<div class="row seg" id="lo-m" role="group" aria-label="How to adapt"><button class="btn" type="button" data-v="full">Full Fine-Tuning: Change Every Weight</button><button class="btn" type="button" data-v="lora">LoRA: Freeze, and Learn a Small Correction</button><button class="btn" type="button" data-v="last">Last Layer Only</button></div>
+  {
+    id: 'lora',
+    tab: 'LoRA and fine-tuning',
+    title: 'LoRA and fine-tuning: teach an old network a new task cheaply',
+    lede: 'A model that was expensive to train can be taught something new by continuing its training on new examples. That is fine-tuning. Changing every weight works, but it produces a complete second copy of the model for every new task. LoRA freezes the original weights and learns a small correction beside them, built from two thin matrices. Here a network first learns one task, then is adapted to a second in three different ways, and you can see what each way changes and what it costs.',
+    stage: `<div class="row seg" id="lo-m" role="group" aria-label="How to adapt"><button class="btn" type="button" data-v="full">Full Fine-Tuning: Change Every Weight</button><button class="btn" type="button" data-v="lora">LoRA: Freeze, and Learn a Small Correction</button><button class="btn" type="button" data-v="last">Last Layer Only</button></div>
  <div class="stage"><figure class="fig"><figcaption>The task being learned right now. Dots are the examples, in two classes. The shading is the network’s current answer everywhere</figcaption><canvas class="short" id="lo-c" role="img" aria-label="Data for the current task and the network's decision regions"></canvas></figure>
  <figure class="fig"><figcaption>Top, from the left: the old task as the adapted network now sees it; the change made to the middle weight matrix; how many independent directions that change uses. Bottom: accuracy on both tasks</figcaption><canvas class="short" id="lo-r" role="img" aria-label="Old task, the weight change, its singular values and accuracy curves"></canvas></figure></div>
- ${uHow('lo',['Pretrain: the network learns the old task from scratch. All 1,218 weights are trained. Keep a copy of the result.','Switch to the new task. Decide which numbers are allowed to change.','Full fine-tuning: every weight may change. LoRA: the weights are frozen and each weight matrix W gets a correction A × B made of two thin matrices, and only those are trained. Last layer: only the final layer changes.','Train on the new task until the accuracy stops improving.','Compare: accuracy on the new task, what happened to the old task, and how many numbers had to be stored.'])}
- <div class="controls">${uBtns('lo','Run','One step','adaptation steps')}
- ${grp('LoRA',slider('lo-r','Rank r: the width of the thin matrices',1,8,1,2))}
- ${grp('The new task',`<label class="ctl" for="lo-task"><span>What the network must learn next</span><select id="lo-task"><option value="spiral">The two arms of a spiral</option><option value="stripes">Diagonal stripes</option><option value="ring">A blob inside a ring</option></select></label>`)}</div>
- <dl class="read">${rd('ph','Stage')}${rd('st','Adaptation steps')}${rd('tp','Numbers being trained','hl2')}${rd('an','Accuracy on the new task','hl')}${rd('ao','Accuracy on the old task, after adapting')}${rd('au','Accuracy on the old task with the original weights put back')}${rd('sv','Share of the weight change in its two strongest directions')}</dl>`,
- tryit:'Let it pretrain, then watch Full Fine-Tuning learn the new task. Look at the third small picture: the change to the weight matrix could use 32 independent directions. How many does it really use? That observation is the whole idea behind LoRA. Now press LoRA with rank 2. How does its accuracy compare with full fine-tuning, and how many numbers did it train? Then press Last Layer Only: why is it so much worse on the spiral? Switch the new task to Diagonal Stripes and try LoRA at rank 1, 2, 4 and 8: on this task the rank matters more. Switch to A Blob Inside a Ring: here even the last layer alone copes. What does that tell you about the three tasks? Finally look at the old-task accuracy for each method. All of them forget. Which of them can get the old skill back exactly, and at what cost?',
- math:String.raw`<h4>Intuition</h4><p>A concert pianist is asked to play one piece in a new style. One option is to retrain from the beginning, changing every habit: it works, it takes long, and the old style suffers. Another is to keep the technique exactly as it is and clip a short page of adjustments to the score: "here a little slower, there a little softer". The page is tiny compared with years of training. Remove it and the old playing is back, untouched. Keep a different page for every style and switch between them in a second. LoRA is that page of adjustments.</p>
+ ${uHow('lo', ['Pretrain: the network learns the old task from scratch. All 1,218 weights are trained. Keep a copy of the result.', 'Switch to the new task. Decide which numbers are allowed to change.', 'Full fine-tuning: every weight may change. LoRA: the weights are frozen and each weight matrix W gets a correction A × B made of two thin matrices, and only those are trained. Last layer: only the final layer changes.', 'Train on the new task until the accuracy stops improving.', 'Compare: accuracy on the new task, what happened to the old task, and how many numbers had to be stored.'])}
+ <div class="controls">${uBtns('lo', 'Run', 'One step', 'adaptation steps')}
+ ${grp('LoRA', slider('lo-r', 'Rank r: the width of the thin matrices', 1, 8, 1, 2))}
+ ${grp('The new task', `<label class="ctl" for="lo-task"><span>What the network must learn next</span><select id="lo-task"><option value="spiral">The two arms of a spiral</option><option value="stripes">Diagonal stripes</option><option value="ring">A blob inside a ring</option></select></label>`)}</div>
+ <dl class="read">${rd('ph', 'Stage')}${rd('st', 'Adaptation steps')}${rd('tp', 'Numbers being trained', 'hl2')}${rd('an', 'Accuracy on the new task', 'hl')}${rd('ao', 'Accuracy on the old task, after adapting')}${rd('au', 'Accuracy on the old task with the original weights put back')}${rd('sv', 'Share of the weight change in its two strongest directions')}</dl>`,
+    tryit:
+      'Let it pretrain, then watch Full Fine-Tuning learn the new task. Look at the third small picture: the change to the weight matrix could use 32 independent directions. How many does it really use? That observation is the whole idea behind LoRA. Now press LoRA with rank 2. How does its accuracy compare with full fine-tuning, and how many numbers did it train? Then press Last Layer Only: why is it so much worse on the spiral? Switch the new task to Diagonal Stripes and try LoRA at rank 1, 2, 4 and 8: on this task the rank matters more. Switch to A Blob Inside a Ring: here even the last layer alone copes. What does that tell you about the three tasks? Finally look at the old-task accuracy for each method. All of them forget. Which of them can get the old skill back exactly, and at what cost?',
+    math: String.raw`<h4>Intuition</h4><p>A concert pianist is asked to play one piece in a new style. One option is to retrain from the beginning, changing every habit: it works, it takes long, and the old style suffers. Another is to keep the technique exactly as it is and clip a short page of adjustments to the score: "here a little slower, there a little softer". The page is tiny compared with years of training. Remove it and the old playing is back, untouched. Keep a different page for every style and switch between them in a second. LoRA is that page of adjustments.</p>
  <h4>Full fine-tuning</h4><p>Start from the pretrained weights \(\theta_0\) and continue gradient descent on the loss of the new task. Every weight moves: \(\theta=\theta_0+\Delta\theta\). The result is as large as the original model, so serving ten tasks means storing ten full models. And since nothing holds the weights near \(\theta_0\), the old task is usually damaged, which is called catastrophic forgetting.</p>
  <h4>The observation behind LoRA</h4><p>Look at the change \(\Delta W=W-W_0\) that full fine-tuning makes to one weight matrix. A \(32\times32\) matrix can change in 32 independent directions. Its singular values say how much of the change lies along each. In practice a few are large and the rest are small: the change has low <b>rank</b>. The third small picture shows this for the network on this page. If the change is nearly rank 2, there is no need to train 1,024 numbers to describe it.</p>
  <h4>LoRA</h4><p>Hu and others (2021) freeze \(W_0\) and write the change as a product of two thin matrices:</p>$$W=W_0+\Delta W,\qquad \Delta W=A\,B,\qquad A\in\mathbb R^{d_{\text{in}}\times r},\quad B\in\mathbb R^{r\times d_{\text{out}}} .$$<p>Only \(A\) and \(B\) are trained. \(B\) starts at zero, so at the first step \(\Delta W=0\) and the network is exactly the pretrained one. The product \(AB\) can never have rank above \(r\), which is the restriction, and it has</p>$$r\,(d_{\text{in}}+d_{\text{out}})\quad\text{numbers in place of}\quad d_{\text{in}}\times d_{\text{out}} .$$<p>For the \(32\times32\) matrix here and \(r=2\), that is 128 in place of 1,024. In a large language model \(d\) is in the thousands and \(r\) is typically 4 to 64, so the trained part is often well under one percent of the model.</p>
@@ -197,116 +1522,1216 @@ const LML=[
  <h4>What you give up</h4><p>If the new task needs a change of higher rank than \(r\), LoRA cannot express it, and accuracy falls short of full fine-tuning. Raising \(r\) closes the gap and costs more. How much rank is needed depends on the task. On the spiral a rank of 1 is usually enough here. On the diagonal stripes rank 1 typically ends clearly below full fine-tuning, and rank 4 catches up. LoRA also still forgets the old task while the adapter is attached, as the readout shows. It does not prevent forgetting. It makes forgetting undoable.</p>
  <h4>Training only the last layer</h4><p>The cheapest option keeps every layer but the last frozen. It works when the features computed by the earlier layers are already the right ones for the new task, which is the situation in the Transfer Learning tab. The spiral and the stripes need different features, so retraining only the final layer falls well short on them. The blob inside a ring is simple enough that the old features will do. LoRA is the middle road: every layer can adjust, each only a little.</p>
  <h4>What this page trains</h4><p>A network with 2 inputs, two hidden layers of 32 neurons and 2 outputs, 1,218 weights in all. The old task is to tell two interleaved moons apart. There are three new tasks to choose from. With LoRA, each of the three weight matrices gets its own \(A\) and \(B\) and the biases stay frozen, for \(132\,r\) trained numbers. Adaptation stops when the accuracy on the new task has not improved for 200 steps, or after 1,200 steps.</p>`,
- q:'With LoRA at rank 2 the adapted network scores well on the new task and poorly on the old one, exactly like full fine-tuning. So in what sense is LoRA “safer” for the old task?',a:'While the adapter is attached, the network computes with W₀ + AB, and that sum has been pulled toward the new task just as fully fine-tuned weights would be, so the old task suffers. The difference is in what is stored. With LoRA the original W₀ was never altered: detach A and B and the old network is back exactly, with its old accuracy. With full fine-tuning the original weights have been overwritten, and the only way back is to have kept a complete second copy of the model. LoRA does not stop forgetting. It keeps the forgotten skill one subtraction away.',
- init(root){const c=$('#lo-c',root),cr=$('#lo-r',root),live=$('#lo-live',root),S={m:'full',r:2,task:'spiral'},H=32,PRE=500,MAXA=1200,RN=randnFrom(Math.random);
-  let W,b,W0,b0,A,Bm,ps,ts=0,as=0,phase='pre',DA,DB,msg='',cu=0,fr=0,pb,chk=()=>false,run=1,ACN=[],ACO=[],PL=[],accPre=NaN,best=0,bestAt=0,fin=false,dW=null,SV=[],gridA=null,gridB=null,lastG=-99,ntr=0;
-  const mkA=n=>{const X=[],y=[];for(let i=0;i<n;i++){const a=Math.random()*Math.PI,k=i%2;X.push(k?[1.25*Math.cos(a)-.6+.1*RN(),-.3+1.2*Math.sin(a)+.1*RN()]:[.6-1.25*Math.cos(a)+.1*RN(),.3-1.2*Math.sin(a)+.1*RN()]);y.push(k)}return{X,y}};
-  const TB={spiral:n=>{const X=[],y=[];for(let i=0;i<n;i++){const k=i%2,u=Math.random(),a=u*3.2*Math.PI+k*Math.PI,r=.25+1.45*u;X.push([r*Math.cos(a)+.05*RN(),.8*r*Math.sin(a)+.05*RN()]);y.push(k)}return{X,y}},
-   stripes:n=>{const X=[],y=[];for(let i=0;i<n;i++){const x=(Math.random()*2-1)*2.1,yy=(Math.random()*2-1)*1.6;X.push([x,yy]);y.push(Math.floor((x+yy*.6+3.2)/.9)%2)}return{X,y}},
-   ring:n=>{const X=[],y=[];for(let i=0;i<n;i++){const k=i%2,a=Math.random()*2*Math.PI;X.push(k?[1.45*Math.cos(a)+.12*RN(),1.3*Math.sin(a)+.12*RN()]:[.33*RN(),.33*RN()]);y.push(k)}return{X,y}}},TBN={spiral:'tell the two arms of a spiral apart',stripes:'tell diagonal stripes apart',ring:'tell a central blob from the ring around it'},mkB=n=>TB[S.task](n);
-  const fwd=(X,n,lora)=>{let h=AD.input(X,[n,2]);for(let l=0;l<3;l++){let z=AD.mm(h,W[l]);if(lora)z=AD.add(z,AD.mm(AD.mm(h,A[l]),Bm[l]));z=AD.addb(z,b[l]);h=l<2?AD.relu(z):z}return h};
-  const useL=()=>phase!=='pre'&&S.m==='lora';
-  const predict=(P,n)=>{const o=fwd(P,n,useL());AD.clear();return o.v};
-  const acc=D=>{const n=D.y.length,o=predict(Float64Array.from(D.X.flat()),n);let ok=0;for(let i=0;i<n;i++)if((o[2*i+1]>o[2*i]?1:0)===D.y[i])ok++;return ok/n};
-  const accWith=(D,Wx,bx)=>{const sw=W,sb=b,sp=phase;W=Wx;b=bx;phase='pre';const a=acc(D);W=sw;b=sb;phase=sp;return a};
-  const cp=a=>a.map(p=>{const q=AD.param(p.sh,0,RN);q.v.set(p.v);return q});
-  const build=()=>{const rn=randnFrom(rng(run*11+3));W=[AD.param([2,H],1,rn),AD.param([H,H],Math.sqrt(2/H),rn),AD.param([H,2],Math.sqrt(1/H),rn)];b=[AD.param([H],0,rn),AD.param([H],0,rn),AD.param([2],0,rn)];DA=mkA(300);DB=mkB(400);ts=0;as=0;phase='pre';PL=[];ACN=[];ACO=[];accPre=NaN;fin=false;dW=null;SV=[];cu=0;lastG=-99;ps=W.concat(b);ntr=1218;msg='A network with random weights. First it learns the old task, two interleaved moons, from scratch. Press Run.'};
-  const startAdapt=()=>{W=cp(W0);b=cp(b0);const rn=randnFrom(rng(run*7+S.r));A=[[2,S.r],[H,S.r],[H,S.r]].map(s=>AD.param(s,1/Math.sqrt(s[0]),rn));Bm=[[S.r,H],[S.r,H],[S.r,2]].map(s=>AD.param(s,0,rn));ps=S.m==='full'?W.concat(b):S.m==='lora'?A.concat(Bm):[W[2],b[2]];ntr=S.m==='full'?1218:S.m==='lora'?132*S.r:66;
-   phase='adapt';as=0;ACN=[acc(DB)];ACO=[acc(DA)];best=0;bestAt=0;fin=false;cu=1;lastG=-99;delta();msg='Pretraining is finished: '+pct(accPre)+' on the old task. A copy of those weights is kept. Now the new task: '+TBN[S.task]+'. '+(S.m==='full'?'All 1,218 weights are free to change.':S.m==='lora'?'The 1,218 weights are frozen. Only two thin matrices per layer are trained: '+ntr+' numbers.':'Only the last layer’s 66 weights are free to change.')};
-  const delta=()=>{dW=new Float64Array(H*H);if(phase==='pre')return;if(S.m==='lora'){const a=A[1].v,bb=Bm[1].v,r=S.r;for(let i=0;i<H;i++)for(let j=0;j<H;j++){let s=0;for(let k=0;k<r;k++)s+=a[i*r+k]*bb[k*H+j];dW[i*H+j]=s}}else for(let i=0;i<H*H;i++)dW[i]=W[1].v[i]-W0[1].v[i];
-   const G=[];for(let i=0;i<H;i++){G.push(new Array(H).fill(0))}for(let i=0;i<H;i++)for(let j=i;j<H;j++){let s=0;for(let k=0;k<H;k++)s+=dW[k*H+i]*dW[k*H+j];G[i][j]=G[j][i]=s}SV=jacobi(G).val.map(v=>Math.sqrt(Math.max(0,v)))};
-  const step1=(D,lora)=>{const Bn=64,X=new Float64Array(2*Bn),tg=new Int32Array(Bn);for(let i=0;i<Bn;i++){const j=Math.floor(Math.random()*D.y.length);X[2*i]=D.X[j][0];X[2*i+1]=D.X[j][1];tg[i]=D.y[j]}const l=AD.ce(fwd(X,Bn,lora),tg,0);AD.backward(l);return l.v[0]};
-  const zero=()=>{for(const p of W.concat(b))if(!ps.includes(p))p.g.fill(0)};
-  const train=k=>{if(phase==='pre'){for(let q=0;q<k&&ts<PRE;q++){PL.push(step1(DA,false));AD.adam(ps,.01,++ts,1)}cu=0;const a=acc(DA);ACO=[a];msg='Pretraining step '+ts+' of '+PRE+' on the old task: accuracy '+pct(a)+'. All 1,218 weights are being trained.';if(ts>=PRE){accPre=a;W0=cp(W);b0=cp(b);startAdapt()}return}
-   if(fin)return;for(let q=0;q<k&&as<MAXA&&!fin;q++){step1(DB,S.m==='lora');zero();AD.adam(ps,S.m==='lora'?.01:.005,++as,1);if(as%5===0){const a=acc(DB);ACN.push(a);ACO.push(acc(DA));if(a>best+.004){best=a;bestAt=as}if(as-bestAt>=200||as>=MAXA)fin=true}}
-   delta();cu=fin?4:3;const an=ACN[ACN.length-1],ao=ACO[ACO.length-1];msg='Adaptation step '+as+': '+ntr+' numbers were adjusted on 64 examples of the new task. Accuracy is '+pct(an)+' on the new task and '+pct(ao)+' on the old one.';
-   if(fin){const e2=SV.length?(SV[0]**2+SV[1]**2)/(SV.reduce((s,v)=>s+v*v,0)||1):NaN;msg='Finished after '+as+' steps: the accuracy on the new task stopped improving at '+pct(an)+'. '+ntr+' numbers were trained ('+pct(ntr/1218)+' of the network). Accuracy on the old task fell from '+pct(accPre)+' to '+pct(ao)+'. '+(S.m==='full'?'The original weights have been overwritten: getting the old skill back needs the saved copy, a whole second network.':S.m==='lora'?'The original weights were never touched: take the correction away and the old accuracy of '+pct(accWith(DA,W0,b0))+' is back.':'Only the last layer changed, so restoring the old skill needs just the 66 old numbers.')+(isFinite(e2)&&S.m!=='last'?' The two strongest directions hold '+pct(e2)+' of the change to the middle matrix.':'')}};
-  const gridFor=D=>{const GW=40,GH=30,P=new Float64Array(2*GW*GH);for(let r=0;r<GH;r++)for(let q=0;q<GW;q++){P[2*(r*GW+q)]=(-4+8*(q+.5)/GW)/1.6;P[2*(r*GW+q)+1]=(3-6*(r+.5)/GH)/1.6}const o=predict(P,GW*GH),g=new Float32Array(GW*GH);for(let i=0;i<GW*GH;i++)g[i]=1/(1+Math.exp(o[2*i]-o[2*i+1]));return g};
-  const panel=(g,t,x0,y0,w,h,D,G,lab)=>{const GW=40,GH=30,s=Math.min(w/8,h/6),cx=x0+w/2,cy=y0+h/2,X=v=>cx+v*1.6*s,Y=v=>cy-v*1.6*s;g.save();g.beginPath();g.rect(x0,y0,w,h);g.clip();if(G)for(let r=0;r<GH;r++)for(let q=0;q<GW;q++){const p=G[r*GW+q],col=p>.5?t.accent:t.cut,xa=Math.round(cx+(-4+8*q/GW)*s),xb=Math.round(cx+(-4+8*(q+1)/GW)*s),ya=Math.round(cy-(3-6*r/GH)*s),yb=Math.round(cy-(3-6*(r+1)/GH)*s);g.fillStyle=mix(col,col,0,.08+.3*Math.abs(p-.5)*2);g.fillRect(xa,ya,xb-xa,yb-ya)}
-   const r=w>300?3:1.6;D.X.forEach((p,i)=>{if(w<300&&i%2===0&&i>150)return;g.beginPath();g.arc(X(p[0]),Y(p[1]),r,0,7);g.fillStyle=D.y[i]?t.accent:t.cut;g.fill();if(w>300){g.strokeStyle=t.bg;g.lineWidth=.6;g.stroke()}});g.restore();if(lab){g.font=MONO;g.fillStyle=t.muted;g.textAlign='left';g.fillText(lab,x0+4,y0+h+13)}};
-  const draw=()=>{const t=T();if(Math.abs((phase==='pre'?ts:as)-lastG)>=3||fin){gridA=gridFor(DA);gridB=phase==='pre'?null:gridFor(DB);lastG=phase==='pre'?ts:as}
-   {const{g,w,h}=fit(c);panel(g,t,0,0,w,h-4,phase==='pre'?DA:DB,phase==='pre'?gridA:gridB,'');g.font=MONO;g.fillStyle=t.ink;g.textAlign='left';g.fillText(phase==='pre'?'OLD TASK: which moon? (pretraining)':'NEW TASK: '+TBN[S.task],8,14)}
-   {const{g,w,h}=fit(cr),h1=h*.46,pw=(w-16)/3,ph2=h1-34;g.font=MONO;panel(g,t,4,16,pw-8,ph2,DA,gridA,'old task: '+(ACO.length?(100*ACO[ACO.length-1]).toFixed(0)+'%':'–'));
-    {const x0=8+pw,s=Math.floor(Math.min(pw-10,ph2)/H),ox=x0+(pw-s*H)/2,oy=16+(ph2-s*H)/2,mx=dW?Math.max(1e-9,...Array.from(dW).map(Math.abs)):1;g.strokeStyle=t.line;g.lineWidth=1;g.strokeRect(ox-.5,oy-.5,s*H+1,s*H+1);if(dW&&phase!=='pre')for(let i=0;i<H;i++)for(let j=0;j<H;j++){const v=dW[i*H+j]/mx;if(Math.abs(v)<.04)continue;const col=v>0?t.accent:t.cut;g.fillStyle=mix(col,col,0,Math.min(1,Math.abs(v)*1.2));g.fillRect(ox+j*s,oy+i*s,s,s)}g.fillStyle=t.muted;g.textAlign='left';g.fillText(phase==='pre'?'change to W: none yet':S.m==='last'?'middle W: unchanged':'change to middle W',x0+2,16+ph2+13)}
-    {const x0=12+2*pw,n=12,bw=(pw-16)/n,mx=Math.max(1e-9,...SV);g.strokeStyle=t.muted;g.lineWidth=1;g.beginPath();g.moveTo(x0,16+ph2);g.lineTo(x0+pw-12,16+ph2);g.stroke();if(phase!=='pre')SV.slice(0,n).forEach((v,i)=>{const bh=v/mx*(ph2-6);g.fillStyle=i<(S.m==='lora'?S.r:2)?t.gold:mix(t.accent,t.accent,0,.7);g.fillRect(x0+i*bw+1,16+ph2-bh,bw-2,bh)});g.fillStyle=t.muted;g.textAlign='left';g.fillText('its directions',x0,16+ph2+13)}
-    const n=MAXA/5+1,L1=uLine(g,t,0,h1,w,h-h1,phase==='pre'?[]:ACN,{title:'accuracy while adapting',n,ym:1,y1:0,col:t.accent});if(phase!=='pre'){g.strokeStyle=t.cut;g.lineWidth=2;g.beginPath();ACO.forEach((v,i)=>i?g.lineTo(L1.X(i),L1.Y(v)):g.moveTo(L1.X(i),L1.Y(v)));g.stroke();const k=ACN.length-1,lx=Math.max(L1.X(k),L1.m.l+70);g.textAlign='right';g.fillStyle=t.accent;g.fillText('new task',lx,L1.Y(ACN[k])+(ACN[k]>.8?16:-8));g.fillStyle=t.cut;g.fillText('old task',lx,L1.Y(ACO[k])-9)}else{g.fillStyle=t.muted;g.textAlign='center';g.fillText('the curves start when the new task begins',w/2,h1+(h-h1)/2)}}
-   live.textContent=msg;uCur(root,'lo',cu);const e2=SV.length&&phase!=='pre'&&S.m!=='last'?(SV[0]**2+SV[1]**2)/(SV.reduce((s,v)=>s+v*v,0)||1):NaN;
-   setR(root,'ph',phase==='pre'?(ts?'Pretraining on the old task':'Not started'):fin?'Finished':'Adapting to the new task');setR(root,'st',phase==='pre'?'–':String(as));setR(root,'tp',ntr+' of 1218 ('+pct(ntr/1218)+')');setR(root,'an',ACN.length?pct(ACN[ACN.length-1]):'–');setR(root,'ao',phase!=='pre'&&ACO.length?pct(ACO[ACO.length-1]):'–');setR(root,'au',isFinite(accPre)?pct(accPre):'–');setR(root,'sv',isFinite(e2)?pct(e2):'–')};
-  build();if(RM){train(PRE);while(!fin)train(20)}
-  const anim=Anim(()=>{fr++;train(phase==='pre'?5:as<40?1:4);draw();chk()});pb=playBtn($('#lo-play',root),anim);chk=runCtl(pb,root,'lo',{done:()=>phase==='adapt'&&fin,restart:()=>startAdapt(),count:()=>as,what:'adaptation steps'});
-  const redo=()=>{if(phase==='pre'){draw();return}pb.stop();startAdapt();draw();pb.start()};
-  $('#lo-step',root).onclick=()=>{pb.stop();if(phase==='adapt'&&fin)startAdapt();else train(25);draw()};$('#lo-reset',root).onclick=()=>{pb.stop();run++;build();draw()};
-  segBind(root,'lo-m',S.m,v=>{S.m=v;redo()});$('#lo-task',root).onchange=e=>{S.task=e.target.value;DB=mkB(400);redo()};bind(root,'lo-r',v=>{S.r=+v;if(S.m==='lora')redo();else if(pb)draw()},v=>String(v));
-  return{draw,stop:()=>pb.stop(),auto:()=>{run++;build();draw();pb.start()}}}},
-{id:'quantization',tab:'Quantization',title:'Quantization: the same network in fewer bits',
- lede:'A trained network is a long list of numbers, and each one is normally stored with 32 bits. A large language model has billions of them, which is why it needs a data centre. Quantization stores every weight with fewer bits by rounding it to the nearest value on a short list. The surprise is how far this can go: at 8 bits almost nothing is lost, at 4 bits very little, and then, quite suddenly, the network falls apart. Here a real letter-reading network is rounded while you watch.',
- stage:`<div class="stage"><figure class="fig"><figcaption>Top: all the weights of the first layer, as a histogram. The gold lines are the only values a weight is allowed to take. Bottom: what each of the 24 hidden neurons looks for, drawn from its rounded weights</figcaption><canvas class="short" id="qz-c" role="img" aria-label="Histogram of weights with the allowed levels, and the rounded weights of each hidden neuron"></canvas></figure>
+    q: 'With LoRA at rank 2 the adapted network scores well on the new task and poorly on the old one, exactly like full fine-tuning. So in what sense is LoRA “safer” for the old task?',
+    a: 'While the adapter is attached, the network computes with W₀ + AB, and that sum has been pulled toward the new task just as fully fine-tuned weights would be, so the old task suffers. The difference is in what is stored. With LoRA the original W₀ was never altered: detach A and B and the old network is back exactly, with its old accuracy. With full fine-tuning the original weights have been overwritten, and the only way back is to have kept a complete second copy of the model. LoRA does not stop forgetting. It keeps the forgotten skill one subtraction away.',
+    init(root) {
+      const c = $('#lo-c', root),
+        cr = $('#lo-r', root),
+        live = $('#lo-live', root),
+        S = { m: 'full', r: 2, task: 'spiral' },
+        H = 32,
+        PRE = 500,
+        MAXA = 1200,
+        RN = randnFrom(Math.random);
+      let W,
+        b,
+        W0,
+        b0,
+        A,
+        Bm,
+        ps,
+        ts = 0,
+        as = 0,
+        phase = 'pre',
+        DA,
+        DB,
+        msg = '',
+        cu = 0,
+        fr = 0,
+        pb,
+        chk = () => false,
+        run = 1,
+        ACN = [],
+        ACO = [],
+        PL = [],
+        accPre = NaN,
+        best = 0,
+        bestAt = 0,
+        fin = false,
+        dW = null,
+        SV = [],
+        gridA = null,
+        gridB = null,
+        lastG = -99,
+        ntr = 0;
+      const mkA = (n) => {
+        const X = [],
+          y = [];
+        for (let i = 0; i < n; i++) {
+          const a = Math.random() * Math.PI,
+            k = i % 2;
+          X.push(
+            k
+              ? [1.25 * Math.cos(a) - 0.6 + 0.1 * RN(), -0.3 + 1.2 * Math.sin(a) + 0.1 * RN()]
+              : [0.6 - 1.25 * Math.cos(a) + 0.1 * RN(), 0.3 - 1.2 * Math.sin(a) + 0.1 * RN()],
+          );
+          y.push(k);
+        }
+        return { X, y };
+      };
+      const TB = {
+          spiral: (n) => {
+            const X = [],
+              y = [];
+            for (let i = 0; i < n; i++) {
+              const k = i % 2,
+                u = Math.random(),
+                a = u * 3.2 * Math.PI + k * Math.PI,
+                r = 0.25 + 1.45 * u;
+              X.push([r * Math.cos(a) + 0.05 * RN(), 0.8 * r * Math.sin(a) + 0.05 * RN()]);
+              y.push(k);
+            }
+            return { X, y };
+          },
+          stripes: (n) => {
+            const X = [],
+              y = [];
+            for (let i = 0; i < n; i++) {
+              const x = (Math.random() * 2 - 1) * 2.1,
+                yy = (Math.random() * 2 - 1) * 1.6;
+              X.push([x, yy]);
+              y.push(Math.floor((x + yy * 0.6 + 3.2) / 0.9) % 2);
+            }
+            return { X, y };
+          },
+          ring: (n) => {
+            const X = [],
+              y = [];
+            for (let i = 0; i < n; i++) {
+              const k = i % 2,
+                a = Math.random() * 2 * Math.PI;
+              X.push(
+                k
+                  ? [1.45 * Math.cos(a) + 0.12 * RN(), 1.3 * Math.sin(a) + 0.12 * RN()]
+                  : [0.33 * RN(), 0.33 * RN()],
+              );
+              y.push(k);
+            }
+            return { X, y };
+          },
+        },
+        TBN = {
+          spiral: 'tell the two arms of a spiral apart',
+          stripes: 'tell diagonal stripes apart',
+          ring: 'tell a central blob from the ring around it',
+        },
+        mkB = (n) => TB[S.task](n);
+      const fwd = (X, n, lora) => {
+        let h = AD.input(X, [n, 2]);
+        for (let l = 0; l < 3; l++) {
+          let z = AD.mm(h, W[l]);
+          if (lora) z = AD.add(z, AD.mm(AD.mm(h, A[l]), Bm[l]));
+          z = AD.addb(z, b[l]);
+          h = l < 2 ? AD.relu(z) : z;
+        }
+        return h;
+      };
+      const useL = () => phase !== 'pre' && S.m === 'lora';
+      const predict = (P, n) => {
+        const o = fwd(P, n, useL());
+        AD.clear();
+        return o.v;
+      };
+      const acc = (D) => {
+        const n = D.y.length,
+          o = predict(Float64Array.from(D.X.flat()), n);
+        let ok = 0;
+        for (let i = 0; i < n; i++) if ((o[2 * i + 1] > o[2 * i] ? 1 : 0) === D.y[i]) ok++;
+        return ok / n;
+      };
+      const accWith = (D, Wx, bx) => {
+        const sw = W,
+          sb = b,
+          sp = phase;
+        W = Wx;
+        b = bx;
+        phase = 'pre';
+        const a = acc(D);
+        W = sw;
+        b = sb;
+        phase = sp;
+        return a;
+      };
+      const cp = (a) =>
+        a.map((p) => {
+          const q = AD.param(p.sh, 0, RN);
+          q.v.set(p.v);
+          return q;
+        });
+      const build = () => {
+        const rn = randnFrom(rng(run * 11 + 3));
+        W = [
+          AD.param([2, H], 1, rn),
+          AD.param([H, H], Math.sqrt(2 / H), rn),
+          AD.param([H, 2], Math.sqrt(1 / H), rn),
+        ];
+        b = [AD.param([H], 0, rn), AD.param([H], 0, rn), AD.param([2], 0, rn)];
+        DA = mkA(300);
+        DB = mkB(400);
+        ts = 0;
+        as = 0;
+        phase = 'pre';
+        PL = [];
+        ACN = [];
+        ACO = [];
+        accPre = NaN;
+        fin = false;
+        dW = null;
+        SV = [];
+        cu = 0;
+        lastG = -99;
+        ps = W.concat(b);
+        ntr = 1218;
+        msg =
+          'A network with random weights. First it learns the old task, two interleaved moons, from scratch. Press Run.';
+      };
+      const startAdapt = () => {
+        W = cp(W0);
+        b = cp(b0);
+        const rn = randnFrom(rng(run * 7 + S.r));
+        A = [
+          [2, S.r],
+          [H, S.r],
+          [H, S.r],
+        ].map((s) => AD.param(s, 1 / Math.sqrt(s[0]), rn));
+        Bm = [
+          [S.r, H],
+          [S.r, H],
+          [S.r, 2],
+        ].map((s) => AD.param(s, 0, rn));
+        ps = S.m === 'full' ? W.concat(b) : S.m === 'lora' ? A.concat(Bm) : [W[2], b[2]];
+        ntr = S.m === 'full' ? 1218 : S.m === 'lora' ? 132 * S.r : 66;
+        phase = 'adapt';
+        as = 0;
+        ACN = [acc(DB)];
+        ACO = [acc(DA)];
+        best = 0;
+        bestAt = 0;
+        fin = false;
+        cu = 1;
+        lastG = -99;
+        delta();
+        msg =
+          'Pretraining is finished: ' +
+          pct(accPre) +
+          ' on the old task. A copy of those weights is kept. Now the new task: ' +
+          TBN[S.task] +
+          '. ' +
+          (S.m === 'full'
+            ? 'All 1,218 weights are free to change.'
+            : S.m === 'lora'
+              ? 'The 1,218 weights are frozen. Only two thin matrices per layer are trained: ' +
+                ntr +
+                ' numbers.'
+              : 'Only the last layer’s 66 weights are free to change.');
+      };
+      const delta = () => {
+        dW = new Float64Array(H * H);
+        if (phase === 'pre') return;
+        if (S.m === 'lora') {
+          const a = A[1].v,
+            bb = Bm[1].v,
+            r = S.r;
+          for (let i = 0; i < H; i++)
+            for (let j = 0; j < H; j++) {
+              let s = 0;
+              for (let k = 0; k < r; k++) s += a[i * r + k] * bb[k * H + j];
+              dW[i * H + j] = s;
+            }
+        } else for (let i = 0; i < H * H; i++) dW[i] = W[1].v[i] - W0[1].v[i];
+        const G = [];
+        for (let i = 0; i < H; i++) {
+          G.push(new Array(H).fill(0));
+        }
+        for (let i = 0; i < H; i++)
+          for (let j = i; j < H; j++) {
+            let s = 0;
+            for (let k = 0; k < H; k++) s += dW[k * H + i] * dW[k * H + j];
+            G[i][j] = G[j][i] = s;
+          }
+        SV = jacobi(G).val.map((v) => Math.sqrt(Math.max(0, v)));
+      };
+      const step1 = (D, lora) => {
+        const Bn = 64,
+          X = new Float64Array(2 * Bn),
+          tg = new Int32Array(Bn);
+        for (let i = 0; i < Bn; i++) {
+          const j = Math.floor(Math.random() * D.y.length);
+          X[2 * i] = D.X[j][0];
+          X[2 * i + 1] = D.X[j][1];
+          tg[i] = D.y[j];
+        }
+        const l = AD.ce(fwd(X, Bn, lora), tg, 0);
+        AD.backward(l);
+        return l.v[0];
+      };
+      const zero = () => {
+        for (const p of W.concat(b)) if (!ps.includes(p)) p.g.fill(0);
+      };
+      const train = (k) => {
+        if (phase === 'pre') {
+          for (let q = 0; q < k && ts < PRE; q++) {
+            PL.push(step1(DA, false));
+            AD.adam(ps, 0.01, ++ts, 1);
+          }
+          cu = 0;
+          const a = acc(DA);
+          ACO = [a];
+          msg =
+            'Pretraining step ' +
+            ts +
+            ' of ' +
+            PRE +
+            ' on the old task: accuracy ' +
+            pct(a) +
+            '. All 1,218 weights are being trained.';
+          if (ts >= PRE) {
+            accPre = a;
+            W0 = cp(W);
+            b0 = cp(b);
+            startAdapt();
+          }
+          return;
+        }
+        if (fin) return;
+        for (let q = 0; q < k && as < MAXA && !fin; q++) {
+          step1(DB, S.m === 'lora');
+          zero();
+          AD.adam(ps, S.m === 'lora' ? 0.01 : 0.005, ++as, 1);
+          if (as % 5 === 0) {
+            const a = acc(DB);
+            ACN.push(a);
+            ACO.push(acc(DA));
+            if (a > best + 0.004) {
+              best = a;
+              bestAt = as;
+            }
+            if (as - bestAt >= 200 || as >= MAXA) fin = true;
+          }
+        }
+        delta();
+        cu = fin ? 4 : 3;
+        const an = ACN[ACN.length - 1],
+          ao = ACO[ACO.length - 1];
+        msg =
+          'Adaptation step ' +
+          as +
+          ': ' +
+          ntr +
+          ' numbers were adjusted on 64 examples of the new task. Accuracy is ' +
+          pct(an) +
+          ' on the new task and ' +
+          pct(ao) +
+          ' on the old one.';
+        if (fin) {
+          const e2 = SV.length
+            ? (SV[0] ** 2 + SV[1] ** 2) / (SV.reduce((s, v) => s + v * v, 0) || 1)
+            : NaN;
+          msg =
+            'Finished after ' +
+            as +
+            ' steps: the accuracy on the new task stopped improving at ' +
+            pct(an) +
+            '. ' +
+            ntr +
+            ' numbers were trained (' +
+            pct(ntr / 1218) +
+            ' of the network). Accuracy on the old task fell from ' +
+            pct(accPre) +
+            ' to ' +
+            pct(ao) +
+            '. ' +
+            (S.m === 'full'
+              ? 'The original weights have been overwritten: getting the old skill back needs the saved copy, a whole second network.'
+              : S.m === 'lora'
+                ? 'The original weights were never touched: take the correction away and the old accuracy of ' +
+                  pct(accWith(DA, W0, b0)) +
+                  ' is back.'
+                : 'Only the last layer changed, so restoring the old skill needs just the 66 old numbers.') +
+            (isFinite(e2) && S.m !== 'last'
+              ? ' The two strongest directions hold ' +
+                pct(e2) +
+                ' of the change to the middle matrix.'
+              : '');
+        }
+      };
+      const gridFor = (D) => {
+        const GW = 40,
+          GH = 30,
+          P = new Float64Array(2 * GW * GH);
+        for (let r = 0; r < GH; r++)
+          for (let q = 0; q < GW; q++) {
+            P[2 * (r * GW + q)] = (-4 + (8 * (q + 0.5)) / GW) / 1.6;
+            P[2 * (r * GW + q) + 1] = (3 - (6 * (r + 0.5)) / GH) / 1.6;
+          }
+        const o = predict(P, GW * GH),
+          g = new Float32Array(GW * GH);
+        for (let i = 0; i < GW * GH; i++) g[i] = 1 / (1 + Math.exp(o[2 * i] - o[2 * i + 1]));
+        return g;
+      };
+      const panel = (g, t, x0, y0, w, h, D, G, lab) => {
+        const GW = 40,
+          GH = 30,
+          s = Math.min(w / 8, h / 6),
+          cx = x0 + w / 2,
+          cy = y0 + h / 2,
+          X = (v) => cx + v * 1.6 * s,
+          Y = (v) => cy - v * 1.6 * s;
+        g.save();
+        g.beginPath();
+        g.rect(x0, y0, w, h);
+        g.clip();
+        if (G)
+          for (let r = 0; r < GH; r++)
+            for (let q = 0; q < GW; q++) {
+              const p = G[r * GW + q],
+                col = p > 0.5 ? t.accent : t.cut,
+                xa = Math.round(cx + (-4 + (8 * q) / GW) * s),
+                xb = Math.round(cx + (-4 + (8 * (q + 1)) / GW) * s),
+                ya = Math.round(cy - (3 - (6 * r) / GH) * s),
+                yb = Math.round(cy - (3 - (6 * (r + 1)) / GH) * s);
+              g.fillStyle = mix(col, col, 0, 0.08 + 0.3 * Math.abs(p - 0.5) * 2);
+              g.fillRect(xa, ya, xb - xa, yb - ya);
+            }
+        const r = w > 300 ? 3 : 1.6;
+        D.X.forEach((p, i) => {
+          if (w < 300 && i % 2 === 0 && i > 150) return;
+          g.beginPath();
+          g.arc(X(p[0]), Y(p[1]), r, 0, 7);
+          g.fillStyle = D.y[i] ? t.accent : t.cut;
+          g.fill();
+          if (w > 300) {
+            g.strokeStyle = t.bg;
+            g.lineWidth = 0.6;
+            g.stroke();
+          }
+        });
+        g.restore();
+        if (lab) {
+          g.font = MONO;
+          g.fillStyle = t.muted;
+          g.textAlign = 'left';
+          g.fillText(lab, x0 + 4, y0 + h + 13);
+        }
+      };
+      const draw = () => {
+        const t = T();
+        if (Math.abs((phase === 'pre' ? ts : as) - lastG) >= 3 || fin) {
+          gridA = gridFor(DA);
+          gridB = phase === 'pre' ? null : gridFor(DB);
+          lastG = phase === 'pre' ? ts : as;
+        }
+        {
+          const { g, w, h } = fit(c);
+          panel(
+            g,
+            t,
+            0,
+            0,
+            w,
+            h - 4,
+            phase === 'pre' ? DA : DB,
+            phase === 'pre' ? gridA : gridB,
+            '',
+          );
+          g.font = MONO;
+          g.fillStyle = t.ink;
+          g.textAlign = 'left';
+          g.fillText(
+            phase === 'pre' ? 'OLD TASK: which moon? (pretraining)' : 'NEW TASK: ' + TBN[S.task],
+            8,
+            14,
+          );
+        }
+        {
+          const { g, w, h } = fit(cr),
+            h1 = h * 0.46,
+            pw = (w - 16) / 3,
+            ph2 = h1 - 34;
+          g.font = MONO;
+          panel(
+            g,
+            t,
+            4,
+            16,
+            pw - 8,
+            ph2,
+            DA,
+            gridA,
+            'old task: ' + (ACO.length ? (100 * ACO[ACO.length - 1]).toFixed(0) + '%' : '–'),
+          );
+          {
+            const x0 = 8 + pw,
+              s = Math.floor(Math.min(pw - 10, ph2) / H),
+              ox = x0 + (pw - s * H) / 2,
+              oy = 16 + (ph2 - s * H) / 2,
+              mx = dW ? Math.max(1e-9, ...Array.from(dW).map(Math.abs)) : 1;
+            g.strokeStyle = t.line;
+            g.lineWidth = 1;
+            g.strokeRect(ox - 0.5, oy - 0.5, s * H + 1, s * H + 1);
+            if (dW && phase !== 'pre')
+              for (let i = 0; i < H; i++)
+                for (let j = 0; j < H; j++) {
+                  const v = dW[i * H + j] / mx;
+                  if (Math.abs(v) < 0.04) continue;
+                  const col = v > 0 ? t.accent : t.cut;
+                  g.fillStyle = mix(col, col, 0, Math.min(1, Math.abs(v) * 1.2));
+                  g.fillRect(ox + j * s, oy + i * s, s, s);
+                }
+            g.fillStyle = t.muted;
+            g.textAlign = 'left';
+            g.fillText(
+              phase === 'pre'
+                ? 'change to W: none yet'
+                : S.m === 'last'
+                  ? 'middle W: unchanged'
+                  : 'change to middle W',
+              x0 + 2,
+              16 + ph2 + 13,
+            );
+          }
+          {
+            const x0 = 12 + 2 * pw,
+              n = 12,
+              bw = (pw - 16) / n,
+              mx = Math.max(1e-9, ...SV);
+            g.strokeStyle = t.muted;
+            g.lineWidth = 1;
+            g.beginPath();
+            g.moveTo(x0, 16 + ph2);
+            g.lineTo(x0 + pw - 12, 16 + ph2);
+            g.stroke();
+            if (phase !== 'pre')
+              SV.slice(0, n).forEach((v, i) => {
+                const bh = (v / mx) * (ph2 - 6);
+                g.fillStyle =
+                  i < (S.m === 'lora' ? S.r : 2) ? t.gold : mix(t.accent, t.accent, 0, 0.7);
+                g.fillRect(x0 + i * bw + 1, 16 + ph2 - bh, bw - 2, bh);
+              });
+            g.fillStyle = t.muted;
+            g.textAlign = 'left';
+            g.fillText('its directions', x0, 16 + ph2 + 13);
+          }
+          const n = MAXA / 5 + 1,
+            L1 = uLine(g, t, 0, h1, w, h - h1, phase === 'pre' ? [] : ACN, {
+              title: 'accuracy while adapting',
+              n,
+              ym: 1,
+              y1: 0,
+              col: t.accent,
+            });
+          if (phase !== 'pre') {
+            g.strokeStyle = t.cut;
+            g.lineWidth = 2;
+            g.beginPath();
+            ACO.forEach((v, i) => (i ? g.lineTo(L1.X(i), L1.Y(v)) : g.moveTo(L1.X(i), L1.Y(v))));
+            g.stroke();
+            const k = ACN.length - 1,
+              lx = Math.max(L1.X(k), L1.m.l + 70);
+            g.textAlign = 'right';
+            g.fillStyle = t.accent;
+            g.fillText('new task', lx, L1.Y(ACN[k]) + (ACN[k] > 0.8 ? 16 : -8));
+            g.fillStyle = t.cut;
+            g.fillText('old task', lx, L1.Y(ACO[k]) - 9);
+          } else {
+            g.fillStyle = t.muted;
+            g.textAlign = 'center';
+            g.fillText('the curves start when the new task begins', w / 2, h1 + (h - h1) / 2);
+          }
+        }
+        live.textContent = msg;
+        uCur(root, 'lo', cu);
+        const e2 =
+          SV.length && phase !== 'pre' && S.m !== 'last'
+            ? (SV[0] ** 2 + SV[1] ** 2) / (SV.reduce((s, v) => s + v * v, 0) || 1)
+            : NaN;
+        setR(
+          root,
+          'ph',
+          phase === 'pre'
+            ? ts
+              ? 'Pretraining on the old task'
+              : 'Not started'
+            : fin
+              ? 'Finished'
+              : 'Adapting to the new task',
+        );
+        setR(root, 'st', phase === 'pre' ? '–' : String(as));
+        setR(root, 'tp', ntr + ' of 1218 (' + pct(ntr / 1218) + ')');
+        setR(root, 'an', ACN.length ? pct(ACN[ACN.length - 1]) : '–');
+        setR(root, 'ao', phase !== 'pre' && ACO.length ? pct(ACO[ACO.length - 1]) : '–');
+        setR(root, 'au', isFinite(accPre) ? pct(accPre) : '–');
+        setR(root, 'sv', isFinite(e2) ? pct(e2) : '–');
+      };
+      build();
+      if (RM) {
+        train(PRE);
+        while (!fin) train(20);
+      }
+      const anim = Anim(() => {
+        fr++;
+        train(phase === 'pre' ? 5 : as < 40 ? 1 : 4);
+        draw();
+        chk();
+      });
+      pb = playBtn($('#lo-play', root), anim);
+      chk = runCtl(pb, root, 'lo', {
+        done: () => phase === 'adapt' && fin,
+        restart: () => startAdapt(),
+        count: () => as,
+        what: 'adaptation steps',
+      });
+      const redo = () => {
+        if (phase === 'pre') {
+          draw();
+          return;
+        }
+        pb.stop();
+        startAdapt();
+        draw();
+        pb.start();
+      };
+      $('#lo-step', root).onclick = () => {
+        pb.stop();
+        if (phase === 'adapt' && fin) startAdapt();
+        else train(25);
+        draw();
+      };
+      $('#lo-reset', root).onclick = () => {
+        pb.stop();
+        run++;
+        build();
+        draw();
+      };
+      segBind(root, 'lo-m', S.m, (v) => {
+        S.m = v;
+        redo();
+      });
+      $('#lo-task', root).onchange = (e) => {
+        S.task = e.target.value;
+        DB = mkB(400);
+        redo();
+      };
+      bind(
+        root,
+        'lo-r',
+        (v) => {
+          S.r = +v;
+          if (S.m === 'lora') redo();
+          else if (pb) draw();
+        },
+        (v) => String(v),
+      );
+      return {
+        draw,
+        stop: () => pb.stop(),
+        auto: () => {
+          run++;
+          build();
+          draw();
+          pb.start();
+        },
+      };
+    },
+  },
+  {
+    id: 'quantization',
+    tab: 'Quantization',
+    title: 'Quantization: the same network in fewer bits',
+    lede: 'A trained network is a long list of numbers, and each one is normally stored with 32 bits. A large language model has billions of them, which is why it needs a data centre. Quantization stores every weight with fewer bits by rounding it to the nearest value on a short list. The surprise is how far this can go: at 8 bits almost nothing is lost, at 4 bits very little, and then, quite suddenly, the network falls apart. Here a real letter-reading network is rounded while you watch.',
+    stage: `<div class="stage"><figure class="fig"><figcaption>Top: all the weights of the first layer, as a histogram. The gold lines are the only values a weight is allowed to take. Bottom: what each of the 24 hidden neurons looks for, drawn from its rounded weights</figcaption><canvas class="short" id="qz-c" role="img" aria-label="Histogram of weights with the allowed levels, and the rounded weights of each hidden neuron"></canvas></figure>
  <figure class="fig"><figcaption>Top: accuracy on 300 test pictures for every number of bits. Bottom: each weight before rounding (across) against after rounding (up)</figcaption><canvas class="short" id="qz-r" role="img" aria-label="Accuracy against bits, and original weight against rounded weight"></canvas></figure></div>
  <div class="eq" id="qz-eq" aria-live="polite"></div>
  <div class="stage" style="margin-top:22px"><figure class="fig"><figcaption>A test picture, and what the full-precision network (left bar of each pair) and the rounded network (right bar, gold) each think it is</figcaption><canvas class="wide" id="qz-t" role="img" aria-label="A test picture and the class probabilities from both networks"></canvas></figure>
  <div><div class="row seg" id="qz-let" role="group" aria-label="Letter to test"></div><div class="row" style="margin-top:10px"><button class="btn" id="qz-noise" type="button">Another Noisy Copy</button><button class="btn" id="qz-w" type="button">Follow Another Weight</button></div><p class="tpout" id="qz-tpo" role="status" style="margin-top:12px"></p></div></div>
- ${uHow('qz',['Train the network as usual, with 32-bit weights, and measure its accuracy.','Choose a number of bits b. That allows 2 to the power b different values, fewer one to keep them symmetric around zero.','Find the range of the weights and spread the allowed values evenly across it.','Round every weight to the nearest allowed value. Store only which one it was: a small whole number.','Run the network with the rounded weights and measure the accuracy again.'])}
- <div class="controls">${uBtns('qz','Run','One step')}
- ${grp('Rounding',slider('qz-b','Bits per weight',0,8,1,8)+`<div class="row seg" id="qz-clip" role="group" aria-label="Range"><button class="btn" type="button" data-v="full">Cover the Full Range</button><button class="btn" type="button" data-v="clip">Clip the Largest 1%</button></div>`)}</div>
- <dl class="read">${rd('b','Bits per weight')}${rd('lv','Different values a weight may take')}${rd('sz','Size of the 984 weights','hl2')}${rd('acc','Accuracy with rounded weights','hl')}${rd('acc0','Accuracy at full precision')}${rd('err','Average rounding error, as a share of the weight range')}</dl>`,
- tryit:'Press Run: the bits fall from 32 to 1 and everything on the page follows. At how many bits does the accuracy first drop noticeably, and how much smaller is the model by then? Look at the 24 small pictures at 32 bits and at 2 bits: the neurons still look for roughly the same strokes. At 1 bit only the sign of each weight survives. Now compare the two range rules at 2 and 3 bits. Clipping throws away accuracy on the few largest weights to buy finer steps for all the others: does that trade pay here? Use the buttons under the test picture to find a letter that the rounded network gets wrong and the original gets right.',
- math:String.raw`<h4>Intuition</h4><p>Measure the height of everyone in a class to the nearest tenth of a millimetre and you have recorded far more than anyone needs. To the nearest centimetre is plenty: the list is much shorter to write down and nothing useful is lost. To the nearest half metre is too coarse: almost everyone becomes "1.5" and the list is useless. Somewhere between lies the coarsest ruler that still does the job. Quantization is the search for that ruler for the weights of a network. It works as well as it does because a network's answer comes from adding up thousands of weights, and small rounding errors in opposite directions largely cancel.</p>
+ ${uHow('qz', ['Train the network as usual, with 32-bit weights, and measure its accuracy.', 'Choose a number of bits b. That allows 2 to the power b different values, fewer one to keep them symmetric around zero.', 'Find the range of the weights and spread the allowed values evenly across it.', 'Round every weight to the nearest allowed value. Store only which one it was: a small whole number.', 'Run the network with the rounded weights and measure the accuracy again.'])}
+ <div class="controls">${uBtns('qz', 'Run', 'One step')}
+ ${grp('Rounding', slider('qz-b', 'Bits per weight', 0, 8, 1, 8) + `<div class="row seg" id="qz-clip" role="group" aria-label="Range"><button class="btn" type="button" data-v="full">Cover the Full Range</button><button class="btn" type="button" data-v="clip">Clip the Largest 1%</button></div>`)}</div>
+ <dl class="read">${rd('b', 'Bits per weight')}${rd('lv', 'Different values a weight may take')}${rd('sz', 'Size of the 984 weights', 'hl2')}${rd('acc', 'Accuracy with rounded weights', 'hl')}${rd('acc0', 'Accuracy at full precision')}${rd('err', 'Average rounding error, as a share of the weight range')}</dl>`,
+    tryit:
+      'Press Run: the bits fall from 32 to 1 and everything on the page follows. At how many bits does the accuracy first drop noticeably, and how much smaller is the model by then? Look at the 24 small pictures at 32 bits and at 2 bits: the neurons still look for roughly the same strokes. At 1 bit only the sign of each weight survives. Now compare the two range rules at 2 and 3 bits. Clipping throws away accuracy on the few largest weights to buy finer steps for all the others: does that trade pay here? Use the buttons under the test picture to find a letter that the rounded network gets wrong and the original gets right.',
+    math: String.raw`<h4>Intuition</h4><p>Measure the height of everyone in a class to the nearest tenth of a millimetre and you have recorded far more than anyone needs. To the nearest centimetre is plenty: the list is much shorter to write down and nothing useful is lost. To the nearest half metre is too coarse: almost everyone becomes "1.5" and the list is useless. Somewhere between lies the coarsest ruler that still does the job. Quantization is the search for that ruler for the weights of a network. It works as well as it does because a network's answer comes from adding up thousands of weights, and small rounding errors in opposite directions largely cancel.</p>
  <h4>Uniform quantization</h4><p>Take the weights of one layer and let \(m\) be the largest size among them. With \(b\) bits, use the whole numbers from \(-Q\) to \(Q\), where \(Q=2^{\,b-1}-1\), and a step</p>$$\Delta=\frac{m}{Q}.$$<p>Each weight \(w\) is replaced by a whole number \(q\), which is all that is stored, and is read back as \(\hat w\):</p>$$q=\operatorname{round}\!\Big(\frac{w}{\Delta}\Big),\qquad \hat w=q\,\Delta .$$<p>The line of calculations under the pictures does this for one weight. For 8 bits \(q\) runs from \(-127\) to \(127\). The layer also stores the single number \(\Delta\).</p>
  <h4>The error</h4><p>Rounding moves a weight by at most half a step, \(|w-\hat w|\le\Delta/2\). If the errors are spread evenly inside that interval, their typical size is</p>$$\sqrt{\mathbb E\big[(w-\hat w)^2\big]}=\frac{\Delta}{\sqrt{12}} .$$<p>Removing one bit doubles \(\Delta\) and so doubles the error, while the saving in size from that bit gets smaller each time: from 8 to 7 bits saves an eighth, from 2 to 1 saves a half. That is why the accuracy curve is flat for a long way and then falls off a cliff.</p>
  <h4>One bit</h4><p>With a single bit there is no room for zero, so the rule changes: keep only the sign of each weight and give all of them the same size, the average size in the layer,</p>$$\hat w=\operatorname{sign}(w)\cdot\frac{1}{n}\sum_i|w_i| .$$<p>That a network still works at all like this says how much of what it knows is carried by the pattern of signs.</p><p>On this page 2 bits can score lower than 1 bit. With 2 bits and the full range the three allowed values are \(-m\), 0 and \(m\). Because \(m\) is set by the single largest weight, most weights are closer to 0 than to \(\pm m\) and are rounded to exactly zero, which switches them off. The 1-bit rule never produces a zero. Clipping the range, described next, repairs much of the 2-bit case.</p>
  <h4>The range matters</h4><p>The allowed values are spread across the whole range \([-m,m]\). If one weight is far larger than the others, it stretches the range, the step \(\Delta\) grows, and all the ordinary weights are rounded more coarsely to accommodate one outlier. <b>Clipping</b> sets \(m\) to a percentile of the sizes, here the 99th, and squashes the few larger weights down to it. They are represented badly and everything else is represented better. Whether that pays depends on the layer, and choosing the range well is most of the craft in this simple form of quantization.</p>
  <h4>In large language models</h4><p>A model with 7 billion weights takes 28 gigabytes at 32 bits, 14 at 16 bits, 7 at 8 bits and 3.5 at 4 bits. Four-bit versions of open models are what run on laptops and phones. Fewer bits also make the arithmetic itself faster and cheaper in energy. Rounding a finished model, as this page does, is called post-training quantization. When that loses too much, the model can be trained with the rounding already in place so that it learns weights that survive it, which is quantization-aware training. Practical schemes also use different steps for different groups of weights, and spend more bits on the layers that turn out to be most sensitive.</p>
  <h4>What this page trains</h4><p>A network that reads 5 by 7 pictures of six letters, with 35 inputs, 24 hidden neurons and 6 outputs. Its 984 weights are quantized, one scale per layer. The 30 biases are left at full precision. The pictures have 12% of their squares flipped at random, which makes the task hard enough for errors to show. Accuracy is measured on 300 pictures the network did not train on.</p>`,
- q:'Going from 32 bits to 8 bits makes the model four times smaller and costs almost no accuracy. Going from 2 bits to 1 bit makes it only twice smaller and destroys much of the accuracy. Why is the trade so different at the two ends?',a:'Each bit removed doubles the size of the rounding step, and so doubles the error in every weight. At 32 bits the error is so far below what the network can notice that doubling it twenty times over still leaves it negligible: those bits were storing precision the network never used. At 2 bits the step is already about the size of a typical weight, so doubling it again erases the differences between weights that the network depends on. The saving, meanwhile, is measured against what is left, so the last bits removed save the fewest bytes in absolute terms and cost the most.',
- init(root){const c=$('#qz-c',root),cr=$('#qz-r',root),ct=$('#qz-t',root),live=$('#qz-live',root),eq=$('#qz-eq',root),BITS=[1,2,3,4,5,6,8,16,32],S={bi:8,clip:'full',let:0},CH=['A','E','H','O','T','X'];
-  let net,Wf,ACC={full:[],clip:[]},acc0=NaN,Wq=null,info=null,test,msg='',cu=0,fr=0,pb,run=1,pic=null,wi=0,sweep=false;
-  const quant=(w,b,clip)=>{const n=w.length,o=new Float64Array(n);if(b>=32)return{o:Float64Array.from(w),d:0,m:Math.max(...Array.from(w).map(Math.abs)),Q:Infinity,lev:[]};const ab=Array.from(w).map(Math.abs);if(b===1){const mu=ab.reduce((s,v)=>s+v,0)/n;for(let i=0;i<n;i++)o[i]=w[i]<0?-mu:mu;return{o,d:2*mu,m:mu,Q:1,lev:[-mu,mu],one:true}}
-   const m=clip?ab.slice().sort((x,y)=>x-y)[Math.floor(.99*(n-1))]:Math.max(...ab),Q=Math.pow(2,b-1)-1,d=m/Q;for(let i=0;i<n;i++)o[i]=clamp(Math.round(w[i]/d),-Q,Q)*d;const lev=[];if(Q<=64)for(let q=-Q;q<=Q;q++)lev.push(q*d);return{o,d,m,Q,lev}};
-  const setW=(a,b2)=>{net.ps[0].v.set(a);net.ps[1].v.set(b2)};
-  const probs=(X,n)=>{const o=net.fwd(AD.input(X,[n,35]));AD.clear();const P=new Float64Array(n*6);for(let i=0;i<n;i++){let mx=-1e30;for(let j=0;j<6;j++)mx=Math.max(mx,o.v[i*6+j]);let z=0;for(let j=0;j<6;j++){P[i*6+j]=Math.exp(o.v[i*6+j]-mx);z+=P[i*6+j]}for(let j=0;j<6;j++)P[i*6+j]/=z}return P};
-  const accOf=()=>{const n=test.lab.length,P=probs(Float64Array.from(test.X.flat()),n);let ok=0;for(let i=0;i<n;i++){let b=0;for(let j=1;j<6;j++)if(P[i*6+j]>P[i*6+b])b=j;if(b===test.lab[i])ok++}return ok/n};
-  const build=()=>{net=AD.mlp([35,24,6],randnFrom(rng(run*17+5)),'relu');const tr=letterData(run,.12),t1=letterData(run+50,.12),t2=letterData(run+90,.12);test={X:t1.X.concat(t2.X),lab:t1.lab.concat(t2.lab)};
-   for(let ts=1;ts<=500;ts++){const B=32,X=new Float64Array(B*35),tg=new Int32Array(B);for(let i=0;i<B;i++){const j=Math.floor(Math.random()*150);X.set(tr.X[j],i*35);tg[i]=tr.lab[j]}const l=AD.ce(net.fwd(AD.input(X,[B,35])),tg,0);AD.backward(l);AD.adam(net.ps,.01,ts,1)}
-   Wf=[Float64Array.from(net.ps[0].v),Float64Array.from(net.ps[1].v)];acc0=accOf();for(const m of['full','clip'])ACC[m]=BITS.map(b=>{setW(quant(Wf[0],b,m==='clip').o,quant(Wf[1],b,m==='clip').o);return accOf()});wi=Math.floor(Math.random()*840);newPic();apply();cu=0;
-   msg='The network has been trained with ordinary 32-bit weights and reads '+pct(acc0)+' of 300 test pictures correctly. Press Run to round its weights more and more coarsely, or move the slider.'};
-  const apply=()=>{const b=BITS[S.bi],q0=quant(Wf[0],b,S.clip==='clip'),q1=quant(Wf[1],b,S.clip==='clip');Wq=[q0.o,q1.o];info=q0;let e=0;for(let i=0;i<840;i++)e+=Math.abs(Wf[0][i]-q0.o[i]);info.err=e/840/(2*Math.max(...Array.from(Wf[0]).map(Math.abs)));
-   const w=Wf[0][wi],L=[];if(b>=32)L.push('weight number '+(wi+1)+' of the first layer = '+w.toFixed(5),'32 bits: stored as it is. Nothing is rounded.');else if(b===1)L.push('weight number '+(wi+1)+' of the first layer = '+w.toFixed(5),'1 bit: only the sign is kept. The sign is '+(w<0?'minus':'plus')+', stored as <b>'+(w<0?'0':'1')+'</b>','every weight gets the same size, the average size in the layer = '+q0.m.toFixed(5),'read back as <b>'+q0.o[wi].toFixed(5)+'</b>    error '+(q0.o[wi]-w).toFixed(5));
-   else{const qi=clamp(Math.round(w/q0.d),-q0.Q,q0.Q),bin=((qi+q0.Q)>>>0).toString(2).padStart(b,'0');L.push('weight number '+(wi+1)+' of the first layer = '+w.toFixed(5),'largest size allowed m = '+q0.m.toFixed(5)+'    whole numbers from −'+q0.Q+' to '+q0.Q+'    step Δ = m ÷ '+q0.Q+' = '+q0.d.toFixed(5),'q = round('+w.toFixed(5)+' ÷ '+q0.d.toFixed(5)+') = round('+(w/q0.d).toFixed(2)+') = <b>'+qi+'</b>'+(Math.abs(Math.round(w/q0.d))>q0.Q?'  (clipped to the largest allowed)':''),'stored in '+b+' bits as <b>'+bin+'</b>'+(b>12?'':'  (position '+(qi+q0.Q)+' on the list of allowed values)'),'read back as '+qi+' × '+q0.d.toFixed(5)+' = <b>'+(qi*q0.d).toFixed(5)+'</b>    error '+(qi*q0.d-w).toFixed(5))}eqShow(eq,L,sweep?0:260)};
-  const newPic=()=>{const d=letterData(Math.floor(Math.random()*1e6),.12);pic=d.X[S.let*25+Math.floor(Math.random()*25)]};
-  const say=()=>{const b=BITS[S.bi],a=ACC[S.clip][S.bi];cu=b>=32?0:4;msg=b>=32?'32 bits per weight: the network as it was trained. The 984 weights take '+984*4+' bytes and the accuracy is '+pct(acc0)+'.':'At '+b+' bit'+(b>1?'s':'')+' each weight may take one of '+(b===1?2:b>20?'about '+Math.pow(2,b).toExponential(1):Math.pow(2,b)-1)+' values'+(b===1?': plus or minus one fixed size':'')+'. Every weight was rounded to the nearest one. The weights now take '+Math.ceil(984*b/8)+' bytes, '+f2(32/b)+' times less than before, and the accuracy is '+pct(a)+' (it was '+pct(acc0)+').'};
-  const draw=()=>{const t=T(),b=BITS[S.bi];
-   {const{g,w,h}=fit(c),h1=h*.44,m={l:14,r:14,t:22,b:18},W=Wf[0],mx=Math.max(...Array.from(W).map(Math.abs))*1.04,NB=48,cnt=new Array(NB).fill(0);for(const v of W)cnt[clamp(Math.floor((v+mx)/(2*mx)*NB),0,NB-1)]++;const cm=Math.max(...cnt),X=v=>m.l+(v+mx)/(2*mx)*(w-m.l-m.r);g.font=MONO;g.fillStyle=t.muted;g.textAlign='left';g.fillText('the 840 weights of the first layer, and the values they may be rounded to',8,13);
-    cnt.forEach((n,i)=>{const bh=n/cm*(h1-m.t-m.b);g.fillStyle=mix(t.accent,t.accent,0,.55);g.fillRect(m.l+i*(w-m.l-m.r)/NB+.5,h1-m.b-bh,(w-m.l-m.r)/NB-1,bh)});g.strokeStyle=t.muted;g.lineWidth=1;g.beginPath();g.moveTo(m.l,h1-m.b);g.lineTo(w-m.r,h1-m.b);g.stroke();
-    if(info.lev.length){g.strokeStyle=t.gold;g.lineWidth=info.lev.length>40?.7:1.6;for(const v of info.lev){g.beginPath();g.moveTo(X(v),m.t);g.lineTo(X(v),h1-m.b+5);g.stroke()}}else{g.fillStyle=t.cut;g.textAlign='center';g.fillText(b>=32?'32 bits: every value is allowed':'too many allowed values to draw: '+(Math.pow(2,b)-1),w/2,m.t+12)}
-    g.fillStyle=t.ink;g.beginPath();g.arc(X(Wf[0][wi]),h1-m.b+9,3.5,0,7);g.fill();g.fillStyle=t.muted;g.textAlign='left';g.fillText('0',X(0)-3,h1-2);g.textAlign='right';g.fillText('dot: the weight followed below',w-m.r,h1-2);
-    const cols=12,s=Math.floor(Math.min((w-20)/(cols*5+(cols-1)*.8),(h-h1-30)/(2*7+1)));const ox=(w-(cols*5*s+(cols-1)*.8*s))/2,oy=h1+20,q=Wq[0],qm=Math.max(1e-9,...Array.from(q).map(Math.abs));g.fillStyle=t.muted;g.textAlign='left';g.fillText('incoming weights of each hidden neuron, after rounding',8,h1+13);
-    for(let u=0;u<24;u++){const x0=ox+(u%cols)*5.8*s,y0=oy+Math.floor(u/cols)*8*s;for(let i=0;i<35;i++){const v=q[i*24+u]/qm,col=v>0?t.accent:t.cut;g.fillStyle=mix(col,col,0,Math.min(1,Math.abs(v)*1.5));g.fillRect(x0+(i%5)*s,y0+Math.floor(i/5)*s,s,s)}g.strokeStyle=t.line;g.lineWidth=1;g.strokeRect(x0-.5,y0-.5,5*s+1,7*s+1)}}
-   {const{g,w,h}=fit(cr),h1=h*.46,L=g2Bench(g,t,0,0,w,h1,BITS,[{ys:ACC.clip,col:t.cut,lab:'largest 1% clipped'},{ys:ACC.full,col:t.accent,lab:'full range'}],S.bi,'accuracy on 300 test pictures, by bits per weight');
-    const m={l:44,r:14,t:26,b:20},y0=h1,H=h-h1,mx=Math.max(...Array.from(Wf[0]).map(Math.abs))*1.04,X=v=>m.l+(v+mx)/(2*mx)*(w-m.l-m.r),Y=v=>y0+H-m.b-(v+mx)/(2*mx)*(H-m.t-m.b);g.font=MONO;g.fillStyle=t.muted;g.textAlign='left';g.fillText('each weight: original value (across) and rounded value (up)',8,y0+13);
-    g.strokeStyle=t.line;g.lineWidth=1;g.beginPath();g.moveTo(X(-mx),Y(-mx));g.lineTo(X(mx),Y(mx));g.stroke();g.fillStyle=mix(t.accent,t.accent,0,.6);for(let i=0;i<840;i+=2){g.beginPath();g.arc(X(Wf[0][i]),Y(Wq[0][i]),1.6,0,7);g.fill()}g.fillStyle=t.gold;g.beginPath();g.arc(X(Wf[0][wi]),Y(Wq[0][wi]),5,0,7);g.fill();g.fillStyle=t.muted;g.textAlign='right';g.fillText('thin line: no rounding',w-m.r,y0+H-5)}
-   {const{g,w,h}=fit(ct),s=Math.floor(Math.min(h-30,180)/7.4),x0=18,y0=(h-7*s)/2;for(let i=0;i<35;i++){g.fillStyle=pic[i]>.5?t.ink:t.bg;g.fillRect(x0+(i%5)*s,y0+Math.floor(i/5)*s,s-1,s-1);if(pic[i]<=.5){g.strokeStyle=t.line;g.lineWidth=1;g.strokeRect(x0+(i%5)*s+.5,y0+Math.floor(i/5)*s+.5,s-2,s-2)}}
-    setW(Wf[0],Wf[1]);const P0=probs(Float64Array.from(pic),1);setW(Wq[0],Wq[1]);const P1=probs(Float64Array.from(pic),1);const bx=x0+5*s+46,bw=(w-bx-16)/6,H=h-56;g.font=MONO;
-    for(let j=0;j<6;j++){const x=bx+j*bw;g.fillStyle=t.accent;g.fillRect(x+4,20+H-P0[j]*H,bw*.36,P0[j]*H);g.fillStyle=t.gold;g.fillRect(x+4+bw*.4,20+H-P1[j]*H,bw*.36,P1[j]*H);g.fillStyle=j===S.let?t.cut:t.muted;g.textAlign='center';g.fillText(CH[j]+(j===S.let?' (true)':''),x+bw*.42,h-18)}g.strokeStyle=t.muted;g.lineWidth=1;g.beginPath();g.moveTo(bx,20+H);g.lineTo(w-12,20+H);g.stroke();
-    const a0=P0.indexOf(Math.max(...P0)),a1=P1.indexOf(Math.max(...P1));$('#qz-tpo',root).textContent='This picture is a noisy '+CH[S.let]+'. The full-precision network says '+CH[a0]+' ('+pct(P0[a0])+' sure). At '+b+' bit'+(b>1?'s':'')+' the rounded network says '+CH[a1]+' ('+pct(P1[a1])+' sure).'+(a0===S.let&&a1!==S.let?' Rounding changed a right answer into a wrong one.':a0!==S.let&&a1===S.let?' Here rounding happened to fix a wrong answer: luck, not a rule.':'')}
-   live.textContent=msg;uCur(root,'qz',cu);setR(root,'b',String(b));setR(root,'lv',b>=32?'about 4 billion':b===1?'2':b>20?'–':String(Math.pow(2,b)-1));setR(root,'sz',Math.ceil(984*b/8)+' bytes'+(b<32?' ('+f2(32/b)+'× smaller)':''));setR(root,'acc',pct(ACC[S.clip][S.bi]));setR(root,'acc0',pct(acc0));setR(root,'err',b>=32?'0':pct(info.err))};
-  $('#qz-let',root).innerHTML=CH.map((ch,i)=>'<button class="btn" type="button" data-v="'+i+'">Test a Noisy '+ch+'</button>').join('');build();
-  const sl=bind(root,'qz-b',v=>{S.bi=+v;if(!pb)return;pb.stop();apply();say();draw()},v=>String(BITS[+v]));
-  const anim=Anim(()=>{fr++;if(fr%55)return;if(S.bi<=0){pb.stop();sweep=false;return}S.bi--;sl.set(S.bi);apply();say();draw();if(S.bi<=0){pb.stop();sweep=false}});pb=playBtn($('#qz-play',root),anim);const st0=pb.start;pb.start=()=>{sweep=true;if(S.bi<=0){S.bi=8;sl.set(8);apply();say();draw()}st0()};
-  $('#qz-step',root).onclick=()=>{pb.stop();sweep=false;S.bi=S.bi<=0?8:S.bi-1;sl.set(S.bi);apply();say();draw()};$('#qz-reset',root).onclick=()=>{pb.stop();sweep=false;run++;S.bi=8;sl.set(8);build();draw()};
-  segBind(root,'qz-clip',S.clip,v=>{S.clip=v;apply();say();draw()});segBind(root,'qz-let','0',v=>{S.let=+v;newPic();draw()});$('#qz-noise',root).onclick=()=>{newPic();draw()};$('#qz-w',root).onclick=()=>{wi=Math.floor(Math.random()*840);apply();draw()};
-  return{draw,stop:()=>{pb.stop();sweep=false},auto:()=>{S.bi=8;sl.set(8);apply();say();draw();pb.start()}}}},
+    q: 'Going from 32 bits to 8 bits makes the model four times smaller and costs almost no accuracy. Going from 2 bits to 1 bit makes it only twice smaller and destroys much of the accuracy. Why is the trade so different at the two ends?',
+    a: 'Each bit removed doubles the size of the rounding step, and so doubles the error in every weight. At 32 bits the error is so far below what the network can notice that doubling it twenty times over still leaves it negligible: those bits were storing precision the network never used. At 2 bits the step is already about the size of a typical weight, so doubling it again erases the differences between weights that the network depends on. The saving, meanwhile, is measured against what is left, so the last bits removed save the fewest bytes in absolute terms and cost the most.',
+    init(root) {
+      const c = $('#qz-c', root),
+        cr = $('#qz-r', root),
+        ct = $('#qz-t', root),
+        live = $('#qz-live', root),
+        eq = $('#qz-eq', root),
+        BITS = [1, 2, 3, 4, 5, 6, 8, 16, 32],
+        S = { bi: 8, clip: 'full', let: 0 },
+        CH = ['A', 'E', 'H', 'O', 'T', 'X'];
+      let net,
+        Wf,
+        ACC = { full: [], clip: [] },
+        acc0 = NaN,
+        Wq = null,
+        info = null,
+        test,
+        msg = '',
+        cu = 0,
+        fr = 0,
+        pb,
+        run = 1,
+        pic = null,
+        wi = 0,
+        sweep = false;
+      const quant = (w, b, clip) => {
+        const n = w.length,
+          o = new Float64Array(n);
+        if (b >= 32)
+          return {
+            o: Float64Array.from(w),
+            d: 0,
+            m: Math.max(...Array.from(w).map(Math.abs)),
+            Q: Infinity,
+            lev: [],
+          };
+        const ab = Array.from(w).map(Math.abs);
+        if (b === 1) {
+          const mu = ab.reduce((s, v) => s + v, 0) / n;
+          for (let i = 0; i < n; i++) o[i] = w[i] < 0 ? -mu : mu;
+          return { o, d: 2 * mu, m: mu, Q: 1, lev: [-mu, mu], one: true };
+        }
+        const m = clip
+            ? ab.slice().sort((x, y) => x - y)[Math.floor(0.99 * (n - 1))]
+            : Math.max(...ab),
+          Q = Math.pow(2, b - 1) - 1,
+          d = m / Q;
+        for (let i = 0; i < n; i++) o[i] = clamp(Math.round(w[i] / d), -Q, Q) * d;
+        const lev = [];
+        if (Q <= 64) for (let q = -Q; q <= Q; q++) lev.push(q * d);
+        return { o, d, m, Q, lev };
+      };
+      const setW = (a, b2) => {
+        net.ps[0].v.set(a);
+        net.ps[1].v.set(b2);
+      };
+      const probs = (X, n) => {
+        const o = net.fwd(AD.input(X, [n, 35]));
+        AD.clear();
+        const P = new Float64Array(n * 6);
+        for (let i = 0; i < n; i++) {
+          let mx = -1e30;
+          for (let j = 0; j < 6; j++) mx = Math.max(mx, o.v[i * 6 + j]);
+          let z = 0;
+          for (let j = 0; j < 6; j++) {
+            P[i * 6 + j] = Math.exp(o.v[i * 6 + j] - mx);
+            z += P[i * 6 + j];
+          }
+          for (let j = 0; j < 6; j++) P[i * 6 + j] /= z;
+        }
+        return P;
+      };
+      const accOf = () => {
+        const n = test.lab.length,
+          P = probs(Float64Array.from(test.X.flat()), n);
+        let ok = 0;
+        for (let i = 0; i < n; i++) {
+          let b = 0;
+          for (let j = 1; j < 6; j++) if (P[i * 6 + j] > P[i * 6 + b]) b = j;
+          if (b === test.lab[i]) ok++;
+        }
+        return ok / n;
+      };
+      const build = () => {
+        net = AD.mlp([35, 24, 6], randnFrom(rng(run * 17 + 5)), 'relu');
+        const tr = letterData(run, 0.12),
+          t1 = letterData(run + 50, 0.12),
+          t2 = letterData(run + 90, 0.12);
+        test = { X: t1.X.concat(t2.X), lab: t1.lab.concat(t2.lab) };
+        for (let ts = 1; ts <= 500; ts++) {
+          const B = 32,
+            X = new Float64Array(B * 35),
+            tg = new Int32Array(B);
+          for (let i = 0; i < B; i++) {
+            const j = Math.floor(Math.random() * 150);
+            X.set(tr.X[j], i * 35);
+            tg[i] = tr.lab[j];
+          }
+          const l = AD.ce(net.fwd(AD.input(X, [B, 35])), tg, 0);
+          AD.backward(l);
+          AD.adam(net.ps, 0.01, ts, 1);
+        }
+        Wf = [Float64Array.from(net.ps[0].v), Float64Array.from(net.ps[1].v)];
+        acc0 = accOf();
+        for (const m of ['full', 'clip'])
+          ACC[m] = BITS.map((b) => {
+            setW(quant(Wf[0], b, m === 'clip').o, quant(Wf[1], b, m === 'clip').o);
+            return accOf();
+          });
+        wi = Math.floor(Math.random() * 840);
+        newPic();
+        apply();
+        cu = 0;
+        msg =
+          'The network has been trained with ordinary 32-bit weights and reads ' +
+          pct(acc0) +
+          ' of 300 test pictures correctly. Press Run to round its weights more and more coarsely, or move the slider.';
+      };
+      const apply = () => {
+        const b = BITS[S.bi],
+          q0 = quant(Wf[0], b, S.clip === 'clip'),
+          q1 = quant(Wf[1], b, S.clip === 'clip');
+        Wq = [q0.o, q1.o];
+        info = q0;
+        let e = 0;
+        for (let i = 0; i < 840; i++) e += Math.abs(Wf[0][i] - q0.o[i]);
+        info.err = e / 840 / (2 * Math.max(...Array.from(Wf[0]).map(Math.abs)));
+        const w = Wf[0][wi],
+          L = [];
+        if (b >= 32)
+          L.push(
+            'weight number ' + (wi + 1) + ' of the first layer = ' + w.toFixed(5),
+            '32 bits: stored as it is. Nothing is rounded.',
+          );
+        else if (b === 1)
+          L.push(
+            'weight number ' + (wi + 1) + ' of the first layer = ' + w.toFixed(5),
+            '1 bit: only the sign is kept. The sign is ' +
+              (w < 0 ? 'minus' : 'plus') +
+              ', stored as <b>' +
+              (w < 0 ? '0' : '1') +
+              '</b>',
+            'every weight gets the same size, the average size in the layer = ' + q0.m.toFixed(5),
+            'read back as <b>' + q0.o[wi].toFixed(5) + '</b>    error ' + (q0.o[wi] - w).toFixed(5),
+          );
+        else {
+          const qi = clamp(Math.round(w / q0.d), -q0.Q, q0.Q),
+            bin = ((qi + q0.Q) >>> 0).toString(2).padStart(b, '0');
+          L.push(
+            'weight number ' + (wi + 1) + ' of the first layer = ' + w.toFixed(5),
+            'largest size allowed m = ' +
+              q0.m.toFixed(5) +
+              '    whole numbers from −' +
+              q0.Q +
+              ' to ' +
+              q0.Q +
+              '    step Δ = m ÷ ' +
+              q0.Q +
+              ' = ' +
+              q0.d.toFixed(5),
+            'q = round(' +
+              w.toFixed(5) +
+              ' ÷ ' +
+              q0.d.toFixed(5) +
+              ') = round(' +
+              (w / q0.d).toFixed(2) +
+              ') = <b>' +
+              qi +
+              '</b>' +
+              (Math.abs(Math.round(w / q0.d)) > q0.Q ? '  (clipped to the largest allowed)' : ''),
+            'stored in ' +
+              b +
+              ' bits as <b>' +
+              bin +
+              '</b>' +
+              (b > 12 ? '' : '  (position ' + (qi + q0.Q) + ' on the list of allowed values)'),
+            'read back as ' +
+              qi +
+              ' × ' +
+              q0.d.toFixed(5) +
+              ' = <b>' +
+              (qi * q0.d).toFixed(5) +
+              '</b>    error ' +
+              (qi * q0.d - w).toFixed(5),
+          );
+        }
+        eqShow(eq, L, sweep ? 0 : 260);
+      };
+      const newPic = () => {
+        const d = letterData(Math.floor(Math.random() * 1e6), 0.12);
+        pic = d.X[S.let * 25 + Math.floor(Math.random() * 25)];
+      };
+      const say = () => {
+        const b = BITS[S.bi],
+          a = ACC[S.clip][S.bi];
+        cu = b >= 32 ? 0 : 4;
+        msg =
+          b >= 32
+            ? '32 bits per weight: the network as it was trained. The 984 weights take ' +
+              984 * 4 +
+              ' bytes and the accuracy is ' +
+              pct(acc0) +
+              '.'
+            : 'At ' +
+              b +
+              ' bit' +
+              (b > 1 ? 's' : '') +
+              ' each weight may take one of ' +
+              (b === 1
+                ? 2
+                : b > 20
+                  ? 'about ' + Math.pow(2, b).toExponential(1)
+                  : Math.pow(2, b) - 1) +
+              ' values' +
+              (b === 1 ? ': plus or minus one fixed size' : '') +
+              '. Every weight was rounded to the nearest one. The weights now take ' +
+              Math.ceil((984 * b) / 8) +
+              ' bytes, ' +
+              f2(32 / b) +
+              ' times less than before, and the accuracy is ' +
+              pct(a) +
+              ' (it was ' +
+              pct(acc0) +
+              ').';
+      };
+      const draw = () => {
+        const t = T(),
+          b = BITS[S.bi];
+        {
+          const { g, w, h } = fit(c),
+            h1 = h * 0.44,
+            m = { l: 14, r: 14, t: 22, b: 18 },
+            W = Wf[0],
+            mx = Math.max(...Array.from(W).map(Math.abs)) * 1.04,
+            NB = 48,
+            cnt = new Array(NB).fill(0);
+          for (const v of W) cnt[clamp(Math.floor(((v + mx) / (2 * mx)) * NB), 0, NB - 1)]++;
+          const cm = Math.max(...cnt),
+            X = (v) => m.l + ((v + mx) / (2 * mx)) * (w - m.l - m.r);
+          g.font = MONO;
+          g.fillStyle = t.muted;
+          g.textAlign = 'left';
+          g.fillText(
+            'the 840 weights of the first layer, and the values they may be rounded to',
+            8,
+            13,
+          );
+          cnt.forEach((n, i) => {
+            const bh = (n / cm) * (h1 - m.t - m.b);
+            g.fillStyle = mix(t.accent, t.accent, 0, 0.55);
+            g.fillRect(
+              m.l + (i * (w - m.l - m.r)) / NB + 0.5,
+              h1 - m.b - bh,
+              (w - m.l - m.r) / NB - 1,
+              bh,
+            );
+          });
+          g.strokeStyle = t.muted;
+          g.lineWidth = 1;
+          g.beginPath();
+          g.moveTo(m.l, h1 - m.b);
+          g.lineTo(w - m.r, h1 - m.b);
+          g.stroke();
+          if (info.lev.length) {
+            g.strokeStyle = t.gold;
+            g.lineWidth = info.lev.length > 40 ? 0.7 : 1.6;
+            for (const v of info.lev) {
+              g.beginPath();
+              g.moveTo(X(v), m.t);
+              g.lineTo(X(v), h1 - m.b + 5);
+              g.stroke();
+            }
+          } else {
+            g.fillStyle = t.cut;
+            g.textAlign = 'center';
+            g.fillText(
+              b >= 32
+                ? '32 bits: every value is allowed'
+                : 'too many allowed values to draw: ' + (Math.pow(2, b) - 1),
+              w / 2,
+              m.t + 12,
+            );
+          }
+          g.fillStyle = t.ink;
+          g.beginPath();
+          g.arc(X(Wf[0][wi]), h1 - m.b + 9, 3.5, 0, 7);
+          g.fill();
+          g.fillStyle = t.muted;
+          g.textAlign = 'left';
+          g.fillText('0', X(0) - 3, h1 - 2);
+          g.textAlign = 'right';
+          g.fillText('dot: the weight followed below', w - m.r, h1 - 2);
+          const cols = 12,
+            s = Math.floor(
+              Math.min((w - 20) / (cols * 5 + (cols - 1) * 0.8), (h - h1 - 30) / (2 * 7 + 1)),
+            );
+          const ox = (w - (cols * 5 * s + (cols - 1) * 0.8 * s)) / 2,
+            oy = h1 + 20,
+            q = Wq[0],
+            qm = Math.max(1e-9, ...Array.from(q).map(Math.abs));
+          g.fillStyle = t.muted;
+          g.textAlign = 'left';
+          g.fillText('incoming weights of each hidden neuron, after rounding', 8, h1 + 13);
+          for (let u = 0; u < 24; u++) {
+            const x0 = ox + (u % cols) * 5.8 * s,
+              y0 = oy + Math.floor(u / cols) * 8 * s;
+            for (let i = 0; i < 35; i++) {
+              const v = q[i * 24 + u] / qm,
+                col = v > 0 ? t.accent : t.cut;
+              g.fillStyle = mix(col, col, 0, Math.min(1, Math.abs(v) * 1.5));
+              g.fillRect(x0 + (i % 5) * s, y0 + Math.floor(i / 5) * s, s, s);
+            }
+            g.strokeStyle = t.line;
+            g.lineWidth = 1;
+            g.strokeRect(x0 - 0.5, y0 - 0.5, 5 * s + 1, 7 * s + 1);
+          }
+        }
+        {
+          const { g, w, h } = fit(cr),
+            h1 = h * 0.46,
+            L = g2Bench(
+              g,
+              t,
+              0,
+              0,
+              w,
+              h1,
+              BITS,
+              [
+                { ys: ACC.clip, col: t.cut, lab: 'largest 1% clipped' },
+                { ys: ACC.full, col: t.accent, lab: 'full range' },
+              ],
+              S.bi,
+              'accuracy on 300 test pictures, by bits per weight',
+            );
+          const m = { l: 44, r: 14, t: 26, b: 20 },
+            y0 = h1,
+            H = h - h1,
+            mx = Math.max(...Array.from(Wf[0]).map(Math.abs)) * 1.04,
+            X = (v) => m.l + ((v + mx) / (2 * mx)) * (w - m.l - m.r),
+            Y = (v) => y0 + H - m.b - ((v + mx) / (2 * mx)) * (H - m.t - m.b);
+          g.font = MONO;
+          g.fillStyle = t.muted;
+          g.textAlign = 'left';
+          g.fillText('each weight: original value (across) and rounded value (up)', 8, y0 + 13);
+          g.strokeStyle = t.line;
+          g.lineWidth = 1;
+          g.beginPath();
+          g.moveTo(X(-mx), Y(-mx));
+          g.lineTo(X(mx), Y(mx));
+          g.stroke();
+          g.fillStyle = mix(t.accent, t.accent, 0, 0.6);
+          for (let i = 0; i < 840; i += 2) {
+            g.beginPath();
+            g.arc(X(Wf[0][i]), Y(Wq[0][i]), 1.6, 0, 7);
+            g.fill();
+          }
+          g.fillStyle = t.gold;
+          g.beginPath();
+          g.arc(X(Wf[0][wi]), Y(Wq[0][wi]), 5, 0, 7);
+          g.fill();
+          g.fillStyle = t.muted;
+          g.textAlign = 'right';
+          g.fillText('thin line: no rounding', w - m.r, y0 + H - 5);
+        }
+        {
+          const { g, w, h } = fit(ct),
+            s = Math.floor(Math.min(h - 30, 180) / 7.4),
+            x0 = 18,
+            y0 = (h - 7 * s) / 2;
+          for (let i = 0; i < 35; i++) {
+            g.fillStyle = pic[i] > 0.5 ? t.ink : t.bg;
+            g.fillRect(x0 + (i % 5) * s, y0 + Math.floor(i / 5) * s, s - 1, s - 1);
+            if (pic[i] <= 0.5) {
+              g.strokeStyle = t.line;
+              g.lineWidth = 1;
+              g.strokeRect(x0 + (i % 5) * s + 0.5, y0 + Math.floor(i / 5) * s + 0.5, s - 2, s - 2);
+            }
+          }
+          setW(Wf[0], Wf[1]);
+          const P0 = probs(Float64Array.from(pic), 1);
+          setW(Wq[0], Wq[1]);
+          const P1 = probs(Float64Array.from(pic), 1);
+          const bx = x0 + 5 * s + 46,
+            bw = (w - bx - 16) / 6,
+            H = h - 56;
+          g.font = MONO;
+          for (let j = 0; j < 6; j++) {
+            const x = bx + j * bw;
+            g.fillStyle = t.accent;
+            g.fillRect(x + 4, 20 + H - P0[j] * H, bw * 0.36, P0[j] * H);
+            g.fillStyle = t.gold;
+            g.fillRect(x + 4 + bw * 0.4, 20 + H - P1[j] * H, bw * 0.36, P1[j] * H);
+            g.fillStyle = j === S.let ? t.cut : t.muted;
+            g.textAlign = 'center';
+            g.fillText(CH[j] + (j === S.let ? ' (true)' : ''), x + bw * 0.42, h - 18);
+          }
+          g.strokeStyle = t.muted;
+          g.lineWidth = 1;
+          g.beginPath();
+          g.moveTo(bx, 20 + H);
+          g.lineTo(w - 12, 20 + H);
+          g.stroke();
+          const a0 = P0.indexOf(Math.max(...P0)),
+            a1 = P1.indexOf(Math.max(...P1));
+          $('#qz-tpo', root).textContent =
+            'This picture is a noisy ' +
+            CH[S.let] +
+            '. The full-precision network says ' +
+            CH[a0] +
+            ' (' +
+            pct(P0[a0]) +
+            ' sure). At ' +
+            b +
+            ' bit' +
+            (b > 1 ? 's' : '') +
+            ' the rounded network says ' +
+            CH[a1] +
+            ' (' +
+            pct(P1[a1]) +
+            ' sure).' +
+            (a0 === S.let && a1 !== S.let
+              ? ' Rounding changed a right answer into a wrong one.'
+              : a0 !== S.let && a1 === S.let
+                ? ' Here rounding happened to fix a wrong answer: luck, not a rule.'
+                : '');
+        }
+        live.textContent = msg;
+        uCur(root, 'qz', cu);
+        setR(root, 'b', String(b));
+        setR(
+          root,
+          'lv',
+          b >= 32 ? 'about 4 billion' : b === 1 ? '2' : b > 20 ? '–' : String(Math.pow(2, b) - 1),
+        );
+        setR(
+          root,
+          'sz',
+          Math.ceil((984 * b) / 8) + ' bytes' + (b < 32 ? ' (' + f2(32 / b) + '× smaller)' : ''),
+        );
+        setR(root, 'acc', pct(ACC[S.clip][S.bi]));
+        setR(root, 'acc0', pct(acc0));
+        setR(root, 'err', b >= 32 ? '0' : pct(info.err));
+      };
+      $('#qz-let', root).innerHTML = CH.map(
+        (ch, i) =>
+          '<button class="btn" type="button" data-v="' + i + '">Test a Noisy ' + ch + '</button>',
+      ).join('');
+      build();
+      const sl = bind(
+        root,
+        'qz-b',
+        (v) => {
+          S.bi = +v;
+          if (!pb) return;
+          pb.stop();
+          apply();
+          say();
+          draw();
+        },
+        (v) => String(BITS[+v]),
+      );
+      const anim = Anim(() => {
+        fr++;
+        if (fr % 55) return;
+        if (S.bi <= 0) {
+          pb.stop();
+          sweep = false;
+          return;
+        }
+        S.bi--;
+        sl.set(S.bi);
+        apply();
+        say();
+        draw();
+        if (S.bi <= 0) {
+          pb.stop();
+          sweep = false;
+        }
+      });
+      pb = playBtn($('#qz-play', root), anim);
+      const st0 = pb.start;
+      pb.start = () => {
+        sweep = true;
+        if (S.bi <= 0) {
+          S.bi = 8;
+          sl.set(8);
+          apply();
+          say();
+          draw();
+        }
+        st0();
+      };
+      $('#qz-step', root).onclick = () => {
+        pb.stop();
+        sweep = false;
+        S.bi = S.bi <= 0 ? 8 : S.bi - 1;
+        sl.set(S.bi);
+        apply();
+        say();
+        draw();
+      };
+      $('#qz-reset', root).onclick = () => {
+        pb.stop();
+        sweep = false;
+        run++;
+        S.bi = 8;
+        sl.set(8);
+        build();
+        draw();
+      };
+      segBind(root, 'qz-clip', S.clip, (v) => {
+        S.clip = v;
+        apply();
+        say();
+        draw();
+      });
+      segBind(root, 'qz-let', '0', (v) => {
+        S.let = +v;
+        newPic();
+        draw();
+      });
+      $('#qz-noise', root).onclick = () => {
+        newPic();
+        draw();
+      };
+      $('#qz-w', root).onclick = () => {
+        wi = Math.floor(Math.random() * 840);
+        apply();
+        draw();
+      };
+      return {
+        draw,
+        stop: () => {
+          pb.stop();
+          sweep = false;
+        },
+        auto: () => {
+          S.bi = 8;
+          sl.set(8);
+          apply();
+          say();
+          draw();
+          pb.start();
+        },
+      };
+    },
+  },
 
-{id:'moe',tab:'Mixture of experts',title:'Mixture of experts: many small specialists and a router',
- lede:'One big model that does everything must use all of itself for every input. A mixture of experts splits the work: several small models, each good at one kind of input, and a router that looks at each input and decides whose answer to use. Nobody assigns the specialities. The experts and the router are trained together and the division of labour appears by itself. Large language models use this idea to grow much bigger without becoming much slower. Here the experts are as simple as they can be, straight lines, so that you can watch each one find its job.',
- stage:`<div class="stage"><figure class="fig"><figcaption>Dots: the data. Coloured lines: one per expert, drawn strongly where the router trusts it and faintly elsewhere. Thick line through the dots: the answer of the whole mixture</figcaption><canvas class="short" id="me-c" role="img" aria-label="Data, each expert's line and the combined prediction"></canvas></figure>
+  {
+    id: 'moe',
+    tab: 'Mixture of experts',
+    title: 'Mixture of experts: many small specialists and a router',
+    lede: 'One big model that does everything must use all of itself for every input. A mixture of experts splits the work: several small models, each good at one kind of input, and a router that looks at each input and decides whose answer to use. Nobody assigns the specialities. The experts and the router are trained together and the division of labour appears by itself. Large language models use this idea to grow much bigger without becoming much slower. Here the experts are as simple as they can be, straight lines, so that you can watch each one find its job.',
+    stage: `<div class="stage"><figure class="fig"><figcaption>Dots: the data. Coloured lines: one per expert, drawn strongly where the router trusts it and faintly elsewhere. Thick line through the dots: the answer of the whole mixture</figcaption><canvas class="short" id="me-c" role="img" aria-label="Data, each expert's line and the combined prediction"></canvas></figure>
  <figure class="fig"><figcaption>Top: the router’s decision at every input, as shares that add up to one. Middle: how much of the data each expert ends up handling. Bottom: the error during training</figcaption><canvas class="short" id="me-r" role="img" aria-label="Router shares across the input, load per expert and the loss"></canvas></figure></div>
- ${uHow('me',['Start with K experts, each a random straight line, and a router that splits every input almost evenly between them.','For each data point the router gives every expert a share between 0 and 1. The mixture’s answer is the experts’ answers weighted by those shares.','Measure the error of the mixture’s answer.','Update the experts: each one is corrected in proportion to its share, so it learns mostly from the points it is responsible for.','Update the router: it shifts more of each point to whichever expert was closer to the truth there.','Repeat until the error stops falling. Each expert now owns a region.'])}
- <div class="controls">${uBtns('me','Run','One step','training steps')}
- ${grp('The model',slider('me-K','Number of experts K',1,8,1,3)+`<div class="row seg" id="me-rt" role="group" aria-label="How the answer is formed"><button class="btn" type="button" data-v="soft">Blend All Experts</button><button class="btn" type="button" data-v="hard">Top Expert Only</button></div>`)}
- ${grp('The data',`<label class="ctl" for="me-ds"><span>Shape to fit</span><select id="me-ds"><option value="three">Three straight pieces</option><option value="step">A jump, then a slope</option><option value="zig">A zigzag with six pieces</option><option value="wave">A smooth wave</option></select></label><div class="row"><button class="btn" id="me-new" type="button">New random sample</button></div>`)}</div>
- <dl class="read">${rd('ts','Training steps')}${rd('e','Error when all experts are blended','hl')}${rd('eh','Error when only the top expert answers','hl2')}${rd('e1','Error of one straight line alone')}${rd('act','Experts handling at least 5% of the data')}${rd('fr','Share of the expert weights used for one input, top expert only')}</dl>`,
- tryit:'Press Run with three experts on Three Straight Pieces and watch the bands in the top-right picture: they begin as an even blur and sharpen into three territories. Did anyone tell expert 2 to take the middle? Switch between Blend All Experts and Top Expert Only: how much accuracy is lost by letting a single expert answer each input, and how much computing is saved? Now set K to 1, then 2, then 6 on the same data. With six experts, how many are doing real work? Try the zigzag with 3 experts and with 6. Then choose the smooth wave and compare the two error readouts: blended, the fit is good, and with the top expert alone it is terrible. Look at the individual lines to see why. Finally type in your own x and read which expert answers it.',
- math:String.raw`<h4>Intuition</h4><p>A hospital does not send every patient to every doctor. A receptionist looks at each patient and sends them to cardiology, orthopaedics or dermatology. Each department sees only its own kind of case and becomes good at it. Adding a department makes the hospital more capable without making any single visit slower, because a patient still sees one or two doctors, not all of them. The interesting part is that in a mixture of experts nobody draws up the departments. The receptionist and the doctors start out knowing nothing and sort it out between them from results alone.</p>
+ ${uHow('me', ['Start with K experts, each a random straight line, and a router that splits every input almost evenly between them.', 'For each data point the router gives every expert a share between 0 and 1. The mixture’s answer is the experts’ answers weighted by those shares.', 'Measure the error of the mixture’s answer.', 'Update the experts: each one is corrected in proportion to its share, so it learns mostly from the points it is responsible for.', 'Update the router: it shifts more of each point to whichever expert was closer to the truth there.', 'Repeat until the error stops falling. Each expert now owns a region.'])}
+ <div class="controls">${uBtns('me', 'Run', 'One step', 'training steps')}
+ ${grp('The model', slider('me-K', 'Number of experts K', 1, 8, 1, 3) + `<div class="row seg" id="me-rt" role="group" aria-label="How the answer is formed"><button class="btn" type="button" data-v="soft">Blend All Experts</button><button class="btn" type="button" data-v="hard">Top Expert Only</button></div>`)}
+ ${grp('The data', `<label class="ctl" for="me-ds"><span>Shape to fit</span><select id="me-ds"><option value="three">Three straight pieces</option><option value="step">A jump, then a slope</option><option value="zig">A zigzag with six pieces</option><option value="wave">A smooth wave</option></select></label><div class="row"><button class="btn" id="me-new" type="button">New random sample</button></div>`)}</div>
+ <dl class="read">${rd('ts', 'Training steps')}${rd('e', 'Error when all experts are blended', 'hl')}${rd('eh', 'Error when only the top expert answers', 'hl2')}${rd('e1', 'Error of one straight line alone')}${rd('act', 'Experts handling at least 5% of the data')}${rd('fr', 'Share of the expert weights used for one input, top expert only')}</dl>`,
+    tryit:
+      'Press Run with three experts on Three Straight Pieces and watch the bands in the top-right picture: they begin as an even blur and sharpen into three territories. Did anyone tell expert 2 to take the middle? Switch between Blend All Experts and Top Expert Only: how much accuracy is lost by letting a single expert answer each input, and how much computing is saved? Now set K to 1, then 2, then 6 on the same data. With six experts, how many are doing real work? Try the zigzag with 3 experts and with 6. Then choose the smooth wave and compare the two error readouts: blended, the fit is good, and with the top expert alone it is terrible. Look at the individual lines to see why. Finally type in your own x and read which expert answers it.',
+    math: String.raw`<h4>Intuition</h4><p>A hospital does not send every patient to every doctor. A receptionist looks at each patient and sends them to cardiology, orthopaedics or dermatology. Each department sees only its own kind of case and becomes good at it. Adding a department makes the hospital more capable without making any single visit slower, because a patient still sees one or two doctors, not all of them. The interesting part is that in a mixture of experts nobody draws up the departments. The receptionist and the doctors start out knowing nothing and sort it out between them from results alone.</p>
  <h4>The model</h4><p>There are \(K\) experts \(f_1,\dots,f_K\) and a router, also called a gate. For an input \(x\) the router produces one score per expert and turns the scores into shares with a softmax:</p>$$g_k(x)=\frac{e^{u_k(x)}}{\sum_j e^{u_j(x)}},\qquad \hat y(x)=\sum_{k=1}^{K}g_k(x)\,f_k(x).$$<p>On this page each expert is a line, \(f_k(x)=a_kx+b_k\), and each router score is a line too, \(u_k(x)=c_kx+d_k\). A single line cannot follow data with a bend in it. \(K\) lines, each used in its own region, can.</p>
  <h4>How the division of labour emerges</h4><p>Train everything together on the squared error \(\tfrac12(\hat y-y)^2\). With \(\delta=\hat y-y\), the gradients are</p>$$\frac{\partial L}{\partial f_k}=\delta\,g_k,\qquad \frac{\partial L}{\partial u_k}=\delta\,g_k\,\big(f_k-\hat y\big).$$<p>The first says an expert is corrected in proportion to its share \(g_k\): it learns from the points it is trusted with and hardly at all from the others. The second says the router raises an expert's share where that expert's answer would pull the mixture toward the truth, and lowers it where it would pull away. The two feed each other. An expert that is slightly better in some region gets more of it, learns it better, and gets more still. That loop is what turns an even blur into sharp territories (Jacobs, Jordan, Nowlan and Hinton, 1991).</p>
  <h4>Blending against routing</h4><p>Blending every expert's answer uses all \(K\) experts for every input, so nothing is saved. Once the territories are sharp, the shares are close to 0 or 1 and little is lost by asking only the expert with the largest share:</p>$$\hat y_{\text{top}}(x)=f_{k^\star}(x),\qquad k^\star=\arg\max_k g_k(x).$$<p>Now each input costs one expert, however many exist. The two error readouts show how much this costs. The cost is highest near the boundaries, where two experts are both partly right.</p><p>This only works if each expert can stand on its own. On the smooth wave the mixture on this page finds a different solution: no line fits a curve, so it produces the curve by blending several lines, none of which is close to the data by itself. Remove the blending and the answer collapses. Large models avoid this by routing each input to its top few experts during training as well, so that every expert is forced to give a usable answer alone.</p>
@@ -314,38 +2739,465 @@ const LML=[
  <h4>What goes wrong</h4><p>The reinforcing loop can run away. One expert gets ahead early, receives everything, and the others receive no data and never improve: these are dead experts. Watch the middle picture with a large \(K\). Large models add a load-balancing term to the loss that penalises uneven use, and often add noise to the router's scores during training. The opposite failure also occurs: the router never commits, every expert does a little of everything, and the model is an expensive average.</p>
  <h4>Not the same as an ensemble</h4><p>An ensemble, as in the Ensembles module, runs every model on every input and averages. Its members are trained to solve the whole problem and it gains from their errors cancelling. A mixture of experts trains its members to solve different parts of the problem and gains from sending each input to the right one.</p>
  <h4>What this page trains</h4><p>\(K\) lines and a router with \(2K\) numbers, trained together with Adam on all 160 points at every step. Training stops when the error has changed by less than one part in a thousand over 100 steps, or after 4,000 steps.</p>`,
- q:'With six experts on the three-piece data, some experts end up handling almost none of the data. Is the model with idle experts worse than a model trained with three experts from the start?',a:'Not in accuracy: the working experts fit the three pieces just as a three-expert model would, and the idle ones contribute almost nothing to the answer because their shares are near zero. What is lost is efficiency. The idle experts still take up memory and were paid for in training. In a large model that is a serious waste, which is why a load-balancing penalty is added to push the router into using every expert. On this data there are only three pieces to find, so there is nothing useful for the extra experts to do, and leaving them idle is the sensible outcome.',
- init(root){const c=$('#me-c',root),cr=$('#me-r',root),live=$('#me-live',root),S={K:3,rt:'soft',ds:'three',seed:1},N=160,MAXS=4000;
-  let P=[],th,M1,M2,ts=0,LL=[],msg='',cu=0,fr=0,pb,chk=()=>false,fin=false,e1=NaN,run=1;
-  const F={three:x=>x<-1?x+2.5:x<1?-1.2*x+.3:.4*x-1.3,step:x=>x<0?-1:1+.5*x,zig:x=>{const u=((x+3)%2+2)%2;return 1.6*Math.abs(u-1)-.8},wave:x=>1.3*Math.sin(1.5*x)};
-  const gen=()=>{const r=rng(S.seed*31+7),rn=randnFrom(r);P=Array.from({length:N},()=>{const x=-3+6*r();return[x,F[S.ds](x)+.12*rn()]});let sx=0,sy=0,sxx=0,sxy=0;for(const p of P){sx+=p[0];sy+=p[1];sxx+=p[0]*p[0];sxy+=p[0]*p[1]}const a=(N*sxy-sx*sy)/(N*sxx-sx*sx),b=(sy-a*sx)/N;e1=P.reduce((s,p)=>s+(a*p[0]+b-p[1])**2,0)/N};
-  const init0=()=>{const K=S.K,rn=randnFrom(rng(run*19+K));th=new Float64Array(4*K);for(let k=0;k<K;k++){th[4*k]=.4*rn();th[4*k+1]=.4*rn();th[4*k+2]=.6*rn();th[4*k+3]=.1*rn()}M1=new Float64Array(4*K);M2=new Float64Array(4*K);ts=0;LL=[];fin=false;cu=0;msg=K+' expert'+(K>1?'s, each a random line, and a router that has not yet decided anything':', a single line, so there is nothing to route')+'. Press Run.'};
-  const gate=(x,g)=>{const K=S.K;let mx=-1e30;for(let k=0;k<K;k++){g[k]=th[4*k+2]*x+th[4*k+3];if(g[k]>mx)mx=g[k]}let z=0;for(let k=0;k<K;k++){g[k]=Math.exp(g[k]-mx);z+=g[k]}for(let k=0;k<K;k++)g[k]/=z;return g};
-  const out=(x,hard)=>{const K=S.K,g=gate(x,new Float64Array(K));if(hard){let b=0;for(let k=1;k<K;k++)if(g[k]>g[b])b=k;return th[4*b]*x+th[4*b+1]}let y=0;for(let k=0;k<K;k++)y+=g[k]*(th[4*k]*x+th[4*k+1]);return y};
-  const err=hard=>P.reduce((s,p)=>s+(out(p[0],hard)-p[1])**2,0)/N;
-  const load=()=>{const K=S.K,L=new Float64Array(K),g=new Float64Array(K);for(const p of P){gate(p[0],g);for(let k=0;k<K;k++)L[k]+=g[k]/N}return L};
-  const train=n=>{const K=S.K,G=new Float64Array(4*K),g=new Float64Array(K);for(let q=0;q<n&&!fin;q++){G.fill(0);let L=0;for(const p of P){const x=p[0];gate(x,g);let y=0;for(let k=0;k<K;k++)y+=g[k]*(th[4*k]*x+th[4*k+1]);const d=y-p[1];L+=d*d/N;for(let k=0;k<K;k++){const f=th[4*k]*x+th[4*k+1],gf=2*d*g[k]/N,gu=2*d*g[k]*(f-y)/N;G[4*k]+=gf*x;G[4*k+1]+=gf;G[4*k+2]+=gu*x;G[4*k+3]+=gu}}
-    ts++;LL.push(L);const c1=1-Math.pow(.9,ts),c2=1-Math.pow(.999,ts);for(let i=0;i<4*K;i++){M1[i]=.9*M1[i]+.1*G[i];M2[i]=.999*M2[i]+.001*G[i]*G[i];th[i]-=.03*(M1[i]/c1)/(Math.sqrt(M2[i]/c2)+1e-8)}
-    if(ts>=MAXS||(ts>150&&Math.abs(LL[ts-1]-LL[ts-101])<1e-3*Math.max(1e-3,LL[ts-1])))fin=true}
-   const Ld=load(),top=Array.from(Ld).map((v,k)=>[v,k]).sort((a,b)=>b[0]-a[0]);cu=fin?5:1+Math.floor(ts/40)%4;msg='Step '+ts+': the mixture’s error is '+f3(LL[ts-1])+' (one straight line alone: '+f3(e1)+'). '+(K>1?'Expert '+(top[0][1]+1)+' currently handles the most data, '+pct(top[0][0])+'; expert '+(top[K-1][1]+1)+' the least, '+pct(top[K-1][0])+'.':'');
-   if(fin){const act=top.filter(v=>v[0]>=.05).length;msg=(ts>=MAXS?'Stopped at the limit of '+MAXS+' steps.':'Converged after '+ts+' steps: the error stopped changing.')+' Blended error '+f3(err(false))+', top-expert-only error '+f3(err(true))+', one line alone '+f3(e1)+'. '+act+' of '+K+' expert'+(K>1?'s handle':' handles')+' at least 5% of the data.'}};
-  const tp=testPoint(root,'me',['Your x'],[.5],[[-3,3]]);
-  const draw=()=>{const t=T(),col=UC(t),K=S.K,g=new Float64Array(K),hard=S.rt==='hard';
-   {const{g:G,w,h}=fit(c),X=x=>30+(x+3)/6*(w-50),Y=y=>h/2-y*(h-50)/4.6;G.strokeStyle=t.line;G.lineWidth=1;G.beginPath();G.moveTo(X(-3),Y(0));G.lineTo(X(3),Y(0));G.stroke();G.fillStyle=mix(t.ink,t.ink,0,.4);for(const p of P){G.beginPath();G.arc(X(p[0]),Y(p[1]),2.6,0,7);G.fill()}
-    const NS=120;for(let k=0;k<K;k++){for(let i=0;i<NS;i++){const xa=-3+6*i/NS,xb=-3+6*(i+1)/NS;gate((xa+xb)/2,g);G.strokeStyle=mix(col[k%8],col[k%8],0,.1+.9*g[k]);G.lineWidth=1+3*g[k];G.beginPath();G.moveTo(X(xa),Y(th[4*k]*xa+th[4*k+1]));G.lineTo(X(xb),Y(th[4*k]*xb+th[4*k+1]));G.stroke()}}
-    G.strokeStyle=t.ink;G.lineWidth=2;G.setLineDash(hard?[]:[]);G.beginPath();for(let i=0;i<=240;i++){const x=-3+6*i/240,y=out(x,hard);i?G.lineTo(X(x),Y(y)):G.moveTo(X(x),Y(y))}G.stroke();markTP(G,X(tp.v[0]),Y(out(tp.v[0],hard)),t);
-    G.font=MONO;G.textAlign='left';for(let k=0;k<K;k++){G.fillStyle=col[k%8];G.fillText('expert '+(k+1),10+k*74,14)}G.fillStyle=t.muted;G.fillText('thick line: '+(hard?'the top expert’s answer at each x':'all experts blended by their shares'),8,h-8)}
-   {const{g:G,w,h}=fit(cr),h1=h*.34,h2=h*.24,m={l:44,r:12},X=x=>m.l+(x+3)/6*(w-m.l-m.r);G.font=MONO;G.fillStyle=t.muted;G.textAlign='left';G.fillText('the router’s shares at every input x: who is in charge where',8,13);
-    const NS=140,y0=22,H=h1-36;for(let i=0;i<NS;i++){const x=-3+6*(i+.5)/NS;gate(x,g);let acc=0;const xa=Math.round(X(-3+6*i/NS)),xb=Math.round(X(-3+6*(i+1)/NS));for(let k=0;k<K;k++){G.fillStyle=mix(col[k%8],col[k%8],0,.85);const ya=Math.round(y0+acc*H),yb=Math.round(y0+(acc+g[k])*H);G.fillRect(xa,ya,xb-xa,yb-ya);acc+=g[k]}}G.fillStyle=t.muted;G.textAlign='left';G.fillText('x = −3',m.l,y0+H+12);G.textAlign='right';G.fillText('x = 3',w-m.r,y0+H+12);
-    const tx=X(tp.v[0]);G.strokeStyle=t.ink;G.lineWidth=1.5;G.beginPath();G.moveTo(tx,y0-3);G.lineTo(tx,y0+H+3);G.stroke();
-    const Ld=load(),yb0=h1+20,bh=Math.min(16,(h2-24)/K);G.fillStyle=t.muted;G.textAlign='left';G.fillText('share of the data each expert handles',8,h1+13);for(let k=0;k<K;k++){G.fillStyle=col[k%8];G.fillRect(m.l,yb0+k*bh+1,Math.max(1,(w-m.l-70)*Ld[k]),bh-3);G.fillStyle=t.muted;G.textAlign='right';G.fillText(String(k+1),m.l-6,yb0+k*bh+bh-4);G.textAlign='left';G.fillText((100*Ld[k]).toFixed(0)+'%',m.l+(w-m.l-70)*Ld[k]+5,yb0+k*bh+bh-4)}
-    const Lp=uLine(G,t,0,h1+h2,w,h-h1-h2,LL.map(v=>Math.min(v,e1*1.25)),{title:'error of the mixture (mean squared)',n:Math.max(300,LL.length),col:t.ok,ym:e1*1.25});G.setLineDash([5,4]);G.strokeStyle=t.gold;G.lineWidth=1.3;G.beginPath();G.moveTo(Lp.m.l,Lp.Y(e1));G.lineTo(w-Lp.m.r,Lp.Y(e1));G.stroke();G.setLineDash([]);G.fillStyle=t.cut;G.textAlign='right';G.fillText('one straight line alone',w-Lp.m.r,Lp.Y(e1)+13)}
-   live.textContent=msg;uCur(root,'me',cu);gate(tp.v[0],g);let b=0;for(let k=1;k<K;k++)if(g[k]>g[b])b=k;tp.out.textContent='At x = '+f2(tp.v[0])+' the router gives expert '+(b+1)+' the largest share, '+pct(g[b])+'. That expert alone answers '+f2(th[4*b]*tp.v[0]+th[4*b+1])+'. All experts blended answer '+f2(out(tp.v[0],false))+'. The curve the data was drawn from is at '+f2(F[S.ds](tp.v[0]))+'.';
-   const Ld=load();setR(root,'ts',String(ts)+(fin?' (stopped)':''));setR(root,'e',ts?f3(err(false)):'–');setR(root,'eh',ts?f3(err(true)):'–');setR(root,'e1',f3(e1));setR(root,'act',Array.from(Ld).filter(v=>v>=.05).length+' of '+K);setR(root,'fr','1 of '+K+' ('+pct(1/K)+')')};
-  tp.on=()=>draw();gen();init0();if(RM){while(!fin)train(50)}
-  const anim=Anim(()=>{fr++;if(fin){pb.stop();return}train(ts<120?1:ts<600?4:12);draw();chk()});pb=playBtn($('#me-play',root),anim);chk=runCtl(pb,root,'me',{done:()=>fin,restart:()=>{run++;init0()},count:()=>ts,what:'training steps'});
-  $('#me-step',root).onclick=()=>{pb.stop();if(fin){run++;init0()}else train(20);draw()};$('#me-reset',root).onclick=()=>{pb.stop();run++;init0();draw()};
-  bind(root,'me-K',v=>{S.K=+v;if(!pb)return;pb.stop();run++;init0();draw();pb.start()},v=>String(v));segBind(root,'me-rt',S.rt,v=>{S.rt=v;draw()});
-  $('#me-ds',root).onchange=e=>{S.ds=e.target.value;pb.stop();gen();run++;init0();draw();pb.start()};$('#me-new',root).onclick=()=>{pb.stop();S.seed++;gen();run++;init0();draw();pb.start()};
-  return{draw,stop:()=>pb.stop(),auto:()=>{run++;init0();draw();pb.start()}}}}
+    q: 'With six experts on the three-piece data, some experts end up handling almost none of the data. Is the model with idle experts worse than a model trained with three experts from the start?',
+    a: 'Not in accuracy: the working experts fit the three pieces just as a three-expert model would, and the idle ones contribute almost nothing to the answer because their shares are near zero. What is lost is efficiency. The idle experts still take up memory and were paid for in training. In a large model that is a serious waste, which is why a load-balancing penalty is added to push the router into using every expert. On this data there are only three pieces to find, so there is nothing useful for the extra experts to do, and leaving them idle is the sensible outcome.',
+    init(root) {
+      const c = $('#me-c', root),
+        cr = $('#me-r', root),
+        live = $('#me-live', root),
+        S = { K: 3, rt: 'soft', ds: 'three', seed: 1 },
+        N = 160,
+        MAXS = 4000;
+      let P = [],
+        th,
+        M1,
+        M2,
+        ts = 0,
+        LL = [],
+        msg = '',
+        cu = 0,
+        fr = 0,
+        pb,
+        chk = () => false,
+        fin = false,
+        e1 = NaN,
+        run = 1;
+      const F = {
+        three: (x) => (x < -1 ? x + 2.5 : x < 1 ? -1.2 * x + 0.3 : 0.4 * x - 1.3),
+        step: (x) => (x < 0 ? -1 : 1 + 0.5 * x),
+        zig: (x) => {
+          const u = (((x + 3) % 2) + 2) % 2;
+          return 1.6 * Math.abs(u - 1) - 0.8;
+        },
+        wave: (x) => 1.3 * Math.sin(1.5 * x),
+      };
+      const gen = () => {
+        const r = rng(S.seed * 31 + 7),
+          rn = randnFrom(r);
+        P = Array.from({ length: N }, () => {
+          const x = -3 + 6 * r();
+          return [x, F[S.ds](x) + 0.12 * rn()];
+        });
+        let sx = 0,
+          sy = 0,
+          sxx = 0,
+          sxy = 0;
+        for (const p of P) {
+          sx += p[0];
+          sy += p[1];
+          sxx += p[0] * p[0];
+          sxy += p[0] * p[1];
+        }
+        const a = (N * sxy - sx * sy) / (N * sxx - sx * sx),
+          b = (sy - a * sx) / N;
+        e1 = P.reduce((s, p) => s + (a * p[0] + b - p[1]) ** 2, 0) / N;
+      };
+      const init0 = () => {
+        const K = S.K,
+          rn = randnFrom(rng(run * 19 + K));
+        th = new Float64Array(4 * K);
+        for (let k = 0; k < K; k++) {
+          th[4 * k] = 0.4 * rn();
+          th[4 * k + 1] = 0.4 * rn();
+          th[4 * k + 2] = 0.6 * rn();
+          th[4 * k + 3] = 0.1 * rn();
+        }
+        M1 = new Float64Array(4 * K);
+        M2 = new Float64Array(4 * K);
+        ts = 0;
+        LL = [];
+        fin = false;
+        cu = 0;
+        msg =
+          K +
+          ' expert' +
+          (K > 1
+            ? 's, each a random line, and a router that has not yet decided anything'
+            : ', a single line, so there is nothing to route') +
+          '. Press Run.';
+      };
+      const gate = (x, g) => {
+        const K = S.K;
+        let mx = -1e30;
+        for (let k = 0; k < K; k++) {
+          g[k] = th[4 * k + 2] * x + th[4 * k + 3];
+          if (g[k] > mx) mx = g[k];
+        }
+        let z = 0;
+        for (let k = 0; k < K; k++) {
+          g[k] = Math.exp(g[k] - mx);
+          z += g[k];
+        }
+        for (let k = 0; k < K; k++) g[k] /= z;
+        return g;
+      };
+      const out = (x, hard) => {
+        const K = S.K,
+          g = gate(x, new Float64Array(K));
+        if (hard) {
+          let b = 0;
+          for (let k = 1; k < K; k++) if (g[k] > g[b]) b = k;
+          return th[4 * b] * x + th[4 * b + 1];
+        }
+        let y = 0;
+        for (let k = 0; k < K; k++) y += g[k] * (th[4 * k] * x + th[4 * k + 1]);
+        return y;
+      };
+      const err = (hard) => P.reduce((s, p) => s + (out(p[0], hard) - p[1]) ** 2, 0) / N;
+      const load = () => {
+        const K = S.K,
+          L = new Float64Array(K),
+          g = new Float64Array(K);
+        for (const p of P) {
+          gate(p[0], g);
+          for (let k = 0; k < K; k++) L[k] += g[k] / N;
+        }
+        return L;
+      };
+      const train = (n) => {
+        const K = S.K,
+          G = new Float64Array(4 * K),
+          g = new Float64Array(K);
+        for (let q = 0; q < n && !fin; q++) {
+          G.fill(0);
+          let L = 0;
+          for (const p of P) {
+            const x = p[0];
+            gate(x, g);
+            let y = 0;
+            for (let k = 0; k < K; k++) y += g[k] * (th[4 * k] * x + th[4 * k + 1]);
+            const d = y - p[1];
+            L += (d * d) / N;
+            for (let k = 0; k < K; k++) {
+              const f = th[4 * k] * x + th[4 * k + 1],
+                gf = (2 * d * g[k]) / N,
+                gu = (2 * d * g[k] * (f - y)) / N;
+              G[4 * k] += gf * x;
+              G[4 * k + 1] += gf;
+              G[4 * k + 2] += gu * x;
+              G[4 * k + 3] += gu;
+            }
+          }
+          ts++;
+          LL.push(L);
+          const c1 = 1 - Math.pow(0.9, ts),
+            c2 = 1 - Math.pow(0.999, ts);
+          for (let i = 0; i < 4 * K; i++) {
+            M1[i] = 0.9 * M1[i] + 0.1 * G[i];
+            M2[i] = 0.999 * M2[i] + 0.001 * G[i] * G[i];
+            th[i] -= (0.03 * (M1[i] / c1)) / (Math.sqrt(M2[i] / c2) + 1e-8);
+          }
+          if (
+            ts >= MAXS ||
+            (ts > 150 && Math.abs(LL[ts - 1] - LL[ts - 101]) < 1e-3 * Math.max(1e-3, LL[ts - 1]))
+          )
+            fin = true;
+        }
+        const Ld = load(),
+          top = Array.from(Ld)
+            .map((v, k) => [v, k])
+            .sort((a, b) => b[0] - a[0]);
+        cu = fin ? 5 : 1 + (Math.floor(ts / 40) % 4);
+        msg =
+          'Step ' +
+          ts +
+          ': the mixture’s error is ' +
+          f3(LL[ts - 1]) +
+          ' (one straight line alone: ' +
+          f3(e1) +
+          '). ' +
+          (K > 1
+            ? 'Expert ' +
+              (top[0][1] + 1) +
+              ' currently handles the most data, ' +
+              pct(top[0][0]) +
+              '; expert ' +
+              (top[K - 1][1] + 1) +
+              ' the least, ' +
+              pct(top[K - 1][0]) +
+              '.'
+            : '');
+        if (fin) {
+          const act = top.filter((v) => v[0] >= 0.05).length;
+          msg =
+            (ts >= MAXS
+              ? 'Stopped at the limit of ' + MAXS + ' steps.'
+              : 'Converged after ' + ts + ' steps: the error stopped changing.') +
+            ' Blended error ' +
+            f3(err(false)) +
+            ', top-expert-only error ' +
+            f3(err(true)) +
+            ', one line alone ' +
+            f3(e1) +
+            '. ' +
+            act +
+            ' of ' +
+            K +
+            ' expert' +
+            (K > 1 ? 's handle' : ' handles') +
+            ' at least 5% of the data.';
+        }
+      };
+      const tp = testPoint(root, 'me', ['Your x'], [0.5], [[-3, 3]]);
+      const draw = () => {
+        const t = T(),
+          col = UC(t),
+          K = S.K,
+          g = new Float64Array(K),
+          hard = S.rt === 'hard';
+        {
+          const { g: G, w, h } = fit(c),
+            X = (x) => 30 + ((x + 3) / 6) * (w - 50),
+            Y = (y) => h / 2 - (y * (h - 50)) / 4.6;
+          G.strokeStyle = t.line;
+          G.lineWidth = 1;
+          G.beginPath();
+          G.moveTo(X(-3), Y(0));
+          G.lineTo(X(3), Y(0));
+          G.stroke();
+          G.fillStyle = mix(t.ink, t.ink, 0, 0.4);
+          for (const p of P) {
+            G.beginPath();
+            G.arc(X(p[0]), Y(p[1]), 2.6, 0, 7);
+            G.fill();
+          }
+          const NS = 120;
+          for (let k = 0; k < K; k++) {
+            for (let i = 0; i < NS; i++) {
+              const xa = -3 + (6 * i) / NS,
+                xb = -3 + (6 * (i + 1)) / NS;
+              gate((xa + xb) / 2, g);
+              G.strokeStyle = mix(col[k % 8], col[k % 8], 0, 0.1 + 0.9 * g[k]);
+              G.lineWidth = 1 + 3 * g[k];
+              G.beginPath();
+              G.moveTo(X(xa), Y(th[4 * k] * xa + th[4 * k + 1]));
+              G.lineTo(X(xb), Y(th[4 * k] * xb + th[4 * k + 1]));
+              G.stroke();
+            }
+          }
+          G.strokeStyle = t.ink;
+          G.lineWidth = 2;
+          G.setLineDash(hard ? [] : []);
+          G.beginPath();
+          for (let i = 0; i <= 240; i++) {
+            const x = -3 + (6 * i) / 240,
+              y = out(x, hard);
+            i ? G.lineTo(X(x), Y(y)) : G.moveTo(X(x), Y(y));
+          }
+          G.stroke();
+          markTP(G, X(tp.v[0]), Y(out(tp.v[0], hard)), t);
+          G.font = MONO;
+          G.textAlign = 'left';
+          for (let k = 0; k < K; k++) {
+            G.fillStyle = col[k % 8];
+            G.fillText('expert ' + (k + 1), 10 + k * 74, 14);
+          }
+          G.fillStyle = t.muted;
+          G.fillText(
+            'thick line: ' +
+              (hard ? 'the top expert’s answer at each x' : 'all experts blended by their shares'),
+            8,
+            h - 8,
+          );
+        }
+        {
+          const { g: G, w, h } = fit(cr),
+            h1 = h * 0.34,
+            h2 = h * 0.24,
+            m = { l: 44, r: 12 },
+            X = (x) => m.l + ((x + 3) / 6) * (w - m.l - m.r);
+          G.font = MONO;
+          G.fillStyle = t.muted;
+          G.textAlign = 'left';
+          G.fillText('the router’s shares at every input x: who is in charge where', 8, 13);
+          const NS = 140,
+            y0 = 22,
+            H = h1 - 36;
+          for (let i = 0; i < NS; i++) {
+            const x = -3 + (6 * (i + 0.5)) / NS;
+            gate(x, g);
+            let acc = 0;
+            const xa = Math.round(X(-3 + (6 * i) / NS)),
+              xb = Math.round(X(-3 + (6 * (i + 1)) / NS));
+            for (let k = 0; k < K; k++) {
+              G.fillStyle = mix(col[k % 8], col[k % 8], 0, 0.85);
+              const ya = Math.round(y0 + acc * H),
+                yb = Math.round(y0 + (acc + g[k]) * H);
+              G.fillRect(xa, ya, xb - xa, yb - ya);
+              acc += g[k];
+            }
+          }
+          G.fillStyle = t.muted;
+          G.textAlign = 'left';
+          G.fillText('x = −3', m.l, y0 + H + 12);
+          G.textAlign = 'right';
+          G.fillText('x = 3', w - m.r, y0 + H + 12);
+          const tx = X(tp.v[0]);
+          G.strokeStyle = t.ink;
+          G.lineWidth = 1.5;
+          G.beginPath();
+          G.moveTo(tx, y0 - 3);
+          G.lineTo(tx, y0 + H + 3);
+          G.stroke();
+          const Ld = load(),
+            yb0 = h1 + 20,
+            bh = Math.min(16, (h2 - 24) / K);
+          G.fillStyle = t.muted;
+          G.textAlign = 'left';
+          G.fillText('share of the data each expert handles', 8, h1 + 13);
+          for (let k = 0; k < K; k++) {
+            G.fillStyle = col[k % 8];
+            G.fillRect(m.l, yb0 + k * bh + 1, Math.max(1, (w - m.l - 70) * Ld[k]), bh - 3);
+            G.fillStyle = t.muted;
+            G.textAlign = 'right';
+            G.fillText(String(k + 1), m.l - 6, yb0 + k * bh + bh - 4);
+            G.textAlign = 'left';
+            G.fillText(
+              (100 * Ld[k]).toFixed(0) + '%',
+              m.l + (w - m.l - 70) * Ld[k] + 5,
+              yb0 + k * bh + bh - 4,
+            );
+          }
+          const Lp = uLine(
+            G,
+            t,
+            0,
+            h1 + h2,
+            w,
+            h - h1 - h2,
+            LL.map((v) => Math.min(v, e1 * 1.25)),
+            {
+              title: 'error of the mixture (mean squared)',
+              n: Math.max(300, LL.length),
+              col: t.ok,
+              ym: e1 * 1.25,
+            },
+          );
+          G.setLineDash([5, 4]);
+          G.strokeStyle = t.gold;
+          G.lineWidth = 1.3;
+          G.beginPath();
+          G.moveTo(Lp.m.l, Lp.Y(e1));
+          G.lineTo(w - Lp.m.r, Lp.Y(e1));
+          G.stroke();
+          G.setLineDash([]);
+          G.fillStyle = t.cut;
+          G.textAlign = 'right';
+          G.fillText('one straight line alone', w - Lp.m.r, Lp.Y(e1) + 13);
+        }
+        live.textContent = msg;
+        uCur(root, 'me', cu);
+        gate(tp.v[0], g);
+        let b = 0;
+        for (let k = 1; k < K; k++) if (g[k] > g[b]) b = k;
+        tp.out.textContent =
+          'At x = ' +
+          f2(tp.v[0]) +
+          ' the router gives expert ' +
+          (b + 1) +
+          ' the largest share, ' +
+          pct(g[b]) +
+          '. That expert alone answers ' +
+          f2(th[4 * b] * tp.v[0] + th[4 * b + 1]) +
+          '. All experts blended answer ' +
+          f2(out(tp.v[0], false)) +
+          '. The curve the data was drawn from is at ' +
+          f2(F[S.ds](tp.v[0])) +
+          '.';
+        const Ld = load();
+        setR(root, 'ts', String(ts) + (fin ? ' (stopped)' : ''));
+        setR(root, 'e', ts ? f3(err(false)) : '–');
+        setR(root, 'eh', ts ? f3(err(true)) : '–');
+        setR(root, 'e1', f3(e1));
+        setR(root, 'act', Array.from(Ld).filter((v) => v >= 0.05).length + ' of ' + K);
+        setR(root, 'fr', '1 of ' + K + ' (' + pct(1 / K) + ')');
+      };
+      tp.on = () => draw();
+      gen();
+      init0();
+      if (RM) {
+        while (!fin) train(50);
+      }
+      const anim = Anim(() => {
+        fr++;
+        if (fin) {
+          pb.stop();
+          return;
+        }
+        train(ts < 120 ? 1 : ts < 600 ? 4 : 12);
+        draw();
+        chk();
+      });
+      pb = playBtn($('#me-play', root), anim);
+      chk = runCtl(pb, root, 'me', {
+        done: () => fin,
+        restart: () => {
+          run++;
+          init0();
+        },
+        count: () => ts,
+        what: 'training steps',
+      });
+      $('#me-step', root).onclick = () => {
+        pb.stop();
+        if (fin) {
+          run++;
+          init0();
+        } else train(20);
+        draw();
+      };
+      $('#me-reset', root).onclick = () => {
+        pb.stop();
+        run++;
+        init0();
+        draw();
+      };
+      bind(
+        root,
+        'me-K',
+        (v) => {
+          S.K = +v;
+          if (!pb) return;
+          pb.stop();
+          run++;
+          init0();
+          draw();
+          pb.start();
+        },
+        (v) => String(v),
+      );
+      segBind(root, 'me-rt', S.rt, (v) => {
+        S.rt = v;
+        draw();
+      });
+      $('#me-ds', root).onchange = (e) => {
+        S.ds = e.target.value;
+        pb.stop();
+        gen();
+        run++;
+        init0();
+        draw();
+        pb.start();
+      };
+      $('#me-new', root).onclick = () => {
+        pb.stop();
+        S.seed++;
+        gen();
+        run++;
+        init0();
+        draw();
+        pb.start();
+      };
+      return {
+        draw,
+        stop: () => pb.stop(),
+        auto: () => {
+          run++;
+          init0();
+          draw();
+          pb.start();
+        },
+      };
+    },
+  },
 ];

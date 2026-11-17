@@ -1,59 +1,327 @@
 /* Manifold — References, Suggested Books, Acknowledgements, How to Cite.
    © 2026 Bahman Moraffah. All rights reserved. Load order matters: see index.html. */
 /* ============ about pages: references, books, acknowledgements, how to cite ============ */
-const AUTHOR='Bahman Moraffah',SITE_FULL='Manifold: Machine Learning You Can See Move',SITE_YEAR='2026';
+const AUTHOR = 'Bahman Moraffah',
+  SITE_FULL = 'Manifold: Machine Learning You Can See Move',
+  SITE_YEAR = '2026';
 /* Set SITE_URL to the public address once the site is on GitHub Pages, for example 'https://USERNAME.github.io/manifold/'. Left empty, the address in the browser is used. */
-const SITE_URL='https://bmoraffa.github.io/manifold/',REPO_URL='https://github.com/bmoraffa/manifold';
-const siteUrl=()=>{if(SITE_URL)return SITE_URL;try{if(/^https?:$/.test(location.protocol)&&!/claude|anthropic|localhost|127\.0\.0\.1/.test(location.hostname))return location.href.split('#')[0]}catch(e){}return 'https://YOUR-ADDRESS-HERE/'};
-const refList=a=>'<ul class="refs">'+a.map(x=>'<li>'+x+'</li>').join('')+'</ul>';
-const ABOUT=[
-{id:'references',tab:'References',title:'References',page:true,
- lede:'The papers behind the methods on this site, grouped by topic. Each lesson explains its method from scratch; these are the places to go for the original argument and the full detail.',
- html:[
- ['Foundations',['Vapnik, V. N., and Chervonenkis, A. Ya. (1971). On the uniform convergence of relative frequencies of events to their probabilities. <i>Theory of Probability and Its Applications</i>, 16(2), 264–280.','Geman, S., Bienenstock, E., and Doursat, R. (1992). Neural networks and the bias/variance dilemma. <i>Neural Computation</i>, 4(1), 1–58.','Stone, M. (1974). Cross-validatory choice and assessment of statistical predictions. <i>Journal of the Royal Statistical Society: Series B</i>, 36(2), 111–147.','Anscombe, F. J. (1973). Graphs in statistical analysis. <i>The American Statistician</i>, 27(1), 17–21.']],
- ['Regression',['Hoerl, A. E., and Kennard, R. W. (1970). Ridge regression: biased estimation for nonorthogonal problems. <i>Technometrics</i>, 12(1), 55–67.','Tibshirani, R. (1996). Regression shrinkage and selection via the lasso. <i>Journal of the Royal Statistical Society: Series B</i>, 58(1), 267–288.','Nelder, J. A., and Wedderburn, R. W. M. (1972). Generalized linear models. <i>Journal of the Royal Statistical Society: Series A</i>, 135(3), 370–384.','Huber, P. J. (1964). Robust estimation of a location parameter. <i>The Annals of Mathematical Statistics</i>, 35(1), 73–101.','Fischler, M. A., and Bolles, R. C. (1981). Random sample consensus: a paradigm for model fitting with applications to image analysis and automated cartography. <i>Communications of the ACM</i>, 24(6), 381–395.','Rasmussen, C. E., and Williams, C. K. I. (2006). <i>Gaussian Processes for Machine Learning</i>. MIT Press.']],
- ['Classification',['Cover, T. M., and Hart, P. E. (1967). Nearest neighbor pattern classification. <i>IEEE Transactions on Information Theory</i>, 13(1), 21–27.','Cortes, C., and Vapnik, V. (1995). Support-vector networks. <i>Machine Learning</i>, 20(3), 273–297.','Breiman, L., Friedman, J. H., Olshen, R. A., and Stone, C. J. (1984). <i>Classification and Regression Trees</i>. Wadsworth.','Zhu, X., and Ghahramani, Z. (2002). Learning from labeled and unlabeled data with label propagation. Technical report CMU-CALD-02-107, Carnegie Mellon University.','Yarowsky, D. (1995). Unsupervised word sense disambiguation rivaling supervised methods. <i>Proceedings of the 33rd Annual Meeting of the Association for Computational Linguistics</i>, 189–196.','Chapelle, O., Schölkopf, B., and Zien, A., editors (2006). <i>Semi-Supervised Learning</i>. MIT Press.']],
- ['Ensembles',['Breiman, L. (1996). Bagging predictors. <i>Machine Learning</i>, 24(2), 123–140.','Breiman, L. (2001). Random forests. <i>Machine Learning</i>, 45(1), 5–32.','Freund, Y., and Schapire, R. E. (1997). A decision-theoretic generalization of on-line learning and an application to boosting. <i>Journal of Computer and System Sciences</i>, 55(1), 119–139.','Friedman, J. H. (2001). Greedy function approximation: a gradient boosting machine. <i>The Annals of Statistics</i>, 29(5), 1189–1232.','Chen, T., and Guestrin, C. (2016). XGBoost: a scalable tree boosting system. <i>Proceedings of the 22nd ACM SIGKDD International Conference on Knowledge Discovery and Data Mining</i>, 785–794.']],
- ['Unsupervised learning',['Lloyd, S. P. (1982). Least squares quantization in PCM. <i>IEEE Transactions on Information Theory</i>, 28(2), 129–137.','Arthur, D., and Vassilvitskii, S. (2007). k-means++: the advantages of careful seeding. <i>Proceedings of the 18th Annual ACM-SIAM Symposium on Discrete Algorithms</i>, 1027–1035.','Dempster, A. P., Laird, N. M., and Rubin, D. B. (1977). Maximum likelihood from incomplete data via the EM algorithm. <i>Journal of the Royal Statistical Society: Series B</i>, 39(1), 1–38.','Ester, M., Kriegel, H.-P., Sander, J., and Xu, X. (1996). A density-based algorithm for discovering clusters in large spatial databases with noise. <i>Proceedings of the 2nd International Conference on Knowledge Discovery and Data Mining</i>, 226–231.','van der Maaten, L., and Hinton, G. (2008). Visualizing data using t-SNE. <i>Journal of Machine Learning Research</i>, 9, 2579–2605.','McInnes, L., Healy, J., and Melville, J. (2018). UMAP: uniform manifold approximation and projection for dimension reduction. arXiv:1802.03426.','Schölkopf, B., Smola, A., and Müller, K.-R. (1998). Nonlinear component analysis as a kernel eigenvalue problem. <i>Neural Computation</i>, 10(5), 1299–1319.','Hyvärinen, A., and Oja, E. (2000). Independent component analysis: algorithms and applications. <i>Neural Networks</i>, 13(4–5), 411–430.','Rubin, D. B., and Thayer, D. T. (1982). EM algorithms for ML factor analysis. <i>Psychometrika</i>, 47(1), 69–76.','Liu, F. T., Ting, K. M., and Zhou, Z.-H. (2008). Isolation forest. <i>Proceedings of the 8th IEEE International Conference on Data Mining</i>, 413–422.']],
- ['Neural networks',['Rumelhart, D. E., Hinton, G. E., and Williams, R. J. (1986). Learning representations by back-propagating errors. <i>Nature</i>, 323, 533–536.','Kingma, D. P., and Ba, J. (2015). Adam: a method for stochastic optimization. <i>International Conference on Learning Representations</i>.','Srivastava, N., Hinton, G., Krizhevsky, A., Sutskever, I., and Salakhutdinov, R. (2014). Dropout: a simple way to prevent neural networks from overfitting. <i>Journal of Machine Learning Research</i>, 15, 1929–1958.','Gal, Y., and Ghahramani, Z. (2016). Dropout as a Bayesian approximation: representing model uncertainty in deep learning. <i>Proceedings of the 33rd International Conference on Machine Learning</i>, 1050–1059.','Ioffe, S., and Szegedy, C. (2015). Batch normalization: accelerating deep network training by reducing internal covariate shift. <i>Proceedings of the 32nd International Conference on Machine Learning</i>, 448–456.']],
- ['Deep learning',['LeCun, Y., Bottou, L., Bengio, Y., and Haffner, P. (1998). Gradient-based learning applied to document recognition. <i>Proceedings of the IEEE</i>, 86(11), 2278–2324.','Hochreiter, S., and Schmidhuber, J. (1997). Long short-term memory. <i>Neural Computation</i>, 9(8), 1735–1780.','He, K., Zhang, X., Ren, S., and Sun, J. (2016). Deep residual learning for image recognition. <i>Proceedings of the IEEE Conference on Computer Vision and Pattern Recognition</i>, 770–778.','Bahdanau, D., Cho, K., and Bengio, Y. (2015). Neural machine translation by jointly learning to align and translate. <i>International Conference on Learning Representations</i>.','Vaswani, A., Shazeer, N., Parmar, N., Uszkoreit, J., Jones, L., Gomez, A. N., Kaiser, Ł., and Polosukhin, I. (2017). Attention is all you need. <i>Advances in Neural Information Processing Systems</i>, 30.','Ronneberger, O., Fischer, P., and Brox, T. (2015). U-Net: convolutional networks for biomedical image segmentation. <i>Medical Image Computing and Computer-Assisted Intervention</i>, 234–241.','Koch, G., Zemel, R., and Salakhutdinov, R. (2015). Siamese neural networks for one-shot image recognition. <i>ICML Deep Learning Workshop</i>.','Vinyals, O., Blundell, C., Lillicrap, T., Kavukcuoglu, K., and Wierstra, D. (2016). Matching networks for one shot learning. <i>Advances in Neural Information Processing Systems</i>, 29.','Snell, J., Swersky, K., and Zemel, R. (2017). Prototypical networks for few-shot learning. <i>Advances in Neural Information Processing Systems</i>, 30.']],
- ['Generative AI',['Kingma, D. P., and Welling, M. (2014). Auto-encoding variational Bayes. <i>International Conference on Learning Representations</i>.','Goodfellow, I., Pouget-Abadie, J., Mirza, M., Xu, B., Warde-Farley, D., Ozair, S., Courville, A., and Bengio, Y. (2014). Generative adversarial nets. <i>Advances in Neural Information Processing Systems</i>, 27.','Sohl-Dickstein, J., Weiss, E., Maheswaranathan, N., and Ganguli, S. (2015). Deep unsupervised learning using nonequilibrium thermodynamics. <i>Proceedings of the 32nd International Conference on Machine Learning</i>, 2256–2265.','Ho, J., Jain, A., and Abbeel, P. (2020). Denoising diffusion probabilistic models. <i>Advances in Neural Information Processing Systems</i>, 33.','Nichol, A., and Dhariwal, P. (2021). Improved denoising diffusion probabilistic models. <i>Proceedings of the 38th International Conference on Machine Learning</i>, 8162–8171.','Song, J., Meng, C., and Ermon, S. (2021). Denoising diffusion implicit models. <i>International Conference on Learning Representations</i>.','Hyvärinen, A. (2005). Estimation of non-normalized statistical models by score matching. <i>Journal of Machine Learning Research</i>, 6, 695–709.','Vincent, P. (2011). A connection between score matching and denoising autoencoders. <i>Neural Computation</i>, 23(7), 1661–1674.','Song, Y., and Ermon, S. (2019). Generative modeling by estimating gradients of the data distribution. <i>Advances in Neural Information Processing Systems</i>, 32.','Song, Y., Sohl-Dickstein, J., Kingma, D. P., Kumar, A., Ermon, S., and Poole, B. (2021). Score-based generative modeling through stochastic differential equations. <i>International Conference on Learning Representations</i>.','Rombach, R., Blattmann, A., Lorenz, D., Esser, P., and Ommer, B. (2022). High-resolution image synthesis with latent diffusion models. <i>Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition</i>, 10684–10695.','Ho, J., and Salimans, T. (2022). Classifier-free diffusion guidance. arXiv:2207.12598.','Lipman, Y., Chen, R. T. Q., Ben-Hamu, H., Nickel, M., and Le, M. (2023). Flow matching for generative modeling. <i>International Conference on Learning Representations</i>.','Dinh, L., Sohl-Dickstein, J., and Bengio, S. (2017). Density estimation using Real NVP. <i>International Conference on Learning Representations</i>.','LeCun, Y., Chopra, S., Hadsell, R., Ranzato, M., and Huang, F. J. (2006). A tutorial on energy-based learning. In <i>Predicting Structured Data</i>. MIT Press.','Austin, J., Johnson, D. D., Ho, J., Tarlow, D., and van den Berg, R. (2021). Structured denoising diffusion models in discrete state-spaces. <i>Advances in Neural Information Processing Systems</i>, 34.']],
- ['Language models',['Bengio, Y., Ducharme, R., Vincent, P., and Jauvin, C. (2003). A neural probabilistic language model. <i>Journal of Machine Learning Research</i>, 3, 1137–1155.','Sennrich, R., Haddow, B., and Birch, A. (2016). Neural machine translation of rare words with subword units. <i>Proceedings of the 54th Annual Meeting of the Association for Computational Linguistics</i>, 1715–1725.','Lewis, P., Perez, E., Piktus, A., Petroni, F., Karpukhin, V., Goyal, N., and others (2020). Retrieval-augmented generation for knowledge-intensive NLP tasks. <i>Advances in Neural Information Processing Systems</i>, 33.','Hu, E. J., Shen, Y., Wallis, P., Allen-Zhu, Z., Li, Y., Wang, S., Wang, L., and Chen, W. (2022). LoRA: low-rank adaptation of large language models. <i>International Conference on Learning Representations</i>.','Jacobs, R. A., Jordan, M. I., Nowlan, S. J., and Hinton, G. E. (1991). Adaptive mixtures of local experts. <i>Neural Computation</i>, 3(1), 79–87.','Shazeer, N., Mirhoseini, A., Maziarz, K., Davis, A., Le, Q., Hinton, G., and Dean, J. (2017). Outrageously large neural networks: the sparsely-gated mixture-of-experts layer. <i>International Conference on Learning Representations</i>.']],
- ['Reinforcement learning',['Bellman, R. (1957). <i>Dynamic Programming</i>. Princeton University Press.','Sutton, R. S. (1988). Learning to predict by the methods of temporal differences. <i>Machine Learning</i>, 3, 9–44.','Watkins, C. J. C. H., and Dayan, P. (1992). Q-learning. <i>Machine Learning</i>, 8, 279–292.','Rummery, G. A., and Niranjan, M. (1994). On-line Q-learning using connectionist systems. Technical report CUED/F-INFENG/TR 166, University of Cambridge.','Williams, R. J. (1992). Simple statistical gradient-following algorithms for connectionist reinforcement learning. <i>Machine Learning</i>, 8, 229–256.','Auer, P., Cesa-Bianchi, N., and Fischer, P. (2002). Finite-time analysis of the multiarmed bandit problem. <i>Machine Learning</i>, 47, 235–256.','Mnih, V., Kavukcuoglu, K., Silver, D., and others (2015). Human-level control through deep reinforcement learning. <i>Nature</i>, 518, 529–533.']],
- ['Probabilistic methods',['Metropolis, N., Rosenbluth, A. W., Rosenbluth, M. N., Teller, A. H., and Teller, E. (1953). Equation of state calculations by fast computing machines. <i>The Journal of Chemical Physics</i>, 21(6), 1087–1092.','Hastings, W. K. (1970). Monte Carlo sampling methods using Markov chains and their applications. <i>Biometrika</i>, 57(1), 97–109.','Roberts, G. O., and Tweedie, R. L. (1996). Exponential convergence of Langevin distributions and their discrete approximations. <i>Bernoulli</i>, 2(4), 341–363.','Duane, S., Kennedy, A. D., Pendleton, B. J., and Roweth, D. (1987). Hybrid Monte Carlo. <i>Physics Letters B</i>, 195(2), 216–222.','Neal, R. M. (2011). MCMC using Hamiltonian dynamics. In <i>Handbook of Markov Chain Monte Carlo</i>. Chapman and Hall/CRC.','Hoffman, M. D., and Gelman, A. (2014). The No-U-Turn sampler: adaptively setting path lengths in Hamiltonian Monte Carlo. <i>Journal of Machine Learning Research</i>, 15, 1593–1623.','Jordan, M. I., Ghahramani, Z., Jaakkola, T. S., and Saul, L. K. (1999). An introduction to variational methods for graphical models. <i>Machine Learning</i>, 37, 183–233.','Blei, D. M., Kucukelbir, A., and McAuliffe, J. D. (2017). Variational inference: a review for statisticians. <i>Journal of the American Statistical Association</i>, 112(518), 859–877.','Rabiner, L. R. (1989). A tutorial on hidden Markov models and selected applications in speech recognition. <i>Proceedings of the IEEE</i>, 77(2), 257–286.','Kalman, R. E. (1960). A new approach to linear filtering and prediction problems. <i>Journal of Basic Engineering</i>, 82(1), 35–45.','Koren, Y., Bell, R., and Volinsky, C. (2009). Matrix factorization techniques for recommender systems. <i>Computer</i>, 42(8), 30–37.','Lundberg, S. M., and Lee, S.-I. (2017). A unified approach to interpreting model predictions. <i>Advances in Neural Information Processing Systems</i>, 30.']]
- ].map(([h,a])=>'<h4>'+h+'</h4>'+refList(a)).join('')},
-{id:'books',tab:'Suggested Books',title:'Suggested Books',page:true,
- lede:'Books to read alongside the animations. The first is by the author of this site; the rest are the standard texts, grouped by what they are best for.',
- html:'<h4>From the author</h4><div class="feature"><p class="feature-t">Diffusion Generative Models: Theory, Dynamics, and Scale</p><p class="feature-a">Bahman Moraffah · Springer, 2027</p><p>The full story behind the diffusion, score-matching and flow-matching lessons on this site: the theory, the dynamics of the forward and reverse processes, and what it takes to make them work at scale.</p></div>'+
- '<h4>Machine learning, broadly</h4>'+refList(['Bishop, C. M. (2006). <i>Pattern Recognition and Machine Learning</i>. Springer.','Hastie, T., Tibshirani, R., and Friedman, J. (2009). <i>The Elements of Statistical Learning</i>, 2nd edition. Springer.','James, G., Witten, D., Hastie, T., and Tibshirani, R. (2021). <i>An Introduction to Statistical Learning</i>, 2nd edition. Springer. The gentlest place to start.','Murphy, K. P. (2022). <i>Probabilistic Machine Learning: An Introduction</i>. MIT Press.','Murphy, K. P. (2023). <i>Probabilistic Machine Learning: Advanced Topics</i>. MIT Press.','Shalev-Shwartz, S., and Ben-David, S. (2014). <i>Understanding Machine Learning: From Theory to Algorithms</i>. Cambridge University Press. For the theory of generalization and the VC dimension.'])+
- '<h4>Deep learning</h4>'+refList(['Goodfellow, I., Bengio, Y., and Courville, A. (2016). <i>Deep Learning</i>. MIT Press.','Bishop, C. M., and Bishop, H. (2024). <i>Deep Learning: Foundations and Concepts</i>. Springer.','Prince, S. J. D. (2023). <i>Understanding Deep Learning</i>. MIT Press.'])+
- '<h4>Probability, Bayesian methods and inference</h4>'+refList(['MacKay, D. J. C. (2003). <i>Information Theory, Inference, and Learning Algorithms</i>. Cambridge University Press.','Gelman, A., Carlin, J. B., Stern, H. S., Dunson, D. B., Vehtari, A., and Rubin, D. B. (2013). <i>Bayesian Data Analysis</i>, 3rd edition. Chapman and Hall/CRC.','Rasmussen, C. E., and Williams, C. K. I. (2006). <i>Gaussian Processes for Machine Learning</i>. MIT Press.'])+
- '<h4>Reinforcement learning and language</h4>'+refList(['Sutton, R. S., and Barto, A. G. (2018). <i>Reinforcement Learning: An Introduction</i>, 2nd edition. MIT Press.','Jurafsky, D., and Martin, J. H. <i>Speech and Language Processing</i>, 3rd edition draft, available from the authors online.'])+
- '<h4>The mathematics underneath</h4>'+refList(['Deisenroth, M. P., Faisal, A. A., and Ong, C. S. (2020). <i>Mathematics for Machine Learning</i>. Cambridge University Press.','Boyd, S., and Vandenberghe, L. (2004). <i>Convex Optimization</i>. Cambridge University Press.','Strang, G. (2019). <i>Linear Algebra and Learning from Data</i>. Wellesley-Cambridge Press.'])},
-{id:'acknowledgements',tab:'Acknowledgements',title:'Acknowledgements',page:true,
- lede:'Manifold did not come out of nowhere.',
- html:`<p>The idea for this site came to me while discussing teaching strategies in machine learning with <b>Professor Ethan Prihar</b> at Worcester Polytechnic Institute. We kept returning to the same observation: students follow a derivation on the board, and still cannot say what the algorithm will do when the data change. What they need is a way to take hold of a method, change one thing and watch what happens. That conversation is where the whole project started, and I am grateful to him for it and for his thinking about how people actually learn.</p>
+const SITE_URL = 'https://bmoraffa.github.io/manifold/',
+  REPO_URL = 'https://github.com/bmoraffa/manifold';
+const siteUrl = () => {
+  if (SITE_URL) return SITE_URL;
+  try {
+    if (
+      /^https?:$/.test(location.protocol) &&
+      !/claude|anthropic|localhost|127\.0\.0\.1/.test(location.hostname)
+    )
+      return location.href.split('#')[0];
+  } catch (e) {}
+  return 'https://YOUR-ADDRESS-HERE/';
+};
+const refList = (a) => '<ul class="refs">' + a.map((x) => '<li>' + x + '</li>').join('') + '</ul>';
+const ABOUT = [
+  {
+    id: 'references',
+    tab: 'References',
+    title: 'References',
+    page: true,
+    lede: 'The papers behind the methods on this site, grouped by topic. Each lesson explains its method from scratch; these are the places to go for the original argument and the full detail.',
+    html: [
+      [
+        'Foundations',
+        [
+          'Vapnik, V. N., and Chervonenkis, A. Ya. (1971). On the uniform convergence of relative frequencies of events to their probabilities. <i>Theory of Probability and Its Applications</i>, 16(2), 264–280.',
+          'Geman, S., Bienenstock, E., and Doursat, R. (1992). Neural networks and the bias/variance dilemma. <i>Neural Computation</i>, 4(1), 1–58.',
+          'Stone, M. (1974). Cross-validatory choice and assessment of statistical predictions. <i>Journal of the Royal Statistical Society: Series B</i>, 36(2), 111–147.',
+          'Anscombe, F. J. (1973). Graphs in statistical analysis. <i>The American Statistician</i>, 27(1), 17–21.',
+        ],
+      ],
+      [
+        'Regression',
+        [
+          'Hoerl, A. E., and Kennard, R. W. (1970). Ridge regression: biased estimation for nonorthogonal problems. <i>Technometrics</i>, 12(1), 55–67.',
+          'Tibshirani, R. (1996). Regression shrinkage and selection via the lasso. <i>Journal of the Royal Statistical Society: Series B</i>, 58(1), 267–288.',
+          'Nelder, J. A., and Wedderburn, R. W. M. (1972). Generalized linear models. <i>Journal of the Royal Statistical Society: Series A</i>, 135(3), 370–384.',
+          'Huber, P. J. (1964). Robust estimation of a location parameter. <i>The Annals of Mathematical Statistics</i>, 35(1), 73–101.',
+          'Fischler, M. A., and Bolles, R. C. (1981). Random sample consensus: a paradigm for model fitting with applications to image analysis and automated cartography. <i>Communications of the ACM</i>, 24(6), 381–395.',
+          'Rasmussen, C. E., and Williams, C. K. I. (2006). <i>Gaussian Processes for Machine Learning</i>. MIT Press.',
+        ],
+      ],
+      [
+        'Classification',
+        [
+          'Cover, T. M., and Hart, P. E. (1967). Nearest neighbor pattern classification. <i>IEEE Transactions on Information Theory</i>, 13(1), 21–27.',
+          'Cortes, C., and Vapnik, V. (1995). Support-vector networks. <i>Machine Learning</i>, 20(3), 273–297.',
+          'Breiman, L., Friedman, J. H., Olshen, R. A., and Stone, C. J. (1984). <i>Classification and Regression Trees</i>. Wadsworth.',
+          'Zhu, X., and Ghahramani, Z. (2002). Learning from labeled and unlabeled data with label propagation. Technical report CMU-CALD-02-107, Carnegie Mellon University.',
+          'Yarowsky, D. (1995). Unsupervised word sense disambiguation rivaling supervised methods. <i>Proceedings of the 33rd Annual Meeting of the Association for Computational Linguistics</i>, 189–196.',
+          'Chapelle, O., Schölkopf, B., and Zien, A., editors (2006). <i>Semi-Supervised Learning</i>. MIT Press.',
+        ],
+      ],
+      [
+        'Ensembles',
+        [
+          'Breiman, L. (1996). Bagging predictors. <i>Machine Learning</i>, 24(2), 123–140.',
+          'Breiman, L. (2001). Random forests. <i>Machine Learning</i>, 45(1), 5–32.',
+          'Freund, Y., and Schapire, R. E. (1997). A decision-theoretic generalization of on-line learning and an application to boosting. <i>Journal of Computer and System Sciences</i>, 55(1), 119–139.',
+          'Friedman, J. H. (2001). Greedy function approximation: a gradient boosting machine. <i>The Annals of Statistics</i>, 29(5), 1189–1232.',
+          'Chen, T., and Guestrin, C. (2016). XGBoost: a scalable tree boosting system. <i>Proceedings of the 22nd ACM SIGKDD International Conference on Knowledge Discovery and Data Mining</i>, 785–794.',
+        ],
+      ],
+      [
+        'Unsupervised learning',
+        [
+          'Lloyd, S. P. (1982). Least squares quantization in PCM. <i>IEEE Transactions on Information Theory</i>, 28(2), 129–137.',
+          'Arthur, D., and Vassilvitskii, S. (2007). k-means++: the advantages of careful seeding. <i>Proceedings of the 18th Annual ACM-SIAM Symposium on Discrete Algorithms</i>, 1027–1035.',
+          'Dempster, A. P., Laird, N. M., and Rubin, D. B. (1977). Maximum likelihood from incomplete data via the EM algorithm. <i>Journal of the Royal Statistical Society: Series B</i>, 39(1), 1–38.',
+          'Ester, M., Kriegel, H.-P., Sander, J., and Xu, X. (1996). A density-based algorithm for discovering clusters in large spatial databases with noise. <i>Proceedings of the 2nd International Conference on Knowledge Discovery and Data Mining</i>, 226–231.',
+          'van der Maaten, L., and Hinton, G. (2008). Visualizing data using t-SNE. <i>Journal of Machine Learning Research</i>, 9, 2579–2605.',
+          'McInnes, L., Healy, J., and Melville, J. (2018). UMAP: uniform manifold approximation and projection for dimension reduction. arXiv:1802.03426.',
+          'Schölkopf, B., Smola, A., and Müller, K.-R. (1998). Nonlinear component analysis as a kernel eigenvalue problem. <i>Neural Computation</i>, 10(5), 1299–1319.',
+          'Hyvärinen, A., and Oja, E. (2000). Independent component analysis: algorithms and applications. <i>Neural Networks</i>, 13(4–5), 411–430.',
+          'Rubin, D. B., and Thayer, D. T. (1982). EM algorithms for ML factor analysis. <i>Psychometrika</i>, 47(1), 69–76.',
+          'Liu, F. T., Ting, K. M., and Zhou, Z.-H. (2008). Isolation forest. <i>Proceedings of the 8th IEEE International Conference on Data Mining</i>, 413–422.',
+        ],
+      ],
+      [
+        'Neural networks',
+        [
+          'Rumelhart, D. E., Hinton, G. E., and Williams, R. J. (1986). Learning representations by back-propagating errors. <i>Nature</i>, 323, 533–536.',
+          'Kingma, D. P., and Ba, J. (2015). Adam: a method for stochastic optimization. <i>International Conference on Learning Representations</i>.',
+          'Srivastava, N., Hinton, G., Krizhevsky, A., Sutskever, I., and Salakhutdinov, R. (2014). Dropout: a simple way to prevent neural networks from overfitting. <i>Journal of Machine Learning Research</i>, 15, 1929–1958.',
+          'Gal, Y., and Ghahramani, Z. (2016). Dropout as a Bayesian approximation: representing model uncertainty in deep learning. <i>Proceedings of the 33rd International Conference on Machine Learning</i>, 1050–1059.',
+          'Ioffe, S., and Szegedy, C. (2015). Batch normalization: accelerating deep network training by reducing internal covariate shift. <i>Proceedings of the 32nd International Conference on Machine Learning</i>, 448–456.',
+        ],
+      ],
+      [
+        'Deep learning',
+        [
+          'LeCun, Y., Bottou, L., Bengio, Y., and Haffner, P. (1998). Gradient-based learning applied to document recognition. <i>Proceedings of the IEEE</i>, 86(11), 2278–2324.',
+          'Hochreiter, S., and Schmidhuber, J. (1997). Long short-term memory. <i>Neural Computation</i>, 9(8), 1735–1780.',
+          'He, K., Zhang, X., Ren, S., and Sun, J. (2016). Deep residual learning for image recognition. <i>Proceedings of the IEEE Conference on Computer Vision and Pattern Recognition</i>, 770–778.',
+          'Bahdanau, D., Cho, K., and Bengio, Y. (2015). Neural machine translation by jointly learning to align and translate. <i>International Conference on Learning Representations</i>.',
+          'Vaswani, A., Shazeer, N., Parmar, N., Uszkoreit, J., Jones, L., Gomez, A. N., Kaiser, Ł., and Polosukhin, I. (2017). Attention is all you need. <i>Advances in Neural Information Processing Systems</i>, 30.',
+          'Ronneberger, O., Fischer, P., and Brox, T. (2015). U-Net: convolutional networks for biomedical image segmentation. <i>Medical Image Computing and Computer-Assisted Intervention</i>, 234–241.',
+          'Koch, G., Zemel, R., and Salakhutdinov, R. (2015). Siamese neural networks for one-shot image recognition. <i>ICML Deep Learning Workshop</i>.',
+          'Vinyals, O., Blundell, C., Lillicrap, T., Kavukcuoglu, K., and Wierstra, D. (2016). Matching networks for one shot learning. <i>Advances in Neural Information Processing Systems</i>, 29.',
+          'Snell, J., Swersky, K., and Zemel, R. (2017). Prototypical networks for few-shot learning. <i>Advances in Neural Information Processing Systems</i>, 30.',
+        ],
+      ],
+      [
+        'Generative AI',
+        [
+          'Kingma, D. P., and Welling, M. (2014). Auto-encoding variational Bayes. <i>International Conference on Learning Representations</i>.',
+          'Goodfellow, I., Pouget-Abadie, J., Mirza, M., Xu, B., Warde-Farley, D., Ozair, S., Courville, A., and Bengio, Y. (2014). Generative adversarial nets. <i>Advances in Neural Information Processing Systems</i>, 27.',
+          'Sohl-Dickstein, J., Weiss, E., Maheswaranathan, N., and Ganguli, S. (2015). Deep unsupervised learning using nonequilibrium thermodynamics. <i>Proceedings of the 32nd International Conference on Machine Learning</i>, 2256–2265.',
+          'Ho, J., Jain, A., and Abbeel, P. (2020). Denoising diffusion probabilistic models. <i>Advances in Neural Information Processing Systems</i>, 33.',
+          'Nichol, A., and Dhariwal, P. (2021). Improved denoising diffusion probabilistic models. <i>Proceedings of the 38th International Conference on Machine Learning</i>, 8162–8171.',
+          'Song, J., Meng, C., and Ermon, S. (2021). Denoising diffusion implicit models. <i>International Conference on Learning Representations</i>.',
+          'Hyvärinen, A. (2005). Estimation of non-normalized statistical models by score matching. <i>Journal of Machine Learning Research</i>, 6, 695–709.',
+          'Vincent, P. (2011). A connection between score matching and denoising autoencoders. <i>Neural Computation</i>, 23(7), 1661–1674.',
+          'Song, Y., and Ermon, S. (2019). Generative modeling by estimating gradients of the data distribution. <i>Advances in Neural Information Processing Systems</i>, 32.',
+          'Song, Y., Sohl-Dickstein, J., Kingma, D. P., Kumar, A., Ermon, S., and Poole, B. (2021). Score-based generative modeling through stochastic differential equations. <i>International Conference on Learning Representations</i>.',
+          'Rombach, R., Blattmann, A., Lorenz, D., Esser, P., and Ommer, B. (2022). High-resolution image synthesis with latent diffusion models. <i>Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition</i>, 10684–10695.',
+          'Ho, J., and Salimans, T. (2022). Classifier-free diffusion guidance. arXiv:2207.12598.',
+          'Lipman, Y., Chen, R. T. Q., Ben-Hamu, H., Nickel, M., and Le, M. (2023). Flow matching for generative modeling. <i>International Conference on Learning Representations</i>.',
+          'Dinh, L., Sohl-Dickstein, J., and Bengio, S. (2017). Density estimation using Real NVP. <i>International Conference on Learning Representations</i>.',
+          'LeCun, Y., Chopra, S., Hadsell, R., Ranzato, M., and Huang, F. J. (2006). A tutorial on energy-based learning. In <i>Predicting Structured Data</i>. MIT Press.',
+          'Austin, J., Johnson, D. D., Ho, J., Tarlow, D., and van den Berg, R. (2021). Structured denoising diffusion models in discrete state-spaces. <i>Advances in Neural Information Processing Systems</i>, 34.',
+        ],
+      ],
+      [
+        'Language models',
+        [
+          'Bengio, Y., Ducharme, R., Vincent, P., and Jauvin, C. (2003). A neural probabilistic language model. <i>Journal of Machine Learning Research</i>, 3, 1137–1155.',
+          'Sennrich, R., Haddow, B., and Birch, A. (2016). Neural machine translation of rare words with subword units. <i>Proceedings of the 54th Annual Meeting of the Association for Computational Linguistics</i>, 1715–1725.',
+          'Lewis, P., Perez, E., Piktus, A., Petroni, F., Karpukhin, V., Goyal, N., and others (2020). Retrieval-augmented generation for knowledge-intensive NLP tasks. <i>Advances in Neural Information Processing Systems</i>, 33.',
+          'Hu, E. J., Shen, Y., Wallis, P., Allen-Zhu, Z., Li, Y., Wang, S., Wang, L., and Chen, W. (2022). LoRA: low-rank adaptation of large language models. <i>International Conference on Learning Representations</i>.',
+          'Jacobs, R. A., Jordan, M. I., Nowlan, S. J., and Hinton, G. E. (1991). Adaptive mixtures of local experts. <i>Neural Computation</i>, 3(1), 79–87.',
+          'Shazeer, N., Mirhoseini, A., Maziarz, K., Davis, A., Le, Q., Hinton, G., and Dean, J. (2017). Outrageously large neural networks: the sparsely-gated mixture-of-experts layer. <i>International Conference on Learning Representations</i>.',
+        ],
+      ],
+      [
+        'Reinforcement learning',
+        [
+          'Bellman, R. (1957). <i>Dynamic Programming</i>. Princeton University Press.',
+          'Sutton, R. S. (1988). Learning to predict by the methods of temporal differences. <i>Machine Learning</i>, 3, 9–44.',
+          'Watkins, C. J. C. H., and Dayan, P. (1992). Q-learning. <i>Machine Learning</i>, 8, 279–292.',
+          'Rummery, G. A., and Niranjan, M. (1994). On-line Q-learning using connectionist systems. Technical report CUED/F-INFENG/TR 166, University of Cambridge.',
+          'Williams, R. J. (1992). Simple statistical gradient-following algorithms for connectionist reinforcement learning. <i>Machine Learning</i>, 8, 229–256.',
+          'Auer, P., Cesa-Bianchi, N., and Fischer, P. (2002). Finite-time analysis of the multiarmed bandit problem. <i>Machine Learning</i>, 47, 235–256.',
+          'Mnih, V., Kavukcuoglu, K., Silver, D., and others (2015). Human-level control through deep reinforcement learning. <i>Nature</i>, 518, 529–533.',
+        ],
+      ],
+      [
+        'Probabilistic methods',
+        [
+          'Metropolis, N., Rosenbluth, A. W., Rosenbluth, M. N., Teller, A. H., and Teller, E. (1953). Equation of state calculations by fast computing machines. <i>The Journal of Chemical Physics</i>, 21(6), 1087–1092.',
+          'Hastings, W. K. (1970). Monte Carlo sampling methods using Markov chains and their applications. <i>Biometrika</i>, 57(1), 97–109.',
+          'Roberts, G. O., and Tweedie, R. L. (1996). Exponential convergence of Langevin distributions and their discrete approximations. <i>Bernoulli</i>, 2(4), 341–363.',
+          'Duane, S., Kennedy, A. D., Pendleton, B. J., and Roweth, D. (1987). Hybrid Monte Carlo. <i>Physics Letters B</i>, 195(2), 216–222.',
+          'Neal, R. M. (2011). MCMC using Hamiltonian dynamics. In <i>Handbook of Markov Chain Monte Carlo</i>. Chapman and Hall/CRC.',
+          'Hoffman, M. D., and Gelman, A. (2014). The No-U-Turn sampler: adaptively setting path lengths in Hamiltonian Monte Carlo. <i>Journal of Machine Learning Research</i>, 15, 1593–1623.',
+          'Jordan, M. I., Ghahramani, Z., Jaakkola, T. S., and Saul, L. K. (1999). An introduction to variational methods for graphical models. <i>Machine Learning</i>, 37, 183–233.',
+          'Blei, D. M., Kucukelbir, A., and McAuliffe, J. D. (2017). Variational inference: a review for statisticians. <i>Journal of the American Statistical Association</i>, 112(518), 859–877.',
+          'Rabiner, L. R. (1989). A tutorial on hidden Markov models and selected applications in speech recognition. <i>Proceedings of the IEEE</i>, 77(2), 257–286.',
+          'Kalman, R. E. (1960). A new approach to linear filtering and prediction problems. <i>Journal of Basic Engineering</i>, 82(1), 35–45.',
+          'Koren, Y., Bell, R., and Volinsky, C. (2009). Matrix factorization techniques for recommender systems. <i>Computer</i>, 42(8), 30–37.',
+          'Lundberg, S. M., and Lee, S.-I. (2017). A unified approach to interpreting model predictions. <i>Advances in Neural Information Processing Systems</i>, 30.',
+        ],
+      ],
+    ]
+      .map(([h, a]) => '<h4>' + h + '</h4>' + refList(a))
+      .join(''),
+  },
+  {
+    id: 'books',
+    tab: 'Suggested Books',
+    title: 'Suggested Books',
+    page: true,
+    lede: 'Books to read alongside the animations. The first is by the author of this site; the rest are the standard texts, grouped by what they are best for.',
+    html:
+      '<h4>From the author</h4><div class="feature"><p class="feature-t">Diffusion Generative Models: Theory, Dynamics, and Scale</p><p class="feature-a">Bahman Moraffah · Springer, 2027</p><p>The full story behind the diffusion, score-matching and flow-matching lessons on this site: the theory, the dynamics of the forward and reverse processes, and what it takes to make them work at scale.</p></div>' +
+      '<h4>Machine learning, broadly</h4>' +
+      refList([
+        'Bishop, C. M. (2006). <i>Pattern Recognition and Machine Learning</i>. Springer.',
+        'Hastie, T., Tibshirani, R., and Friedman, J. (2009). <i>The Elements of Statistical Learning</i>, 2nd edition. Springer.',
+        'James, G., Witten, D., Hastie, T., and Tibshirani, R. (2021). <i>An Introduction to Statistical Learning</i>, 2nd edition. Springer. The gentlest place to start.',
+        'Murphy, K. P. (2022). <i>Probabilistic Machine Learning: An Introduction</i>. MIT Press.',
+        'Murphy, K. P. (2023). <i>Probabilistic Machine Learning: Advanced Topics</i>. MIT Press.',
+        'Shalev-Shwartz, S., and Ben-David, S. (2014). <i>Understanding Machine Learning: From Theory to Algorithms</i>. Cambridge University Press. For the theory of generalization and the VC dimension.',
+      ]) +
+      '<h4>Deep learning</h4>' +
+      refList([
+        'Goodfellow, I., Bengio, Y., and Courville, A. (2016). <i>Deep Learning</i>. MIT Press.',
+        'Bishop, C. M., and Bishop, H. (2024). <i>Deep Learning: Foundations and Concepts</i>. Springer.',
+        'Prince, S. J. D. (2023). <i>Understanding Deep Learning</i>. MIT Press.',
+      ]) +
+      '<h4>Probability, Bayesian methods and inference</h4>' +
+      refList([
+        'MacKay, D. J. C. (2003). <i>Information Theory, Inference, and Learning Algorithms</i>. Cambridge University Press.',
+        'Gelman, A., Carlin, J. B., Stern, H. S., Dunson, D. B., Vehtari, A., and Rubin, D. B. (2013). <i>Bayesian Data Analysis</i>, 3rd edition. Chapman and Hall/CRC.',
+        'Rasmussen, C. E., and Williams, C. K. I. (2006). <i>Gaussian Processes for Machine Learning</i>. MIT Press.',
+      ]) +
+      '<h4>Reinforcement learning and language</h4>' +
+      refList([
+        'Sutton, R. S., and Barto, A. G. (2018). <i>Reinforcement Learning: An Introduction</i>, 2nd edition. MIT Press.',
+        'Jurafsky, D., and Martin, J. H. <i>Speech and Language Processing</i>, 3rd edition draft, available from the authors online.',
+      ]) +
+      '<h4>The mathematics underneath</h4>' +
+      refList([
+        'Deisenroth, M. P., Faisal, A. A., and Ong, C. S. (2020). <i>Mathematics for Machine Learning</i>. Cambridge University Press.',
+        'Boyd, S., and Vandenberghe, L. (2004). <i>Convex Optimization</i>. Cambridge University Press.',
+        'Strang, G. (2019). <i>Linear Algebra and Learning from Data</i>. Wellesley-Cambridge Press.',
+      ]),
+  },
+  {
+    id: 'acknowledgements',
+    tab: 'Acknowledgements',
+    title: 'Acknowledgements',
+    page: true,
+    lede: 'Manifold did not come out of nowhere.',
+    html: `<p>The idea for this site came to me while discussing teaching strategies in machine learning with <b>Professor Ethan Prihar</b> at Worcester Polytechnic Institute. We kept returning to the same observation: students follow a derivation on the board, and still cannot say what the algorithm will do when the data change. What they need is a way to take hold of a method, change one thing and watch what happens. That conversation is where the whole project started, and I am grateful to him for it and for his thinking about how people actually learn.</p>
  <p>I thank <b>Professor Raha Moraffah</b>, also at Worcester Polytechnic Institute, for many discussions and for her feedback, which shaped both what is covered here and how it is explained.</p>
  <p>I thank <b>Professor Dachun Sun</b>, also at Worcester Polytechnic Institute, for constant discussion. Many of the choices here, from which methods to include to how to show them, were settled in those conversations.</p>
  <p>I also thank my students. Their questions decided which sliders exist, which examples were kept, and which explanations were rewritten until they were clear.</p>
  <p>The mathematics is typeset with MathJax, and the text is set in freely licensed typefaces served by Google Fonts. Everything else runs in your browser, with nothing sent anywhere.</p>
- <p class="sig">${AUTHOR}<span>${SITE_YEAR}</span></p>`},
-{id:'cite',tab:'How to Cite',title:'How to Cite Manifold',page:true,
- lede:'If you use Manifold in a course, a talk, a paper or anything else you share, please refer to it. Pick the format you need and copy it.',
- html:`<div class="feature"><p class="feature-k">Please cite as</p><p class="feature-t" id="cite-main"></p><p class="feature-a"><a id="cite-link" target="_blank" rel="noopener"></a></p></div><h4>Formats</h4><div id="cite-box"></div><p class="fine">© ${SITE_YEAR} ${AUTHOR}. All rights reserved. You are welcome to use the site for teaching and study; please reference it when you do. Source files: <a href="${REPO_URL}" target="_blank" rel="noopener">${REPO_URL.replace('https://','')}</a>.</p>`,
- init(root){const box=$('#cite-box',root),u=siteUrl(),d=new Date(),mon=['January','February','March','April','May','June','July','August','September','October','November','December'],iso=d.toISOString().slice(0,10),long=mon[d.getMonth()]+' '+d.getDate()+', '+d.getFullYear(),short=mon[d.getMonth()].slice(0,3)+'. '+d.getDate()+', '+d.getFullYear();
-  const F=[['BibTeX',`@misc{moraffah${SITE_YEAR}manifold,\n  author       = {Moraffah, Bahman},\n  title        = {${SITE_FULL}},\n  year         = {${SITE_YEAR}},\n  howpublished = {\\url{${u}}},\n  note         = {Interactive website. Accessed: ${iso}}\n}`],
-   ['BibLaTeX',`@online{moraffah${SITE_YEAR}manifold,\n  author  = {Moraffah, Bahman},\n  title   = {${SITE_FULL}},\n  year    = {${SITE_YEAR}},\n  url     = {${u}},\n  urldate = {${iso}}\n}`],
-   ['APA',`Moraffah, B. (${SITE_YEAR}). ${SITE_FULL} [Interactive website]. ${u}`],
-   ['IEEE',`B. Moraffah, “${SITE_FULL}.” ${SITE_YEAR}. [Online]. Available: ${u} (accessed ${short}).`],
-   ['Chicago',`Moraffah, Bahman. ${SITE_YEAR}. “${SITE_FULL}.” Interactive website. Accessed ${long}. ${u}`],
-   ['MLA',`Moraffah, Bahman. ${SITE_FULL}. ${SITE_YEAR}, ${u}. Accessed ${d.getDate()} ${mon[d.getMonth()].slice(0,3)}. ${d.getFullYear()}.`],
-   ['Plain text',`Bahman Moraffah, ${SITE_FULL}, ${SITE_YEAR}. ${u}`]];
-  $('#cite-main',root).textContent=`${AUTHOR} (${SITE_YEAR}). ${SITE_FULL}.`;const lk=$('#cite-link',root);lk.href=u;lk.textContent=u.replace('https://','').replace(/\/$/,'');box.innerHTML=F.map(([n],i)=>`<div class="cite"><div class="cite-h"><span>${n}</span><button type="button" data-i="${i}">Copy</button></div><pre></pre></div>`).join('');
-  box.querySelectorAll('pre').forEach((p,i)=>{p.textContent=F[i][1]});
-  box.addEventListener('click',e=>{const b=e.target.closest('button[data-i]');if(!b)return;const tx=F[+b.dataset.i][1],ok=()=>{b.textContent='Copied';setTimeout(()=>{b.textContent='Copy'},1400)};
-   const fb=()=>{try{const r=document.createRange();r.selectNodeContents(b.closest('.cite').querySelector('pre'));const s=getSelection();s.removeAllRanges();s.addRange(r);document.execCommand('copy');ok()}catch(e){b.textContent='Select and copy'}};
-   try{navigator.clipboard.writeText(tx).then(ok,fb)}catch(e){fb()}});
-  return{draw(){}}}}
+ <p class="sig">${AUTHOR}<span>${SITE_YEAR}</span></p>`,
+  },
+  {
+    id: 'cite',
+    tab: 'How to Cite',
+    title: 'How to Cite Manifold',
+    page: true,
+    lede: 'If you use Manifold in a course, a talk, a paper or anything else you share, please refer to it. Pick the format you need and copy it.',
+    html: `<div class="feature"><p class="feature-k">Please cite as</p><p class="feature-t" id="cite-main"></p><p class="feature-a"><a id="cite-link" target="_blank" rel="noopener"></a></p></div><h4>Formats</h4><div id="cite-box"></div><p class="fine">© ${SITE_YEAR} ${AUTHOR}. All rights reserved. You are welcome to use the site for teaching and study; please reference it when you do. Source files: <a href="${REPO_URL}" target="_blank" rel="noopener">${REPO_URL.replace('https://', '')}</a>.</p>`,
+    init(root) {
+      const box = $('#cite-box', root),
+        u = siteUrl(),
+        d = new Date(),
+        mon = [
+          'January',
+          'February',
+          'March',
+          'April',
+          'May',
+          'June',
+          'July',
+          'August',
+          'September',
+          'October',
+          'November',
+          'December',
+        ],
+        iso = d.toISOString().slice(0, 10),
+        long = mon[d.getMonth()] + ' ' + d.getDate() + ', ' + d.getFullYear(),
+        short = mon[d.getMonth()].slice(0, 3) + '. ' + d.getDate() + ', ' + d.getFullYear();
+      const F = [
+        [
+          'BibTeX',
+          `@misc{moraffah${SITE_YEAR}manifold,\n  author       = {Moraffah, Bahman},\n  title        = {${SITE_FULL}},\n  year         = {${SITE_YEAR}},\n  howpublished = {\\url{${u}}},\n  note         = {Interactive website. Accessed: ${iso}}\n}`,
+        ],
+        [
+          'BibLaTeX',
+          `@online{moraffah${SITE_YEAR}manifold,\n  author  = {Moraffah, Bahman},\n  title   = {${SITE_FULL}},\n  year    = {${SITE_YEAR}},\n  url     = {${u}},\n  urldate = {${iso}}\n}`,
+        ],
+        ['APA', `Moraffah, B. (${SITE_YEAR}). ${SITE_FULL} [Interactive website]. ${u}`],
+        [
+          'IEEE',
+          `B. Moraffah, “${SITE_FULL}.” ${SITE_YEAR}. [Online]. Available: ${u} (accessed ${short}).`,
+        ],
+        [
+          'Chicago',
+          `Moraffah, Bahman. ${SITE_YEAR}. “${SITE_FULL}.” Interactive website. Accessed ${long}. ${u}`,
+        ],
+        [
+          'MLA',
+          `Moraffah, Bahman. ${SITE_FULL}. ${SITE_YEAR}, ${u}. Accessed ${d.getDate()} ${mon[d.getMonth()].slice(0, 3)}. ${d.getFullYear()}.`,
+        ],
+        ['Plain text', `Bahman Moraffah, ${SITE_FULL}, ${SITE_YEAR}. ${u}`],
+      ];
+      $('#cite-main', root).textContent = `${AUTHOR} (${SITE_YEAR}). ${SITE_FULL}.`;
+      const lk = $('#cite-link', root);
+      lk.href = u;
+      lk.textContent = u.replace('https://', '').replace(/\/$/, '');
+      box.innerHTML = F.map(
+        ([n], i) =>
+          `<div class="cite"><div class="cite-h"><span>${n}</span><button type="button" data-i="${i}">Copy</button></div><pre></pre></div>`,
+      ).join('');
+      box.querySelectorAll('pre').forEach((p, i) => {
+        p.textContent = F[i][1];
+      });
+      box.addEventListener('click', (e) => {
+        const b = e.target.closest('button[data-i]');
+        if (!b) return;
+        const tx = F[+b.dataset.i][1],
+          ok = () => {
+            b.textContent = 'Copied';
+            setTimeout(() => {
+              b.textContent = 'Copy';
+            }, 1400);
+          };
+        const fb = () => {
+          try {
+            const r = document.createRange();
+            r.selectNodeContents(b.closest('.cite').querySelector('pre'));
+            const s = getSelection();
+            s.removeAllRanges();
+            s.addRange(r);
+            document.execCommand('copy');
+            ok();
+          } catch (e) {
+            b.textContent = 'Select and copy';
+          }
+        };
+        try {
+          navigator.clipboard.writeText(tx).then(ok, fb);
+        } catch (e) {
+          fb();
+        }
+      });
+      return { draw() {} };
+    },
+  },
 ];
-ABOUT.forEach(L=>{if(!L.init)L.init=()=>({draw(){}})});
+ABOUT.forEach((L) => {
+  if (!L.init) L.init = () => ({ draw() {} });
+});
