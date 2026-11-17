@@ -1,6 +1,6 @@
 /* Manifold. © 2026 Bahman Moraffah. All rights reserved. */
 
-const AUTHOR = 'Bahman Moraffah';
+const AUTHORS = 'Bahman Moraffah and Dachun Sun';
 
 const SITE_FULL = 'Manifold: Machine Learning You Can See Move';
 
@@ -20,4 +20,4 @@ const siteUrl = () => {
   return 'https://YOUR-ADDRESS-HERE/';
 };
 
-export { AUTHOR, SITE_FULL, SITE_YEAR, SITE_URL, siteUrl };
+export { AUTHORS, SITE_FULL, SITE_YEAR, SITE_URL, siteUrl };

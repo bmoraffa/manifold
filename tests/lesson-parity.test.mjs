@@ -73,6 +73,13 @@ test('all 119 native entries preserve catalog metadata and generated HTML', asyn
       expected.innerHTML = original.html.replace(/\\\([\s\S]*?\\\)|\$\$[\s\S]*?\$\$/g, (equation) =>
         equation.replaceAll('<', '&lt;'),
       );
+      if (entry.id === 'acknowledgements') {
+        // Dachun Sun is now credited as a co-author in the citation.
+        const author = [...expected.querySelectorAll('p > b')].find(
+          (name) => name.textContent === 'Professor Dachun Sun',
+        );
+        author.parentElement.remove();
+      }
       try {
         const actual = await renderLesson(await loader.load(entry), {
           document,

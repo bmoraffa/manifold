@@ -43,12 +43,12 @@ Teachers are welcome to use it in lectures, assignments and office hours. Please
 
 ## How to cite
 
-> Moraffah, B. (2026). _Manifold: Machine Learning You Can See Move_ [Interactive website].
+> Moraffah, B., & Sun, D. (2026). _Manifold: Machine Learning You Can See Move_ [Interactive website].
 > https://bmoraffa.github.io/manifold/
 
 ```bibtex
 @misc{moraffah2026manifold,
-  author       = {Moraffah, Bahman},
+  author       = {Moraffah, Bahman and Sun, Dachun},
   title        = {Manifold: Machine Learning You Can See Move},
   year         = {2026},
   howpublished = {\url{https://bmoraffa.github.io/manifold/}},
@@ -63,8 +63,8 @@ the same details from `CITATION.cff`.
 ## Acknowledgements
 
 The idea came out of conversations about teaching machine learning with Professor Ethan Prihar at Worcester
-Polytechnic Institute. Thanks also to Professor Raha Moraffah and Professor Dachun Sun, both at Worcester
-Polytechnic Institute, for discussion and feedback throughout. The full note is on the site's
+Polytechnic Institute. Thanks also to Professor Raha Moraffah at Worcester Polytechnic Institute
+for discussion and feedback throughout. The full note is on the site's
 [Acknowledgements](https://bmoraffa.github.io/manifold/#acknowledgements) page.
 
 ## For maintainers

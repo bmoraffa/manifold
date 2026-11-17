@@ -1,6 +1,6 @@
 /* Manifold. © 2026 Bahman Moraffah. All rights reserved. */
 import { $ } from '../../../js/core/shared.js';
-import { AUTHOR, SITE_FULL, SITE_YEAR, siteUrl } from '../shared.js';
+import { AUTHORS, SITE_FULL, SITE_YEAR, siteUrl } from '../shared.js';
 
 export default {
   init(root) {
@@ -37,28 +37,28 @@ export default {
     const citationFormats = [
       [
         'BibTeX',
-        `@misc{moraffah${SITE_YEAR}manifold,\n  author       = {Moraffah, Bahman},\n  title        = {${SITE_FULL}},\n  year         = {${SITE_YEAR}},\n  howpublished = {\\url{${url}}},\n  note         = {Interactive website. Accessed: ${isoDate}}\n}`,
+        `@misc{moraffah${SITE_YEAR}manifold,\n  author       = {Moraffah, Bahman and Sun, Dachun},\n  title        = {${SITE_FULL}},\n  year         = {${SITE_YEAR}},\n  howpublished = {\\url{${url}}},\n  note         = {Interactive website. Accessed: ${isoDate}}\n}`,
       ],
       [
         'BibLaTeX',
-        `@online{moraffah${SITE_YEAR}manifold,\n  author  = {Moraffah, Bahman},\n  title   = {${SITE_FULL}},\n  year    = {${SITE_YEAR}},\n  url     = {${url}},\n  urldate = {${isoDate}}\n}`,
+        `@online{moraffah${SITE_YEAR}manifold,\n  author  = {Moraffah, Bahman and Sun, Dachun},\n  title   = {${SITE_FULL}},\n  year    = {${SITE_YEAR}},\n  url     = {${url}},\n  urldate = {${isoDate}}\n}`,
       ],
-      ['APA', `Moraffah, B. (${SITE_YEAR}). ${SITE_FULL} [Interactive website]. ${url}`],
+      ['APA', `Moraffah, B., & Sun, D. (${SITE_YEAR}). ${SITE_FULL} [Interactive website]. ${url}`],
       [
         'IEEE',
-        `B. Moraffah, “${SITE_FULL}.” ${SITE_YEAR}. [Online]. Available: ${url} (accessed ${shortDate}).`,
+        `B. Moraffah and D. Sun, “${SITE_FULL}.” ${SITE_YEAR}. [Online]. Available: ${url} (accessed ${shortDate}).`,
       ],
       [
         'Chicago',
-        `Moraffah, Bahman. ${SITE_YEAR}. “${SITE_FULL}.” Interactive website. Accessed ${longDate}. ${url}`,
+        `Moraffah, Bahman, and Dachun Sun. ${SITE_YEAR}. “${SITE_FULL}.” Interactive website. Accessed ${longDate}. ${url}`,
       ],
       [
         'MLA',
-        `Moraffah, Bahman. ${SITE_FULL}. ${SITE_YEAR}, ${url}. Accessed ${accessedAt.getDate()} ${monthNames[accessedAt.getMonth()].slice(0, 3)}. ${accessedAt.getFullYear()}.`,
+        `Moraffah, Bahman, and Dachun Sun. ${SITE_FULL}. ${SITE_YEAR}, ${url}. Accessed ${accessedAt.getDate()} ${monthNames[accessedAt.getMonth()].slice(0, 3)}. ${accessedAt.getFullYear()}.`,
       ],
-      ['Plain text', `Bahman Moraffah, ${SITE_FULL}, ${SITE_YEAR}. ${url}`],
+      ['Plain text', `${AUTHORS}, ${SITE_FULL}, ${SITE_YEAR}. ${url}`],
     ];
-    $('#cite-main', root).textContent = `${AUTHOR} (${SITE_YEAR}). ${SITE_FULL}.`;
+    $('#cite-main', root).textContent = `${AUTHORS} (${SITE_YEAR}). ${SITE_FULL}.`;
     const citationLink = $('#cite-link', root);
     citationLink.href = url;
     citationLink.textContent = url.replace('https://', '').replace(/\/$/, '');
