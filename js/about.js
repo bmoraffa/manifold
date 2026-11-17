@@ -34,6 +34,7 @@ const ABOUT=[
  lede:'Manifold did not come out of nowhere.',
  html:`<p>The idea for this site came to me while discussing teaching strategies in machine learning with <b>Professor Ethan Prihar</b> at Worcester Polytechnic Institute. We kept returning to the same observation: students follow a derivation on the board, and still cannot say what the algorithm will do when the data change. What they need is a way to take hold of a method, change one thing and watch what happens. That conversation is where the whole project started, and I am grateful to him for it and for his thinking about how people actually learn.</p>
  <p>I thank <b>Professor Raha Moraffah</b>, also at Worcester Polytechnic Institute, for many discussions and for her feedback, which shaped both what is covered here and how it is explained.</p>
+ <p>I thank <b>Professor Dachun Sun</b>, also at Worcester Polytechnic Institute, for constant discussion throughout the project. Many of the choices here, from which methods to include to how to show them, were settled in those conversations.</p>
  <p>I also thank my students. Their questions decided which sliders exist, which examples were kept, and which explanations were rewritten until they were clear.</p>
  <p>The mathematics is typeset with MathJax, and the text is set in freely licensed typefaces served by Google Fonts. Everything else runs in your browser, with nothing sent anywhere.</p>
  <p class="sig">${AUTHOR}<span>${SITE_YEAR}</span></p>`},
