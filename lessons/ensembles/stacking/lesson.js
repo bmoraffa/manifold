@@ -1,5 +1,5 @@
 /* Manifold. © 2026 Bahman Moraffah. All rights reserved. */
-import { $, MONO, clamp, f2, fit } from '../../../js/core/shared.js';
+import { $, MONO, clamp, f2, prepareCanvas } from '../../../js/core/shared.js';
 import { clfLesson, sig } from '../../classification/shared.js';
 import { fitLogit, growTree, miniField, pct, treeP } from '../shared.js';
 
@@ -14,12 +14,17 @@ export default clfLesson({
     const S = api.S,
       root = api.root;
     let base = null,
-      meta = [0, 0, 0, 0],
+      metaWeights = [0, 0, 0, 0],
       accs = [],
-      fr = 0,
-      hold = [{}, {}, {}],
+      frameCount = 0,
+      decisionFieldCaches = [{}, {}, {}],
       ver = 0;
-    const NM = ['a straight line', '7 nearest neighbours', 'a small tree', 'the stacked model'];
+    const MODEL_LABELS = [
+      'a straight line',
+      '7 nearest neighbours',
+      'a small tree',
+      'the stacked model',
+    ];
     const mkBase = (T) => {
       const wl = fitLogit((x, y) => [1, x, y], T, 400),
         tq = growTree(T, { depth: 3, minleaf: 2 });
@@ -37,7 +42,12 @@ export default clfLesson({
       ];
     };
     const stack = (x, y) =>
-      sig(meta[0] + meta[1] * base[0](x, y) + meta[2] * base[1](x, y) + meta[3] * base[2](x, y));
+      sig(
+        metaWeights[0] +
+          metaWeights[1] * base[0](x, y) +
+          metaWeights[2] * base[1](x, y) +
+          metaWeights[3] * base[2](x, y),
+      );
     $('#stacking-view', root).addEventListener('click', (e) => {
       const v = e.target.dataset && e.target.dataset.v;
       if (v != null) {
@@ -64,28 +74,35 @@ export default clfLesson({
             }
           });
         }
-        meta = [0, 0, 0, 0];
+        metaWeights = [0, 0, 0, 0];
         for (let it = 0; it < 2500; it++) {
           const g = [0, 0, 0, 0];
           Z.forEach((z, i) => {
-            const e = sig(meta[0] + meta[1] * z[0] + meta[2] * z[1] + meta[3] * z[2]) - Y[i];
+            const e =
+              sig(
+                metaWeights[0] +
+                  metaWeights[1] * z[0] +
+                  metaWeights[2] * z[1] +
+                  metaWeights[3] * z[2],
+              ) - Y[i];
             g[0] += e;
             for (let j = 0; j < 3; j++) g[j + 1] += e * z[j];
           });
-          for (let j = 0; j < 4; j++) meta[j] -= 1.2 * (g[j] / Z.length + (j ? 0.01 * meta[j] : 0));
+          for (let j = 0; j < 4; j++)
+            metaWeights[j] -= 1.2 * (g[j] / Z.length + (j ? 0.01 * metaWeights[j] : 0));
         }
         const ac = (f) =>
           te.length
             ? te.filter((p) => (f(p.x, p.y) >= 0.5 ? 1 : 0) === p.c).length / te.length
             : NaN;
         accs = [ac(base[0]), ac(base[1]), ac(base[2]), ac(stack)];
-        hold = [{}, {}, {}];
+        decisionFieldCaches = [{}, {}, {}];
         ver++;
       },
       p: (x, y) =>
         !base ? 0.5 : S.view < 3 ? clamp(base[S.view](x, y), 0.001, 0.999) : stack(x, y),
       tick() {
-        if (++fr % 170) return false;
+        if (++frameCount % 170) return false;
         S.view = (S.view + 1) % 4;
         return true;
       },
@@ -95,18 +112,18 @@ export default clfLesson({
           ? 'Showing base model ' +
               (S.view + 1) +
               ' of 3: ' +
-              NM[S.view] +
+              MODEL_LABELS[S.view] +
               '. On its own it scores ' +
               pct(accs[S.view]) +
               ' on the test set.'
           : 'Showing the stacked model. The combiner computes ' +
-              f2(meta[0]) +
+              f2(metaWeights[0]) +
               ' + ' +
-              f2(meta[1]) +
+              f2(metaWeights[1]) +
               ' × (line) + ' +
-              f2(meta[2]) +
+              f2(metaWeights[2]) +
               ' × (neighbours) + ' +
-              f2(meta[3]) +
+              f2(metaWeights[3]) +
               ' × (tree) and squashes it into a probability. It scores ' +
               pct(accs[3]) +
               ' on the test set; the best base model scores ' +
@@ -117,55 +134,55 @@ export default clfLesson({
         return S.view < 3 ? 0 : 4;
       },
       right(t) {
-        const { g, w, h } = fit(api.cr);
+        const { g: ctx, w, h } = prepareCanvas(api.cr);
         if (!base) return;
         const sz = Math.min((w - 40) / 3 - 8, h * 0.52),
           y0 = 20,
           labs = ['Straight line', '7 neighbours', 'Small tree'];
-        g.font = MONO;
-        g.textAlign = 'center';
-        const mxw = Math.max(0.5, ...meta.slice(1).map(Math.abs)),
+        ctx.font = MONO;
+        ctx.textAlign = 'center';
+        const mxw = Math.max(0.5, ...metaWeights.slice(1).map(Math.abs)),
           by = y0 + sz + 66,
           bh = h - by - 26;
         for (let k = 0; k < 3; k++) {
           const x = 20 + k * (sz + 18);
-          miniField(g, x, y0, sz, base[k], t, hold[k], 30);
+          miniField(ctx, x, y0, sz, base[k], t, decisionFieldCaches[k], 30);
           if (S.view === k) {
-            g.strokeStyle = t.ink;
-            g.lineWidth = 3;
-            g.strokeRect(x - 2, y0 - 2, sz + 4, sz + 4);
+            ctx.strokeStyle = t.ink;
+            ctx.lineWidth = 3;
+            ctx.strokeRect(x - 2, y0 - 2, sz + 4, sz + 4);
           }
-          g.fillStyle = t.ink;
-          g.fillText(labs[k], x + sz / 2, y0 - 6);
-          g.fillStyle = t.muted;
-          g.fillText('test ' + pct(accs[k]), x + sz / 2, y0 + sz + 14);
+          ctx.fillStyle = t.ink;
+          ctx.fillText(labs[k], x + sz / 2, y0 - 6);
+          ctx.fillStyle = t.muted;
+          ctx.fillText('test ' + pct(accs[k]), x + sz / 2, y0 + sz + 14);
           const bw = sz * 0.5,
-            v = meta[k + 1],
+            v = metaWeights[k + 1],
             bx = x + sz / 2 - bw / 2,
             zero = by + bh * 0.74,
             hh = (Math.abs(v) / mxw) * bh * 0.56;
-          g.fillStyle = v >= 0 ? t.gold : t.ok;
-          g.fillRect(bx, v >= 0 ? zero - hh : zero, bw, hh);
-          g.fillStyle = t.ink;
-          g.fillText(
+          ctx.fillStyle = v >= 0 ? t.gold : t.ok;
+          ctx.fillRect(bx, v >= 0 ? zero - hh : zero, bw, hh);
+          ctx.fillStyle = t.ink;
+          ctx.fillText(
             'weight ' + f2(v),
             x + sz / 2,
             (v >= 0 ? zero - hh : zero + hh) + (v >= 0 ? -6 : 14),
           );
-          g.strokeStyle = t.muted;
-          g.lineWidth = 1;
-          g.beginPath();
-          g.moveTo(x, zero);
-          g.lineTo(x + sz, zero);
-          g.stroke();
+          ctx.strokeStyle = t.muted;
+          ctx.lineWidth = 1;
+          ctx.beginPath();
+          ctx.moveTo(x, zero);
+          ctx.lineTo(x + sz, zero);
+          ctx.stroke();
         }
-        g.fillStyle = t.muted;
-        g.textAlign = 'left';
-        g.fillText('how much the combiner relies on each:', 20, y0 + sz + 36);
+        ctx.fillStyle = t.muted;
+        ctx.textAlign = 'left';
+        ctx.fillText('how much the combiner relies on each:', 20, y0 + sz + 36);
       },
       read(set) {
         for (let k = 0; k < 4; k++) set('a' + k, pct(accs[k]));
-        set('mw', meta.slice(1).map(f2).join(', '));
+        set('mw', metaWeights.slice(1).map(f2).join(', '));
         root
           .querySelectorAll('#stacking-view button')
           .forEach((b) =>

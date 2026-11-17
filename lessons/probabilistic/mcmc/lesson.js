@@ -3,23 +3,23 @@ import {
   $,
   Anim,
   MONO,
-  RM,
-  T,
+  prefersReducedMotion,
+  readThemeColors,
   bind,
   clamp,
   eqShow,
   f2,
   f3,
-  fit,
+  prepareCanvas,
   mix,
   playBtn,
   randnFrom,
-  runCtl,
-  setR,
+  attachRunLimit,
+  setReadout,
 } from '../../../js/core/shared.js';
 import { g2Note } from '../../generative/shared.js';
 import { pct } from '../../ensembles/shared.js';
-import { segBind, uCur, uLine, uView } from '../../unsupervised/shared.js';
+import { segBind, highlightLessonStep, drawSeriesChart, uView } from '../../unsupervised/shared.js';
 
 export default {
   init(root) {
@@ -28,7 +28,7 @@ export default {
       live = $('#mc-live', root),
       eq = $('#mc-eq', root),
       ol = $('#mc-steps', root),
-      S = { al: 'rw', tg: 'corr', s: 0.8, L: 15, cor: true, sp: 2 },
+      settings = { al: 'rw', tg: 'corr', s: 0.8, L: 15, cor: true, sp: 2 },
       MAXN = 8000,
       GW = 64,
       GH = 48,
@@ -107,9 +107,9 @@ export default {
     let lp,
       dens = null,
       dmax = 1,
-      margT = null,
+      targetMarginalX = null,
       mxT = 0,
-      rT = 0,
+      targetRightMass = 0,
       x = 0,
       y = 0,
       XS = [],
@@ -118,16 +118,16 @@ export default {
       nev = 0,
       prop = null,
       msg = '',
-      cu = 0,
-      fr = 0,
-      pb,
-      chk = () => false,
+      activeStepIndex = 0,
+      frameCount = 0,
+      playback,
+      checkRunStop = () => false,
       fin = false,
       err = NaN,
       P = null,
       hist = null,
       sB,
-      cacheE = null;
+      cachedEss = null;
     const gr = (a, b) => {
         const e = 1e-4;
         return [(lp(a + e, b) - lp(a - e, b)) / (2 * e), (lp(a, b + e) - lp(a, b - e)) / (2 * e)];
@@ -135,9 +135,9 @@ export default {
       out = (a, b) => Math.abs(a) > XR || Math.abs(b) > YR,
       ht = (l) => (l < -1e8 ? '0 (outside the picture)' : Math.exp(l).toExponential(2));
     const setup = () => {
-      lp = LP[S.tg];
+      lp = LP[settings.tg];
       dens = new Float64Array(GW * GH);
-      margT = new Float64Array(NB);
+      targetMarginalX = new Float64Array(NB);
       let tot = 0,
         sx = 0,
         rr = 0;
@@ -150,39 +150,39 @@ export default {
           tot += d;
           sx += d * px;
           if (px > 0) rr += d;
-          margT[Math.min(NB - 1, Math.floor(((px + XR) / (2 * XR)) * NB))] += d;
+          targetMarginalX[Math.min(NB - 1, Math.floor(((px + XR) / (2 * XR)) * NB))] += d;
         }
       dmax = Math.max(...dens);
-      for (let i = 0; i < NB; i++) margT[i] /= tot;
+      for (let i = 0; i < NB; i++) targetMarginalX[i] /= tot;
       mxT = sx / tot;
-      rT = rr / tot;
+      targetRightMass = rr / tot;
     };
     const bin = (v) => Math.min(NB - 1, Math.max(0, Math.floor(((v + XR) / (2 * XR)) * NB)));
     const ui = () => {
-      ol.innerHTML = HOW[S.al]
+      ol.innerHTML = HOW[settings.al]
         .filter((s) => s !== '—')
         .map((s) => '<li>' + s + '</li>')
         .join('');
-      $('#mc-sl', root).textContent = SL[S.al];
+      $('#mc-sl', root).textContent = SL[settings.al];
       const cb = $('#mc-cor', root),
-        has = S.al === 'mh' || S.al === 'lang' || S.al === 'hmc';
+        has = settings.al === 'mh' || settings.al === 'lang' || settings.al === 'hmc';
       cb.disabled = !has;
       cb.closest('label').style.opacity = has ? 1 : 0.45;
       $('#mc-corl', root).textContent =
-        S.al === 'mh'
+        settings.al === 'mh'
           ? 'Include the Hastings correction'
-          : S.al === 'lang'
+          : settings.al === 'lang'
             ? 'Accept or reject each move (off: unadjusted Langevin)'
-            : S.al === 'hmc'
+            : settings.al === 'hmc'
               ? 'Accept or reject the end of each path'
               : 'Apply the correction (not used by this walker)';
-      $('#mc-L', root).closest('label').style.opacity = S.al === 'hmc' ? 1 : 0.45;
-      $('#mc-L', root).disabled = S.al !== 'hmc';
+      $('#mc-L', root).closest('label').style.opacity = settings.al === 'hmc' ? 1 : 0.45;
+      $('#mc-L', root).disabled = settings.al !== 'hmc';
     };
     const build = (keep) => {
       if (!keep) {
-        x = S.tg === 'two' ? -1.9 : -2.6;
-        y = S.tg === 'two' ? -0.2 : 1.6;
+        x = settings.tg === 'two' ? -1.9 : -2.6;
+        y = settings.tg === 'two' ? -0.2 : 1.6;
       }
       XS = [x];
       YS = [y];
@@ -190,13 +190,13 @@ export default {
       nev = 0;
       prop = null;
       fin = false;
-      cu = 0;
+      activeStepIndex = 0;
       err = NaN;
-      cacheE = null;
+      cachedEss = null;
       hist = new Float64Array(NB);
       hist[bin(x)]++;
       msg =
-        NAME[S.al] +
+        NAME[settings.al] +
         '. The walker starts at (' +
         f2(x) +
         ', ' +
@@ -217,9 +217,9 @@ export default {
     const lj = (st) =>
       (out(st[0], st[1]) ? -1e9 : lp(st[0], st[1])) - 0.5 * (st[2] * st[2] + st[3] * st[3]);
     const moves = {
-      rw(q) {
-        const px = x + S.s * RN(),
-          py = y + S.s * RN(),
+      rw(quiet) {
+        const px = x + settings.s * RN(),
+          py = y + settings.s * RN(),
           l0 = lp(x, y),
           l1 = out(px, py) ? -1e9 : lp(px, py),
           ratio = Math.exp(Math.min(0, l1 - l0)),
@@ -233,7 +233,7 @@ export default {
           ],
           ok,
         };
-        if (!q)
+        if (!quiet)
           eqShow(
             eq,
             [
@@ -263,15 +263,15 @@ export default {
           );
         return ok ? [px, py] : null;
       },
-      mh(q) {
-        const s = S.s,
+      mh(quiet) {
+        const s = settings.s,
           px = s * RN(),
           py = s * RN(),
           l0 = lp(x, y),
           l1 = out(px, py) ? -1e9 : lp(px, py),
           lq = (a, b) => -(a * a + b * b) / (2 * s * s),
           hc = lq(x, y) - lq(px, py),
-          la = l1 - l0 + (S.cor ? hc : 0),
+          la = l1 - l0 + (settings.cor ? hc : 0),
           u = Math.random(),
           ok = u < Math.exp(Math.min(0, la));
         nev++;
@@ -282,7 +282,7 @@ export default {
           ],
           ok,
         };
-        if (!q)
+        if (!quiet)
           eqShow(
             eq,
             [
@@ -303,9 +303,9 @@ export default {
               'Hastings correction = chance the bell proposes the current place ÷ chance it proposes the new one = <b>' +
                 Math.exp(hc).toPrecision(3) +
                 '</b>' +
-                (S.cor ? '' : ' (switched off, so it is left out)'),
+                (settings.cor ? '' : ' (switched off, so it is left out)'),
               'acceptance probability = min(1, ' +
-                (S.cor ? 'ratio × correction' : 'ratio alone') +
+                (settings.cor ? 'ratio × correction' : 'ratio alone') +
                 ') = <b>' +
                 f3(Math.exp(Math.min(0, la))) +
                 '</b>',
@@ -315,15 +315,15 @@ export default {
           );
         return ok ? [px, py] : null;
       },
-      lang(q) {
-        const e = S.s,
+      lang(quiet) {
+        const e = settings.s,
           g0 = gr(x, y),
           mx = x + 0.5 * e * e * g0[0],
           my = y + 0.5 * e * e * g0[1],
           px = mx + e * RN(),
           py = my + e * RN();
         nev++;
-        if (!S.cor) {
+        if (!settings.cor) {
           const cx = clamp(px, -XR, XR),
             cy = clamp(py, -YR, YR);
           prop = {
@@ -334,7 +334,7 @@ export default {
             ],
             ok: true,
           };
-          if (!q)
+          if (!quiet)
             eqShow(
               eq,
               [
@@ -384,7 +384,7 @@ export default {
           ],
           ok,
         };
-        if (!q)
+        if (!quiet)
           eqShow(
             eq,
             [
@@ -422,21 +422,21 @@ export default {
           );
         return ok ? [px, py] : null;
       },
-      hmc(q) {
+      hmc(quiet) {
         let st = [x, y, RN(), RN()];
         const p0 = [st[2], st[3]],
           H0 = -lj(st),
           path = [[x, y]];
-        for (let i = 0; i < S.L; i++) {
-          st = leap(st, S.s);
+        for (let i = 0; i < settings.L; i++) {
+          st = leap(st, settings.s);
           path.push([st[0], st[1]]);
         }
         const H1 = -lj(st),
           u = Math.random(),
           bad = out(st[0], st[1]),
-          ok = !bad && (!S.cor || u < Math.exp(Math.min(0, H0 - H1)));
+          ok = !bad && (!settings.cor || u < Math.exp(Math.min(0, H0 - H1)));
         prop = { path, ok };
-        if (!q)
+        if (!quiet)
           eqShow(
             eq,
             [
@@ -453,9 +453,9 @@ export default {
                 ').',
               'energy at the start = −log height + ½ speed² = <b>' + f2(H0) + '</b>',
               'It rolls for ' +
-                S.L +
+                settings.L +
                 ' leapfrog steps of size ' +
-                f2(S.s) +
+                f2(settings.s) +
                 ' and ends at (' +
                 f2(st[0]) +
                 ', ' +
@@ -469,7 +469,7 @@ export default {
                 (bad ? '∞' : (H1 - H0 >= 0 ? '+' : '') + f3(H1 - H0)),
               bad
                 ? 'The move is <b>rejected</b>.'
-                : S.cor
+                : settings.cor
                   ? 'acceptance probability = min(1, exp(−change)) = <b>' +
                     f3(Math.exp(Math.min(0, H0 - H1))) +
                     '</b>. Rolled ' +
@@ -483,12 +483,12 @@ export default {
           );
         return ok ? [st[0], st[1]] : null;
       },
-      nuts(q) {
+      nuts(quiet) {
         const p0 = [RN(), RN()],
           s0 = [x, y, p0[0], p0[1]],
           J0 = lj(s0),
           logu = J0 + Math.log(Math.random() || 1e-300),
-          e = S.s,
+          e = settings.s,
           fw = [],
           bw = [];
         let why = '',
@@ -548,7 +548,7 @@ export default {
             .concat([[x, y]], fw),
           moved = cand !== s0;
         prop = { path, ok: true, pick: [cand[0], cand[1]], nuts: true };
-        if (!q)
+        if (!quiet)
           eqShow(
             eq,
             [
@@ -593,7 +593,7 @@ export default {
       if (fin) return;
       const x0 = x,
         y0 = y,
-        r = moves[S.al](quiet),
+        r = moves[settings.al](quiet),
         ok = !!r;
       if (ok) {
         x = r[0];
@@ -601,7 +601,8 @@ export default {
         nacc++;
       }
       if (!quiet) {
-        cu = S.al === 'rw' ? 3 : S.al === 'mh' ? 4 : S.al === 'lang' ? 3 : 4;
+        activeStepIndex =
+          settings.al === 'rw' ? 3 : settings.al === 'mh' ? 4 : settings.al === 'lang' ? 3 : 4;
         msg =
           'Step ' +
           XS.length +
@@ -612,14 +613,14 @@ export default {
               ', ' +
               f2(y) +
               ')' +
-              (S.al === 'hmc' || S.al === 'nuts'
+              (settings.al === 'hmc' || settings.al === 'nuts'
                 ? ', ' +
                   f2(Math.hypot(x - x0, y - y0)) +
                   ' away, along a path of ' +
                   (prop.path.length - 1) +
                   ' leapfrog steps.'
                 : '.')
-            : (S.al === 'nuts'
+            : (settings.al === 'nuts'
                 ? 'the starting point was picked from the path, so the walker stayed at ('
                 : 'the proposal was rejected, so the walker stayed at (') +
               f2(x) +
@@ -630,18 +631,18 @@ export default {
       XS.push(x);
       YS.push(y);
       hist[bin(x)]++;
-      cacheE = null;
+      cachedEss = null;
       const n = XS.length;
       if (n % 100 === 0 || n >= MAXN) {
         let e = 0;
-        for (let i = 0; i < NB; i++) e += Math.abs(hist[i] / n - margT[i]);
+        for (let i = 0; i < NB; i++) e += Math.abs(hist[i] / n - targetMarginalX[i]);
         err = e;
         if ((n >= 400 && e < 0.08) || n >= MAXN) {
           fin = true;
-          cu = 5;
+          activeStepIndex = 5;
           const es = ess();
           msg =
-            NAME[S.al] +
+            NAME[settings.al] +
             '. ' +
             (e < 0.08
               ? 'Stopped after ' + (n - 1) + ' steps: the bars are within 0.08 of the true line.'
@@ -650,9 +651,10 @@ export default {
                 ' steps with a gap of ' +
                 f2(e) +
                 ' still left' +
-                (S.tg === 'two' && Math.abs(rightShare() - rT) > 0.15
+                (settings.tg === 'two' && Math.abs(rightShare() - targetRightMass) > 0.15
                   ? '. The walker has not divided its time correctly between the two islands'
-                  : !S.cor && (S.al === 'mh' || S.al === 'lang' || S.al === 'hmc')
+                  : !settings.cor &&
+                      (settings.al === 'mh' || settings.al === 'lang' || settings.al === 'hmc')
                     ? '. With the correction off this walker samples from a slightly different landscape, and no amount of running fixes that'
                     : '') +
                 '.') +
@@ -672,14 +674,14 @@ export default {
       return r / XS.length;
     };
     const ess = () => {
-      if (cacheE != null) return cacheE;
+      if (cachedEss != null) return cachedEss;
       const n = XS.length;
       if (n < 50) return NaN;
       let m = 0;
       for (const v of XS) m += v / n;
       let v0 = 0;
       for (const v of XS) v0 += (v - m) ** 2 / n;
-      if (v0 < 1e-12) return (cacheE = 1);
+      if (v0 < 1e-12) return (cachedEss = 1);
       let s = 0;
       const K = Math.min(600, Math.floor(n / 3));
       for (let k = 1; k < K; k++) {
@@ -689,10 +691,10 @@ export default {
         if (r < 0.02) break;
         s += r;
       }
-      return (cacheE = Math.min(n, n / (1 + 2 * s)));
+      return (cachedEss = Math.min(n, n / (1 + 2 * s)));
     };
     const draw = () => {
-      const t = T(),
+      const colors = readThemeColors(),
         n = XS.length;
       {
         const V = uView(c),
@@ -702,32 +704,37 @@ export default {
           for (let q = 0; q < GW; q++) {
             const v = dens[r * GW + q] / dmax;
             if (v < 0.01) continue;
-            g.fillStyle = mix(t.accent, t.accent, 0, Math.min(0.85, Math.pow(v, 0.55) * 0.8));
+            g.fillStyle = mix(
+              colors.accent,
+              colors.accent,
+              0,
+              Math.min(0.85, Math.pow(v, 0.55) * 0.8),
+            );
             const xa = Math.round(X(-XR + (2 * XR * q) / GW)),
               xb = Math.round(X(-XR + (2 * XR * (q + 1)) / GW)),
               ya = Math.round(Y(YR - (2 * YR * r) / GH)),
               yb = Math.round(Y(YR - (2 * YR * (r + 1)) / GH));
             g.fillRect(xa, ya, xb - xa, yb - ya);
           }
-        if (S.al === 'mh') {
-          g.strokeStyle = mix(t.cut, t.cut, 0, 0.55);
+        if (settings.al === 'mh') {
+          g.strokeStyle = mix(colors.cut, colors.cut, 0, 0.55);
           g.lineWidth = 1.2;
           g.setLineDash([4, 5]);
           for (const k of [1, 2]) {
             g.beginPath();
-            g.ellipse(X(0), Y(0), k * S.s * V.s, k * S.s * V.s, 0, 0, 7);
+            g.ellipse(X(0), Y(0), k * settings.s * V.s, k * settings.s * V.s, 0, 0, 7);
             g.stroke();
           }
           g.setLineDash([]);
         }
-        g.fillStyle = mix(t.ink, t.ink, 0, 0.45);
+        g.fillStyle = mix(colors.ink, colors.ink, 0, 0.45);
         const st = Math.max(1, Math.floor(n / 1500));
         for (let i = 0; i < n; i += st) {
           g.beginPath();
           g.arc(X(XS[i]), Y(YS[i]), 1.5, 0, 7);
           g.fill();
         }
-        g.strokeStyle = t.ink;
+        g.strokeStyle = colors.ink;
         g.lineWidth = 1;
         g.globalAlpha = 0.6;
         g.beginPath();
@@ -738,7 +745,7 @@ export default {
         if (prop) {
           const pp = prop.path,
             e = pp[pp.length - 1];
-          g.strokeStyle = prop.ok ? t.gold : t.cut;
+          g.strokeStyle = prop.ok ? colors.gold : colors.cut;
           g.lineWidth = 2.5;
           g.setLineDash(prop.ok ? [] : [5, 4]);
           g.beginPath();
@@ -746,7 +753,7 @@ export default {
           g.stroke();
           g.setLineDash([]);
           if (pp.length > 3) {
-            g.fillStyle = prop.ok ? t.gold : t.cut;
+            g.fillStyle = prop.ok ? colors.gold : colors.cut;
             for (const q of pp) {
               g.beginPath();
               g.arc(X(q[0]), Y(q[1]), 2.2, 0, 7);
@@ -755,14 +762,14 @@ export default {
           }
           if (prop.nuts) {
             for (const q of [pp[0], e]) {
-              g.strokeStyle = t.cut;
+              g.strokeStyle = colors.cut;
               g.lineWidth = 2;
               g.beginPath();
               g.arc(X(q[0]), Y(q[1]), 5, 0, 7);
               g.stroke();
             }
             g.font = MONO;
-            g.fillStyle = t.muted;
+            g.fillStyle = colors.muted;
             g.textAlign = 'left';
             g.fillText('path ends', X(e[0]) + 8, Y(e[1]) + 4);
           } else {
@@ -770,17 +777,17 @@ export default {
             g.arc(X(e[0]), Y(e[1]), 5, 0, 7);
             g.stroke();
             g.font = MONO;
-            g.fillStyle = prop.ok ? t.cut : t.muted;
+            g.fillStyle = prop.ok ? colors.cut : colors.muted;
             g.textAlign = 'left';
             g.fillText(
-              prop.ok ? (S.cor || S.al === 'rw' ? 'accepted' : 'moved') : 'rejected',
+              prop.ok ? (settings.cor || settings.al === 'rw' ? 'accepted' : 'moved') : 'rejected',
               X(e[0]) + 8,
               Y(e[1]) + 4,
             );
           }
         }
-        g.fillStyle = t.gold;
-        g.strokeStyle = t.bg;
+        g.fillStyle = colors.gold;
+        g.strokeStyle = colors.bg;
         g.lineWidth = 2;
         g.beginPath();
         g.arc(X(x), Y(y), 7, 0, 7);
@@ -788,122 +795,124 @@ export default {
         g.stroke();
         g2Note(
           g,
-          t,
+          colors,
           h,
           'the gold dot is the walker' +
-            (S.al === 'mh' ? '; dashed rings: the fixed proposal bell' : ''),
+            (settings.al === 'mh' ? '; dashed rings: the fixed proposal bell' : ''),
         );
       }
       {
-        const { g, w, h } = fit(cr),
+        const { g: ctx, w, h } = prepareCanvas(cr),
           h1 = h * 0.46,
-          A = uLine(g, t, 0, 0, w, h1, [], {
+          A = drawSeriesChart(ctx, colors, 0, 0, w, h1, [], {
             title: 'left-to-right position at every step',
             n: Math.max(300, n),
             y1: -XR,
             ym: XR,
           });
-        g.strokeStyle = t.accent;
-        g.lineWidth = 1.1;
-        g.beginPath();
+        ctx.strokeStyle = colors.accent;
+        ctx.lineWidth = 1.1;
+        ctx.beginPath();
         const s2 = Math.max(1, Math.floor(n / 1200));
         for (let i = 0; i < n; i += s2)
-          i ? g.lineTo(A.X(i), A.Y(XS[i])) : g.moveTo(A.X(i), A.Y(XS[i]));
-        g.stroke();
+          i ? ctx.lineTo(A.X(i), A.Y(XS[i])) : ctx.moveTo(A.X(i), A.Y(XS[i]));
+        ctx.stroke();
         const m = { l: 44, r: 12, t: 26, b: 20 },
           y0 = h1,
           H = h - h1,
           bw = (w - m.l - m.r) / NB,
-          mx = Math.max(...margT, ...Array.from(hist).map((v) => v / n)) * 1.08,
+          mx = Math.max(...targetMarginalX, ...Array.from(hist).map((v) => v / n)) * 1.08,
           Yh = (v) => y0 + H - m.b - (v / mx) * (H - m.t - m.b);
-        g.font = MONO;
-        g.fillStyle = t.muted;
-        g.textAlign = 'left';
-        g.fillText(
+        ctx.font = MONO;
+        ctx.fillStyle = colors.muted;
+        ctx.textAlign = 'left';
+        ctx.fillText(
           'time spent at each left-to-right position (bars) and the truth (line)',
           8,
           y0 + 13,
         );
         for (let i = 0; i < NB; i++) {
-          g.fillStyle = mix(t.accent, t.accent, 0, 0.65);
-          g.fillRect(m.l + i * bw + 0.5, Yh(hist[i] / n), bw - 1, Yh(0) - Yh(hist[i] / n));
+          ctx.fillStyle = mix(colors.accent, colors.accent, 0, 0.65);
+          ctx.fillRect(m.l + i * bw + 0.5, Yh(hist[i] / n), bw - 1, Yh(0) - Yh(hist[i] / n));
         }
-        g.strokeStyle = t.cut;
-        g.lineWidth = 2.2;
-        g.beginPath();
+        ctx.strokeStyle = colors.cut;
+        ctx.lineWidth = 2.2;
+        ctx.beginPath();
         for (let i = 0; i < NB; i++)
-          i ? g.lineTo(m.l + (i + 0.5) * bw, Yh(margT[i])) : g.moveTo(m.l + 0.5 * bw, Yh(margT[i]));
-        g.stroke();
-        g.strokeStyle = t.muted;
-        g.lineWidth = 1;
-        g.beginPath();
-        g.moveTo(m.l, y0 + H - m.b);
-        g.lineTo(w - m.r, y0 + H - m.b);
-        g.stroke();
-        g.fillStyle = t.muted;
-        g.fillText('left', m.l, h - 5);
-        g.textAlign = 'right';
-        g.fillText('right', w - m.r, h - 5);
+          i
+            ? ctx.lineTo(m.l + (i + 0.5) * bw, Yh(targetMarginalX[i]))
+            : ctx.moveTo(m.l + 0.5 * bw, Yh(targetMarginalX[i]));
+        ctx.stroke();
+        ctx.strokeStyle = colors.muted;
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(m.l, y0 + H - m.b);
+        ctx.lineTo(w - m.r, y0 + H - m.b);
+        ctx.stroke();
+        ctx.fillStyle = colors.muted;
+        ctx.fillText('left', m.l, h - 5);
+        ctx.textAlign = 'right';
+        ctx.fillText('right', w - m.r, h - 5);
       }
       live.textContent = msg;
-      uCur(root, 'mc', cu);
+      highlightLessonStep(root, 'mc', activeStepIndex);
       let mx = 0;
       for (const v of XS) mx += v / n;
       const es = fin || !anim.on || n % 200 < 41 ? ess() : cacheE0;
       cacheE0 = es;
-      setR(root, 'n', n - 1 + (fin ? ' (stopped)' : ''));
-      setR(root, 'acc', n > 1 ? pct(nacc / (n - 1)) : '–');
-      setR(root, 'mx', f2(mx) + ' / ' + f2(mxT));
-      setR(root, 'ess', isFinite(es) ? String(Math.round(es)) : '–');
-      setR(root, 'cost', nev.toLocaleString());
-      setR(root, 'eff', isFinite(es) && nev > 0 ? ((1000 * es) / nev).toFixed(0) : '–');
-      setR(root, 'err', isFinite(err) ? f2(err) : '–');
-      setR(root, 'isl', pct(rightShare()) + ' / ' + pct(rT));
+      setReadout(root, 'n', n - 1 + (fin ? ' (stopped)' : ''));
+      setReadout(root, 'acc', n > 1 ? pct(nacc / (n - 1)) : '–');
+      setReadout(root, 'mx', f2(mx) + ' / ' + f2(mxT));
+      setReadout(root, 'ess', isFinite(es) ? String(Math.round(es)) : '–');
+      setReadout(root, 'cost', nev.toLocaleString());
+      setReadout(root, 'eff', isFinite(es) && nev > 0 ? ((1000 * es) / nev).toFixed(0) : '–');
+      setReadout(root, 'err', isFinite(err) ? f2(err) : '–');
+      setReadout(root, 'isl', pct(rightShare()) + ' / ' + pct(targetRightMass));
     };
     let cacheE0 = NaN;
     setup();
     ui();
     build(false);
-    if (RM) {
+    if (prefersReducedMotion) {
       while (!fin) step(true);
     }
     const anim = Anim(() => {
-      fr++;
+      frameCount++;
       if (fin) {
-        pb.stop();
+        playback.stop();
         return;
       }
-      const hv = S.al === 'hmc' || S.al === 'nuts';
-      if (S.sp === 1) {
-        if (fr % 34) return;
+      const hv = settings.al === 'hmc' || settings.al === 'nuts';
+      if (settings.sp === 1) {
+        if (frameCount % 34) return;
         step(false);
-      } else if (S.sp === 2) {
+      } else if (settings.sp === 2) {
         if (XS.length < 25 || hv) {
-          if (fr % (hv && XS.length >= 25 ? 3 : 10)) return;
+          if (frameCount % (hv && XS.length >= 25 ? 3 : 10)) return;
           step(false);
-        } else for (let i = 0; i < 10 && !fin && chk.remaining() > 0; i++) step(i < 9);
+        } else for (let i = 0; i < 10 && !fin && checkRunStop.remaining() > 0; i++) step(i < 9);
       } else {
         const k = hv ? 10 : 40;
-        for (let i = 0; i < k && !fin && chk.remaining() > 0; i++) step(i < k - 1);
+        for (let i = 0; i < k && !fin && checkRunStop.remaining() > 0; i++) step(i < k - 1);
       }
       draw();
-      chk();
+      checkRunStop();
     });
-    pb = playBtn($('#mc-play', root), anim);
-    chk = runCtl(pb, root, 'mc', {
+    playback = playBtn($('#mc-play', root), anim);
+    checkRunStop = attachRunLimit(playback, root, 'mc', {
       done: () => fin,
       restart: () => build(false),
       count: () => XS.length - 1,
       what: 'steps',
     });
     $('#mc-step', root).onclick = () => {
-      pb.stop();
+      playback.stop();
       if (fin) build(false);
       else step(false);
       draw();
     };
     $('#mc-reset', root).onclick = () => {
-      pb.stop();
+      playback.stop();
       build(false);
       draw();
     };
@@ -911,7 +920,7 @@ export default {
       root,
       'mc-s',
       (v) => {
-        S.s = +v;
+        settings.s = +v;
       },
       f2,
     );
@@ -919,7 +928,7 @@ export default {
       root,
       'mc-L',
       (v) => {
-        S.L = +v;
+        settings.L = +v;
       },
       (v) => String(+v),
     );
@@ -927,33 +936,33 @@ export default {
       root,
       'mc-sp',
       (v) => {
-        S.sp = +v;
+        settings.sp = +v;
       },
       (v) => ['', 'one step at a time', 'steady', 'fast'][+v],
     );
     $('#mc-cor', root).onchange = (e) => {
-      S.cor = e.target.checked;
-      pb.stop();
+      settings.cor = e.target.checked;
+      playback.stop();
       build(false);
       draw();
     };
-    segBind(root, 'mc-al', S.al, (v) => {
-      S.al = v;
-      S.s = DEF[v];
-      sB.set(S.s);
-      pb.stop();
+    segBind(root, 'mc-al', settings.al, (v) => {
+      settings.al = v;
+      settings.s = DEF[v];
+      sB.set(settings.s);
+      playback.stop();
       ui();
       build(false);
       draw();
-      pb.start();
+      playback.start();
     });
-    segBind(root, 'mc-tg', S.tg, (v) => {
-      S.tg = v;
-      pb.stop();
+    segBind(root, 'mc-tg', settings.tg, (v) => {
+      settings.tg = v;
+      playback.stop();
       setup();
       build(false);
       draw();
-      pb.start();
+      playback.start();
     });
     c.style.cursor = 'crosshair';
     c.addEventListener('click', (e) => {
@@ -961,7 +970,7 @@ export default {
       const r = c.getBoundingClientRect();
       x = clamp((e.clientX - r.left - P.w / 2) / P.s, -XR, XR);
       y = clamp(-(e.clientY - r.top - P.h / 2) / P.s, -YR, YR);
-      pb.stop();
+      playback.stop();
       build(true);
       msg =
         'The walker has been put at (' +
@@ -973,11 +982,11 @@ export default {
     });
     return {
       draw,
-      stop: () => pb.stop(),
+      stop: () => playback.stop(),
       auto: () => {
         build(false);
         draw();
-        pb.start();
+        playback.start();
       },
     };
   },

@@ -2,14 +2,14 @@
 
 const AD = (() => {
   let tape = [];
-  const N = (v, sh) => ({ v, g: new Float64Array(v.length), sh }),
-    op = (o, bk) => {
-      tape.push(bk);
-      return o;
+  const createTensor = (v, sh) => ({ v, g: new Float64Array(v.length), sh }),
+    op = (output, backpropagate) => {
+      tape.push(backpropagate);
+      return output;
     };
   const param = (sh, sd, rn) => {
     const n = sh.reduce((a, b) => a * b, 1),
-      p = N(
+      p = createTensor(
         Float64Array.from({ length: n }, () => sd * rn()),
         sh,
       );
@@ -21,7 +21,7 @@ const AD = (() => {
     const m = A.sh[0],
       k = A.sh[1],
       n = B.sh[1],
-      o = N(new Float64Array(m * n), [m, n]),
+      o = createTensor(new Float64Array(m * n), [m, n]),
       a = A.v,
       b = B.v,
       ov = o.v;
@@ -51,7 +51,7 @@ const AD = (() => {
     const m = A.sh[0],
       k = A.sh[1],
       n = B.sh[0],
-      o = N(new Float64Array(m * n), [m, n]),
+      o = createTensor(new Float64Array(m * n), [m, n]),
       a = A.v,
       b = B.v;
     for (let i = 0; i < m; i++)
@@ -73,7 +73,7 @@ const AD = (() => {
     });
   };
   const add = (A, B) => {
-    const o = N(
+    const o = createTensor(
       A.v.map((x, i) => x + B.v[i]),
       A.sh,
     );
@@ -85,7 +85,7 @@ const AD = (() => {
     });
   };
   const relu = (A) => {
-    const o = N(
+    const o = createTensor(
       A.v.map((x) => (x > 0 ? x : 0)),
       A.sh,
     );
@@ -95,7 +95,7 @@ const AD = (() => {
   };
   const gather = (E, idx) => {
     const d = E.sh[1],
-      o = N(new Float64Array(idx.length * d), [idx.length, d]);
+      o = createTensor(new Float64Array(idx.length * d), [idx.length, d]);
     idx.forEach((t, i) => {
       for (let j = 0; j < d; j++) o.v[i * d + j] = E.v[t * d + j];
     });
@@ -107,7 +107,7 @@ const AD = (() => {
   };
   const attn = (S, sc, causal) => {
     const T = S.sh[0],
-      o = N(new Float64Array(T * T), [T, T]);
+      o = createTensor(new Float64Array(T * T), [T, T]);
     for (let i = 0; i < T; i++) {
       let mx = -1e30;
       const lim = causal ? i : T - 1;
@@ -132,7 +132,7 @@ const AD = (() => {
   const ce = (L, tg, from) => {
     const T = L.sh[0],
       V = L.sh[1],
-      o = N(new Float64Array(1), [1]),
+      o = createTensor(new Float64Array(1), [1]),
       Pm = new Float64Array(T * V),
       cnt = T - from;
     for (let t = from; t < T; t++) {
@@ -159,7 +159,7 @@ const AD = (() => {
       H = X.sh[1],
       Wd = X.sh[2],
       O = W.sh[0],
-      o = N(new Float64Array(O * H * Wd), [O, H, Wd]),
+      o = createTensor(new Float64Array(O * H * Wd), [O, H, Wd]),
       x = X.v,
       w = W.v;
     for (let q = 0; q < O; q++)
@@ -207,7 +207,7 @@ const AD = (() => {
       Wd = X.sh[2],
       h = H / 2,
       w2 = Wd / 2,
-      o = N(new Float64Array(C * h * w2), [C, h, w2]),
+      o = createTensor(new Float64Array(C * h * w2), [C, h, w2]),
       ix = new Int32Array(C * h * w2);
     for (let c = 0; c < C; c++)
       for (let y = 0; y < h; y++)
@@ -234,7 +234,7 @@ const AD = (() => {
       w2 = X.sh[2],
       H = h * 2,
       Wd = w2 * 2,
-      o = N(new Float64Array(C * H * Wd), [C, H, Wd]);
+      o = createTensor(new Float64Array(C * H * Wd), [C, H, Wd]);
     for (let c = 0; c < C; c++)
       for (let y = 0; y < H; y++)
         for (let x = 0; x < Wd; x++)
@@ -247,7 +247,11 @@ const AD = (() => {
     });
   };
   const cat = (A, B) => {
-    const o = N(new Float64Array(A.v.length + B.v.length), [A.sh[0] + B.sh[0], A.sh[1], A.sh[2]]);
+    const o = createTensor(new Float64Array(A.v.length + B.v.length), [
+      A.sh[0] + B.sh[0],
+      A.sh[1],
+      A.sh[2],
+    ]);
     o.v.set(A.v);
     o.v.set(B.v, A.v.length);
     return op(o, () => {
@@ -258,7 +262,7 @@ const AD = (() => {
   };
   const bce = (L, tg) => {
     const n = L.v.length,
-      o = N(new Float64Array(1), [1]);
+      o = createTensor(new Float64Array(1), [1]);
     for (let i = 0; i < n; i++) {
       const z = L.v[i];
       o.v[0] += (Math.max(z, 0) - z * tg[i] + Math.log(1 + Math.exp(-Math.abs(z)))) / n;
@@ -267,7 +271,7 @@ const AD = (() => {
       for (let i = 0; i < n; i++) L.g[i] += (o.g[0] * (1 / (1 + Math.exp(-L.v[i])) - tg[i])) / n;
     });
   };
-  const input = (v, sh) => N(Float64Array.from(v), sh),
+  const input = (v, sh) => createTensor(Float64Array.from(v), sh),
     backward = (l) => {
       l.g[0] = 1;
       for (let i = tape.length - 1; i >= 0; i--) tape[i]();
@@ -276,12 +280,12 @@ const AD = (() => {
     clear = () => {
       tape = [];
     };
-  const adam = (ps, lr, t, bs) => {
+  const adam = (ps, lr, t, gradientDivisor) => {
     const c1 = 1 - Math.pow(0.9, t),
       c2 = 1 - Math.pow(0.999, t);
     for (const p of ps) {
       for (let i = 0; i < p.v.length; i++) {
-        const g = p.g[i] / bs;
+        const g = p.g[i] / gradientDivisor;
         p.m[i] = 0.9 * p.m[i] + 0.1 * g;
         p.s[i] = 0.999 * p.s[i] + 0.001 * g * g;
         p.v[i] -= (lr * (p.m[i] / c1)) / (Math.sqrt(p.s[i] / c2) + 1e-8);

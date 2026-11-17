@@ -1,5 +1,5 @@
 /* Manifold. © 2026 Bahman Moraffah. All rights reserved. */
-import { $, clamp, ellPath, f2, fit, mix } from '../../../js/core/shared.js';
+import { $, clamp, ellPath, f2, prepareCanvas, mix } from '../../../js/core/shared.js';
 import { Orbit } from '../../regression/shared.js';
 import { clfLesson, gfit, glog, sig, sweepTick } from '../shared.js';
 
@@ -14,8 +14,8 @@ export default clfLesson({
   setup(api) {
     const S = api.S,
       root = api.root;
-    let G = [],
-      Gd = [],
+    let classGaussians = [],
+      alternateClassGaussians = [],
       pr = 0.5,
       ss,
       tk;
@@ -60,15 +60,16 @@ export default clfLesson({
         }
         return [A, B];
       },
-      sc = (Q, x, y) => Math.log(pr / (1 - pr) + 1e-12) + glog(Q[1], x, y) - glog(Q[0], x, y);
+      classLogOdds = (Q, x, y) =>
+        Math.log(pr / (1 - pr) + 1e-12) + glog(Q[1], x, y) - glog(Q[0], x, y);
     return {
       fit() {
         const T = api.train;
         pr = clamp(T.filter((p) => p.c).length / Math.max(1, T.length), 0.01, 0.99);
-        G = model(S.kind);
-        Gd = model(S.kind === 'lda' ? 'qda' : 'lda');
+        classGaussians = model(S.kind);
+        alternateClassGaussians = model(S.kind === 'lda' ? 'qda' : 'lda');
       },
-      p: (x, y) => sig(sc(G, x, y)),
+      p: (x, y) => sig(classLogOdds(classGaussians, x, y)),
       tick() {
         tk();
         return false;
@@ -85,18 +86,29 @@ export default clfLesson({
           g.strokeStyle = cl;
           g.lineWidth = 2;
           [1, 2].forEach((r) => {
-            ellPath(g, X, Y, G[k].mx, G[k].my, G[k].a, G[k].b, G[k].d, r);
+            ellPath(
+              g,
+              X,
+              Y,
+              classGaussians[k].mx,
+              classGaussians[k].my,
+              classGaussians[k].a,
+              classGaussians[k].b,
+              classGaussians[k].d,
+              r,
+            );
             g.stroke();
           });
           g.setLineDash([]);
         });
       },
       right(t) {
-        const { g, w, h } = fit(api.cr),
+        const { g: ctx, w, h } = prepareCanvas(api.cr),
           pr3 = orb.cam(w, h, 8.6),
           N = 34,
           R = 3,
-          den = (k, x, y) => ((k ? pr : 1 - pr) * Math.exp(glog(G[k], x, y))) / (2 * Math.PI);
+          den = (k, x, y) =>
+            ((k ? pr : 1 - pr) * Math.exp(glog(classGaussians[k], x, y))) / (2 * Math.PI);
         let mx = 1e-9;
         const Z = [],
           Pp = [],
@@ -123,25 +135,27 @@ export default clfLesson({
         for (let i = 0; i < N; i++)
           for (let j = 0; j < N; j++) Q.push({ i, j, d: (Pp[i][j][2] + Pp[i + 1][j + 1][2]) / 2 });
         Q.sort((a, b) => b.d - a.d);
-        g.lineWidth = 0.6;
+        ctx.lineWidth = 0.6;
         for (const q of Q) {
           const z = (Z[q.i][q.j] + Z[q.i + 1][q.j + 1]) / (2 * mx),
             cl = Wn[q.i][q.j] ? t.gold : t.accent;
-          g.beginPath();
-          g.moveTo(Pp[q.i][q.j][0], Pp[q.i][q.j][1]);
-          g.lineTo(Pp[q.i + 1][q.j][0], Pp[q.i + 1][q.j][1]);
-          g.lineTo(Pp[q.i + 1][q.j + 1][0], Pp[q.i + 1][q.j + 1][1]);
-          g.lineTo(Pp[q.i][q.j + 1][0], Pp[q.i][q.j + 1][1]);
-          g.closePath();
-          g.fillStyle = mix(t.bg, cl, 0.18 + 0.82 * Math.pow(z, 0.6));
-          g.fill();
-          g.strokeStyle = mix(t.ink, t.ink, 0, 0.14);
-          g.stroke();
+          ctx.beginPath();
+          ctx.moveTo(Pp[q.i][q.j][0], Pp[q.i][q.j][1]);
+          ctx.lineTo(Pp[q.i + 1][q.j][0], Pp[q.i + 1][q.j][1]);
+          ctx.lineTo(Pp[q.i + 1][q.j + 1][0], Pp[q.i + 1][q.j + 1][1]);
+          ctx.lineTo(Pp[q.i][q.j + 1][0], Pp[q.i][q.j + 1][1]);
+          ctx.closePath();
+          ctx.fillStyle = mix(t.bg, cl, 0.18 + 0.82 * Math.pow(z, 0.6));
+          ctx.fill();
+          ctx.strokeStyle = mix(t.ink, t.ink, 0, 0.14);
+          ctx.stroke();
         }
       },
       read(set) {
         const te = api.test,
-          ok = te.filter((p) => (sc(Gd, p.x, p.y) >= 0 ? 1 : 0) === p.c).length;
+          ok = te.filter(
+            (p) => (classLogOdds(alternateClassGaussians, p.x, p.y) >= 0 ? 1 : 0) === p.c,
+          ).length;
         set('np', S.kind === 'lda' ? '4 means + 3 shared = 7' : '4 means + 3 + 3 = 10');
         set(
           'ot',

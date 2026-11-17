@@ -3,18 +3,18 @@ import {
   $,
   Anim,
   MONO,
-  RM,
-  T,
+  prefersReducedMotion,
+  readThemeColors,
   bind,
   clamp,
   f2,
-  fit,
+  prepareCanvas,
   markTP,
   mix,
   playBtn,
   rng,
-  runCtl,
-  setR,
+  attachRunLimit,
+  setReadout,
   testPoint,
 } from '../../../js/core/shared.js';
 import {
@@ -23,11 +23,11 @@ import {
   kmRun,
   kmSeed,
   segBind,
-  uCur,
+  highlightLessonStep,
   uDataBind,
   uFrame,
   uInv,
-  uLine,
+  drawSeriesChart,
   uView,
 } from '../shared.js';
 
@@ -36,7 +36,7 @@ export default {
     const c = $('#km-c', root),
       cr = $('#km-r', root),
       live = $('#km-live', root),
-      S = { K: 5, init: 'rand', ds: 'five', n: 250, seed: 3 },
+      settings = { K: 5, init: 'rand', ds: 'five', n: 250, seed: 3 },
       NR = 150;
     let P = [],
       C = [],
@@ -50,15 +50,15 @@ export default {
       R = rng(1),
       mv = 0,
       wait = 0,
-      fr = 0,
-      pb,
+      frameCount = 0,
+      playback,
       race = null,
       elbow = [],
-      cu = -1,
+      activeStepIndex = -1,
       drag = -1,
-      CH = [],
-      tv = 0,
-      tvd = -1;
+      centroidHistory = [],
+      tableDataVersion = 0,
+      renderedTableVersion = -1;
     const near = (p) => {
       let b = 0,
         bd = 1e18;
@@ -86,18 +86,18 @@ export default {
         for (const q of Cs) bd = Math.min(bd, d2(p, q));
         j += bd;
       }
-      CH.push({ lab, C: Cs, J: j });
-      tv++;
+      centroidHistory.push({ lab, C: Cs, J: j });
+      tableDataVersion++;
     };
     const doRace = () => {
-      if (P.length < S.K) {
+      if (P.length < settings.K) {
         race = null;
         return;
       }
-      const r = rng(77 + S.seed * 3 + S.K),
+      const r = rng(77 + settings.seed * 3 + settings.K),
         go = (pp) => {
           const o = [];
-          for (let i = 0; i < NR; i++) o.push(kmRun(P, kmSeed(P, S.K, pp, r)));
+          for (let i = 0; i < NR; i++) o.push(kmRun(P, kmSeed(P, settings.K, pp, r)));
           return o;
         },
         a = go(false),
@@ -116,7 +116,7 @@ export default {
       };
     };
     const doElbow = () => {
-      const r = rng(5 + S.seed);
+      const r = rng(5 + settings.seed);
       elbow = [];
       for (let k = 1; k <= 9; k++) {
         let m = 1e99;
@@ -126,7 +126,7 @@ export default {
       }
     };
     const reset = () => {
-      R = rng(1000 + run * 7 + S.seed);
+      R = rng(1000 + run * 7 + settings.seed);
       C = [];
       prev = null;
       A = new Array(P.length).fill(-1);
@@ -135,40 +135,40 @@ export default {
       hist = [];
       mv = 0;
       wait = 0;
-      cu = -1;
-      CH = [];
-      tv++;
+      activeStepIndex = -1;
+      centroidHistory = [];
+      tableDataVersion++;
       msg =
-        S.init === 'own'
+        settings.init === 'own'
           ? 'No centres yet. Click on the left picture ' +
-            S.K +
+            settings.K +
             ' times to place the starting centres yourself.'
           : 'No centres yet. ' +
-            (S.init === 'pp'
+            (settings.init === 'pp'
               ? 'k-means++ will place them one at a time.'
-              : 'A random start picks ' + S.K + ' data points all at once.') +
+              : 'A random start picks ' + settings.K + ' data points all at once.') +
             ' Press Run or One step.';
     };
     const step = () => {
-      if (P.length < S.K) return;
+      if (P.length < settings.K) return;
       if (ph === 'done') {
         run++;
         reset();
         return;
       }
       if (ph === 'seed') {
-        cu = 0;
-        if (S.init === 'own') {
+        activeStepIndex = 0;
+        if (settings.init === 'own') {
           msg =
             'Your own start: click on the left picture to place centre ' +
             (C.length + 1) +
             ' of ' +
-            S.K +
+            settings.K +
             '.';
           return;
         }
-        if (S.init === 'rand') {
-          C = kmSeed(P, S.K, false, R);
+        if (settings.init === 'rand') {
+          C = kmSeed(P, settings.K, false, R);
           snap('start');
           ph = 'assign';
           msg =
@@ -200,23 +200,23 @@ export default {
               'k-means++: centre ' +
               C.length +
               ' of ' +
-              S.K +
+              settings.K +
               ' was drawn with probability proportional to squared distance from the nearest existing centre. The point picked was ' +
               f2(Math.sqrt(D[i])) +
               ' away. The half of the points closest to an existing centre shared only ' +
               ((100 * lo) / tot).toFixed(1) +
               '% of the chance.';
           }
-          if (C.length >= S.K) {
+          if (C.length >= settings.K) {
             ph = 'assign';
             snap('start');
-            msg += ' All ' + S.K + ' centres are placed.';
+            msg += ' All ' + settings.K + ' centres are placed.';
           }
         }
         return;
       }
       if (ph === 'assign') {
-        cu = 1;
+        activeStepIndex = 1;
         let ch = 0;
         P.forEach((p, i) => {
           const b = near(p)[0];
@@ -229,7 +229,7 @@ export default {
         hist.push(j);
         if (!ch && it > 0) {
           ph = 'done';
-          cu = 3;
+          activeStepIndex = 3;
           msg =
             'No point changed cluster, so the centres will not move again. Converged after ' +
             it +
@@ -259,7 +259,7 @@ export default {
         return;
       }
       if (ph === 'move') {
-        cu = 2;
+        activeStepIndex = 2;
         prev = C.map((q) => ({ ...q }));
         const Sx = C.map(() => [0, 0, 0]);
         P.forEach((p, i) => {
@@ -282,7 +282,7 @@ export default {
         it++;
         const j = J();
         hist.push(j);
-        mv = RM ? 0 : 18;
+        mv = prefersReducedMotion ? 0 : 18;
         ph = 'assign';
         snap('after round ' + it);
         msg =
@@ -313,12 +313,12 @@ export default {
       ],
     );
     const draw = () => {
-      const t = T(),
-        col = UC(t);
+      const colors = readThemeColors(),
+        col = UC(colors);
       {
         const V = uView(c),
           { g, w, h, X, Y, s } = V;
-        if (C.length === S.K && ph !== 'seed') {
+        if (C.length === settings.K && ph !== 'seed') {
           const cs = 9;
           for (let py = 0; py < h; py += cs)
             for (let px = 0; px < w; px += cs) {
@@ -329,11 +329,11 @@ export default {
         }
         uFrame(
           V,
-          t,
-          S.ds === 'shop' ? 'visits per month (standardised)' : 'x',
-          S.ds === 'shop' ? 'average basket (standardised)' : 'y',
+          colors,
+          settings.ds === 'shop' ? 'visits per month (standardised)' : 'x',
+          settings.ds === 'shop' ? 'average basket (standardised)' : 'y',
         );
-        const sh = ph === 'seed' && S.init === 'pp' && C.length > 0;
+        const sh = ph === 'seed' && settings.init === 'pp' && C.length > 0;
         let D = null,
           dm = 1;
         if (sh) {
@@ -344,28 +344,28 @@ export default {
           g.beginPath();
           if (sh) {
             g.arc(X(p.x), Y(p.y), 1.4 + 8.5 * Math.sqrt(D[i] / dm), 0, 7);
-            g.fillStyle = mix(t.ink, t.ink, 0, 0.34);
+            g.fillStyle = mix(colors.ink, colors.ink, 0, 0.34);
           } else {
             g.arc(X(p.x), Y(p.y), 3.4, 0, 7);
-            g.fillStyle = A[i] >= 0 ? col[A[i] % 8] : mix(t.ink, t.ink, 0, 0.42);
+            g.fillStyle = A[i] >= 0 ? col[A[i] % 8] : mix(colors.ink, colors.ink, 0, 0.42);
           }
           g.fill();
         });
-        if (CH.length > 1)
+        if (centroidHistory.length > 1)
           C.forEach((q, k) => {
             g.strokeStyle = col[k % 8];
             g.lineWidth = 2;
             g.beginPath();
-            CH.forEach((sn, i) => {
+            centroidHistory.forEach((sn, i) => {
               const z = sn.C[k];
               if (!z) return;
               i ? g.lineTo(X(z.x), Y(z.y)) : g.moveTo(X(z.x), Y(z.y));
             });
             g.stroke();
-            CH.forEach((sn, i) => {
+            centroidHistory.forEach((sn, i) => {
               const z = sn.C[k];
               if (!z) return;
-              g.fillStyle = t.bg;
+              g.fillStyle = colors.bg;
               g.beginPath();
               g.arc(X(z.x), Y(z.y), i ? 3 : 5, 0, 7);
               g.fill();
@@ -378,7 +378,7 @@ export default {
             x = X(o.x + (q.x - o.x) * u),
             y = Y(o.y + (q.y - o.y) * u);
           if (prev && prev[k]) {
-            g.strokeStyle = t.ink;
+            g.strokeStyle = colors.ink;
             g.lineWidth = 1.4;
             g.setLineDash([4, 4]);
             g.beginPath();
@@ -388,49 +388,49 @@ export default {
             g.setLineDash([]);
           }
           g.fillStyle = col[k % 8];
-          g.strokeStyle = t.bg;
+          g.strokeStyle = colors.bg;
           g.lineWidth = 5;
           g.beginPath();
           g.rect(x - 8, y - 8, 16, 16);
           g.stroke();
           g.fill();
-          g.strokeStyle = t.ink;
+          g.strokeStyle = colors.ink;
           g.lineWidth = 1.6;
           g.strokeRect(x - 8, y - 8, 16, 16);
         });
-        if (C.length === S.K) markTP(g, X(tp.v[0]), Y(tp.v[1]), t);
+        if (C.length === settings.K) markTP(g, X(tp.v[0]), Y(tp.v[1]), colors);
         g.font = MONO;
-        g.fillStyle = t.muted;
+        g.fillStyle = colors.muted;
         g.textAlign = 'left';
         g.fillText(
           sh
             ? 'bigger dot = more likely to be the next centre'
-            : 'run ' + run + ', ' + (S.init === 'pp' ? 'k-means++ start' : 'random start'),
+            : 'run ' + run + ', ' + (settings.init === 'pp' ? 'k-means++ start' : 'random start'),
           8,
           h - 8,
         );
       }
       {
-        const { g, w, h } = fit(cr),
+        const { g: ctx, w, h } = prepareCanvas(cr),
           bh = h / 3;
-        const L = uLine(g, t, 0, 0, w, bh, hist, {
+        const L = drawSeriesChart(ctx, colors, 0, 0, w, bh, hist, {
           title: 'sum of squared distances after each step of this run',
           dots: true,
           n: Math.max(8, hist.length),
           ym: Math.max(race ? race.best * 1.6 : 1, ...hist),
         });
         if (race) {
-          g.setLineDash([5, 4]);
-          g.strokeStyle = t.gold;
-          g.lineWidth = 1.4;
-          g.beginPath();
-          g.moveTo(L.m.l, L.Y(race.best));
-          g.lineTo(w - L.m.r, L.Y(race.best));
-          g.stroke();
-          g.setLineDash([]);
-          g.fillStyle = t.cut;
-          g.textAlign = 'right';
-          g.fillText('best known', w - L.m.r, L.Y(race.best) - 5);
+          ctx.setLineDash([5, 4]);
+          ctx.strokeStyle = colors.gold;
+          ctx.lineWidth = 1.4;
+          ctx.beginPath();
+          ctx.moveTo(L.m.l, L.Y(race.best));
+          ctx.lineTo(w - L.m.r, L.Y(race.best));
+          ctx.stroke();
+          ctx.setLineDash([]);
+          ctx.fillStyle = colors.cut;
+          ctx.textAlign = 'right';
+          ctx.fillText('best known', w - L.m.r, L.Y(race.best) - 5);
           const y0 = bh,
             m = { l: 44, r: 12, t: 40, b: 20 },
             nb = 16,
@@ -447,37 +447,37 @@ export default {
             cb = cnt(race.b),
             cm = Math.max(1, ...ca, ...cb);
           for (let i = 0; i < nb; i++) {
-            g.fillStyle = t.ok;
-            g.fillRect(
+            ctx.fillStyle = colors.ok;
+            ctx.fillRect(
               m.l + i * bw + 1,
               y0 + bh - m.b - (ca[i] / cm) * H,
               bw / 2 - 1.5,
               (ca[i] / cm) * H,
             );
-            g.fillStyle = t.accent;
-            g.fillRect(
+            ctx.fillStyle = colors.accent;
+            ctx.fillRect(
               m.l + i * bw + bw / 2,
               y0 + bh - m.b - (cb[i] / cm) * H,
               bw / 2 - 1.5,
               (cb[i] / cm) * H,
             );
           }
-          g.strokeStyle = t.muted;
-          g.lineWidth = 1;
-          g.beginPath();
-          g.moveTo(m.l, y0 + bh - m.b);
-          g.lineTo(w - m.r, y0 + bh - m.b);
-          g.stroke();
-          g.font = MONO;
-          g.textAlign = 'left';
-          g.fillStyle = t.ok;
-          g.fillText(
+          ctx.strokeStyle = colors.muted;
+          ctx.lineWidth = 1;
+          ctx.beginPath();
+          ctx.moveTo(m.l, y0 + bh - m.b);
+          ctx.lineTo(w - m.r, y0 + bh - m.b);
+          ctx.stroke();
+          ctx.font = MONO;
+          ctx.textAlign = 'left';
+          ctx.fillStyle = colors.ok;
+          ctx.fillText(
             'random start: ' + (100 * race.a.ok).toFixed(0) + '% of ' + NR + ' runs reach the best',
             8,
             y0 + 13,
           );
-          g.fillStyle = t.accent;
-          g.fillText(
+          ctx.fillStyle = colors.accent;
+          ctx.fillText(
             'k-means++ start: ' +
               (100 * race.b.ok).toFixed(0) +
               '% of ' +
@@ -486,66 +486,71 @@ export default {
             8,
             y0 + 27,
           );
-          g.fillStyle = t.muted;
-          g.fillText('best', m.l, y0 + bh - 5);
-          g.textAlign = 'right';
-          g.fillText('final sum of squares: worse →', w - m.r, y0 + bh - 5);
+          ctx.fillStyle = colors.muted;
+          ctx.fillText('best', m.l, y0 + bh - 5);
+          ctx.textAlign = 'right';
+          ctx.fillText('final sum of squares: worse →', w - m.r, y0 + bh - 5);
         }
-        const E = uLine(g, t, 0, 2 * bh, w, bh, elbow, {
+        const E = drawSeriesChart(ctx, colors, 0, 2 * bh, w, bh, elbow, {
           title: 'lowest sum of squares found for K = 1 … 9: look for the bend',
           dots: true,
-          col: t.muted,
+          col: colors.muted,
         });
-        g.font = MONO;
-        g.textAlign = 'center';
+        ctx.font = MONO;
+        ctx.textAlign = 'center';
         elbow.forEach((v, i) => {
-          g.fillStyle = t.muted;
-          g.fillText(String(i + 1), E.X(i), h - 5);
-          if (i + 1 === S.K && isFinite(v)) {
-            g.fillStyle = t.gold;
-            g.beginPath();
-            g.arc(E.X(i), E.Y(v), 6, 0, 7);
-            g.fill();
+          ctx.fillStyle = colors.muted;
+          ctx.fillText(String(i + 1), E.X(i), h - 5);
+          if (i + 1 === settings.K && isFinite(v)) {
+            ctx.fillStyle = colors.gold;
+            ctx.beginPath();
+            ctx.arc(E.X(i), E.Y(v), 6, 0, 7);
+            ctx.fill();
           }
         });
       }
       live.textContent = msg;
-      uCur(root, 'km', cu);
-      if (tvd !== tv) {
-        tvd = tv;
+      highlightLessonStep(root, 'km', activeStepIndex);
+      if (renderedTableVersion !== tableDataVersion) {
+        renderedTableVersion = tableDataVersion;
         const tb = $('#km-tab', root);
-        tb.innerHTML = !CH.length
+        tb.innerHTML = !centroidHistory.length
           ? '<p class="status">The centroids are not all placed yet.</p>'
           : '<table><thead><tr><th>when</th>' +
-            CH[0].C.map(
+            centroidHistory[0].C.map(
               (_, k) =>
                 '<th><i style="background:' + col[k % 8] + '"></i>centroid ' + (k + 1) + '</th>',
             ).join('') +
             '<th>largest move</th><th>sum of squares</th></tr></thead><tbody>' +
-            CH.map(
-              (sn, i) =>
-                '<tr><td>' +
-                sn.lab +
-                '</td>' +
-                sn.C.map((z) => '<td>(' + f2(z.x) + ', ' + f2(z.y) + ')</td>').join('') +
-                '<td>' +
-                (i
-                  ? f2(
-                      Math.max(
-                        ...sn.C.map((z, k) =>
-                          Math.hypot(z.x - CH[i - 1].C[k].x, z.y - CH[i - 1].C[k].y),
+            centroidHistory
+              .map(
+                (sn, i) =>
+                  '<tr><td>' +
+                  sn.lab +
+                  '</td>' +
+                  sn.C.map((z) => '<td>(' + f2(z.x) + ', ' + f2(z.y) + ')</td>').join('') +
+                  '<td>' +
+                  (i
+                    ? f2(
+                        Math.max(
+                          ...sn.C.map((z, k) =>
+                            Math.hypot(
+                              z.x - centroidHistory[i - 1].C[k].x,
+                              z.y - centroidHistory[i - 1].C[k].y,
+                            ),
+                          ),
                         ),
-                      ),
-                    )
-                  : '–') +
-                '</td><td>' +
-                f2(sn.J) +
-                '</td></tr>',
-            ).join('') +
+                      )
+                    : '–') +
+                  '</td><td>' +
+                  f2(sn.J) +
+                  '</td></tr>',
+              )
+              .join('') +
             '</tbody></table>';
         tb.scrollTop = tb.scrollHeight;
       }
-      if (C.length === S.K) {
+      if (C.length === settings.K) {
         const [b, bd] = near({ x: tp.v[0], y: tp.v[1] });
         tp.out.textContent =
           'Your point is ' +
@@ -556,15 +561,15 @@ export default {
           (b + 1) +
           '.';
       } else tp.out.textContent = 'Place the centres first: press One step.';
-      setR(root, 'ph', String(it));
-      setR(root, 'J', hist.length ? f2(hist[hist.length - 1]) : '–');
-      setR(root, 'best', race ? f2(race.best) : '–');
-      setR(root, 'ra', race ? (100 * race.a.ok).toFixed(0) + '%' : '–');
-      setR(root, 'rp', race ? (100 * race.b.ok).toFixed(0) + '%' : '–');
-      setR(root, 'ia', race ? race.a.it.toFixed(1) + ' / ' + race.b.it.toFixed(1) : '–');
+      setReadout(root, 'ph', String(it));
+      setReadout(root, 'J', hist.length ? f2(hist[hist.length - 1]) : '–');
+      setReadout(root, 'best', race ? f2(race.best) : '–');
+      setReadout(root, 'ra', race ? (100 * race.a.ok).toFixed(0) + '%' : '–');
+      setReadout(root, 'rp', race ? (100 * race.b.ok).toFixed(0) + '%' : '–');
+      setReadout(root, 'ia', race ? race.a.it.toFixed(1) + ' / ' + race.b.it.toFixed(1) : '–');
     };
     tp.on = () => draw();
-    const gen = uDataBind(root, 'km', S, () => {
+    const gen = uDataBind(root, 'km', settings, () => {
       P = gen();
       doRace();
       doElbow();
@@ -577,7 +582,7 @@ export default {
     doElbow();
     reset();
     const anim = Anim(() => {
-      fr++;
+      frameCount++;
       if (mv > 0) {
         mv--;
         draw();
@@ -592,13 +597,13 @@ export default {
         }
         return;
       }
-      if (fr % (ph === 'seed' ? 44 : 30)) return;
+      if (frameCount % (ph === 'seed' ? 44 : 30)) return;
       step();
       draw();
-      chk();
+      checkRunStop();
     });
-    pb = playBtn($('#km-play', root), anim);
-    const chk = runCtl(pb, root, 'km', {
+    playback = playBtn($('#km-play', root), anim);
+    const checkRunStop = attachRunLimit(playback, root, 'km', {
       done: () => ph === 'done',
       restart: () => {
         run++;
@@ -608,13 +613,13 @@ export default {
       what: 'rounds',
     });
     $('#km-step', root).onclick = () => {
-      pb.stop();
+      playback.stop();
       mv = 0;
       step();
       draw();
     };
     $('#km-reset', root).onclick = () => {
-      pb.stop();
+      playback.stop();
       run++;
       reset();
       draw();
@@ -623,17 +628,17 @@ export default {
       root,
       'km-K',
       (v) => {
-        S.K = v;
-        pb.stop();
+        settings.K = v;
+        playback.stop();
         doRace();
         reset();
         draw();
       },
       (v) => String(v),
     );
-    segBind(root, 'km-init', S.init, (v) => {
-      S.init = v;
-      pb.stop();
+    segBind(root, 'km-init', settings.init, (v) => {
+      settings.init = v;
+      playback.stop();
       reset();
       draw();
     });
@@ -652,18 +657,18 @@ export default {
           drag = k;
       });
       if (drag >= 0) {
-        pb.stop();
+        playback.stop();
         mv = 0;
         prev = null;
         c.setPointerCapture(e.pointerId);
-      } else if (S.init === 'own' && ph === 'seed' && C.length < S.K) {
+      } else if (settings.init === 'own' && ph === 'seed' && C.length < settings.K) {
         const q = uInv(c, e);
         C.push({ x: clamp(q[0], -3.9, 3.9), y: clamp(q[1], -2.9, 2.9) });
-        cu = 0;
-        if (C.length >= S.K) {
+        activeStepIndex = 0;
+        if (C.length >= settings.K) {
           ph = 'assign';
           snap('your start');
-          msg = 'All ' + S.K + ' centres are placed where you chose. Press Run or One step.';
+          msg = 'All ' + settings.K + ' centres are placed where you chose. Press Run or One step.';
         } else
           msg =
             'Centre ' +
@@ -675,7 +680,7 @@ export default {
             '). Click to place centre ' +
             (C.length + 1) +
             ' of ' +
-            S.K +
+            settings.K +
             '.';
         draw();
       }
@@ -685,12 +690,12 @@ export default {
       const q = uInv(c, e);
       C[drag].x = clamp(q[0], -3.9, 3.9);
       C[drag].y = clamp(q[1], -2.9, 2.9);
-      if (C.length === S.K) {
+      if (C.length === settings.K) {
         P.forEach((p, i) => {
           A[i] = near(p)[0];
         });
         ph = 'move';
-        cu = 1;
+        activeStepIndex = 1;
         msg =
           'You moved centre ' +
           (drag + 1) +
@@ -702,7 +707,7 @@ export default {
     });
     ['pointerup', 'pointercancel'].forEach((n) =>
       c.addEventListener(n, () => {
-        if (drag >= 0 && C.length === S.K) {
+        if (drag >= 0 && C.length === settings.K) {
           snap('you moved centroid ' + (drag + 1));
           draw();
         }
@@ -711,11 +716,11 @@ export default {
     );
     return {
       draw,
-      stop: () => pb.stop(),
+      stop: () => playback.stop(),
       auto: () => {
         reset();
         draw();
-        pb.start();
+        playback.start();
       },
     };
   },

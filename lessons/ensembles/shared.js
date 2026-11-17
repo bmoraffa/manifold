@@ -1,5 +1,5 @@
 /* Manifold. © 2026 Bahman Moraffah. All rights reserved. */
-import { MONO, clamp, clipPlot, fit, hex, plot } from '../../js/core/shared.js';
+import { MONO, clamp, clipPlot, prepareCanvas, hex, plot } from '../../js/core/shared.js';
 import { clfLesson, sig } from '../classification/shared.js';
 import { dot } from '../regression/shared.js';
 
@@ -259,42 +259,42 @@ function errPlot(g, w, h, y0, t, n, series, xl) {
 const pct = (v) => (isFinite(v) ? (100 * v).toFixed(1) + '%' : '–');
 
 function bagLesson(o) {
-  const rf = !!o.rf;
+  const randomForest = !!o.randomForest;
   return clfLesson({
     ...o,
     fromZero: true,
     ds: ['moons', 'overlap', 'blobs', 'circles', 'xor'],
     stepBtn: true,
     hard: false,
-    S: { B: 40, depth: 6, mtry: rf ? 1 : 2 },
+    S: { B: 40, depth: 6, mtry: randomForest ? 1 : 2 },
     n: 140,
     nc: 46,
     setup(api) {
       const S = api.S;
       let trees = [],
-        sumT,
-        oS,
-        oC,
+        testVoteSums,
+        oobVoteSums,
+        oobVoteCounts,
         eT,
         eO,
-        sing,
+        individualTreeAccuracies,
         imp,
         wait = 0,
         fr = 0,
         msg = '',
         fresh = true,
-        ag = NaN;
+        treeAgreementRate = NaN;
       const reset = () => {
         trees = [];
-        sumT = api.test.map(() => 0);
-        oS = api.train.map(() => 0);
-        oC = api.train.map(() => 0);
+        testVoteSums = api.test.map(() => 0);
+        oobVoteSums = api.train.map(() => 0);
+        oobVoteCounts = api.train.map(() => 0);
         eT = [];
         eO = [];
-        sing = [];
+        individualTreeAccuracies = [];
         imp = { x: 0, y: 0 };
         wait = 0;
-        ag = NaN;
+        treeAgreementRate = NaN;
         msg = 'No trees yet. Press Grow or One step.';
       };
       const add = () => {
@@ -315,29 +315,29 @@ function bagLesson(o) {
         let ok1 = 0;
         te.forEach((p, i) => {
           const v = treeP(tree, p.x, p.y);
-          sumT[i] += v;
+          testVoteSums[i] += v;
           if ((v >= 0.5 ? 1 : 0) === p.c) ok1++;
         });
-        sing.push(te.length ? ok1 / te.length : NaN);
+        individualTreeAccuracies.push(te.length ? ok1 / te.length : NaN);
         let d = 0;
         tr.forEach((p, i) => {
           if (!inb[i]) {
-            oS[i] += treeP(tree, p.x, p.y);
-            oC[i]++;
+            oobVoteSums[i] += treeP(tree, p.x, p.y);
+            oobVoteCounts[i]++;
           } else d++;
         });
         const k = trees.length;
         let ok = 0;
         te.forEach((p, i) => {
-          if ((sumT[i] / k >= 0.5 ? 1 : 0) === p.c) ok++;
+          if ((testVoteSums[i] / k >= 0.5 ? 1 : 0) === p.c) ok++;
         });
         eT.push(te.length ? 1 - ok / te.length : NaN);
         let oo = 0,
           oc = 0;
         tr.forEach((p, i) => {
-          if (oC[i]) {
+          if (oobVoteCounts[i]) {
             oc++;
-            if ((oS[i] / oC[i] >= 0.5 ? 1 : 0) === p.c) oo++;
+            if ((oobVoteSums[i] / oobVoteCounts[i] >= 0.5 ? 1 : 0) === p.c) oo++;
           }
         });
         eO.push(oc ? 1 - oo / oc : NaN);
@@ -354,7 +354,7 @@ function bagLesson(o) {
               for (let q = 0; q < 60; q++) if (V[i][q] === V[j][q]) a++;
               c += 60;
             }
-          ag = a / c;
+          treeAgreementRate = a / c;
         }
         msg =
           'Tree ' +
@@ -368,7 +368,7 @@ function bagLesson(o) {
           ' different points were drawn and ' +
           (n - d) +
           ' were left out. On its own this tree scores ' +
-          pct(sing[k - 1]) +
+          pct(individualTreeAccuracies[k - 1]) +
           ' on the test set. The vote of all ' +
           k +
           (k === 1 ? ' tree' : ' trees') +
@@ -383,7 +383,7 @@ function bagLesson(o) {
       };
       api.bind('B', 'B', (v) => String(v), rebuild);
       api.bind('depth', 'depth', (v) => String(v), rebuild);
-      if (rf) api.bind('mtry', 'mtry', (v) => String(v), rebuild);
+      if (randomForest) api.bind('mtry', 'mtry', (v) => String(v), rebuild);
       return {
         reset,
         fit() {
@@ -414,23 +414,27 @@ function bagLesson(o) {
         status: () => msg,
         cur: () => (!trees.length ? 0 : trees.length < S.B ? 1 : 4),
         right(t) {
-          const { g, w, h } = fit(api.cr),
+          const { g: ctx, w, h } = prepareCanvas(api.cr),
             cols = 4,
             sz = Math.min((w - 10) / cols - 10, (h * 0.6 - 34) / 2),
             k = trees.length,
             from = Math.max(0, k - 8);
-          g.font = MONO;
-          g.textAlign = 'left';
+          ctx.font = MONO;
+          ctx.textAlign = 'left';
           for (let q = from; q < k; q++) {
             const i = q - from,
               x = 6 + (i % cols) * (sz + 10),
               y = 4 + Math.floor(i / cols) * (sz + 17);
-            miniField(g, x, y, sz, (a, b) => treeP(trees[q], a, b), t, trees[q].h);
-            g.fillStyle = t.muted;
-            g.fillText('tree ' + (q + 1) + ' · ' + pct(sing[q]), x, y + sz + 12);
+            miniField(ctx, x, y, sz, (a, b) => treeP(trees[q], a, b), t, trees[q].h);
+            ctx.fillStyle = t.muted;
+            ctx.fillText(
+              'tree ' + (q + 1) + ' · ' + pct(individualTreeAccuracies[q]),
+              x,
+              y + sz + 12,
+            );
           }
           errPlot(
-            g,
+            ctx,
             w,
             h,
             h * 0.6,
@@ -445,13 +449,13 @@ function bagLesson(o) {
         },
         read(set) {
           const k = trees.length,
-            av = k ? sing.reduce((a, b) => a + b, 0) / k : NaN;
+            av = k ? individualTreeAccuracies.reduce((a, b) => a + b, 0) / k : NaN;
           set('k', k + ' of ' + S.B);
           set('one', pct(av));
           set('oob', k ? pct(1 - eO[k - 1]) : '–');
-          set('agree', pct(ag));
+          set('agree', pct(treeAgreementRate));
           const tot = imp.x + imp.y;
-          if (rf)
+          if (randomForest)
             set(
               'imp',
               tot

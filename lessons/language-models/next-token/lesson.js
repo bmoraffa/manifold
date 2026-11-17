@@ -3,29 +3,29 @@ import {
   $,
   Anim,
   MONO,
-  RM,
-  T,
+  prefersReducedMotion,
+  readThemeColors,
   bind,
   f2,
-  fit,
+  prepareCanvas,
   mix,
   playBtn,
   randnFrom,
   rng,
-  runCtl,
-  setR,
+  attachRunLimit,
+  setReadout,
 } from '../../../js/core/shared.js';
 import { AD } from '../../../js/math/autodiff.js';
 import { pct } from '../../ensembles/shared.js';
-import { segBind, uCur, uLine } from '../../unsupervised/shared.js';
+import { segBind, highlightLessonStep, drawSeriesChart } from '../../unsupervised/shared.js';
 
 export default {
   init(root) {
-    const c = $('#ns-c', root),
+    const mainCanvas = $('#ns-c', root),
       cr = $('#ns-r', root),
       live = $('#ns-live', root),
       outEl = $('#ns-out', root),
-      S = { t: 1, k: 40, p: 1 },
+      settings = { t: 1, k: 40, p: 1 },
       CTX = 3,
       ED = 12,
       MAXS = 700,
@@ -91,10 +91,10 @@ export default {
       np0 = 0,
       dist = null,
       msg = '',
-      cu = 0,
-      fr = 0,
-      pb,
-      chk = () => false,
+      activeStepIndex = 0,
+      frameCount = 0,
+      playback,
+      checkRunStop = () => false,
       run = 1,
       SUR = [],
       EFF = [],
@@ -132,7 +132,7 @@ export default {
       LL = [];
       sm = [];
       phase = 'train';
-      cu = 0;
+      activeStepIndex = 0;
       setPrompt();
       msg =
         'The network has ' +
@@ -172,7 +172,7 @@ export default {
           sm.push(s / 10);
         }
       }
-      cu = 0;
+      activeStepIndex = 0;
       calc();
       msg =
         'Training step ' +
@@ -194,7 +194,7 @@ export default {
         '”.';
       if (ts >= MAXS) {
         phase = 'gen';
-        cu = 1;
+        activeStepIndex = 1;
         msg =
           'Training is finished. The bars show the network’s probabilities for the word after “' +
           text
@@ -208,38 +208,40 @@ export default {
       const z = fwd(Int32Array.from(text.slice(-3)));
       AD.clear();
       const n = V,
-        p1 = new Float64Array(n),
-        pt = new Float64Array(n);
+        baseProbs = new Float64Array(n),
+        temperatureProbs = new Float64Array(n);
       let mx = -1e30;
       for (let i = 0; i < n; i++) mx = Math.max(mx, z.v[i]);
       let s1 = 0,
         st = 0;
       for (let i = 0; i < n; i++) {
-        p1[i] = Math.exp(z.v[i] - mx);
-        s1 += p1[i];
-        pt[i] = Math.exp((z.v[i] - mx) / S.t);
-        st += pt[i];
+        baseProbs[i] = Math.exp(z.v[i] - mx);
+        s1 += baseProbs[i];
+        temperatureProbs[i] = Math.exp((z.v[i] - mx) / settings.t);
+        st += temperatureProbs[i];
       }
       let H = 0;
       for (let i = 0; i < n; i++) {
-        p1[i] /= s1;
-        pt[i] /= st;
-        if (pt[i] > 1e-12) H -= pt[i] * Math.log2(pt[i]);
+        baseProbs[i] /= s1;
+        temperatureProbs[i] /= st;
+        if (temperatureProbs[i] > 1e-12) H -= temperatureProbs[i] * Math.log2(temperatureProbs[i]);
       }
-      const ord = Array.from({ length: n }, (_, i) => i).sort((a, b) => pt[b] - pt[a]),
+      const ord = Array.from({ length: n }, (_, i) => i).sort(
+          (a, b) => temperatureProbs[b] - temperatureProbs[a],
+        ),
         keep = new Uint8Array(n);
       let cum = 0,
         m = 0;
       for (const i of ord) {
-        if (m >= S.k) break;
+        if (m >= settings.k) break;
         keep[i] = 1;
         m++;
-        cum += pt[i];
-        if (cum >= S.p - 1e-9) break;
+        cum += temperatureProbs[i];
+        if (cum >= settings.p - 1e-9) break;
       }
-      const pf = new Float64Array(n);
-      for (let i = 0; i < n; i++) if (keep[i]) pf[i] = pt[i] / cum;
-      dist = { p1, pt, pf, ord, keep, m, eff: Math.pow(2, H) };
+      const samplingProbs = new Float64Array(n);
+      for (let i = 0; i < n; i++) if (keep[i]) samplingProbs[i] = temperatureProbs[i] / cum;
+      dist = { baseProbs, temperatureProbs, samplingProbs, ord, keep, m, eff: Math.pow(2, H) };
     };
     const gstep = () => {
       if (phase !== 'gen' || text.length - np0 >= MAXW) return;
@@ -248,7 +250,7 @@ export default {
         pick = dist.ord[0];
       for (const i of dist.ord) {
         if (!dist.keep[i]) continue;
-        u -= dist.pf[i];
+        u -= dist.samplingProbs[i];
         pick = i;
         if (u <= 0) break;
       }
@@ -258,12 +260,12 @@ export default {
         .join(' ')
         .replace(/^[. ]+/, '');
       text.push(pick);
-      SUR.push(-Math.log2(Math.max(1e-9, dist.p1[pick])));
+      SUR.push(-Math.log2(Math.max(1e-9, dist.baseProbs[pick])));
       EFF.push(dist.eff);
-      lastP = dist.pf[pick];
+      lastP = dist.samplingProbs[pick];
       lastAl = dist.m;
       pickI = pick;
-      cu = 4;
+      activeStepIndex = 4;
       const rk = dist.ord.indexOf(pick) + 1;
       msg =
         'After “' +
@@ -271,7 +273,7 @@ export default {
         '” the network gave probabilities to all ' +
         V +
         ' words. With temperature ' +
-        f2(S.t) +
+        f2(settings.t) +
         ' that amounts to about ' +
         f2(dist.eff) +
         ' real choices. The cuts left ' +
@@ -299,23 +301,27 @@ export default {
       return r;
     };
     const draw = () => {
-      const t = T();
+      const colors = readThemeColors();
       {
-        const { g, w, h } = fit(c);
-        g.font = MONO;
+        const { g: ctx, w, h } = prepareCanvas(mainCanvas);
+        ctx.font = MONO;
         if (!dist) {
-          g.fillStyle = t.muted;
-          g.textAlign = 'center';
-          g.fillText('press Run', w / 2, h / 2);
+          ctx.fillStyle = colors.muted;
+          ctx.textAlign = 'center';
+          ctx.fillText('press Run', w / 2, h / 2);
         } else {
           const NB = 14,
             rh = Math.min(28, (h - 30) / NB),
             x0 = 86,
-            mx = Math.max(0.05, dist.pt[dist.ord[0]], ...Array.from(dist.pf)),
+            mx = Math.max(
+              0.05,
+              dist.temperatureProbs[dist.ord[0]],
+              ...Array.from(dist.samplingProbs),
+            ),
             W = w - x0 - 64;
-          g.fillStyle = t.muted;
-          g.textAlign = 'left';
-          g.fillText(
+          ctx.fillStyle = colors.muted;
+          ctx.textAlign = 'left';
+          ctx.fillText(
             pickI >= 0 && phase === 'gen'
               ? 'the choice just made: the 14 most likely words, of ' + V
               : 'the 14 most likely next words, of ' + V,
@@ -327,43 +333,53 @@ export default {
               y = 22 + r * rh,
               kept = dist.keep[i],
               pk = i === pickI && phase === 'gen';
-            g.fillStyle = mix(t.accent, t.accent, 0, 0.25);
-            g.fillRect(x0, y + 3, Math.max(1, (W * dist.pt[i]) / mx), rh - 7);
+            ctx.fillStyle = mix(colors.accent, colors.accent, 0, 0.25);
+            ctx.fillRect(x0, y + 3, Math.max(1, (W * dist.temperatureProbs[i]) / mx), rh - 7);
             if (kept) {
-              g.fillStyle = pk ? t.gold : t.accent;
-              g.fillRect(x0, y + rh * 0.3, Math.max(1, (W * dist.pf[i]) / mx), rh * 0.4);
+              ctx.fillStyle = pk ? colors.gold : colors.accent;
+              ctx.fillRect(
+                x0,
+                y + rh * 0.3,
+                Math.max(1, (W * dist.samplingProbs[i]) / mx),
+                rh * 0.4,
+              );
             }
-            g.font = '12px ' + MONO.split('px ')[1];
-            g.textAlign = 'right';
-            g.fillStyle = kept ? (pk ? t.cut : t.ink) : t.muted;
+            ctx.font = '12px ' + MONO.split('px ')[1];
+            ctx.textAlign = 'right';
+            ctx.fillStyle = kept ? (pk ? colors.cut : colors.ink) : colors.muted;
             const lab = VOC[i] === '.' ? '. (end)' : VOC[i];
-            g.fillText(lab, x0 - 8, y + rh / 2 + 4);
+            ctx.fillText(lab, x0 - 8, y + rh / 2 + 4);
             if (!kept) {
-              const tw = g.measureText(lab).width;
-              g.strokeStyle = t.muted;
-              g.lineWidth = 1;
-              g.beginPath();
-              g.moveTo(x0 - 8 - tw, y + rh / 2);
-              g.lineTo(x0 - 8, y + rh / 2);
-              g.stroke();
+              const tw = ctx.measureText(lab).width;
+              ctx.strokeStyle = colors.muted;
+              ctx.lineWidth = 1;
+              ctx.beginPath();
+              ctx.moveTo(x0 - 8 - tw, y + rh / 2);
+              ctx.lineTo(x0 - 8, y + rh / 2);
+              ctx.stroke();
             }
-            g.font = MONO;
-            g.textAlign = 'left';
-            g.fillStyle = t.muted;
-            g.fillText(
-              kept ? (100 * dist.pf[i]).toFixed(1) + '%' : 'cut',
-              x0 + Math.max((W * dist.pt[i]) / mx, kept ? (W * dist.pf[i]) / mx : 0) + 6,
+            ctx.font = MONO;
+            ctx.textAlign = 'left';
+            ctx.fillStyle = colors.muted;
+            ctx.fillText(
+              kept ? (100 * dist.samplingProbs[i]).toFixed(1) + '%' : 'cut',
+              x0 +
+                Math.max(
+                  (W * dist.temperatureProbs[i]) / mx,
+                  kept ? (W * dist.samplingProbs[i]) / mx : 0,
+                ) +
+                6,
               y + rh / 2 + 4,
             );
           }
         }
       }
       {
-        const { g, w, h } = fit(cr);
+        const { g: ctx, w, h } = prepareCanvas(cr);
         if (phase === 'train')
-          uLine(
-            g,
-            t,
+          drawSeriesChart(
+            ctx,
+            colors,
             0,
             0,
             w,
@@ -372,33 +388,34 @@ export default {
             {
               title: 'training: average surprise at the true next word, in bits',
               n: MAXS / 10,
-              col: t.ok,
+              col: colors.ok,
               ym: Math.log2(V) * 1.05,
             },
           );
         else {
           const n = Math.max(MAXW, SUR.length),
-            A = uLine(g, t, 0, 0, w, h / 2, [], {
+            A = drawSeriesChart(ctx, colors, 0, 0, w, h / 2, [], {
               title: 'surprise of each chosen word, in bits (by the network’s own odds)',
               n,
               ym: Math.max(6, ...SUR),
             }),
             bw = (w - A.m.l - A.m.r) / n;
           SUR.forEach((v, i) => {
-            g.fillStyle = i === SUR.length - 1 ? t.gold : mix(t.accent, t.accent, 0, 0.75);
-            g.fillRect(A.m.l + i * bw + 1, A.Y(v), Math.max(1, bw - 2), A.Y(0) - A.Y(v));
+            ctx.fillStyle =
+              i === SUR.length - 1 ? colors.gold : mix(colors.accent, colors.accent, 0, 0.75);
+            ctx.fillRect(A.m.l + i * bw + 1, A.Y(v), Math.max(1, bw - 2), A.Y(0) - A.Y(v));
           });
-          uLine(g, t, 0, h / 2, w, h / 2, EFF, {
+          drawSeriesChart(ctx, colors, 0, h / 2, w, h / 2, EFF, {
             title: 'effective number of choices at each step, before the cuts',
             n,
-            col: t.ok,
+            col: colors.ok,
             ym: Math.max(8, ...EFF),
             dots: EFF.length < 45,
           });
-          g.font = MONO;
-          g.fillStyle = t.muted;
-          g.textAlign = 'right';
-          g.fillText('words written →', w - 12, h - 5);
+          ctx.font = MONO;
+          ctx.fillStyle = colors.muted;
+          ctx.textAlign = 'right';
+          ctx.fillText('words written →', w - 12, h - 5);
         }
       }
       const wd = text.slice(3).map((i) => VOC[i]),
@@ -415,8 +432,8 @@ export default {
         s.replace(/\. /g, '. ') +
         (phase === 'gen' && rest.length < MAXW ? ' ▌' : '');
       live.textContent = msg;
-      uCur(root, 'ns', cu);
-      setR(
+      highlightLessonStep(root, 'ns', activeStepIndex);
+      setReadout(
         root,
         'ph',
         phase === 'train'
@@ -427,35 +444,35 @@ export default {
             ? 'Finished'
             : 'Writing',
       );
-      setR(root, 'n', rest.length + ' of ' + MAXW);
-      setR(root, 'pk', isFinite(lastP) ? pct(lastP) : '–');
-      setR(root, 'al', dist ? dist.m + ' of ' + V : '–');
-      setR(root, 'ef', dist ? f2(dist.eff) : '–');
-      setR(root, 'sp', SUR.length ? f2(SUR.reduce((a, b) => a + b, 0) / SUR.length) : '–');
-      setR(root, 'rp', rest.length ? String(reps()) : '–');
+      setReadout(root, 'n', rest.length + ' of ' + MAXW);
+      setReadout(root, 'pk', isFinite(lastP) ? pct(lastP) : '–');
+      setReadout(root, 'al', dist ? dist.m + ' of ' + V : '–');
+      setReadout(root, 'ef', dist ? f2(dist.eff) : '–');
+      setReadout(root, 'sp', SUR.length ? f2(SUR.reduce((a, b) => a + b, 0) / SUR.length) : '–');
+      setReadout(root, 'rp', rest.length ? String(reps()) : '–');
     };
     build();
     calc();
-    if (RM) {
+    if (prefersReducedMotion) {
       train(MAXS);
       while (text.length - np0 < MAXW) gstep();
     }
     const anim = Anim(() => {
-      fr++;
+      frameCount++;
       if (phase === 'train') {
         train(ts < 40 ? 1 : 4);
         draw();
-        chk();
+        checkRunStop();
         return;
       }
-      if (fr % 22 === 0) {
+      if (frameCount % 22 === 0) {
         gstep();
         draw();
-        chk();
+        checkRunStop();
       }
     });
-    pb = playBtn($('#ns-play', root), anim);
-    chk = runCtl(pb, root, 'ns', {
+    playback = playBtn($('#ns-play', root), anim);
+    checkRunStop = attachRunLimit(playback, root, 'ns', {
       done: () => phase === 'gen' && text.length - np0 >= MAXW,
       restart: () => {
         setPrompt();
@@ -471,7 +488,7 @@ export default {
       draw();
     };
     $('#ns-step', root).onclick = () => {
-      pb.stop();
+      playback.stop();
       if (phase === 'train') train(50);
       else if (text.length - np0 >= MAXW) {
         setPrompt();
@@ -481,7 +498,7 @@ export default {
       draw();
     };
     $('#ns-reset', root).onclick = () => {
-      pb.stop();
+      playback.stop();
       run++;
       build();
       calc();
@@ -491,7 +508,7 @@ export default {
         root,
         'ns-t',
         (v) => {
-          S.t = +v;
+          settings.t = +v;
           re();
         },
         f2,
@@ -500,7 +517,7 @@ export default {
         root,
         'ns-k',
         (v) => {
-          S.k = +v;
+          settings.k = +v;
           re();
         },
         (v) => (+v >= 40 ? 'all' : String(v)),
@@ -509,7 +526,7 @@ export default {
         root,
         'ns-p',
         (v) => {
-          S.p = +v;
+          settings.p = +v;
           re();
         },
         f2,
@@ -523,22 +540,22 @@ export default {
     };
     segBind(root, 'ns-pre', 'pure', (v) => {
       const q = PRE[v];
-      S.t = q[0];
-      S.k = q[1];
-      S.p = q[2];
+      settings.t = q[0];
+      settings.k = q[1];
+      settings.p = q[2];
       bt.set(q[0]);
       bk.set(q[1]);
       bp.set(q[2]);
       if (phase === 'gen') {
-        pb.stop();
+        playback.stop();
         setPrompt();
         calc();
         draw();
-        pb.start();
+        playback.start();
       }
     });
     $('#ns-pr', root).onchange = () => {
-      pb.stop();
+      playback.stop();
       setPrompt();
       if (phase === 'gen') {
         calc();
@@ -548,13 +565,13 @@ export default {
     };
     return {
       draw,
-      stop: () => pb.stop(),
+      stop: () => playback.stop(),
       auto: () => {
         run++;
         build();
         calc();
         draw();
-        pb.start();
+        playback.start();
       },
     };
   },

@@ -3,22 +3,30 @@ import {
   $,
   Anim,
   MONO,
-  RM,
-  T,
+  prefersReducedMotion,
+  readThemeColors,
   bind,
   clamp,
   f2,
   f3,
-  fit,
+  prepareCanvas,
   markTP,
   mix,
   playBtn,
   randnFrom,
   rng,
-  runCtl,
-  setR,
+  attachRunLimit,
+  setReadout,
 } from '../../../js/core/shared.js';
-import { canvasXY, dotAt, segBind, uCur, uLine, uView, xyUp } from '../shared.js';
+import {
+  canvasXY,
+  dotAt,
+  segBind,
+  highlightLessonStep,
+  drawSeriesChart,
+  uView,
+  xyUp,
+} from '../shared.js';
 import { pct } from '../../ensembles/shared.js';
 import { controlsFor } from '../../../js/ui/controls.js';
 
@@ -27,7 +35,7 @@ export default {
     const c = $('#an-c', root),
       cr = $('#an-r', root),
       live = $('#an-live', root),
-      S = { d: 'blob', m: 'iso', q: 6, k: 5 },
+      settings = { d: 'blob', m: 'iso', q: 6, k: 5 },
       GW = 48,
       GH = 36,
       PSI = 64,
@@ -36,8 +44,8 @@ export default {
     let D = [],
       pl = [],
       trees = [],
-      sumD = null,
-      sumG = null,
+      dataPathSums = null,
+      gridPathSums = null,
       sc = [],
       fld = null,
       flag = [],
@@ -50,25 +58,25 @@ export default {
       prev = '',
       seed = 1,
       msg = '',
-      cu = 0,
-      pb,
-      chk = () => false,
+      activeStepIndex = 0,
+      playback,
+      checkRunStop = () => false,
       V = null,
       mu = null,
       Si = null,
       auc = NaN,
-      hasPl = true;
+      hasAnomalyLabels = true;
     const gen = () => {
-      const r = rng(seed * 29 + S.d.length),
+      const r = rng(seed * 29 + settings.d.length),
         rn = randnFrom(r);
       D = [];
       pl = [];
-      hasPl = true;
+      hasAnomalyLabels = true;
       const n = 150;
       for (let i = 0; i < n; i++) {
         let p;
-        if (S.d === 'blob') p = [0.9 * rn() + 0.55 * rn(), 0.7 * rn()];
-        else if (S.d === 'two')
+        if (settings.d === 'blob') p = [0.9 * rn() + 0.55 * rn(), 0.7 * rn()];
+        else if (settings.d === 'two')
           p =
             i % 2 ? [-1.9 + 0.5 * rn(), -0.6 + 0.5 * rn()] : [1.7 + 0.6 * rn(), 0.7 + 0.45 * rn()];
         else {
@@ -106,7 +114,7 @@ export default {
           [0, 2.6],
           [0.1, -1.4],
         ],
-      }[S.d];
+      }[settings.d];
       for (const a of A) {
         D.push([a[0] + 0.1 * rn(), a[1] + 0.1 * rn()]);
         pl.push(1);
@@ -181,7 +189,7 @@ export default {
         ds.push(Math.hypot(p[0] - D[i][0], p[1] - D[i][1]));
       }
       ds.sort((x, y) => x - y);
-      return ds[Math.min(S.k, ds.length) - 1];
+      return ds[Math.min(settings.k, ds.length) - 1];
     };
     const gridP = (k) => [
       -4 + (8 * ((k % GW) + 0.5)) / GW,
@@ -189,20 +197,20 @@ export default {
     ];
     const score = () => {
       const n = D.length;
-      if (S.m === 'iso') {
+      if (settings.m === 'iso') {
         const T_ = Math.max(1, trees.length);
-        sc = Array.from(sumD, (v) => (trees.length ? 2 ** (-(v / T_) / CP) : 0.5));
-        fld = Array.from(sumG, (v) => (trees.length ? 2 ** (-(v / T_) / CP) : 0.5));
+        sc = Array.from(dataPathSums, (v) => (trees.length ? 2 ** (-(v / T_) / CP) : 0.5));
+        fld = Array.from(gridPathSums, (v) => (trees.length ? 2 ** (-(v / T_) / CP) : 0.5));
       } else {
-        const f = S.m === 'gauss' ? (p) => sGauss(p) : (p, i) => sKnn(p, i);
+        const f = settings.m === 'gauss' ? (p) => sGauss(p) : (p, i) => sKnn(p, i);
         sc = D.map((p, i) => f(p, i));
         fld = Array.from({ length: GW * GH }, (_, k) => f(gridP(k), -1));
       }
       const ord = sc.map((_, i) => i).sort((a, b) => sc[b] - sc[a]),
-        nf = Math.max(1, Math.round((n * S.q) / 100));
+        nf = Math.max(1, Math.round((n * settings.q) / 100));
       flag = new Array(n).fill(false);
       ord.slice(0, nf).forEach((i) => (flag[i] = true));
-      if (hasPl) {
+      if (hasAnomalyLabels) {
         let pairs = 0,
           win = 0;
         for (let i = 0; i < n; i++)
@@ -222,29 +230,35 @@ export default {
     const reset = () => {
       prep();
       trees = [];
-      sumD = new Float64Array(D.length);
-      sumG = new Float64Array(GW * GH);
+      dataPathSums = new Float64Array(D.length);
+      gridPathSums = new Float64Array(GW * GH);
       tpPaths = [];
       lastCuts = [];
       it = 0;
-      fin = S.m !== 'iso';
+      fin = settings.m !== 'iso';
       same = 0;
       prev = score();
-      cu = 0;
+      activeStepIndex = 0;
       msg =
-        S.m === 'iso'
+        settings.m === 'iso'
           ? 'An empty forest: every place scores the same. Press Add one tree, or Run.'
-          : (S.m === 'knn'
+          : (settings.m === 'knn'
               ? 'Each point is scored by the distance to its ' +
-                S.k +
-                (S.k === 1 ? 'st' : S.k === 2 ? 'nd' : S.k === 3 ? 'rd' : 'th') +
+                settings.k +
+                (settings.k === 1
+                  ? 'st'
+                  : settings.k === 2
+                    ? 'nd'
+                    : settings.k === 3
+                      ? 'rd'
+                      : 'th') +
                 ' nearest neighbour.'
               : 'One Gaussian is fitted to all the data; each point is scored by how many standard deviations it lies from the centre.') +
             ' This method needs no iterations, so there is nothing to run. ' +
             summary();
     };
     const summary = () => {
-      if (!hasPl) return flag.filter(Boolean).length + ' points flagged.';
+      if (!hasAnomalyLabels) return flag.filter(Boolean).length + ' points flagged.';
       const hit = flag.filter((f, i) => f && pl[i]).length,
         np = pl.reduce((s, v) => s + v, 0);
       return (
@@ -258,7 +272,7 @@ export default {
       );
     };
     const step = () => {
-      if (fin || S.m !== 'iso') return;
+      if (fin || settings.m !== 'iso') return;
       const r = rng(seed * 1000 + trees.length * 7 + 3),
         idx = [];
       const all = D.map((_, i) => i);
@@ -269,8 +283,8 @@ export default {
       }
       const T_ = build(idx, 0, r);
       trees.push(T_);
-      for (let i = 0; i < D.length; i++) sumD[i] += path(T_, D[i]);
-      for (let k = 0; k < GW * GH; k++) sumG[k] += path(T_, gridP(k));
+      for (let i = 0; i < D.length; i++) dataPathSums[i] += path(T_, D[i]);
+      for (let k = 0; k < GW * GH; k++) gridPathSums[k] += path(T_, gridP(k));
       lastCuts = [];
       const h = path(T_, tp, lastCuts);
       tpPaths.push(lastCuts.length);
@@ -278,7 +292,7 @@ export default {
       const key = score();
       same = key === prev ? same + 1 : 0;
       prev = key;
-      cu = it < 3 ? it : 4;
+      activeStepIndex = it < 3 ? it : 4;
       msg =
         'Tree ' +
         it +
@@ -297,7 +311,7 @@ export default {
         '.';
       if ((it >= 40 && same >= 25) || it >= 200) {
         fin = true;
-        cu = 5;
+        activeStepIndex = 5;
         msg =
           'Stopped at ' +
           it +
@@ -308,7 +322,7 @@ export default {
       }
     };
     const draw = () => {
-      const t = T();
+      const colors = readThemeColors();
       V = uView(c);
       {
         const { g, w, h, X, Y } = V,
@@ -318,15 +332,15 @@ export default {
           const q = k % GW,
             r = Math.floor(k / GW),
             v = (fld[k] - lo) / (hi - lo || 1);
-          g.fillStyle = mix(t.bg, t.cut, v * 0.6);
+          g.fillStyle = mix(colors.bg, colors.cut, v * 0.6);
           const xa = Math.round(X(-4 + (8 * q) / GW)),
             xb = Math.round(X(-4 + (8 * (q + 1)) / GW)),
             ya = Math.round(Y(3 - (6 * r) / GH)),
             yb = Math.round(Y(3 - (6 * (r + 1)) / GH));
           g.fillRect(xa, ya, xb - xa, yb - ya);
         }
-        if (S.m === 'iso' && lastCuts.length) {
-          g.strokeStyle = t.ink;
+        if (settings.m === 'iso' && lastCuts.length) {
+          g.strokeStyle = colors.ink;
           g.lineWidth = 1.3;
           lastCuts.forEach((q, i) => {
             g.globalAlpha = 1 - 0.1 * i;
@@ -345,8 +359,8 @@ export default {
         D.forEach((p, i) => {
           const x = X(p[0]),
             y = Y(p[1]);
-          if (pl[i] && hasPl) {
-            g.strokeStyle = t.ink;
+          if (pl[i] && hasAnomalyLabels) {
+            g.strokeStyle = colors.ink;
             g.lineWidth = 2;
             g.beginPath();
             g.moveTo(x - 4, y - 4);
@@ -354,22 +368,22 @@ export default {
             g.moveTo(x + 4, y - 4);
             g.lineTo(x - 4, y + 4);
             g.stroke();
-          } else dotAt(g, x, y, 3, mix(t.accent, t.accent, 0, 0.85));
+          } else dotAt(g, x, y, 3, mix(colors.accent, colors.accent, 0, 0.85));
           if (flag[i]) {
             g.lineWidth = 2;
-            dotAt(g, x, y, 8, null, t.cut);
+            dotAt(g, x, y, 8, null, colors.cut);
           }
         });
-        markTP(g, X(tp[0]), Y(tp[1]), t);
+        markTP(g, X(tp[0]), Y(tp[1]), colors);
       }
       {
-        const { g, w, h } = fit(cr),
+        const { g: ctx, w, h } = prepareCanvas(cr),
           h1 = h * 0.55,
           n = D.length,
           ord = sc.map((_, i) => i).sort((a, b) => sc[b] - sc[a]),
           lo = Math.min(...sc),
           hi = Math.max(...sc),
-          A = uLine(g, t, 0, 0, w, h1, [], {
+          A = drawSeriesChart(ctx, colors, 0, 0, w, h1, [], {
             title: 'scores of all ' + n + ' points, most unusual first',
             n: n + 1,
             ym: hi + (hi - lo) * 0.05,
@@ -377,8 +391,9 @@ export default {
           }),
           bw = A.X(1) - A.X(0);
         ord.forEach((i, k) => {
-          g.fillStyle = pl[i] && hasPl ? t.cut : mix(t.accent, t.accent, 0, 0.55);
-          g.fillRect(
+          ctx.fillStyle =
+            pl[i] && hasAnomalyLabels ? colors.cut : mix(colors.accent, colors.accent, 0, 0.55);
+          ctx.fillRect(
             A.X(k),
             A.Y(sc[i]),
             Math.max(1, bw - 0.6),
@@ -386,50 +401,50 @@ export default {
           );
         });
         const nf = flag.filter(Boolean).length;
-        g.strokeStyle = t.ink;
-        g.lineWidth = 1.5;
-        g.setLineDash([5, 4]);
-        g.beginPath();
-        g.moveTo(A.X(nf), A.Y(hi));
-        g.lineTo(A.X(nf), A.Y(lo));
-        g.stroke();
-        g.setLineDash([]);
-        g.font = MONO;
-        g.fillStyle = t.muted;
-        g.textAlign = 'left';
-        g.fillText('← flagged', A.X(nf) + 5, A.Y(hi) + 10);
-        if (S.m === 'iso') {
-          const B = uLine(g, t, 0, h1, w, h - h1, tpPaths, {
+        ctx.strokeStyle = colors.ink;
+        ctx.lineWidth = 1.5;
+        ctx.setLineDash([5, 4]);
+        ctx.beginPath();
+        ctx.moveTo(A.X(nf), A.Y(hi));
+        ctx.lineTo(A.X(nf), A.Y(lo));
+        ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.font = MONO;
+        ctx.fillStyle = colors.muted;
+        ctx.textAlign = 'left';
+        ctx.fillText('← flagged', A.X(nf) + 5, A.Y(hi) + 10);
+        if (settings.m === 'iso') {
+          const B = drawSeriesChart(ctx, colors, 0, h1, w, h - h1, tpPaths, {
             title: 'cuts needed to isolate your point, tree by tree',
             n: Math.max(30, tpPaths.length),
             ym: 8,
             y1: 0,
           });
-          g.strokeStyle = t.muted;
-          g.setLineDash([4, 4]);
-          g.lineWidth = 1;
-          g.beginPath();
-          g.moveTo(B.X(0), B.Y(CP));
-          g.lineTo(B.X(Math.max(30, tpPaths.length) - 1), B.Y(CP));
-          g.stroke();
-          g.setLineDash([]);
-          g.fillStyle = t.muted;
-          g.textAlign = 'right';
-          g.fillText('typical point', w - 14, B.Y(CP) - 4);
-          tpPaths.forEach((v, i) => dotAt(g, B.X(i), B.Y(Math.min(8, v)), 2.5, t.gold));
+          ctx.strokeStyle = colors.muted;
+          ctx.setLineDash([4, 4]);
+          ctx.lineWidth = 1;
+          ctx.beginPath();
+          ctx.moveTo(B.X(0), B.Y(CP));
+          ctx.lineTo(B.X(Math.max(30, tpPaths.length) - 1), B.Y(CP));
+          ctx.stroke();
+          ctx.setLineDash([]);
+          ctx.fillStyle = colors.muted;
+          ctx.textAlign = 'right';
+          ctx.fillText('typical point', w - 14, B.Y(CP) - 4);
+          tpPaths.forEach((v, i) => dotAt(ctx, B.X(i), B.Y(Math.min(8, v)), 2.5, colors.gold));
         } else {
-          g.font = MONO;
-          g.fillStyle = t.muted;
-          g.textAlign = 'left';
-          g.fillText('this method computes every score in one pass: no trees', 8, h1 + 16);
+          ctx.font = MONO;
+          ctx.fillStyle = colors.muted;
+          ctx.textAlign = 'left';
+          ctx.fillText('this method computes every score in one pass: no trees', 8, h1 + 16);
         }
       }
       const myS =
-          S.m === 'iso'
+          settings.m === 'iso'
             ? trees.length
               ? 2 ** (-(trees.reduce((s, T_) => s + path(T_, tp), 0) / trees.length) / CP)
               : 0.5
-            : S.m === 'gauss'
+            : settings.m === 'gauss'
               ? sGauss(tp)
               : sKnn(tp, -1),
         above = sc.filter((v) => v < myS).length;
@@ -443,17 +458,21 @@ export default {
         ': more unusual than ' +
         pct(above / sc.length) +
         ' of the data.' +
-        (S.m === 'iso' && !trees.length ? ' (Add trees first.)' : '');
+        (settings.m === 'iso' && !trees.length ? ' (Add trees first.)' : '');
       const hit = flag.filter((f, i) => f && pl[i]).length,
         np = pl.reduce((s, v) => s + v, 0),
         nf = flag.filter(Boolean).length;
       live.textContent = msg;
-      uCur(root, 'an', cu);
-      setR(root, 'tr', S.m === 'iso' ? it + (fin ? ' (stopped)' : '') : 'not used');
-      setR(root, 'fl', nf + ' of ' + D.length);
-      setR(root, 'hit', hasPl ? hit + ' of ' + np : '–');
-      setR(root, 'fa', hasPl ? String(nf - hit) : '–');
-      setR(root, 'auc', hasPl && (S.m !== 'iso' || trees.length) ? f3(auc) : '–');
+      highlightLessonStep(root, 'an', activeStepIndex);
+      setReadout(root, 'tr', settings.m === 'iso' ? it + (fin ? ' (stopped)' : '') : 'not used');
+      setReadout(root, 'fl', nf + ' of ' + D.length);
+      setReadout(root, 'hit', hasAnomalyLabels ? hit + ' of ' + np : '–');
+      setReadout(root, 'fa', hasAnomalyLabels ? String(nf - hit) : '–');
+      setReadout(
+        root,
+        'auc',
+        hasAnomalyLabels && (settings.m !== 'iso' || trees.length) ? f3(auc) : '–',
+      );
     };
     const { create } = controlsFor(root);
     root
@@ -462,44 +481,44 @@ export default {
     const tpo = $('#an-tpo', root);
     gen();
     reset();
-    if (RM) {
+    if (prefersReducedMotion) {
       while (!fin) step();
     }
-    let fr = 0;
+    let frameCount = 0;
     const anim = Anim(() => {
       if (fin) {
-        pb.stop();
+        playback.stop();
         return;
       }
-      if (it < 6 && ++fr % 20) return;
+      if (it < 6 && ++frameCount % 20) return;
       step();
       draw();
-      chk();
+      checkRunStop();
     });
-    pb = playBtn($('#an-play', root), anim);
-    chk = runCtl(pb, root, 'an', {
+    playback = playBtn($('#an-play', root), anim);
+    checkRunStop = attachRunLimit(playback, root, 'an', {
       done: () => fin,
       restart: reset,
       count: () => it,
       what: 'trees',
     });
     const go = () => {
-      pb.stop();
+      playback.stop();
       reset();
       draw();
-      if (S.m === 'iso') {
-        fr = 0;
-        pb.start();
+      if (settings.m === 'iso') {
+        frameCount = 0;
+        playback.start();
       }
     };
     $('#an-step', root).onclick = () => {
-      pb.stop();
+      playback.stop();
       if (fin) reset();
       else step();
       draw();
     };
     $('#an-reset', root).onclick = () => {
-      pb.stop();
+      playback.stop();
       reset();
       draw();
     };
@@ -512,7 +531,7 @@ export default {
       root,
       'an-q',
       (v) => {
-        S.q = v;
+        settings.q = v;
         prev = score();
         same = 0;
         draw();
@@ -523,27 +542,27 @@ export default {
       root,
       'an-k',
       (v) => {
-        S.k = v;
-        if (S.m === 'knn') {
+        settings.k = v;
+        if (settings.m === 'knn') {
           reset();
           draw();
         }
       },
       (v) => String(+v),
     );
-    segBind(root, 'an-d', S.d, (v) => {
-      S.d = v;
+    segBind(root, 'an-d', settings.d, (v) => {
+      settings.d = v;
       gen();
       go();
     });
-    segBind(root, 'an-m', S.m, (v) => {
-      S.m = v;
+    segBind(root, 'an-m', settings.m, (v) => {
+      settings.m = v;
       go();
     });
     xyUp(root, 'an', (q) => {
       D = q.slice(0, 300);
       pl = D.map(() => 0);
-      hasPl = false;
+      hasAnomalyLabels = false;
       go();
     });
     c.style.cursor = 'crosshair';
@@ -562,12 +581,12 @@ export default {
     });
     return {
       draw,
-      stop: () => pb.stop(),
+      stop: () => playback.stop(),
       auto: () => {
         reset();
         draw();
-        fr = 0;
-        pb.start();
+        frameCount = 0;
+        playback.start();
       },
     };
   },

@@ -3,7 +3,7 @@ import { controlsFor } from '../ui/controls.js';
 
 const SITE = 'Manifold';
 
-const TC = (s) => {
+const toTitleCase = (s) => {
   const small = new Set([
     'a',
     'an',
@@ -63,7 +63,8 @@ const f2 = (x) => (+x).toFixed(2);
 
 const f3 = (x) => (+x).toFixed(3);
 
-let RM = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+let prefersReducedMotion =
+  typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 function lgam(x) {
   const cf = [
@@ -128,21 +129,21 @@ function erf(x) {
   );
 }
 
-function T() {
-  const s = getComputedStyle(document.documentElement),
-    v = (n) => s.getPropertyValue(n).trim();
+function readThemeColors() {
+  const computedStyle = getComputedStyle(document.documentElement),
+    readColor = (n) => computedStyle.getPropertyValue(n).trim();
   return {
-    bg: v('--bg'),
-    surface: v('--bg'),
-    ink: v('--ink'),
-    muted: v('--muted'),
-    line: v('--line'),
-    accent: v('--accent'),
-    cut: v('--cut'),
-    ok: v('--ok'),
-    gold: v('--gold'),
-    r0: v('--ramp0'),
-    r2: v('--ramp2'),
+    bg: readColor('--bg'),
+    surface: readColor('--bg'),
+    ink: readColor('--ink'),
+    muted: readColor('--muted'),
+    line: readColor('--line'),
+    accent: readColor('--accent'),
+    cut: readColor('--cut'),
+    ok: readColor('--ok'),
+    gold: readColor('--gold'),
+    r0: readColor('--ramp0'),
+    r2: readColor('--ramp2'),
   };
 }
 
@@ -160,19 +161,19 @@ function mix(a, b, t, al = 1) {
 const ramp = (t, z, al = 1) =>
   z < 0.5 ? mix(t.r0, t.accent, z * 2, al) : mix(t.accent, t.r2, (z - 0.5) * 2, al);
 
-function fit(c) {
-  const r = c.getBoundingClientRect(),
-    d = window.devicePixelRatio || 1,
-    w = Math.max(60, r.width),
-    h = Math.max(60, r.height);
-  const W = Math.round(w * d),
-    H = Math.round(h * d);
-  if (c.width !== W || c.height !== H) {
-    c.width = W;
-    c.height = H;
+function prepareCanvas(canvas) {
+  const bounds = canvas.getBoundingClientRect(),
+    pixelRatio = window.devicePixelRatio || 1,
+    w = Math.max(60, bounds.width),
+    h = Math.max(60, bounds.height);
+  const W = Math.round(w * pixelRatio),
+    H = Math.round(h * pixelRatio);
+  if (canvas.width !== W || canvas.height !== H) {
+    canvas.width = W;
+    canvas.height = H;
   }
-  const g = c.getContext('2d');
-  g.setTransform(d, 0, 0, d, 0, 0);
+  const g = canvas.getContext('2d');
+  g.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
   g.clearRect(0, 0, w, h);
   g.lineJoin = 'round';
   g.lineCap = 'round';
@@ -313,21 +314,21 @@ function playBtn(btn, anim) {
 }
 
 function bind(root, id, fn, fmt = f2) {
-  const i = $('#' + id, root),
-    o = $('#' + id + '-o', root);
-  const up = () => {
-    if (o) o.textContent = fmt(i.value);
+  const input = $('#' + id, root),
+    output = $('#' + id + '-o', root);
+  const updateOutput = () => {
+    if (output) output.textContent = fmt(input.value);
   };
-  i.addEventListener('input', () => {
-    up();
-    fn(+i.value);
+  input.addEventListener('input', () => {
+    updateOutput();
+    fn(+input.value);
   });
-  up();
+  updateOutput();
   return {
-    el: i,
+    el: input,
     set(v) {
-      i.value = v;
-      up();
+      input.value = v;
+      updateOutput();
     },
   };
 }
@@ -417,7 +418,7 @@ function eqShow(el, lines, gap = 420) {
   const nx = () => {
     if (i < ds.length) {
       ds[i++].classList.add('on');
-      if (gap > 0 && !RM) el._t = setTimeout(nx, gap);
+      if (gap > 0 && !prefersReducedMotion) el._t = setTimeout(nx, gap);
       else nx();
     }
   };
@@ -430,17 +431,17 @@ const maxOf = (root, id) => {
   return v > 0 ? v : Infinity;
 };
 
-function runCtl(pb, root, id, o) {
+function attachRunLimit(pb, root, id, o) {
   const st = pb.start,
-    nt = $('#' + id + '-maxnote', root),
-    wh = o.what || 'steps';
-  let c0 = 0,
+    limitNotice = $('#' + id + '-maxnote', root),
+    stepUnit = o.what || 'steps';
+  let startingCount = 0,
     carried = 0;
-  const consumed = () => carried + (o.count ? o.count() - c0 : 0);
+  const consumed = () => carried + (o.count ? o.count() - startingCount : 0);
   pb.start = () => {
-    if (nt) nt.textContent = '';
+    if (limitNotice) limitNotice.textContent = '';
     if (o.done()) o.restart();
-    c0 = o.count ? o.count() : 0;
+    startingCount = o.count ? o.count() : 0;
     carried = 0;
     st();
   };
@@ -453,12 +454,12 @@ function runCtl(pb, root, id, o) {
     if (pb.on && o.count && consumed() >= m) {
       const used = consumed();
       pb.stop();
-      if (nt)
-        nt.textContent =
+      if (limitNotice)
+        limitNotice.textContent =
           'Stopped after ' +
           used +
           ' more ' +
-          (used === 1 ? wh.replace(/e?s$/, '') : wh) +
+          (used === 1 ? stepUnit.replace(/e?s$/, '') : stepUnit) +
           ', as you asked. Press the button again for ' +
           m +
           ' more, or empty the box to run to completion.';
@@ -469,7 +470,7 @@ function runCtl(pb, root, id, o) {
   check.remaining = () => (pb.on && o.count ? Math.max(0, maxOf(root, id) - consumed()) : Infinity);
   check.rebase = (nextCount) => {
     carried = consumed();
-    c0 = nextCount;
+    startingCount = nextCount;
   };
   return check;
 }
@@ -504,35 +505,35 @@ function letterData(seed, flip) {
   return { X, lab, CH };
 }
 
-const setR = (root, k, v) => {
+const setReadout = (root, k, v) => {
   const e = $(`[data-r="${k}"]`, root);
   if (e) e.textContent = v;
 };
 
-function shapeBind(root, p, Gx, cb) {
-  const a = bind(root, p + '-sx', (v) => {
-      Gx.sx = v;
-      cb();
+function shapeBind(root, lessonId, shape, onShapeChange) {
+  const sigmaXSlider = bind(root, lessonId + '-sx', (v) => {
+      shape.sx = v;
+      onShapeChange();
     }),
-    b = bind(root, p + '-sy', (v) => {
-      Gx.sy = v;
-      cb();
+    sigmaYSlider = bind(root, lessonId + '-sy', (v) => {
+      shape.sy = v;
+      onShapeChange();
     }),
-    r = bind(root, p + '-rho', (v) => {
-      Gx.rho = v;
-      cb();
+    rhoSlider = bind(root, lessonId + '-rho', (v) => {
+      shape.rho = v;
+      onShapeChange();
     });
   return {
     sync() {
-      a.set(Gx.sx);
-      b.set(Gx.sy);
-      r.set(Gx.rho);
+      sigmaXSlider.set(shape.sx);
+      sigmaYSlider.set(shape.sy);
+      rhoSlider.set(shape.rho);
     },
-    els: [a.el, b.el, r.el],
+    els: [sigmaXSlider.el, sigmaYSlider.el, rhoSlider.el],
   };
 }
 
-const G = { sx: 1.4, sy: 0.9, rho: 0.6 };
+const sharedGaussianShape = { sx: 1.4, sy: 0.9, rho: 0.6 };
 
 function eig(G) {
   const a = G.sx * G.sx,
@@ -549,19 +550,19 @@ const dens2 = (G, x, y) =>
       ((x * x) / (G.sx * G.sx) - (2 * G.rho * x * y) / (G.sx * G.sy) + (y * y) / (G.sy * G.sy)),
   );
 
-function Hill(c, redraw, ctl, opt = {}) {
-  const V0 = { az: -0.65, el: 0.5, zoom: 1 },
-    V = { ...V0 };
-  let d = null,
+function Hill(c, redraw, viewControls, opt = {}) {
+  const defaultView = { az: -0.65, el: 0.5, zoom: 1 },
+    view = { ...defaultView };
+  let dragStart = null,
     spinning = false;
   const spin = Anim(() => {
-    V.az += 0.0035;
+    view.az += 0.0035;
     redraw();
   });
   const setSpin = (on) => {
     spinning = on;
     on ? spin.start() : spin.stop();
-    const b = ctl && ctl.querySelector('[data-v="spin"]');
+    const b = viewControls && viewControls.querySelector('[data-v="spin"]');
     if (b) b.textContent = on ? 'Stop rotating' : 'Rotate for me';
   };
   c.tabIndex = 0;
@@ -569,173 +570,188 @@ function Hill(c, redraw, ctl, opt = {}) {
   c.setAttribute('aria-label', '3D surface. Drag or use arrow keys to rotate.');
   c.addEventListener('pointerdown', (e) => {
     setSpin(false);
-    d = { x: e.clientX, y: e.clientY, az: V.az, el: V.el };
+    dragStart = { x: e.clientX, y: e.clientY, az: view.az, el: view.el };
     c.setPointerCapture(e.pointerId);
   });
   c.addEventListener('pointermove', (e) => {
-    if (!d) return;
-    V.az = d.az + (e.clientX - d.x) * 0.01;
-    V.el = clamp(d.el + (e.clientY - d.y) * 0.008, 0.06, 1.5);
+    if (!dragStart) return;
+    view.az = dragStart.az + (e.clientX - dragStart.x) * 0.01;
+    view.el = clamp(dragStart.el + (e.clientY - dragStart.y) * 0.008, 0.06, 1.5);
     redraw();
   });
   ['pointerup', 'pointercancel'].forEach((n) =>
     c.addEventListener(n, () => {
-      d = null;
+      dragStart = null;
     }),
   );
   c.addEventListener('keydown', (e) => {
     const k = e.key;
-    if (k === 'ArrowLeft') V.az -= 0.1;
-    else if (k === 'ArrowRight') V.az += 0.1;
-    else if (k === 'ArrowUp') V.el = clamp(V.el + 0.08, 0.06, 1.5);
-    else if (k === 'ArrowDown') V.el = clamp(V.el - 0.08, 0.06, 1.5);
+    if (k === 'ArrowLeft') view.az -= 0.1;
+    else if (k === 'ArrowRight') view.az += 0.1;
+    else if (k === 'ArrowUp') view.el = clamp(view.el + 0.08, 0.06, 1.5);
+    else if (k === 'ArrowDown') view.el = clamp(view.el - 0.08, 0.06, 1.5);
     else return;
     e.preventDefault();
     setSpin(false);
     redraw();
   });
-  if (ctl)
-    ctl.addEventListener('click', (e) => {
+  if (viewControls)
+    viewControls.addEventListener('click', (e) => {
       const a = e.target.dataset && e.target.dataset.v;
       if (!a) return;
       if (a === 'spin') {
         setSpin(!spinning);
         return;
       }
-      if (a === 'in') V.zoom = Math.min(2.2, V.zoom * 1.2);
-      if (a === 'out') V.zoom = Math.max(0.6, V.zoom / 1.2);
+      if (a === 'in') view.zoom = Math.min(2.2, view.zoom * 1.2);
+      if (a === 'out') view.zoom = Math.max(0.6, view.zoom / 1.2);
       if (a === 'reset') {
         setSpin(false);
-        Object.assign(V, V0);
+        Object.assign(view, defaultView);
       }
       redraw();
     });
   function draw(t, G, cut = {}) {
-    const { g, w, h } = fit(c),
+    const { g: ctx, w, h } = prepareCanvas(c),
       R = 4,
       N = 40,
       ZH = 3,
-      s = Math.min(w / 11.8, h / 8.3) * V.zoom,
+      s = Math.min(w / 11.8, h / 8.3) * view.zoom,
       cx = w / 2,
       cy = h * 0.66;
-    const ca = Math.cos(V.az),
-      sa = Math.sin(V.az),
-      ce = Math.cos(V.el),
-      se = Math.sin(V.el);
+    const ca = Math.cos(view.az),
+      sa = Math.sin(view.az),
+      ce = Math.cos(view.el),
+      se = Math.sin(view.el);
     const pr = (x, y, z) => {
       const xr = x * ca - y * sa,
         yr = x * sa + y * ca;
       return [cx + s * xr, cy - s * (z * ce + yr * se), yr * ce - z * se];
     };
     const path = (ps) => {
-      g.beginPath();
-      ps.forEach((p, i) => (i ? g.lineTo(p[0], p[1]) : g.moveTo(p[0], p[1])));
+      ctx.beginPath();
+      ps.forEach((p, i) => (i ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1])));
     };
     const q = Math.sqrt(1 - G.rho * G.rho),
       f = (x, y) => dens2(G, x, y);
     const yF = ca >= 0 ? R : -R,
       xF = sa >= 0 ? R : -R;
-    g.strokeStyle = t.line;
-    g.lineWidth = 1;
+    ctx.strokeStyle = t.line;
+    ctx.lineWidth = 1;
     for (let k = -R; k <= R; k++) {
       path([pr(k, -R, 0), pr(k, R, 0)]);
-      g.stroke();
+      ctx.stroke();
       path([pr(-R, k, 0), pr(R, k, 0)]);
-      g.stroke();
+      ctx.stroke();
     }
-    g.strokeStyle = t.muted;
+    ctx.strokeStyle = t.muted;
     path([pr(xF, yF, 0), pr(xF, yF, ZH)]);
-    g.stroke();
+    ctx.stroke();
     const top = pr(xF, yF, ZH);
-    g.font = MONO;
-    g.fillStyle = t.muted;
-    g.textAlign = 'center';
-    g.textBaseline = 'alphabetic';
-    g.fillText(
+    ctx.font = MONO;
+    ctx.fillStyle = t.muted;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'alphabetic';
+    ctx.fillText(
       'peak ' + f3(1 / (2 * Math.PI * G.sx * G.sy * q)),
       clamp(top[0], 40, w - 40),
       Math.max(12, top[1] - 6),
     );
     if (opt.marg) {
       const MH = ZH * 0.62;
-      g.lineWidth = 2;
+      ctx.lineWidth = 2;
       let ps = [];
       for (let i = 0; i <= 80; i++) {
         const x = -R + (2 * R * i) / 80;
         ps.push(pr(x, yF, MH * Math.exp((-x * x) / (2 * G.sx * G.sx))));
       }
       path([pr(-R, yF, 0), ...ps, pr(R, yF, 0)]);
-      g.closePath();
-      g.fillStyle = mix(t.accent, t.accent, 0, 0.14);
-      g.fill();
+      ctx.closePath();
+      ctx.fillStyle = mix(t.accent, t.accent, 0, 0.14);
+      ctx.fill();
       path(ps);
-      g.strokeStyle = t.accent;
-      g.stroke();
+      ctx.strokeStyle = t.accent;
+      ctx.stroke();
       let a = pr(0, yF, MH + 0.35);
-      g.fillStyle = t.accent;
-      g.fillText('p(x)', a[0], a[1]);
+      ctx.fillStyle = t.accent;
+      ctx.fillText('p(x)', a[0], a[1]);
       ps = [];
       for (let i = 0; i <= 80; i++) {
         const y = -R + (2 * R * i) / 80;
         ps.push(pr(xF, y, MH * Math.exp((-y * y) / (2 * G.sy * G.sy))));
       }
       path([pr(xF, -R, 0), ...ps, pr(xF, R, 0)]);
-      g.closePath();
-      g.fillStyle = mix(t.ok, t.ok, 0, 0.14);
-      g.fill();
+      ctx.closePath();
+      ctx.fillStyle = mix(t.ok, t.ok, 0, 0.14);
+      ctx.fill();
       path(ps);
-      g.strokeStyle = t.ok;
-      g.stroke();
+      ctx.strokeStyle = t.ok;
+      ctx.stroke();
       a = pr(xF, 0, MH + 0.35);
-      g.fillStyle = t.ok;
-      g.fillText('p(y)', a[0], a[1]);
+      ctx.fillStyle = t.ok;
+      ctx.fillText('p(y)', a[0], a[1]);
     }
-    const P = [],
-      F = [];
+    const projectedGrid = [],
+      densityGrid = [];
     for (let i = 0; i <= N; i++) {
-      P.push([]);
-      F.push([]);
+      projectedGrid.push([]);
+      densityGrid.push([]);
       for (let j = 0; j <= N; j++) {
         const x = -R + (2 * R * i) / N,
           y = -R + (2 * R * j) / N,
           z = f(x, y);
-        F[i].push(z);
-        P[i].push(pr(x, y, ZH * z));
+        densityGrid[i].push(z);
+        projectedGrid[i].push(pr(x, y, ZH * z));
       }
     }
-    const Q = [];
+    const surfaceCells = [];
     for (let i = 0; i < N; i++)
       for (let j = 0; j < N; j++) {
-        const z = (F[i][j] + F[i + 1][j] + F[i][j + 1] + F[i + 1][j + 1]) / 4,
+        const z =
+            (densityGrid[i][j] +
+              densityGrid[i + 1][j] +
+              densityGrid[i][j + 1] +
+              densityGrid[i + 1][j + 1]) /
+            4,
           xc = -R + (2 * R * (i + 0.5)) / N;
         if (z < 0.012) continue;
         let ghost = false;
         if (cut.h != null && z > cut.h) ghost = true;
         if (cut.v != null && (xc - cut.v) * xF < 0) ghost = true;
-        Q.push({
+        surfaceCells.push({
           i,
           j,
           z,
           ghost,
-          d: (P[i][j][2] + P[i + 1][j][2] + P[i][j + 1][2] + P[i + 1][j + 1][2]) / 4,
+          d:
+            (projectedGrid[i][j][2] +
+              projectedGrid[i + 1][j][2] +
+              projectedGrid[i][j + 1][2] +
+              projectedGrid[i + 1][j + 1][2]) /
+            4,
         });
       }
-    Q.sort((a, b) => b.d - a.d);
-    g.lineWidth = 0.6;
-    for (const o of Q) {
-      path([P[o.i][o.j], P[o.i + 1][o.j], P[o.i + 1][o.j + 1], P[o.i][o.j + 1]]);
-      g.closePath();
+    surfaceCells.sort((a, b) => b.d - a.d);
+    ctx.lineWidth = 0.6;
+    for (const o of surfaceCells) {
+      path([
+        projectedGrid[o.i][o.j],
+        projectedGrid[o.i + 1][o.j],
+        projectedGrid[o.i + 1][o.j + 1],
+        projectedGrid[o.i][o.j + 1],
+      ]);
+      ctx.closePath();
       const zz = Math.pow(o.z, 0.7);
       if (o.ghost) {
-        g.fillStyle = ramp(t, zz, 0.07);
-        g.fill();
-        g.strokeStyle = mix(t.ink, t.ink, 0, 0.06);
-        g.stroke();
+        ctx.fillStyle = ramp(t, zz, 0.07);
+        ctx.fill();
+        ctx.strokeStyle = mix(t.ink, t.ink, 0, 0.06);
+        ctx.stroke();
       } else {
-        g.fillStyle = ramp(t, zz);
-        g.fill();
-        g.strokeStyle = mix(t.ink, t.ink, 0, 0.16);
-        g.stroke();
+        ctx.fillStyle = ramp(t, zz);
+        ctx.fill();
+        ctx.strokeStyle = mix(t.ink, t.ink, 0, 0.16);
+        ctx.stroke();
       }
     }
     if (cut.h != null) {
@@ -750,24 +766,24 @@ function Hill(c, redraw, ctl, opt = {}) {
           }
           return ps;
         };
-      g.setLineDash([5, 5]);
-      g.lineWidth = 1.5;
-      g.strokeStyle = mix(t.ok, t.ok, 0, 0.7);
+      ctx.setLineDash([5, 5]);
+      ctx.lineWidth = 1.5;
+      ctx.strokeStyle = mix(t.ok, t.ok, 0, 0.7);
       path(ring(0));
-      g.stroke();
-      g.setLineDash([]);
+      ctx.stroke();
+      ctx.setLineDash([]);
       const z = ZH * cut.h;
       path([pr(-R, -R, z), pr(R, -R, z), pr(R, R, z), pr(-R, R, z)]);
-      g.closePath();
-      g.fillStyle = mix(t.ok, t.ok, 0, 0.06);
-      g.fill();
-      g.lineWidth = 1;
-      g.strokeStyle = mix(t.ok, t.ok, 0, 0.5);
-      g.stroke();
-      g.lineWidth = 3.5;
-      g.strokeStyle = t.ok;
+      ctx.closePath();
+      ctx.fillStyle = mix(t.ok, t.ok, 0, 0.06);
+      ctx.fill();
+      ctx.lineWidth = 1;
+      ctx.strokeStyle = mix(t.ok, t.ok, 0, 0.5);
+      ctx.stroke();
+      ctx.lineWidth = 3.5;
+      ctx.strokeStyle = t.ok;
       path(ring(z));
-      g.stroke();
+      ctx.stroke();
     }
     if (cut.v != null) {
       const ps = [];
@@ -776,26 +792,26 @@ function Hill(c, redraw, ctl, opt = {}) {
         ps.push(pr(cut.v, y, ZH * f(cut.v, y)));
       }
       path([pr(cut.v, -R, 0), ...ps, pr(cut.v, R, 0)]);
-      g.closePath();
-      g.fillStyle = mix(t.ok, t.ok, 0, 0.3);
-      g.fill();
-      g.lineWidth = 3.5;
-      g.strokeStyle = t.ok;
+      ctx.closePath();
+      ctx.fillStyle = mix(t.ok, t.ok, 0, 0.3);
+      ctx.fill();
+      ctx.lineWidth = 3.5;
+      ctx.strokeStyle = t.ok;
       path(ps);
-      g.stroke();
+      ctx.stroke();
     }
-    g.font = SANS;
-    g.fillStyle = t.ink;
+    ctx.font = SANS;
+    ctx.fillStyle = t.ink;
     let a = pr(0, -yF * 1.13, 0);
-    g.fillText('x', a[0], a[1] + 4);
+    ctx.fillText('x', a[0], a[1] + 4);
     a = pr(-xF * 1.13, 0, 0);
-    g.fillText('y', a[0], a[1] + 4);
+    ctx.fillText('y', a[0], a[1] + 4);
   }
   return { draw, spin: setSpin };
 }
 
 function drawMap(c, t, G, o = {}) {
-  const { g, w, h } = fit(c),
+  const { g: ctx, w, h } = prepareCanvas(c),
     R = 4,
     s = Math.min(w, h) / 9.2,
     tr = o.tr || ((x, y) => [x, y]);
@@ -805,55 +821,55 @@ function drawMap(c, t, G, o = {}) {
   };
   const q = Math.sqrt(1 - G.rho * G.rho);
   const ring = (r) => {
-    g.beginPath();
+    ctx.beginPath();
     for (let k = 0; k <= 72; k++) {
       const th = (k / 72) * 2 * Math.PI,
         u = r * Math.cos(th),
         v = r * Math.sin(th),
         p = X(G.sx * u, G.sy * (G.rho * u + q * v));
-      k ? g.lineTo(p[0], p[1]) : g.moveTo(p[0], p[1]);
+      k ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1]);
     }
-    g.closePath();
+    ctx.closePath();
   };
   const seg = (a, b) => {
-    g.beginPath();
-    g.moveTo(a[0], a[1]);
-    g.lineTo(b[0], b[1]);
-    g.stroke();
+    ctx.beginPath();
+    ctx.moveTo(a[0], a[1]);
+    ctx.lineTo(b[0], b[1]);
+    ctx.stroke();
   };
-  g.lineWidth = 1;
+  ctx.lineWidth = 1;
   for (let k = -8; k <= 8; k++) {
-    g.strokeStyle = k === 0 ? t.muted : t.line;
+    ctx.strokeStyle = k === 0 ? t.muted : t.line;
     seg(X(k, -9), X(k, 9));
     seg(X(-9, k), X(9, k));
   }
   [3, 2.5, 2, 1.5, 1, 0.5].forEach((r) => {
     ring(r);
-    g.fillStyle = ramp(t, Math.pow(Math.exp((-r * r) / 2), 0.55), 0.9);
-    g.fill();
+    ctx.fillStyle = ramp(t, Math.pow(Math.exp((-r * r) / 2), 0.55), 0.9);
+    ctx.fill();
   });
   if (o.pts) {
-    g.fillStyle = mix(t.ink, t.ink, 0, 0.6);
+    ctx.fillStyle = mix(t.ink, t.ink, 0, 0.6);
     for (const z of o.pts) {
       const p = X(G.sx * z[0], G.sy * (G.rho * z[0] + q * z[1]));
-      g.beginPath();
-      g.arc(p[0], p[1], 1.7, 0, 7);
-      g.fill();
+      ctx.beginPath();
+      ctx.arc(p[0], p[1], 1.7, 0, 7);
+      ctx.fill();
     }
   }
   if (o.rings) {
-    g.lineWidth = 1.5;
-    g.strokeStyle = mix(t.ok, t.ok, 0, 0.6);
+    ctx.lineWidth = 1.5;
+    ctx.strokeStyle = mix(t.ok, t.ok, 0, 0.6);
     o.rings.forEach((r) => {
       ring(r);
-      g.stroke();
+      ctx.stroke();
     });
   }
   if (o.ring != null) {
-    g.lineWidth = 3.5;
-    g.strokeStyle = t.ok;
+    ctx.lineWidth = 3.5;
+    ctx.strokeStyle = t.ok;
     ring(o.ring);
-    g.stroke();
+    ctx.stroke();
   }
   if (o.eig) {
     const e = eig(G),
@@ -861,32 +877,32 @@ function drawMap(c, t, G, o = {}) {
       s1 = Math.sin(e.th),
       a = 2 * Math.sqrt(e.l1),
       b = 2 * Math.sqrt(e.l2);
-    g.lineWidth = 3;
-    g.strokeStyle = t.ok;
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = t.ok;
     seg(X(-a * c1, -a * s1), X(a * c1, a * s1));
-    g.strokeStyle = t.ink;
+    ctx.strokeStyle = t.ink;
     seg(X(b * s1, -b * c1), X(-b * s1, b * c1));
-    g.font = SANS;
-    g.textAlign = 'left';
-    g.fillStyle = t.ok;
+    ctx.font = SANS;
+    ctx.textAlign = 'left';
+    ctx.fillStyle = t.ok;
     let p = X(a * c1, a * s1);
-    g.fillText('λ₁', clamp(p[0] + 6, 4, w - 22), clamp(p[1], 14, h - 6));
-    g.fillStyle = t.ink;
+    ctx.fillText('λ₁', clamp(p[0] + 6, 4, w - 22), clamp(p[1], 14, h - 6));
+    ctx.fillStyle = t.ink;
     p = X(-b * s1, b * c1);
-    g.fillText('λ₂', clamp(p[0] + 6, 4, w - 22), clamp(p[1], 14, h - 6));
+    ctx.fillText('λ₂', clamp(p[0] + 6, 4, w - 22), clamp(p[1], 14, h - 6));
   }
-  g.font = SANS;
-  g.fillStyle = t.muted;
-  g.textAlign = 'right';
-  g.fillText('x', w - 6, h / 2 - 6);
-  g.textAlign = 'left';
-  g.fillText('y', w / 2 + 6, 14);
-  return { g, X, ring, seg, s, w, h };
+  ctx.font = SANS;
+  ctx.fillStyle = t.muted;
+  ctx.textAlign = 'right';
+  ctx.fillText('x', w - 6, h / 2 - 6);
+  ctx.textAlign = 'left';
+  ctx.fillText('y', w / 2 + 6, 14);
+  return { g: ctx, X, ring, seg, s, w, h };
 }
 
 function observeReducedMotion(media) {
   const update = () => {
-    RM = media.matches;
+    prefersReducedMotion = media.matches;
   };
   update();
   media.addEventListener?.('change', update);
@@ -895,24 +911,24 @@ function observeReducedMotion(media) {
 
 export {
   SITE,
-  TC,
+  toTitleCase,
   $,
   escapeHTML,
   clamp,
   f2,
   f3,
-  RM,
+  prefersReducedMotion,
   lgam,
   rng,
   randnFrom,
   randn,
   gammaS,
   erf,
-  T,
+  readThemeColors,
   hex,
   mix,
   ramp,
-  fit,
+  prepareCanvas,
   MONO,
   SANS,
   plot,
@@ -930,11 +946,11 @@ export {
   markTP,
   eqShow,
   maxOf,
-  runCtl,
+  attachRunLimit,
   letterData,
-  setR,
+  setReadout,
   shapeBind,
-  G,
+  sharedGaussianShape,
   eig,
   dens2,
   Hill,

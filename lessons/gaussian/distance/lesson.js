@@ -3,7 +3,7 @@ import {
   $,
   Anim,
   SANS,
-  T,
+  readThemeColors,
   bind,
   clamp,
   drawMap,
@@ -11,24 +11,28 @@ import {
   f2,
   grab,
   playBtn,
-  setR,
+  setReadout,
   shapeBind,
 } from '../../../js/core/shared.js';
 
 export default {
   init(root) {
     const c = $('#md-c', root),
-      G8 = { sx: 1.7, sy: 0.85, rho: 0.72 },
-      S = { t: 0, A: null, B: null };
-    let Wm,
+      gaussianShape = { sx: 1.7, sy: 0.85, rho: 0.72 },
+      settings = { t: 0, A: null, B: null };
+    let whiteningMatrix,
       last = null;
     const prep = () => {
-      const e = eig(G8),
+      const e = eig(gaussianShape),
         c1 = Math.cos(e.th),
         s1 = Math.sin(e.th),
         i1 = 1 / Math.sqrt(e.l1),
         i2 = 1 / Math.sqrt(e.l2);
-      Wm = [c1 * c1 * i1 + s1 * s1 * i2, c1 * s1 * (i1 - i2), s1 * s1 * i1 + c1 * c1 * i2];
+      whiteningMatrix = [
+        c1 * c1 * i1 + s1 * s1 * i2,
+        c1 * s1 * (i1 - i2),
+        s1 * s1 * i1 + c1 * c1 * i2,
+      ];
       return [
         [2 * c1, 2 * s1],
         [-2 * s1, 2 * c1],
@@ -36,23 +40,31 @@ export default {
     };
     const place = () => {
       const p = prep();
-      S.A = p[0];
-      S.B = p[1];
+      settings.A = p[0];
+      settings.B = p[1];
     };
     place();
-    const M = () => [1 - S.t + S.t * Wm[0], S.t * Wm[1], 1 - S.t + S.t * Wm[2]];
-    const mah = (p) => Math.hypot(Wm[0] * p[0] + Wm[1] * p[1], Wm[1] * p[0] + Wm[2] * p[1]);
+    const interpolatedWhiteningMatrix = () => [
+      1 - settings.t + settings.t * whiteningMatrix[0],
+      settings.t * whiteningMatrix[1],
+      1 - settings.t + settings.t * whiteningMatrix[2],
+    ];
+    const mah = (p) =>
+      Math.hypot(
+        whiteningMatrix[0] * p[0] + whiteningMatrix[1] * p[1],
+        whiteningMatrix[1] * p[0] + whiteningMatrix[2] * p[1],
+      );
     const draw = () => {
       prep();
-      const t = T(),
-        m = M(),
+      const colors = readThemeColors(),
+        m = interpolatedWhiteningMatrix(),
         tr = (x, y) => [m[0] * x + m[1] * y, m[1] * x + m[2] * y],
-        D = drawMap(c, t, G8, { tr }),
+        D = drawMap(c, colors, gaussianShape, { tr }),
         g = D.g;
       last = D;
-      const ra = Math.hypot(S.A[0], S.A[1]);
+      const ra = Math.hypot(settings.A[0], settings.A[1]);
       g.setLineDash([5, 4]);
-      g.strokeStyle = t.ink;
+      g.strokeStyle = colors.ink;
       g.lineWidth = 1.3;
       g.beginPath();
       for (let k = 0; k <= 72; k++) {
@@ -63,16 +75,16 @@ export default {
       g.stroke();
       g.setLineDash([]);
       g.lineWidth = 2.6;
-      g.strokeStyle = t.ok;
-      D.ring(mah(S.A));
+      g.strokeStyle = colors.ok;
+      D.ring(mah(settings.A));
       g.stroke();
-      g.strokeStyle = t.gold;
-      D.ring(mah(S.B));
+      g.strokeStyle = colors.gold;
+      D.ring(mah(settings.B));
       g.stroke();
       const o = D.X(0, 0);
       [
-        [S.A, t.ok, 'A'],
-        [S.B, t.gold, 'B'],
+        [settings.A, colors.ok, 'A'],
+        [settings.B, colors.gold, 'B'],
       ].forEach(([p, col, nm]) => {
         const q = D.X(p[0], p[1]);
         g.strokeStyle = col;
@@ -82,38 +94,38 @@ export default {
         g.beginPath();
         g.arc(q[0], q[1], 9, 0, 7);
         g.fill();
-        g.strokeStyle = t.bg;
+        g.strokeStyle = colors.bg;
         g.lineWidth = 2.5;
         g.stroke();
-        g.fillStyle = t.ink;
+        g.fillStyle = colors.ink;
         g.font = SANS;
         g.textAlign = 'left';
         g.fillText(nm, q[0] + 12, q[1] - 10);
       });
-      const ma = mah(S.A),
-        mb = mah(S.B);
-      setR(root, 'ae', f2(Math.hypot(S.A[0], S.A[1])));
-      setR(root, 'am', f2(ma));
-      setR(root, 'be', f2(Math.hypot(S.B[0], S.B[1])));
-      setR(root, 'bm', f2(mb));
-      setR(root, 'pa', (100 * (1 - Math.exp((-ma * ma) / 2))).toFixed(1) + '%');
-      setR(root, 'pb', (100 * (1 - Math.exp((-mb * mb) / 2))).toFixed(1) + '%');
+      const ma = mah(settings.A),
+        mb = mah(settings.B);
+      setReadout(root, 'ae', f2(Math.hypot(settings.A[0], settings.A[1])));
+      setReadout(root, 'am', f2(ma));
+      setReadout(root, 'be', f2(Math.hypot(settings.B[0], settings.B[1])));
+      setReadout(root, 'bm', f2(mb));
+      setReadout(root, 'pa', (100 * (1 - Math.exp((-ma * ma) / 2))).toFixed(1) + '%');
+      setReadout(root, 'pb', (100 * (1 - Math.exp((-mb * mb) / 2))).toFixed(1) + '%');
     };
     const ts = bind(root, 'md-t', (v) => {
-      S.t = v;
+      settings.t = v;
       draw();
     });
     let ph = 0;
-    shapeBind(root, 'md', G8, () => draw());
+    shapeBind(root, 'md', gaussianShape, () => draw());
     const anim = Anim(() => {
       ph += 1 / 60 / 9;
       const u = (1 - Math.cos(ph * 2 * Math.PI)) / 2;
-      S.t = clamp(u * 1.3 - 0.15, 0, 1);
-      ts.set(S.t);
+      settings.t = clamp(u * 1.3 - 0.15, 0, 1);
+      ts.set(settings.t);
       draw();
     });
-    const pb = playBtn($('#md-play', root), anim);
-    grab(ts.el, pb);
+    const playback = playBtn($('#md-play', root), anim);
+    grab(ts.el, playback);
     $('#md-reset', root).onclick = () => {
       place();
       draw();
@@ -123,7 +135,7 @@ export default {
       const r = c.getBoundingClientRect(),
         u = (ev.clientX - r.left - last.w / 2) / last.s,
         v = -(ev.clientY - r.top - last.h / 2) / last.s,
-        m = M(),
+        m = interpolatedWhiteningMatrix(),
         det = m[0] * m[2] - m[1] * m[1];
       return [
         clamp((m[2] * u - m[1] * v) / det, -3.9, 3.9),
@@ -135,18 +147,18 @@ export default {
       const r = c.getBoundingClientRect(),
         px = ev.clientX - r.left,
         py = ev.clientY - r.top,
-        a = last.X(S.A[0], S.A[1]),
-        b = last.X(S.B[0], S.B[1]),
+        a = last.X(settings.A[0], settings.A[1]),
+        b = last.X(settings.B[0], settings.B[1]),
         da = Math.hypot(a[0] - px, a[1] - py),
         db = Math.hypot(b[0] - px, b[1] - py);
       drag = da <= db ? 'A' : 'B';
-      S[drag] = toData(ev);
+      settings[drag] = toData(ev);
       c.setPointerCapture(ev.pointerId);
       draw();
     });
     c.addEventListener('pointermove', (ev) => {
       if (drag) {
-        S[drag] = toData(ev);
+        settings[drag] = toData(ev);
         draw();
       }
     });
@@ -155,6 +167,6 @@ export default {
         drag = null;
       }),
     );
-    return { draw, stop: pb.stop, auto: pb.start };
+    return { draw, stop: playback.stop, auto: playback.start };
   },
 };

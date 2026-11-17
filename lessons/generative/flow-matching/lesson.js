@@ -2,28 +2,28 @@
 import {
   $,
   Anim,
-  RM,
-  T,
+  prefersReducedMotion,
+  readThemeColors,
   bind,
   clamp,
   f2,
   f3,
-  fit,
+  prepareCanvas,
   mix,
   playBtn,
   randnFrom,
   rng,
-  runCtl,
-  setR,
+  attachRunLimit,
+  setReadout,
 } from '../../../js/core/shared.js';
 import { AD } from '../../../js/math/autodiff.js';
 import {
-  G2G,
+  vectorFieldGrid,
   g2Arrows,
-  g2Bench,
+  drawSamplerBenchmark,
   g2Data,
   g2Emb,
-  g2Near,
+  fractionNearData,
   g2Note,
   g2Panel,
   g2Pred,
@@ -32,14 +32,14 @@ import {
   g2Trails,
 } from '../shared.js';
 import { pct } from '../../ensembles/shared.js';
-import { segBind, uCur, uLine, uView } from '../../unsupervised/shared.js';
+import { segBind, highlightLessonStep, drawSeriesChart, uView } from '../../unsupervised/shared.js';
 
 export default {
   init(root) {
     const c = $('#fm-c', root),
       cr = $('#fm-r', root),
       live = $('#fm-live', root),
-      S = { ds: 'ring', ni: 5, sol: 'euler' },
+      settings = { ds: 'ring', ni: 5, sol: 'euler' },
       MAXS = 2500,
       M = 400,
       NS = [1, 2, 3, 4, 6, 8, 12, 20, 40],
@@ -51,22 +51,22 @@ export default {
       phase = 'train',
       data = [],
       msg = '',
-      cu = 0,
-      fr = 0,
-      pb,
-      chk = () => false,
+      activeStepIndex = 0,
+      frameCount = 0,
+      playback,
+      checkRunStop = () => false,
       run = 1,
       z0 = null,
       xs = null,
       si = 0,
       done = false,
       tr = [],
-      Q = [[], []],
+      nearDataRatesBySolver = [[], []],
       bi = 0,
       nearV = NaN,
-      plen = null,
+      samplePathLengths = null,
       calls = 0,
-      strt = NaN,
+      meanPathStraightness = NaN,
       pairs = [];
     const pred = (P, u) => g2Pred(net, P, g2Emb(u));
     const build = () => {
@@ -77,16 +77,16 @@ export default {
       phase = 'train';
       xs = null;
       done = false;
-      cu = 0;
-      Q = [NS.map(() => NaN), NS.map(() => NaN)];
+      activeStepIndex = 0;
+      nearDataRatesBySolver = [NS.map(() => NaN), NS.map(() => NaN)];
       bi = 0;
       z0 = null;
       nearV = NaN;
-      strt = NaN;
+      meanPathStraightness = NaN;
       tr = [];
       si = 0;
       calls = 0;
-      data = Array.from({ length: 500 }, () => g2Samp(S.ds, RN));
+      data = Array.from({ length: 500 }, () => g2Samp(settings.ds, RN));
       pairs = Array.from({ length: 9 }, (_, i) => ({ a: [RN(), RN()], b: data[i] }));
       msg = 'A network with random weights: its arrows mean nothing yet. Press Run to train it.';
     };
@@ -96,7 +96,7 @@ export default {
         const X = new Float64Array(B * 10),
           E = new Float64Array(B * 2);
         for (let i = 0; i < B; i++) {
-          const p = g2Samp(S.ds, RN),
+          const p = g2Samp(settings.ds, RN),
             u = Math.pow(Math.random(), 0.6),
             a0 = RN(),
             a1 = RN(),
@@ -117,7 +117,7 @@ export default {
           sm.push(s / 20);
         }
       }
-      cu = Math.floor(ts / 100) % 3;
+      activeStepIndex = Math.floor(ts / 100) % 3;
       msg =
         'Training step ' +
         ts +
@@ -129,7 +129,7 @@ export default {
       if (ts >= MAXS) {
         phase = 'bench';
         bi = 0;
-        cu = 3;
+        activeStepIndex = 3;
         msg =
           'Training is finished. Next the network is used with nine different numbers of steps and with both solvers.';
       }
@@ -147,7 +147,7 @@ export default {
     const sampleAll = (N, sol, Mm) => {
       const x = Float64Array.from({ length: 2 * Mm }, () => RN());
       for (let j = 0; j < N; j++) ode(x, j, N, sol);
-      return g2Near(x, Mm, data, 0.1);
+      return fractionNearData(x, Mm, data, 0.1);
     };
     const startGen = (fresh) => {
       if (fresh || !z0) z0 = Float64Array.from({ length: 2 * M }, () => RN());
@@ -155,17 +155,17 @@ export default {
       si = 0;
       done = false;
       nearV = NaN;
-      strt = NaN;
+      meanPathStraightness = NaN;
       calls = 0;
-      plen = new Float64Array(M);
+      samplePathLengths = new Float64Array(M);
       tr = Array.from({ length: 14 }, (_, i) => [[xs[2 * i], xs[2 * i + 1]]]);
     };
     const bench = () => {
       const j = bi >> 1,
         e = bi & 1;
-      Q[e][j] = sampleAll(NS[j], e ? 'mid' : 'euler', 200);
+      nearDataRatesBySolver[e][j] = sampleAll(NS[j], e ? 'mid' : 'euler', 200);
       bi++;
-      cu = 3;
+      activeStepIndex = 3;
       msg =
         'Measuring: ' +
         NS[j] +
@@ -176,12 +176,12 @@ export default {
           ? 'Midpoint (' + 2 * NS[j] + ' network calls)'
           : 'Euler (' + NS[j] + ' network call' + (NS[j] > 1 ? 's' : '') + ')') +
         ' put ' +
-        pct(Q[e][j]) +
+        pct(nearDataRatesBySolver[e][j]) +
         ' of 200 new points on the shape.';
       if (bi >= 2 * NS.length) {
         phase = 'gen';
         startGen(true);
-        cu = 4;
+        activeStepIndex = 4;
         msg =
           'All settings are measured: see the chart at the bottom right. Now watch one run: ' +
           M +
@@ -190,15 +190,15 @@ export default {
     };
     const gstep = () => {
       if (done || !xs) return;
-      const N = NS[S.ni],
+      const N = NS[settings.ni],
         o = Float64Array.from(xs);
-      ode(xs, si, N, S.sol);
+      ode(xs, si, N, settings.sol);
       si++;
-      calls += S.sol === 'mid' ? 2 : 1;
+      calls += settings.sol === 'mid' ? 2 : 1;
       for (let i = 0; i < M; i++)
-        plen[i] += Math.hypot(xs[2 * i] - o[2 * i], xs[2 * i + 1] - o[2 * i + 1]);
+        samplePathLengths[i] += Math.hypot(xs[2 * i] - o[2 * i], xs[2 * i + 1] - o[2 * i + 1]);
       tr.forEach((p, i) => p.push([xs[2 * i], xs[2 * i + 1]]));
-      cu = 4;
+      activeStepIndex = 4;
       msg =
         'Step ' +
         si +
@@ -206,7 +206,7 @@ export default {
         N +
         ': the network gave a velocity for every point at time ' +
         f2((si - 1) / N) +
-        (S.sol === 'mid' ? ', each point looked again from half a step ahead,' : '') +
+        (settings.sol === 'mid' ? ', each point looked again from half a step ahead,' : '') +
         ' and every point moved along it for a time of ' +
         f2(1 / N) +
         '. The time is now ' +
@@ -214,12 +214,14 @@ export default {
         '.';
       if (si >= N) {
         done = true;
-        cu = 5;
-        nearV = g2Near(xs, M, data, 0.1);
+        activeStepIndex = 5;
+        nearV = fractionNearData(xs, M, data, 0.1);
         let s = 0;
         for (let i = 0; i < M; i++)
-          s += Math.hypot(xs[2 * i] - z0[2 * i], xs[2 * i + 1] - z0[2 * i + 1]) / (plen[i] || 1);
-        strt = s / M;
+          s +=
+            Math.hypot(xs[2 * i] - z0[2 * i], xs[2 * i + 1] - z0[2 * i + 1]) /
+            (samplePathLengths[i] || 1);
+        meanPathStraightness = s / M;
         msg +=
           ' Arrived: ' +
           pct(nearV) +
@@ -235,26 +237,27 @@ export default {
       else if (phase === 'bench') bench();
       else if (done) {
         startGen(false);
-        cu = 4;
+        activeStepIndex = 4;
         msg = 'The same starting noise again, at time 0. Press Run or One step.';
       } else gstep();
     };
     const draw = () => {
-      const t = T(),
-        N = NS[S.ni],
-        u = phase === 'gen' ? Math.min(1, si / N) : (Math.floor(fr / 3) % 100) / 100;
+      const colors = readThemeColors(),
+        N = NS[settings.ni],
+        u = phase === 'gen' ? Math.min(1, si / N) : (Math.floor(frameCount / 3) % 100) / 100;
       {
         const V = uView(c),
           { g, h } = V;
-        g2Data(g, V, t, data);
-        if (ts > 0) g2Arrows(g, V, pred(G2G, Math.min(u, 0.999)), t.accent, 1, 0.55, 6);
+        g2Data(g, V, colors, data);
+        if (ts > 0)
+          g2Arrows(g, V, pred(vectorFieldGrid, Math.min(u, 0.999)), colors.accent, 1, 0.55, 6);
         if (xs) {
-          g2Trails(g, V, t, tr);
-          g2Pts(g, V, t, xs, M, t.gold);
+          g2Trails(g, V, colors, tr);
+          g2Pts(g, V, colors, xs, M, colors.gold);
         }
         g2Note(
           g,
-          t,
+          colors,
           h,
           (ts > 0 ? 'arrows shown for time ' + f2(u) : 'not trained yet') +
             (phase === 'gen'
@@ -263,16 +266,16 @@ export default {
                 ' step' +
                 (N > 1 ? 's' : '') +
                 ' of ' +
-                (S.sol === 'mid' ? 'Midpoint' : 'Euler')
+                (settings.sol === 'mid' ? 'Midpoint' : 'Euler')
               : ''),
         );
       }
       {
-        const { g, w, h } = fit(cr),
+        const { g: ctx, w, h } = prepareCanvas(cr),
           h1 = h * 0.5,
           P = g2Panel(
-            g,
-            t,
+            ctx,
+            colors,
             0,
             0,
             w,
@@ -287,61 +290,65 @@ export default {
             mx = ax + (bx - ax) * u,
             my = ay + (by - ay) * u,
             d = Math.hypot(bx - ax, by - ay) || 1;
-          g.strokeStyle = mix(t.ink, t.ink, 0, 0.3);
-          g.lineWidth = 1;
-          g.beginPath();
-          g.moveTo(ax, ay);
-          g.lineTo(bx, by);
-          g.stroke();
-          g.fillStyle = t.bg;
-          g.strokeStyle = t.ink;
-          g.beginPath();
-          g.arc(ax, ay, 3.5, 0, 7);
-          g.fill();
-          g.stroke();
-          g.fillStyle = t.ink;
-          g.beginPath();
-          g.arc(bx, by, 3.5, 0, 7);
-          g.fill();
-          g.strokeStyle = t.accent;
-          g.lineWidth = 2;
-          g.beginPath();
-          g.moveTo(mx, my);
-          g.lineTo(mx + ((bx - ax) / d) * 16, my + ((by - ay) / d) * 16);
-          g.stroke();
-          g.fillStyle = t.gold;
-          g.beginPath();
-          g.arc(mx, my, 4, 0, 7);
-          g.fill();
+          ctx.strokeStyle = mix(colors.ink, colors.ink, 0, 0.3);
+          ctx.lineWidth = 1;
+          ctx.beginPath();
+          ctx.moveTo(ax, ay);
+          ctx.lineTo(bx, by);
+          ctx.stroke();
+          ctx.fillStyle = colors.bg;
+          ctx.strokeStyle = colors.ink;
+          ctx.beginPath();
+          ctx.arc(ax, ay, 3.5, 0, 7);
+          ctx.fill();
+          ctx.stroke();
+          ctx.fillStyle = colors.ink;
+          ctx.beginPath();
+          ctx.arc(bx, by, 3.5, 0, 7);
+          ctx.fill();
+          ctx.strokeStyle = colors.accent;
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.moveTo(mx, my);
+          ctx.lineTo(mx + ((bx - ax) / d) * 16, my + ((by - ay) / d) * 16);
+          ctx.stroke();
+          ctx.fillStyle = colors.gold;
+          ctx.beginPath();
+          ctx.arc(mx, my, 4, 0, 7);
+          ctx.fill();
         }
-        g.restore();
+        ctx.restore();
         if (phase === 'train')
-          uLine(g, t, 0, h1, w, h - h1, sm, {
+          drawSeriesChart(ctx, colors, 0, h1, w, h - h1, sm, {
             title: 'error at guessing the velocity (average of every 20 steps)',
             n: MAXS / 20,
-            col: t.ok,
+            col: colors.ok,
             ym: Math.max(2.2, sm[0] || 2.2),
           });
         else
-          g2Bench(
-            g,
-            t,
+          drawSamplerBenchmark(
+            ctx,
+            colors,
             0,
             h1,
             w,
             h - h1,
             NS,
             [
-              { ys: Q[1], col: t.cut, lab: 'Midpoint: two calls per step' },
-              { ys: Q[0], col: t.accent, lab: 'Euler: one call per step' },
+              {
+                ys: nearDataRatesBySolver[1],
+                col: colors.cut,
+                lab: 'Midpoint: two calls per step',
+              },
+              { ys: nearDataRatesBySolver[0], col: colors.accent, lab: 'Euler: one call per step' },
             ],
-            phase === 'gen' ? S.ni : -1,
+            phase === 'gen' ? settings.ni : -1,
             'share of points on the shape, by number of steps',
           );
       }
       live.textContent = msg;
-      uCur(root, 'fm', cu);
-      setR(
+      highlightLessonStep(root, 'fm', activeStepIndex);
+      setReadout(
         root,
         'ph',
         phase === 'train'
@@ -354,39 +361,39 @@ export default {
               ? 'Finished'
               : 'Generating',
       );
-      setR(root, 'ts', ts + ' of ' + MAXS);
-      setR(root, 'L', sm.length ? f3(sm[sm.length - 1]) : '–');
-      setR(root, 'nc', phase === 'gen' ? String(calls) : '–');
-      setR(root, 'near', isFinite(nearV) ? pct(nearV) : '–');
-      setR(root, 'st', isFinite(strt) ? f2(strt) : '–');
+      setReadout(root, 'ts', ts + ' of ' + MAXS);
+      setReadout(root, 'L', sm.length ? f3(sm[sm.length - 1]) : '–');
+      setReadout(root, 'nc', phase === 'gen' ? String(calls) : '–');
+      setReadout(root, 'near', isFinite(nearV) ? pct(nearV) : '–');
+      setReadout(root, 'st', isFinite(meanPathStraightness) ? f2(meanPathStraightness) : '–');
     };
     build();
-    if (RM) {
+    if (prefersReducedMotion) {
       train(MAXS);
       while (phase === 'bench') bench();
       while (!done) gstep();
     }
     const anim = Anim(() => {
-      fr++;
+      frameCount++;
       if (phase === 'train') {
-        train(Math.min(ts < 60 ? 1 : 5, chk.remaining()));
+        train(Math.min(ts < 60 ? 1 : 5, checkRunStop.remaining()));
         draw();
-        chk();
+        checkRunStop();
         return;
       }
       if (phase === 'bench') {
-        if (fr % 4 === 0) {
+        if (frameCount % 4 === 0) {
           bench();
           draw();
         }
         return;
       }
-      if (fr % clamp(Math.round(200 / NS[S.ni]), 5, 40) === 0 && !done) gstep();
+      if (frameCount % clamp(Math.round(200 / NS[settings.ni]), 5, 40) === 0 && !done) gstep();
       draw();
-      if (done) pb.stop();
+      if (done) playback.stop();
     });
-    pb = playBtn($('#fm-play', root), anim);
-    chk = runCtl(pb, root, 'fm', {
+    playback = playBtn($('#fm-play', root), anim);
+    checkRunStop = attachRunLimit(playback, root, 'fm', {
       done: () => phase === 'gen' && done,
       restart: () => startGen(false),
       count: () => ts,
@@ -398,29 +405,29 @@ export default {
         draw();
         return;
       }
-      pb.stop();
+      playback.stop();
       startGen(fresh);
       draw();
-      pb.start();
+      playback.start();
     };
     $('#fm-step', root).onclick = () => {
-      pb.stop();
+      playback.stop();
       step();
       draw();
     };
     $('#fm-reset', root).onclick = () => {
-      pb.stop();
+      playback.stop();
       run++;
       build();
       draw();
     };
     $('#fm-ds', root).onchange = (e) => {
-      S.ds = e.target.value;
-      pb.stop();
+      settings.ds = e.target.value;
+      playback.stop();
       run++;
       build();
       draw();
-      pb.start();
+      playback.start();
     };
     $('#fm-same', root).onclick = () => regen(false);
     $('#fm-new', root).onclick = () => regen(true);
@@ -428,23 +435,23 @@ export default {
       root,
       'fm-n',
       (v) => {
-        S.ni = +v;
-        if (pb && phase === 'gen') regen(false);
+        settings.ni = +v;
+        if (playback && phase === 'gen') regen(false);
       },
       (v) => String(NS[+v]),
     );
-    segBind(root, 'fm-sol', S.sol, (v) => {
-      S.sol = v;
+    segBind(root, 'fm-sol', settings.sol, (v) => {
+      settings.sol = v;
       if (phase === 'gen') regen(false);
     });
     return {
       draw,
-      stop: () => pb.stop(),
+      stop: () => playback.stop(),
       auto: () => {
         run++;
         build();
         draw();
-        pb.start();
+        playback.start();
       },
     };
   },

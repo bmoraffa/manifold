@@ -5,9 +5,9 @@ import { AUTHOR, SITE_FULL, SITE_YEAR, siteUrl } from '../shared.js';
 export default {
   init(root) {
     const box = $('#cite-box', root),
-      u = siteUrl(),
-      d = new Date(),
-      mon = [
+      url = siteUrl(),
+      accessedAt = new Date(),
+      monthNames = [
         'January',
         'February',
         'March',
@@ -21,55 +21,67 @@ export default {
         'November',
         'December',
       ],
-      iso = d.toISOString().slice(0, 10),
-      long = mon[d.getMonth()] + ' ' + d.getDate() + ', ' + d.getFullYear(),
-      short = mon[d.getMonth()].slice(0, 3) + '. ' + d.getDate() + ', ' + d.getFullYear();
-    const F = [
+      isoDate = accessedAt.toISOString().slice(0, 10),
+      longDate =
+        monthNames[accessedAt.getMonth()] +
+        ' ' +
+        accessedAt.getDate() +
+        ', ' +
+        accessedAt.getFullYear(),
+      shortDate =
+        monthNames[accessedAt.getMonth()].slice(0, 3) +
+        '. ' +
+        accessedAt.getDate() +
+        ', ' +
+        accessedAt.getFullYear();
+    const citationFormats = [
       [
         'BibTeX',
-        `@misc{moraffah${SITE_YEAR}manifold,\n  author       = {Moraffah, Bahman},\n  title        = {${SITE_FULL}},\n  year         = {${SITE_YEAR}},\n  howpublished = {\\url{${u}}},\n  note         = {Interactive website. Accessed: ${iso}}\n}`,
+        `@misc{moraffah${SITE_YEAR}manifold,\n  author       = {Moraffah, Bahman},\n  title        = {${SITE_FULL}},\n  year         = {${SITE_YEAR}},\n  howpublished = {\\url{${url}}},\n  note         = {Interactive website. Accessed: ${isoDate}}\n}`,
       ],
       [
         'BibLaTeX',
-        `@online{moraffah${SITE_YEAR}manifold,\n  author  = {Moraffah, Bahman},\n  title   = {${SITE_FULL}},\n  year    = {${SITE_YEAR}},\n  url     = {${u}},\n  urldate = {${iso}}\n}`,
+        `@online{moraffah${SITE_YEAR}manifold,\n  author  = {Moraffah, Bahman},\n  title   = {${SITE_FULL}},\n  year    = {${SITE_YEAR}},\n  url     = {${url}},\n  urldate = {${isoDate}}\n}`,
       ],
-      ['APA', `Moraffah, B. (${SITE_YEAR}). ${SITE_FULL} [Interactive website]. ${u}`],
+      ['APA', `Moraffah, B. (${SITE_YEAR}). ${SITE_FULL} [Interactive website]. ${url}`],
       [
         'IEEE',
-        `B. Moraffah, “${SITE_FULL}.” ${SITE_YEAR}. [Online]. Available: ${u} (accessed ${short}).`,
+        `B. Moraffah, “${SITE_FULL}.” ${SITE_YEAR}. [Online]. Available: ${url} (accessed ${shortDate}).`,
       ],
       [
         'Chicago',
-        `Moraffah, Bahman. ${SITE_YEAR}. “${SITE_FULL}.” Interactive website. Accessed ${long}. ${u}`,
+        `Moraffah, Bahman. ${SITE_YEAR}. “${SITE_FULL}.” Interactive website. Accessed ${longDate}. ${url}`,
       ],
       [
         'MLA',
-        `Moraffah, Bahman. ${SITE_FULL}. ${SITE_YEAR}, ${u}. Accessed ${d.getDate()} ${mon[d.getMonth()].slice(0, 3)}. ${d.getFullYear()}.`,
+        `Moraffah, Bahman. ${SITE_FULL}. ${SITE_YEAR}, ${url}. Accessed ${accessedAt.getDate()} ${monthNames[accessedAt.getMonth()].slice(0, 3)}. ${accessedAt.getFullYear()}.`,
       ],
-      ['Plain text', `Bahman Moraffah, ${SITE_FULL}, ${SITE_YEAR}. ${u}`],
+      ['Plain text', `Bahman Moraffah, ${SITE_FULL}, ${SITE_YEAR}. ${url}`],
     ];
     $('#cite-main', root).textContent = `${AUTHOR} (${SITE_YEAR}). ${SITE_FULL}.`;
-    const lk = $('#cite-link', root);
-    lk.href = u;
-    lk.textContent = u.replace('https://', '').replace(/\/$/, '');
-    box.innerHTML = F.map(
-      ([n], i) =>
-        `<div class="cite"><div class="cite-h"><span>${n}</span><button type="button" data-i="${i}">Copy</button></div><pre></pre></div>`,
-    ).join('');
+    const citationLink = $('#cite-link', root);
+    citationLink.href = url;
+    citationLink.textContent = url.replace('https://', '').replace(/\/$/, '');
+    box.innerHTML = citationFormats
+      .map(
+        ([n], i) =>
+          `<div class="cite"><div class="cite-h"><span>${n}</span><button type="button" data-i="${i}">Copy</button></div><pre></pre></div>`,
+      )
+      .join('');
     box.querySelectorAll('pre').forEach((p, i) => {
-      p.textContent = F[i][1];
+      p.textContent = citationFormats[i][1];
     });
     box.addEventListener('click', (e) => {
       const b = e.target.closest('button[data-i]');
       if (!b) return;
-      const tx = F[+b.dataset.i][1],
-        ok = () => {
+      const citationText = citationFormats[+b.dataset.i][1],
+        showCopied = () => {
           b.textContent = 'Copied';
           setTimeout(() => {
             b.textContent = 'Copy';
           }, 1400);
         };
-      const fb = () => {
+      const copyViaSelection = () => {
         try {
           const r = document.createRange();
           r.selectNodeContents(b.closest('.cite').querySelector('pre'));
@@ -77,15 +89,15 @@ export default {
           s.removeAllRanges();
           s.addRange(r);
           document.execCommand('copy');
-          ok();
+          showCopied();
         } catch (e) {
           b.textContent = 'Select and copy';
         }
       };
       try {
-        navigator.clipboard.writeText(tx).then(ok, fb);
+        navigator.clipboard.writeText(citationText).then(showCopied, copyViaSelection);
       } catch (e) {
-        fb();
+        copyViaSelection();
       }
     });
     return { draw() {} };

@@ -3,18 +3,18 @@ import {
   $,
   Anim,
   MONO,
-  RM,
-  T,
+  prefersReducedMotion,
+  readThemeColors,
   clamp,
   f2,
   f3,
-  fit,
+  prepareCanvas,
   mix,
   playBtn,
-  runCtl,
-  setR,
+  attachRunLimit,
+  setReadout,
 } from '../../../js/core/shared.js';
-import { uCur, uView } from '../../unsupervised/shared.js';
+import { highlightLessonStep, uView } from '../../unsupervised/shared.js';
 
 export default {
   init(root) {
@@ -70,20 +70,20 @@ export default {
         [14, 15],
         [5, 9],
       ],
-      TR = NP.map((_, i) => (i < 8 ? 0 : 1)),
+      trueLabels = NP.map((_, i) => (i < 8 ? 0 : 1)),
       N = 16;
-    let L,
+    let revealedLabels,
       h,
       hist,
       rd = 0,
-      ch = 1,
+      maxBeliefChange = 1,
       conv = false,
       msg = '',
-      cu = 0,
-      fr = 0,
+      activeStepIndex = 0,
+      frameCount = 0,
       t0 = -999,
-      pb,
-      chk = () => false,
+      playback,
+      checkRunStop = () => false,
       prev,
       PX = [];
     const nb = NP.map(() => []);
@@ -92,16 +92,16 @@ export default {
       nb[e[1]].push(e[0]);
     });
     const reset = () => {
-      h = L.map((v) => (v < 0 ? 0.5 : v));
+      h = revealedLabels.map((v) => (v < 0 ? 0.5 : v));
       prev = h.slice();
       hist = [h.slice()];
       rd = 0;
-      ch = 1;
+      maxBeliefChange = 1;
       conv = false;
-      cu = 0;
+      activeStepIndex = 0;
       t0 = -999;
       msg =
-        L.filter((v) => v >= 0).length +
+        revealedLabels.filter((v) => v >= 0).length +
         ' people have told us their club. Everyone else starts undecided at one half. Press Pass messages or One round.';
     };
     const round = () => {
@@ -112,22 +112,22 @@ export default {
         return s / (1 + nb[i].length);
       });
       if (S.fix)
-        L.forEach((v, i) => {
+        revealedLabels.forEach((v, i) => {
           if (v >= 0) nh[i] = v;
         });
-      ch = Math.max(...nh.map((v, i) => Math.abs(v - h[i])));
+      maxBeliefChange = Math.max(...nh.map((v, i) => Math.abs(v - h[i])));
       h = nh;
       hist.push(h.slice());
       rd++;
-      t0 = fr;
-      if (ch < 0.004 || rd >= 80) conv = true;
-      cu = conv ? 4 : 1 + (rd % 3);
+      t0 = frameCount;
+      if (maxBeliefChange < 0.004 || rd >= 80) conv = true;
+      activeStepIndex = conv ? 4 : 1 + (rd % 3);
       const und = h.filter((v) => Math.abs(v - 0.5) < 0.02).length;
       msg =
         'Round ' +
         rd +
         ': every node averaged its own belief with those of its friends. The largest change was ' +
-        f3(ch) +
+        f3(maxBeliefChange) +
         '. ' +
         und +
         ' node' +
@@ -143,14 +143,14 @@ export default {
           : '');
     };
     const draw = () => {
-      const t = T(),
-        u = RM ? 1 : clamp((fr - t0) / 36, 0, 1),
-        cv = (v) => mix(t.accent, t.gold, clamp(v, 0, 1));
+      const colors = readThemeColors(),
+        u = prefersReducedMotion ? 1 : clamp((frameCount - t0) / 36, 0, 1),
+        cv = (v) => mix(colors.accent, colors.gold, clamp(v, 0, 1));
       {
         const V = uView(c),
           { g, w, h: hh, X, Y } = V;
         PX = NP.map((p) => [X(p[0] * 1.25), Y(p[1] * 1.25)]);
-        g.strokeStyle = mix(t.ink, t.ink, 0, 0.3);
+        g.strokeStyle = mix(colors.ink, colors.ink, 0, 0.3);
         g.lineWidth = 1.4;
         ED.forEach((e) => {
           g.beginPath();
@@ -165,7 +165,7 @@ export default {
               [e[1], e[0]],
             ].forEach(([a, b]) => {
               g.fillStyle = cv(prev[a]);
-              g.strokeStyle = t.bg;
+              g.strokeStyle = colors.bg;
               g.lineWidth = 1;
               g.beginPath();
               g.arc(
@@ -184,109 +184,114 @@ export default {
             [x, y] = PX[i];
           g.fillStyle =
             Math.abs(v - 0.5) < 0.02
-              ? mix(t.ink, t.ink, 0, 0.25)
-              : mix(v < 0.5 ? t.accent : t.gold, t.bg, 0, 0.25 + 0.75 * Math.abs(v - 0.5) * 2);
-          g.strokeStyle = t.ink;
-          g.lineWidth = L[i] >= 0 ? 3.4 : 1.2;
+              ? mix(colors.ink, colors.ink, 0, 0.25)
+              : mix(
+                  v < 0.5 ? colors.accent : colors.gold,
+                  colors.bg,
+                  0,
+                  0.25 + 0.75 * Math.abs(v - 0.5) * 2,
+                );
+          g.strokeStyle = colors.ink;
+          g.lineWidth = revealedLabels[i] >= 0 ? 3.4 : 1.2;
           g.beginPath();
           g.arc(x, y, 15, 0, 7);
           g.fill();
           g.stroke();
           g.font = MONO;
-          g.fillStyle = t.ink;
+          g.fillStyle = colors.ink;
           g.textAlign = 'center';
           g.fillText(f2(v), x, y + 29);
         }
-        g.fillStyle = t.muted;
+        g.fillStyle = colors.muted;
         g.textAlign = 'left';
         g.fillText('thick ring: club known.  click: unknown → green → gold', 8, hh - 8);
       }
       {
-        const { g, w, h: hh } = fit(cr),
+        const { g: ctx, w, h: hh } = prepareCanvas(cr),
           m = { l: 36, r: 12, t: 16, b: 22 },
           nR = Math.max(12, hist.length - 1),
           X2 = (q) => m.l + (q / nR) * (w - m.l - m.r),
           Y2 = (v) => hh - m.b - v * (hh - m.t - m.b);
-        g.font = MONO;
+        ctx.font = MONO;
         [0, 0.5, 1].forEach((v) => {
-          g.strokeStyle = t.line;
-          g.lineWidth = 1;
-          g.beginPath();
-          g.moveTo(m.l, Y2(v));
-          g.lineTo(w - m.r, Y2(v));
-          g.stroke();
-          g.fillStyle = t.muted;
-          g.textAlign = 'right';
-          g.fillText(String(v), m.l - 5, Y2(v) + 4);
+          ctx.strokeStyle = colors.line;
+          ctx.lineWidth = 1;
+          ctx.beginPath();
+          ctx.moveTo(m.l, Y2(v));
+          ctx.lineTo(w - m.r, Y2(v));
+          ctx.stroke();
+          ctx.fillStyle = colors.muted;
+          ctx.textAlign = 'right';
+          ctx.fillText(String(v), m.l - 5, Y2(v) + 4);
         });
         for (let i = 0; i < N; i++) {
-          g.strokeStyle = mix(TR[i] ? t.gold : t.accent, t.bg, 0, 0.85);
-          g.lineWidth = L[i] >= 0 ? 3 : 1.5;
-          g.beginPath();
-          hist.forEach((r, q) => (q ? g.lineTo(X2(q), Y2(r[i])) : g.moveTo(X2(q), Y2(r[i]))));
-          g.stroke();
+          ctx.strokeStyle = mix(trueLabels[i] ? colors.gold : colors.accent, colors.bg, 0, 0.85);
+          ctx.lineWidth = revealedLabels[i] >= 0 ? 3 : 1.5;
+          ctx.beginPath();
+          hist.forEach((r, q) => (q ? ctx.lineTo(X2(q), Y2(r[i])) : ctx.moveTo(X2(q), Y2(r[i]))));
+          ctx.stroke();
         }
-        g.fillStyle = t.muted;
-        g.textAlign = 'left';
-        g.fillText('line colour: the node’s true club.  thick: labelled', m.l + 4, hh - 5);
+        ctx.fillStyle = colors.muted;
+        ctx.textAlign = 'left';
+        ctx.fillText('line colour: the node’s true club.  thick: labelled', m.l + 4, hh - 5);
       }
       live.textContent = msg;
-      uCur(root, 'gn', cu);
+      highlightLessonStep(root, 'gn', activeStepIndex);
       const ok = h.filter(
-        (v, i) => Math.abs(v - 0.5) >= 0.02 && (v > 0.5 ? 1 : 0) === TR[i],
+        (v, i) => Math.abs(v - 0.5) >= 0.02 && (v > 0.5 ? 1 : 0) === trueLabels[i],
       ).length;
-      setR(root, 'rd', String(rd));
-      setR(root, 'ch', rd ? f3(ch) : '–');
-      setR(root, 'acc', ok + ' of ' + N);
-      setR(root, 'lab', String(L.filter((v) => v >= 0).length));
-      setR(root, 'st', conv ? 'Converged' : rd ? 'Running' : 'Not started');
+      setReadout(root, 'rd', String(rd));
+      setReadout(root, 'ch', rd ? f3(maxBeliefChange) : '–');
+      setReadout(root, 'acc', ok + ' of ' + N);
+      setReadout(root, 'lab', String(revealedLabels.filter((v) => v >= 0).length));
+      setReadout(root, 'st', conv ? 'Converged' : rd ? 'Running' : 'Not started');
     };
-    L = NP.map(() => -1);
-    L[0] = 0;
-    L[13] = 1;
+    revealedLabels = NP.map(() => -1);
+    revealedLabels[0] = 0;
+    revealedLabels[13] = 1;
     reset();
-    if (RM) while (!conv) round();
+    if (prefersReducedMotion) while (!conv) round();
     const anim = Anim(() => {
-      fr++;
-      if (fr - t0 > (rd < 4 ? 80 : 44) && !conv) {
+      frameCount++;
+      if (frameCount - t0 > (rd < 4 ? 80 : 44) && !conv) {
         round();
-        if (chk()) {
+        if (checkRunStop()) {
           draw();
           return;
         }
       }
       draw();
-      if (conv && fr - t0 > 40) pb.stop();
+      if (conv && frameCount - t0 > 40) playback.stop();
     });
-    pb = playBtn($('#gn-play', root), anim);
-    chk = runCtl(pb, root, 'gn', {
-      done: () => conv && fr - t0 > 40,
+    playback = playBtn($('#gn-play', root), anim);
+    checkRunStop = attachRunLimit(playback, root, 'gn', {
+      done: () => conv && frameCount - t0 > 40,
       restart: () => reset(),
       count: () => rd,
       what: 'rounds',
     });
     $('#gn-step', root).onclick = () => {
-      pb.stop();
+      playback.stop();
       if (conv) reset();
       else round();
-      t0 = fr - 100;
+      t0 = frameCount - 100;
       draw();
     };
     $('#gn-reset', root).onclick = () => {
-      pb.stop();
+      playback.stop();
       reset();
       draw();
     };
     $('#gn-fix', root).onchange = (e) => {
       S.fix = e.target.checked;
-      pb.stop();
+      playback.stop();
       reset();
       draw();
-      pb.start();
+      playback.start();
     };
     $('#gn-clear', root).onclick = () => {
-      pb.stop();
-      L = NP.map(() => -1);
+      playback.stop();
+      revealedLabels = NP.map(() => -1);
       reset();
       msg = 'No labels. Click a node to tell the network which club that person joined.';
       draw();
@@ -297,21 +302,21 @@ export default {
         y = e.clientY - r.top;
       PX.forEach((p, i) => {
         if (Math.hypot(p[0] - x, p[1] - y) < 18) {
-          pb.stop();
-          L[i] = L[i] < 0 ? 0 : L[i] === 0 ? 1 : -1;
+          playback.stop();
+          revealedLabels[i] = revealedLabels[i] < 0 ? 0 : revealedLabels[i] === 0 ? 1 : -1;
           reset();
           draw();
-          pb.start();
+          playback.start();
         }
       });
     });
     return {
       draw,
-      stop: () => pb.stop(),
+      stop: () => playback.stop(),
       auto: () => {
         reset();
         draw();
-        pb.start();
+        playback.start();
       },
     };
   },

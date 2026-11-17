@@ -1,7 +1,7 @@
 /* Manifold. © 2026 Bahman Moraffah. All rights reserved. */
 export default {
   id: 'generative',
-  t: 'Generative AI',
+  title: 'Generative AI',
   lessons: [
     {
       id: 'autoregressive',

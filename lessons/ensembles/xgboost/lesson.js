@@ -3,21 +3,21 @@ import {
   $,
   Anim,
   MONO,
-  T,
+  readThemeColors,
   bind,
   clamp,
   clipPlot,
   escapeHTML,
   f2,
   f3,
-  fit,
+  prepareCanvas,
   mix,
   playBtn,
   plot,
   randnFrom,
   rng,
-  runCtl,
-  setR,
+  attachRunLimit,
+  setReadout,
 } from '../../../js/core/shared.js';
 import { parseXgbCSV, xgbBuildTree } from '../shared.js';
 import { sig } from '../../classification/shared.js';
@@ -34,7 +34,7 @@ export default {
       tsel = $('#xgb-target', root),
       tpBox = $('#xgb-tp', root),
       tpo = $('#xgb-tpo', root);
-    const S = { B: 60, eta: 0.3, depth: 3, gam: 0.05, lam: 1, sub: 1 };
+    const settings = { B: 60, eta: 0.3, depth: 3, gam: 0.05, lam: 1, sub: 1 };
     let D = null,
       raw = null,
       F = null,
@@ -44,15 +44,15 @@ export default {
       base = 0,
       eTr = [],
       eTe = [],
-      imp = [],
+      featureGainTotals = [],
       pruned = 0,
       last = null,
       lastPr = 0,
       wait = 0,
-      fr = 0,
-      pb,
+      frameCount = 0,
+      playback,
       msg = '',
-      tpv = [];
+      probeFeatures = [];
     const presets = {
       house() {
         const r = rng(17),
@@ -177,34 +177,34 @@ export default {
         ' rows train the model; ' +
         te.length +
         ' are held out.';
-      tpv = D.names.map((_, f) => {
+      probeFeatures = D.names.map((_, f) => {
         const s = tr.map((q) => X[q][f]).sort((a, b) => a - b);
         return s[s.length >> 1];
       });
       tpBox.innerHTML = D.names
         .map(
           (nm, f) =>
-            `<label class="ctl" for="xgb-tp${f}"><span>${escapeHTML(nm.slice(0, 24))}</span><input type="number" class="num" id="xgb-tp${f}" step="any" value="${+tpv[f].toFixed(2)}"></label>`,
+            `<label class="ctl" for="xgb-tp${f}"><span>${escapeHTML(nm.slice(0, 24))}</span><input type="number" class="num" id="xgb-tp${f}" step="any" value="${+probeFeatures[f].toFixed(2)}"></label>`,
         )
         .join('');
       D.names.forEach((_, f) => {
         $('#xgb-tp' + f, root).addEventListener('input', (e) => {
           const v = parseFloat(e.target.value);
           if (isFinite(v)) {
-            tpv[f] = v;
+            probeFeatures[f] = v;
             draw();
           }
         });
       });
       reset();
     };
-    const tw = (nd, x) => {
+    const treeLeafWeight = (nd, x) => {
         while (nd.sp) nd = x[nd.sp.f] <= nd.sp.thr ? nd.sp.L : nd.sp.R;
         return nd.w;
       },
       Fx = (x) => {
         let s = base;
-        for (const tq of trees) s += tq.eta * tw(tq.root, x);
+        for (const tq of trees) s += tq.eta * treeLeafWeight(tq.root, x);
         return s;
       };
     const loss = (rows) => {
@@ -224,7 +224,7 @@ export default {
       trees = [];
       eTr = [];
       eTe = [];
-      imp = D.names.map(() => 0);
+      featureGainTotals = D.names.map(() => 0);
       pruned = 0;
       last = null;
       lastPr = 0;
@@ -260,18 +260,18 @@ export default {
           h[q] = 1;
         }
       }
-      const rows = S.sub >= 1 ? tr.slice() : tr.filter(() => Math.random() < S.sub);
+      const rows = settings.sub >= 1 ? tr.slice() : tr.filter(() => Math.random() < settings.sub);
       if (rows.length < 8) return;
-      const bt = xgbBuildTree(D.X, D.order, g, h, rows, S),
-        tq = { root: bt.root, eta: S.eta };
+      const bt = xgbBuildTree(D.X, D.order, g, h, rows, settings),
+        tq = { root: bt.root, eta: settings.eta };
       trees.push(tq);
       last = tq;
       lastPr = bt.np;
       pruned += bt.np;
-      for (let q = 0; q < D.X.length; q++) F[q] += S.eta * tw(tq.root, D.X[q]);
+      for (let q = 0; q < D.X.length; q++) F[q] += settings.eta * treeLeafWeight(tq.root, D.X[q]);
       const wk = (nd) => {
         if (nd.sp) {
-          imp[nd.sp.f] += nd.sp.gain;
+          featureGainTotals[nd.sp.f] += nd.sp.gain;
           wk(nd.sp.L);
           wk(nd.sp.R);
         }
@@ -303,13 +303,13 @@ export default {
             bt.np +
             (bt.np === 1 ? ' split' : ' splits') +
             ' whose gain was below γ = ' +
-            f2(S.gam) +
+            f2(settings.gam) +
             '. '
           : 'Nothing needed pruning. ') +
         'It has ' +
         lvs(tq.root) +
         ' leaves. Added ' +
-        f2(S.eta) +
+        f2(settings.eta) +
         ' × the tree. Held-out loss ' +
         (k > 1 ? f3(eTe[k - 2]) + ' → ' : '') +
         f3(eTe[k - 1]) +
@@ -318,19 +318,19 @@ export default {
           : '.');
     };
     const draw = () => {
-      const t = T(),
+      const colors = readThemeColors(),
         k = trees.length;
       {
-        const { g: gc, w, h: hh } = fit(cL);
+        const { g: gc, w, h: hh } = prepareCanvas(cL);
         let ym = 0;
         for (const v of eTr.concat(eTe)) ym = Math.max(ym, v);
         ym = ym || 1;
-        const P = plot(gc, w, hh, [0, Math.max(10, S.B)], [0, ym * 1.1], t, {
-          xstep: S.B > 120 ? 50 : S.B > 50 ? 20 : S.B > 20 ? 10 : 5,
+        const P = plot(gc, w, hh, [0, Math.max(10, settings.B)], [0, ym * 1.1], colors, {
+          xstep: settings.B > 120 ? 50 : settings.B > 50 ? 20 : settings.B > 20 ? 10 : 5,
           xlabel: 'round',
         });
         gc.font = MONO;
-        gc.fillStyle = t.muted;
+        gc.fillStyle = colors.muted;
         gc.textAlign = 'right';
         gc.fillText(+ym.toPrecision(3) + '', P.m.l - 4, P.Y(ym) + 4);
         gc.fillText('0', P.m.l - 4, P.Y(0) + 4);
@@ -340,7 +340,7 @@ export default {
           if (v < eTe[bi]) bi = i;
         });
         if (k) {
-          gc.strokeStyle = mix(t.gold, t.gold, 0, 0.5);
+          gc.strokeStyle = mix(colors.gold, colors.gold, 0, 0.5);
           gc.lineWidth = 8;
           gc.beginPath();
           gc.moveTo(P.X(bi + 1), P.Y(0));
@@ -348,8 +348,8 @@ export default {
           gc.stroke();
         }
         [
-          [eTr, t.accent],
-          [eTe, t.ok],
+          [eTr, colors.accent],
+          [eTe, colors.ok],
         ].forEach(([E, cl]) => {
           gc.strokeStyle = cl;
           gc.lineWidth = 2.4;
@@ -359,18 +359,18 @@ export default {
         });
         gc.restore();
         gc.textAlign = 'left';
-        gc.fillStyle = t.accent;
+        gc.fillStyle = colors.accent;
         gc.fillText('training', P.m.l + 50, P.m.t + 8);
-        gc.fillStyle = t.ok;
+        gc.fillStyle = colors.ok;
         gc.fillText('held-out', P.m.l + 50, P.m.t + 23);
-        gc.fillStyle = t.cut;
+        gc.fillStyle = colors.cut;
         gc.fillText('gold band = best round', P.m.l + 50, P.m.t + 38);
       }
       {
-        const { g: gc, w, h: hh } = fit(cT);
+        const { g: gc, w, h: hh } = prepareCanvas(cT);
         gc.font = MONO;
         if (!last) {
-          gc.fillStyle = t.muted;
+          gc.fillStyle = colors.muted;
           gc.textAlign = 'center';
           gc.fillText('No tree yet. Press Add trees or One round.', w / 2, hh / 2);
         } else {
@@ -394,7 +394,7 @@ export default {
           const X = (v) => 60 + (leaves.length > 1 ? v / (leaves.length - 1) : 0.5) * (w - 120),
             Y = (d) => 58 + (md ? d / md : 0) * (hh - 112),
             sm = leaves.length > 8;
-          gc.strokeStyle = t.muted;
+          gc.strokeStyle = colors.muted;
           gc.lineWidth = 1.2;
           for (const nd of all)
             if (nd.sp)
@@ -412,30 +412,30 @@ export default {
               const tx = D.names[nd.sp.f].slice(0, sm ? 9 : 16) + ' ≤ ' + +nd.sp.thr.toPrecision(3);
               gc.font = sm ? '10px "JetBrains Mono",monospace' : MONO;
               const tw2 = gc.measureText(tx).width + 10;
-              gc.fillStyle = t.bg;
-              gc.strokeStyle = t.ink;
+              gc.fillStyle = colors.bg;
+              gc.strokeStyle = colors.ink;
               gc.lineWidth = 1.2;
               gc.beginPath();
               gc.rect(x - tw2 / 2, y - 10, tw2, 20);
               gc.fill();
               gc.stroke();
-              gc.fillStyle = t.ink;
+              gc.fillStyle = colors.ink;
               gc.fillText(tx, x, y + 4);
-              gc.fillStyle = t.cut;
+              gc.fillStyle = colors.cut;
               gc.fillText('gain ' + f2(nd.sp.gain), x, y + 23);
             } else {
               const up = nd.w >= 0;
-              gc.fillStyle = up ? t.gold : t.accent;
+              gc.fillStyle = up ? colors.gold : colors.accent;
               gc.beginPath();
               gc.arc(x, y, sm ? 6 : 9, 0, 7);
               gc.fill();
               gc.font = sm ? '10px "JetBrains Mono",monospace' : MONO;
-              gc.fillStyle = t.ink;
+              gc.fillStyle = colors.ink;
               gc.fillText((nd.w >= 0 ? '+' : '') + nd.w.toFixed(2), x, y + 24);
-              gc.fillStyle = t.muted;
+              gc.fillStyle = colors.muted;
               gc.fillText(nd.n + ' rows', x, y + 37);
               if (nd.cut) {
-                gc.fillStyle = t.ok;
+                gc.fillStyle = colors.ok;
                 gc.fillText(
                   '✂ ' +
                     (sm ? '' : D.names[nd.cut.f].slice(0, 10) + ' ') +
@@ -448,47 +448,49 @@ export default {
             }
           }
           gc.textAlign = 'left';
-          gc.fillStyle = t.muted;
+          gc.fillStyle = colors.muted;
           gc.fillText('yes ↙  no ↘   leaf value = change to the prediction (standardised)', 8, 12);
         }
       }
       {
-        const { g: gc, w, h: hh } = fit(cI),
-          tot = imp.reduce((a, b) => a + b, 0) || 1,
-          ord = D.names.map((_, f) => f).sort((a, b) => imp[b] - imp[a]),
+        const { g: gc, w, h: hh } = prepareCanvas(cI),
+          tot = featureGainTotals.reduce((a, b) => a + b, 0) || 1,
+          ord = D.names
+            .map((_, f) => f)
+            .sort((a, b) => featureGainTotals[b] - featureGainTotals[a]),
           rh = Math.min(34, (hh - 16) / ord.length),
           lw = Math.min(190, w * 0.4);
         gc.font = MONO;
         ord.forEach((f, i) => {
           const y = 8 + i * rh,
-            v = imp[f] / tot;
-          gc.fillStyle = t.ink;
+            v = featureGainTotals[f] / tot;
+          gc.fillStyle = colors.ink;
           gc.textAlign = 'right';
           gc.fillText(D.names[f].slice(0, 24), lw - 8, y + rh / 2 + 4);
-          gc.fillStyle = mix(t.muted, t.muted, 0, 0.14);
+          gc.fillStyle = mix(colors.muted, colors.muted, 0, 0.14);
           gc.fillRect(lw, y + rh * 0.2, w - lw - 56, rh * 0.6);
-          gc.fillStyle = t.gold;
+          gc.fillStyle = colors.gold;
           gc.fillRect(lw, y + rh * 0.2, (w - lw - 56) * v, rh * 0.6);
-          gc.fillStyle = t.muted;
+          gc.fillStyle = colors.muted;
           gc.textAlign = 'left';
           gc.fillText((100 * v).toFixed(0) + '%', w - 50, y + rh / 2 + 4);
         });
       }
       {
-        const { g: gc, w, h: hh } = fit(cP);
+        const { g: gc, w, h: hh } = prepareCanvas(cP);
         if (D.clf) {
-          const P = plot(gc, w, hh, [0, 1], [-0.6, 1.6], t, {
+          const P = plot(gc, w, hh, [0, 1], [-0.6, 1.6], colors, {
             xstep: 0.25,
             xlabel: 'predicted chance of “' + String(D.cls[1]).slice(0, 10) + '”',
           });
           gc.font = MONO;
-          gc.fillStyle = t.muted;
+          gc.fillStyle = colors.muted;
           gc.textAlign = 'right';
           gc.fillText(String(D.cls[1]).slice(0, 5), P.m.l - 4, P.Y(1) + 4);
           gc.fillText(String(D.cls[0]).slice(0, 5), P.m.l - 4, P.Y(0) + 4);
           clipPlot(gc, P);
           gc.setLineDash([5, 4]);
-          gc.strokeStyle = t.muted;
+          gc.strokeStyle = colors.muted;
           gc.beginPath();
           gc.moveTo(P.X(0.5), P.Y(-0.6));
           gc.lineTo(P.X(0.5), P.Y(1.6));
@@ -497,14 +499,14 @@ export default {
           const r = rng(4);
           for (const q of D.te) {
             const p = sig(F[q]);
-            gc.fillStyle = mix(D.y[q] ? t.gold : t.accent, t.bg, 0, 0.75);
+            gc.fillStyle = mix(D.y[q] ? colors.gold : colors.accent, colors.bg, 0, 0.75);
             gc.beginPath();
             gc.arc(P.X(p), P.Y(D.y[q] + (r() - 0.5) * 0.5), 3.4, 0, 7);
             gc.fill();
           }
           gc.restore();
           gc.textAlign = 'left';
-          gc.fillStyle = t.muted;
+          gc.fillStyle = colors.muted;
           gc.fillText(
             'upper band = truly “' +
               String(D.cls[1]).slice(0, 8) +
@@ -521,23 +523,23 @@ export default {
             hi = Math.max(hi, p, D.yr[q]);
           }
           const pad = (hi - lo) * 0.06 || 1,
-            P = plot(gc, w, hh, [lo - pad, hi + pad], [lo - pad, hi + pad], t, {
+            P = plot(gc, w, hh, [lo - pad, hi + pad], [lo - pad, hi + pad], colors, {
               xstep: (hi - lo) / 4 || 1,
               xlabel: 'actual',
             });
           gc.font = MONO;
-          gc.fillStyle = t.muted;
+          gc.fillStyle = colors.muted;
           gc.textAlign = 'right';
           [lo, hi].forEach((v) => gc.fillText(+v.toPrecision(3) + '', P.m.l - 4, P.Y(v) + 4));
           clipPlot(gc, P);
           gc.setLineDash([5, 4]);
-          gc.strokeStyle = t.muted;
+          gc.strokeStyle = colors.muted;
           gc.beginPath();
           gc.moveTo(P.X(lo - pad), P.Y(lo - pad));
           gc.lineTo(P.X(hi + pad), P.Y(hi + pad));
           gc.stroke();
           gc.setLineDash([]);
-          gc.fillStyle = mix(t.accent, t.accent, 0, 0.7);
+          gc.fillStyle = mix(colors.accent, colors.accent, 0, 0.7);
           for (const q of D.te) {
             gc.beginPath();
             gc.arc(P.X(D.yr[q]), P.Y(D.mu + D.sd * F[q]), 3.4, 0, 7);
@@ -545,7 +547,7 @@ export default {
           }
           gc.restore();
           gc.textAlign = 'left';
-          gc.fillStyle = t.muted;
+          gc.fillStyle = colors.muted;
           gc.fillText(
             'predicted (up) against actual (across); on the dashed line = exact',
             P.m.l + 6,
@@ -554,11 +556,11 @@ export default {
         }
       }
       live.textContent = msg;
-      const cu = !k ? 0 : k >= S.B ? 5 : 4;
+      const cu = !k ? 0 : k >= settings.B ? 5 : 4;
       root
         .querySelectorAll('#xgb-steps li')
         .forEach((e, i) => e.setAttribute('aria-current', i === cu ? 'true' : 'false'));
-      const fx = Fx(tpv);
+      const fx = Fx(probeFeatures);
       tpo.textContent = D.clf
         ? 'For this row the model gives a ' +
           (100 * sig(fx)).toFixed(1) +
@@ -572,13 +574,13 @@ export default {
       eTe.forEach((v, i) => {
         if (v < eTe[bi]) bi = i;
       });
-      setR(root, 'k', k + ' of ' + S.B);
-      setR(root, 'tr', k ? f3(eTr[k - 1]) : f3(loss(D.tr)));
-      setR(root, 'te', k ? f3(eTe[k - 1]) : f3(loss(D.te)));
-      setR(root, 'best', k ? String(bi + 1) : '–');
-      setR(root, 'lv', last ? String(lvs(last.root)) : '–');
-      setR(root, 'pr', String(pruned));
-      setR(
+      setReadout(root, 'k', k + ' of ' + settings.B);
+      setReadout(root, 'tr', k ? f3(eTr[k - 1]) : f3(loss(D.tr)));
+      setReadout(root, 'te', k ? f3(eTe[k - 1]) : f3(loss(D.te)));
+      setReadout(root, 'best', k ? String(bi + 1) : '–');
+      setReadout(root, 'lv', last ? String(lvs(last.root)) : '–');
+      setReadout(root, 'pr', String(pruned));
+      setReadout(
         root,
         'acc',
         D.clf
@@ -593,7 +595,7 @@ export default {
     setData(p0.names, p0.rows, p0.t);
     for (let i = 0; i < 20; i++) add();
     const anim = Anim(() => {
-      fr++;
+      frameCount++;
       if (wait > 0) {
         wait--;
         if (!wait) {
@@ -602,22 +604,25 @@ export default {
         }
         return;
       }
-      if (fr % (trees.length < 6 ? 40 : 8)) return;
-      if (trees.length < S.B) {
+      if (frameCount % (trees.length < 6 ? 40 : 8)) return;
+      if (trees.length < settings.B) {
         add();
         draw();
-      } else pb.stop();
+      } else playback.stop();
     });
-    pb = playBtn($('#xgb-play', root), anim);
-    runCtl(pb, root, 'xgb', { done: () => trees.length >= S.B, restart: () => reset() });
+    playback = playBtn($('#xgb-play', root), anim);
+    attachRunLimit(playback, root, 'xgb', {
+      done: () => trees.length >= settings.B,
+      restart: () => reset(),
+    });
     $('#xgb-step', root).onclick = () => {
-      pb.stop();
-      if (trees.length >= S.B) reset();
+      playback.stop();
+      if (trees.length >= settings.B) reset();
       else add();
       draw();
     };
     $('#xgb-reset', root).onclick = () => {
-      pb.stop();
+      playback.stop();
       reset();
       draw();
     };
@@ -629,39 +634,39 @@ export default {
       root,
       'xgb-B',
       (v) => {
-        S.B = v;
+        settings.B = v;
         rs();
       },
       (v) => String(v),
     );
     bind(root, 'xgb-eta', (v) => {
-      S.eta = v;
+      settings.eta = v;
       rs();
     });
     bind(
       root,
       'xgb-depth',
       (v) => {
-        S.depth = v;
+        settings.depth = v;
         rs();
       },
       (v) => String(v),
     );
     bind(root, 'xgb-gam', (v) => {
-      S.gam = v;
+      settings.gam = v;
       rs();
     });
     bind(
       root,
       'xgb-lam',
       (v) => {
-        S.lam = v;
+        settings.lam = v;
         rs();
       },
       (v) => (+v).toFixed(1),
     );
     bind(root, 'xgb-sub', (v) => {
-      S.sub = v;
+      settings.sub = v;
       rs();
     });
     $('#xgb-ds', root).onchange = (e) => {
@@ -709,7 +714,7 @@ export default {
         }
         o.textContent = 'Your CSV: ' + f.name.slice(0, 24);
         $('#xgb-ds', root).value = 'csv';
-        pb.stop();
+        playback.stop();
         setData(names, rows, names.length - 1);
         draw();
       };
@@ -718,11 +723,11 @@ export default {
     };
     return {
       draw,
-      stop: () => pb.stop(),
+      stop: () => playback.stop(),
       auto: () => {
         reset();
         draw();
-        pb.start();
+        playback.start();
       },
     };
   },

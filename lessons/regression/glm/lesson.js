@@ -3,8 +3,8 @@ import {
   $,
   Anim,
   MONO,
-  RM,
-  T,
+  prefersReducedMotion,
+  readThemeColors,
   bind,
   clamp,
   clipPlot,
@@ -12,27 +12,27 @@ import {
   eqShow,
   f2,
   f3,
-  fit,
+  prepareCanvas,
   markTP,
   mix,
   playBtn,
   plot,
   randnFrom,
   rng,
-  runCtl,
-  setR,
+  attachRunLimit,
+  setReadout,
   testPoint,
 } from '../../../js/core/shared.js';
-import { dotAt, segBind, uCur, xyUp } from '../../unsupervised/shared.js';
+import { dotAt, segBind, highlightLessonStep, xyUp } from '../../unsupervised/shared.js';
 import { pct } from '../../ensembles/shared.js';
 
 export default {
   init(root) {
-    const c = $('#gl-c', root),
+    const mainCanvas = $('#gl-c', root),
       cr = $('#gl-r', root),
       live = $('#gl-live', root),
       eq = $('#gl-eq', root),
-      S = { f: 'pois', n: 40 },
+      settings = { f: 'pois', n: 40 },
       CFG = {
         pois: {
           xr: [8, 36],
@@ -71,12 +71,12 @@ export default {
       it = 0,
       fin = false,
       dev = NaN,
-      dev0 = NaN,
+      nullDeviance = NaN,
       msg = '',
-      cu = 0,
+      activeStepIndex = 0,
       seed = 1,
-      pb,
-      chk = () => false,
+      playback,
+      checkRunStop = () => false,
       ols = [0, 0],
       Z = [],
       W = [],
@@ -94,16 +94,16 @@ export default {
     const gen = () => {
       const r = rng(seed * 31 + 7),
         rn = randnFrom(r),
-        C = CFG[S.f];
+        C = CFG[settings.f];
       D = [];
       up = false;
-      for (let i = 0; i < S.n; i++) {
+      for (let i = 0; i < settings.n; i++) {
         const x = C.xr[0] + (C.xr[1] - C.xr[0]) * (0.03 + 0.94 * r());
         D.push([
           x,
-          S.f === 'pois'
+          settings.f === 'pois'
             ? pois(Math.exp(-1.1 + 0.135 * x), r)
-            : S.f === 'bern'
+            : settings.f === 'bern'
               ? r() < 1 / (1 + Math.exp(-(-4.2 + 0.85 * x)))
                 ? 1
                 : 0
@@ -112,33 +112,33 @@ export default {
       }
     };
     const devOf = (a, b) => {
-      const C = CFG[S.f];
+      const C = CFG[settings.f];
       let d = 0;
       for (const [x, y] of D) {
         const m = C.inv(a + b * x);
         d +=
-          S.f === 'pois'
+          settings.f === 'pois'
             ? 2 * ((y > 0 ? y * Math.log(y / m) : 0) - (y - m))
-            : S.f === 'bern'
+            : settings.f === 'bern'
               ? -2 * (y * Math.log(Math.max(m, 1e-12)) + (1 - y) * Math.log(Math.max(1 - m, 1e-12)))
               : (y - m) ** 2;
       }
       return d;
     };
-    const work = () => {
+    const updateWorkingData = () => {
       Z = [];
       W = [];
-      const C = CFG[S.f];
+      const C = CFG[settings.f];
       for (const [x, y] of D) {
         const e = a + b * x,
           m = C.inv(e),
-          dm = S.f === 'pois' ? m : S.f === 'bern' ? Math.max(m * (1 - m), 1e-9) : 1;
+          dm = settings.f === 'pois' ? m : settings.f === 'bern' ? Math.max(m * (1 - m), 1e-9) : 1;
         Z.push(e + (y - m) / dm);
         W.push(dm);
       }
     };
     const reset = () => {
-      const C = CFG[S.f],
+      const C = CFG[settings.f],
         n = D.length;
       let my = 0,
         mx = 0;
@@ -146,12 +146,12 @@ export default {
         mx += d[0] / n;
         my += d[1] / n;
       }
-      my = S.f === 'bern' ? clamp(my, 0.02, 0.98) : Math.max(my, 0.05);
+      my = settings.f === 'bern' ? clamp(my, 0.02, 0.98) : Math.max(my, 0.05);
       a = C.lnk(my);
       b = 0;
       it = 0;
       fin = false;
-      dev = dev0 = devOf(a, b);
+      dev = nullDeviance = devOf(a, b);
       let sxx = 0,
         sxy = 0;
       for (const d of D) {
@@ -159,8 +159,8 @@ export default {
         sxy += (d[0] - mx) * (d[1] - my);
       }
       ols = [my - (sxy / sxx) * mx, sxy / sxx];
-      work();
-      cu = 0;
+      updateWorkingData();
+      activeStepIndex = 0;
       msg =
         'Start: a flat model that predicts the average, ' +
         f2(my) +
@@ -169,7 +169,7 @@ export default {
     };
     const step = () => {
       if (fin) return;
-      work();
+      updateWorkingData();
       let sw = 0,
         sx = 0,
         sz = 0,
@@ -198,7 +198,7 @@ export default {
             ', y = ' +
             f2(D[k][1]) +
             ', fitted mean ' +
-            f2(CFG[S.f].inv(a + b * D[k][0])) +
+            f2(CFG[settings.f].inv(a + b * D[k][0])) +
             ' → working value z = ' +
             f3(Z[k]) +
             ', weight ' +
@@ -213,8 +213,8 @@ export default {
       a = na;
       b = nb;
       dev = d1;
-      work();
-      cu = 3;
+      updateWorkingData();
+      activeStepIndex = 3;
       msg =
         'Refit ' +
         it +
@@ -225,71 +225,72 @@ export default {
         '.';
       if (Math.abs(gain) < 1e-8 || it >= 50) {
         fin = true;
-        cu = 5;
+        activeStepIndex = 5;
         msg =
           'Stopped after ' +
           it +
           ' refit' +
           (it === 1 ? '' : 's') +
           ': the fit has stopped changing. ' +
-          (S.f === 'gaus'
+          (settings.f === 'gaus'
             ? 'With Gaussian data the first refit is already ordinary least squares, and the second only confirms it.'
-            : 'Deviance ' + f2(dev) + ', against ' + f2(dev0) + ' for the flat model.');
+            : 'Deviance ' + f2(dev) + ', against ' + f2(nullDeviance) + ' for the flat model.');
       }
     };
     const tp = testPoint(root, 'gl', ['Your x'], [CFG.pois.tp], [[0, 40]]);
     const draw = () => {
-      const t = T(),
-        C = CFG[S.f];
+      const colors = readThemeColors(),
+        C = CFG[settings.f];
       {
-        const { g, w, h } = fit(c),
-          P = plot(g, w, h, C.xr, C.yr, t, {
+        const { g: ctx, w, h } = prepareCanvas(mainCanvas),
+          P = plot(ctx, w, h, C.xr, C.yr, colors, {
             xstep: C.xs,
             xlabel: C.xl,
-            yticks: S.f === 'bern' ? [0, 0.5, 1] : [0, 20, 40, 60],
+            yticks: settings.f === 'bern' ? [0, 0.5, 1] : [0, 20, 40, 60],
           });
-        clipPlot(g, P);
-        g.strokeStyle = t.muted;
-        g.lineWidth = 1.5;
-        g.setLineDash([6, 5]);
-        curve(g, P, (x) => ols[0] + ols[1] * x, C.xr[0], C.xr[1]);
-        g.stroke();
-        g.setLineDash([]);
-        if (S.f === 'pois') {
-          g.fillStyle = mix(t.accent, t.accent, 0, 0.13);
-          g.beginPath();
+        clipPlot(ctx, P);
+        ctx.strokeStyle = colors.muted;
+        ctx.lineWidth = 1.5;
+        ctx.setLineDash([6, 5]);
+        curve(ctx, P, (x) => ols[0] + ols[1] * x, C.xr[0], C.xr[1]);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        if (settings.f === 'pois') {
+          ctx.fillStyle = mix(colors.accent, colors.accent, 0, 0.13);
+          ctx.beginPath();
           for (let i = 0; i <= 80; i++) {
             const x = C.xr[0] + ((C.xr[1] - C.xr[0]) * i) / 80,
               m = C.inv(a + b * x);
-            g.lineTo(P.X(x), P.Y(m + 2 * Math.sqrt(m)));
+            ctx.lineTo(P.X(x), P.Y(m + 2 * Math.sqrt(m)));
           }
           for (let i = 80; i >= 0; i--) {
             const x = C.xr[0] + ((C.xr[1] - C.xr[0]) * i) / 80,
               m = C.inv(a + b * x);
-            g.lineTo(P.X(x), P.Y(Math.max(0, m - 2 * Math.sqrt(m))));
+            ctx.lineTo(P.X(x), P.Y(Math.max(0, m - 2 * Math.sqrt(m))));
           }
-          g.fill();
+          ctx.fill();
         }
-        for (const [x, y] of D) dotAt(g, P.X(x), P.Y(y), 3.5, mix(t.ink, t.ink, 0, 0.6));
-        g.strokeStyle = t.accent;
-        g.lineWidth = 2.8;
-        curve(g, P, (x) => C.inv(a + b * x), C.xr[0], C.xr[1]);
-        g.stroke();
+        for (const [x, y] of D)
+          dotAt(ctx, P.X(x), P.Y(y), 3.5, mix(colors.ink, colors.ink, 0, 0.6));
+        ctx.strokeStyle = colors.accent;
+        ctx.lineWidth = 2.8;
+        curve(ctx, P, (x) => C.inv(a + b * x), C.xr[0], C.xr[1]);
+        ctx.stroke();
         const xv = clamp(tp.v[0], C.xr[0], C.xr[1]),
           pm = C.inv(a + b * xv);
-        markTP(g, P.X(xv), P.Y(pm), t, false);
-        g.restore();
-        g.font = MONO;
-        g.fillStyle = t.muted;
-        g.textAlign = 'left';
-        g.fillText(C.yl, P.m.l + 6, P.m.t + 8);
+        markTP(ctx, P.X(xv), P.Y(pm), colors, false);
+        ctx.restore();
+        ctx.font = MONO;
+        ctx.fillStyle = colors.muted;
+        ctx.textAlign = 'left';
+        ctx.fillText(C.yl, P.m.l + 6, P.m.t + 8);
         tp.out.textContent =
           'At x = ' +
           f2(xv) +
           ' the model predicts ' +
-          (S.f === 'bern'
+          (settings.f === 'bern'
             ? 'a ' + pct(pm) + ' chance of passing'
-            : S.f === 'pois'
+            : settings.f === 'pois'
               ? f2(pm) +
                 ' ice creams on average, usually between ' +
                 Math.max(0, Math.round(pm - 2 * Math.sqrt(pm))) +
@@ -301,29 +302,35 @@ export default {
           '.';
       }
       {
-        const { g, w, h } = fit(cr),
+        const { g: ctx, w, h } = prepareCanvas(cr),
           zs = Z.filter(isFinite),
-          lo = Math.min(...zs, C.lnk(S.f === 'bern' ? 0.02 : 0.5)),
+          lo = Math.min(...zs, C.lnk(settings.f === 'bern' ? 0.02 : 0.5)),
           hi = Math.max(...zs),
           pad = 0.08 * (hi - lo + 1e-9),
-          P = plot(g, w, h, C.xr, [lo - pad, hi + pad], t, { xstep: C.xs, xlabel: C.xl });
-        clipPlot(g, P);
+          P = plot(ctx, w, h, C.xr, [lo - pad, hi + pad], colors, { xstep: C.xs, xlabel: C.xl });
+        clipPlot(ctx, P);
         const wm = Math.max(...W);
         D.forEach(([x], i) =>
-          dotAt(g, P.X(x), P.Y(Z[i]), 1.5 + 5 * Math.sqrt(W[i] / wm), mix(t.gold, t.gold, 0, 0.6)),
+          dotAt(
+            ctx,
+            P.X(x),
+            P.Y(Z[i]),
+            1.5 + 5 * Math.sqrt(W[i] / wm),
+            mix(colors.gold, colors.gold, 0, 0.6),
+          ),
         );
-        g.strokeStyle = t.accent;
-        g.lineWidth = 2.6;
-        curve(g, P, (x) => a + b * x, C.xr[0], C.xr[1], 2);
-        g.stroke();
-        g.restore();
-        g.font = MONO;
-        g.fillStyle = t.muted;
-        g.textAlign = 'left';
-        g.fillText(
-          S.f === 'pois'
+        ctx.strokeStyle = colors.accent;
+        ctx.lineWidth = 2.6;
+        curve(ctx, P, (x) => a + b * x, C.xr[0], C.xr[1], 2);
+        ctx.stroke();
+        ctx.restore();
+        ctx.font = MONO;
+        ctx.fillStyle = colors.muted;
+        ctx.textAlign = 'left';
+        ctx.fillText(
+          settings.f === 'pois'
             ? 'log of the expected count'
-            : S.f === 'bern'
+            : settings.f === 'bern'
               ? 'log-odds of passing'
               : 'height (the link changes nothing)',
           P.m.l + 6,
@@ -333,31 +340,31 @@ export default {
       let bad = 0;
       for (const [x] of D) {
         const v = ols[0] + ols[1] * x;
-        if ((S.f === 'pois' && v < 0) || (S.f === 'bern' && (v < 0 || v > 1))) bad++;
+        if ((settings.f === 'pois' && v < 0) || (settings.f === 'bern' && (v < 0 || v > 1))) bad++;
       }
       const lo = ols[0] + ols[1] * C.xr[0],
         hi = ols[0] + ols[1] * C.xr[1];
       live.textContent = msg;
-      uCur(root, 'gl', cu);
-      setR(root, 'it', it + (fin ? ' (stopped)' : ''));
-      setR(root, 'ab', f3(a) + ' and ' + f3(b));
-      setR(root, 'dev', f2(dev));
-      setR(root, 'dev0', f2(dev0));
-      setR(
+      highlightLessonStep(root, 'gl', activeStepIndex);
+      setReadout(root, 'it', it + (fin ? ' (stopped)' : ''));
+      setReadout(root, 'ab', f3(a) + ' and ' + f3(b));
+      setReadout(root, 'dev', f2(dev));
+      setReadout(root, 'dev0', f2(nullDeviance));
+      setReadout(
         root,
         'mean',
-        S.f === 'pois'
+        settings.f === 'pois'
           ? 'multiplies the expected count by ' + f3(Math.exp(b))
-          : S.f === 'bern'
+          : settings.f === 'bern'
             ? 'multiplies the odds of passing by ' + f2(Math.exp(b))
             : 'adds ' + f2(b) + ' cm',
       );
-      setR(
+      setReadout(
         root,
         'bad',
-        S.f === 'gaus'
+        settings.f === 'gaus'
           ? 'none: a straight line is the right model here'
-          : S.f === 'pois'
+          : settings.f === 'pois'
             ? lo < 0
               ? 'below zero at the cold end (' + f2(lo) + ' at ' + C.xr[0] + ' °C)'
               : 'none on this range'
@@ -369,81 +376,81 @@ export default {
     tp.on = () => draw();
     gen();
     reset();
-    if (RM) {
+    if (prefersReducedMotion) {
       while (!fin) step();
     }
-    let fr = 0;
+    let frameCount = 0;
     const anim = Anim(() => {
       if (fin) {
-        pb.stop();
+        playback.stop();
         return;
       }
-      if (++fr % 45) return;
+      if (++frameCount % 45) return;
       step();
       draw();
-      chk();
+      checkRunStop();
     });
-    pb = playBtn($('#gl-play', root), anim);
-    chk = runCtl(pb, root, 'gl', {
+    playback = playBtn($('#gl-play', root), anim);
+    checkRunStop = attachRunLimit(playback, root, 'gl', {
       done: () => fin,
       restart: reset,
       count: () => it,
       what: 'refits',
     });
     $('#gl-step', root).onclick = () => {
-      pb.stop();
+      playback.stop();
       if (fin) reset();
       else step();
       draw();
     };
     $('#gl-reset', root).onclick = () => {
-      pb.stop();
+      playback.stop();
       reset();
       draw();
     };
     $('#gl-new', root).onclick = () => {
-      pb.stop();
+      playback.stop();
       seed++;
       gen();
       reset();
       draw();
-      fr = 20;
-      pb.start();
+      frameCount = 20;
+      playback.start();
     };
     bind(
       root,
       'gl-n',
       (v) => {
-        S.n = v;
-        pb.stop();
+        settings.n = v;
+        playback.stop();
         gen();
         reset();
         draw();
       },
       (v) => String(+v),
     );
-    segBind(root, 'gl-f', S.f, (v) => {
-      S.f = v;
-      pb.stop();
+    segBind(root, 'gl-f', settings.f, (v) => {
+      settings.f = v;
+      playback.stop();
       tp.set([CFG[v].tp]);
       gen();
       reset();
       draw();
-      fr = 20;
-      pb.start();
+      frameCount = 20;
+      playback.start();
     });
     xyUp(
       root,
       'gl',
       (q) => {
         const st = $('#gl-st', root),
-          C = CFG[S.f];
-        if (S.f === 'bern' && q.some((d) => d[1] !== 0 && d[1] !== 1)) {
+          C = CFG[settings.f];
+        if (settings.f === 'bern' && q.some((d) => d[1] !== 0 && d[1] !== 1)) {
           st.textContent =
             'For yes-or-no data the second column must contain only 0 and 1. Choose another kind of data or another file.';
           return;
         }
-        if (S.f === 'pois' && q.some((d) => d[1] < 0 || d[1] !== Math.round(d[1]))) {
+        if (settings.f === 'pois' && q.some((d) => d[1] < 0 || d[1] !== Math.round(d[1]))) {
           st.textContent =
             'For counts the second column must contain whole numbers of zero or more. Choose another kind of data or another file.';
           return;
@@ -453,11 +460,15 @@ export default {
           y1 = Math.max(...q.map((d) => d[1]));
         D = q.map((d) => [
           C.xr[0] + ((d[0] - x0) / (x1 - x0 || 1)) * (C.xr[1] - C.xr[0]),
-          S.f === 'bern' ? d[1] : S.f === 'pois' && y1 <= 60 ? d[1] : (d[1] / (y1 || 1)) * 55,
+          settings.f === 'bern'
+            ? d[1]
+            : settings.f === 'pois' && y1 <= 60
+              ? d[1]
+              : (d[1] / (y1 || 1)) * 55,
         ]);
-        if (S.f === 'pois') D = D.map((d) => [d[0], Math.round(d[1])]);
+        if (settings.f === 'pois') D = D.map((d) => [d[0], Math.round(d[1])]);
         st.textContent += ' The x column was rescaled to the axis shown.';
-        pb.stop();
+        playback.stop();
         reset();
         draw();
       },
@@ -465,12 +476,12 @@ export default {
     );
     return {
       draw,
-      stop: () => pb.stop(),
+      stop: () => playback.stop(),
       auto: () => {
         reset();
         draw();
-        fr = 20;
-        pb.start();
+        frameCount = 20;
+        playback.start();
       },
     };
   },

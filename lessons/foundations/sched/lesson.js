@@ -4,5 +4,5 @@ import { gdLesson } from '../shared.js';
 export default gdLesson({
   id: 'sched',
   mode: 'sched',
-  surf: 'banana',
+  surfaceId: 'banana',
 });

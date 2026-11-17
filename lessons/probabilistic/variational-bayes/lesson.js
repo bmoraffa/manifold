@@ -2,8 +2,8 @@
 import {
   $,
   Anim,
-  RM,
-  T,
+  prefersReducedMotion,
+  readThemeColors,
   bind,
   clamp,
   ellPath,
@@ -11,13 +11,20 @@ import {
   erf,
   f2,
   f3,
-  fit,
+  prepareCanvas,
   mix,
   playBtn,
-  runCtl,
-  setR,
+  attachRunLimit,
+  setReadout,
 } from '../../../js/core/shared.js';
-import { canvasXY, dotAt, segBind, uCur, uLine, uView } from '../../unsupervised/shared.js';
+import {
+  canvasXY,
+  dotAt,
+  segBind,
+  highlightLessonStep,
+  drawSeriesChart,
+  uView,
+} from '../../unsupervised/shared.js';
 import { g2Note } from '../../generative/shared.js';
 import { pct } from '../../ensembles/shared.js';
 
@@ -27,7 +34,7 @@ export default {
       cr = $('#vb-r', root),
       live = $('#vb-live', root),
       eq = $('#vb-eq', root),
-      S = { tg: 'corr', f: 'mf', sp: 2 },
+      settings = { tg: 'corr', f: 'mf', sp: 2 },
       GW = 64,
       GH = 48,
       XR = 4,
@@ -72,29 +79,29 @@ export default {
     let lp,
       dens,
       dmax = 1,
-      margT,
+      targetMarginalX,
       lz = 0,
-      tm = [0, 0],
-      tC = [1, 0, 1],
-      rT = 0,
+      targetMean = [0, 0],
+      targetCovariance = [1, 0, 1],
+      targetRightMass = 0,
       th = [0, 0, 0, 0, 0],
       path = [],
       hist = [],
       it = 0,
       fin = false,
       msg = '',
-      cu = 0,
-      pb,
-      chk = () => false,
+      activeStepIndex = 0,
+      playback,
+      checkRunStop = () => false,
       P = null,
       ad = null,
-      small = 0,
+      smallGainStreak = 0,
       start = [-2.6, 1.6],
-      fr = 0;
+      frameCount = 0;
     const setup = () => {
-      lp = LP[S.tg];
+      lp = LP[settings.tg];
       dens = new Float64Array(GW * GH);
-      margT = new Float64Array(NB);
+      targetMarginalX = new Float64Array(NB);
       let tot = 0,
         sx = 0,
         sy = 0,
@@ -116,14 +123,18 @@ export default {
           sxy += d * px * py;
           syy += d * py * py;
           if (px > 0) rr += d;
-          margT[Math.min(NB - 1, Math.floor(((px + XR) / (2 * XR)) * NB))] += d;
+          targetMarginalX[Math.min(NB - 1, Math.floor(((px + XR) / (2 * XR)) * NB))] += d;
         }
       dmax = Math.max(...dens);
-      for (let i = 0; i < NB; i++) margT[i] /= tot;
+      for (let i = 0; i < NB; i++) targetMarginalX[i] /= tot;
       lz = Math.log(tot * da);
-      tm = [sx / tot, sy / tot];
-      tC = [sxx / tot - tm[0] ** 2, sxy / tot - tm[0] * tm[1], syy / tot - tm[1] ** 2];
-      rT = rr / tot;
+      targetMean = [sx / tot, sy / tot];
+      targetCovariance = [
+        sxx / tot - targetMean[0] ** 2,
+        sxy / tot - targetMean[0] * targetMean[1],
+        syy / tot - targetMean[1] ** 2,
+      ];
+      targetRightMass = rr / tot;
     };
     const cov = (t) => {
       const a = Math.exp(t[2]),
@@ -139,7 +150,7 @@ export default {
       for (const z of ZS) s += lp(t[0] + a * z[0], t[1] + b * z[0] + cc * z[1]);
       return s / K + t[2] + t[3] + 1 + Math.log(2 * Math.PI);
     };
-    const exact = () => S.tg === 'corr' && S.f === 'mf';
+    const exact = () => settings.tg === 'corr' && settings.f === 'mf';
     const reset = () => {
       th = [
         start[0],
@@ -152,35 +163,35 @@ export default {
       it = 0;
       fin = false;
       ad = null;
-      small = 0;
-      cu = 1;
+      smallGainStreak = 0;
+      activeStepIndex = 1;
       hist = [elbo(th)];
-      if (S.f === 'fwd') {
-        const L11 = Math.sqrt(tC[0]),
-          L21 = tC[1] / L11,
-          L22 = Math.sqrt(Math.max(1e-9, tC[2] - L21 * L21));
-        th = [tm[0], tm[1], Math.log(L11), Math.log(L22), L21];
+      if (settings.f === 'fwd') {
+        const L11 = Math.sqrt(targetCovariance[0]),
+          L21 = targetCovariance[1] / L11,
+          L22 = Math.sqrt(Math.max(1e-9, targetCovariance[2] - L21 * L21));
+        th = [targetMean[0], targetMean[1], Math.log(L11), Math.log(L22), L21];
         path = [[th[0], th[1]]];
         hist = [elbo(th)];
         fin = true;
-        cu = 5;
+        activeStepIndex = 5;
         msg =
           'Moment matching needs no iterations: the bell is given the mean and covariance of the true belief, computed here from the grid. It covers everything the truth covers' +
-          (S.tg === 'two'
+          (settings.tg === 'two'
             ? ', including the empty gap between the islands, where it puts its peak.'
-            : S.tg === 'banana'
+            : settings.tg === 'banana'
               ? ', and a good deal of empty space inside the curve of the banana.'
               : ', and for a bell-shaped truth that is the exact answer.');
         eqShow(
           eq,
           [
-            'mean of the truth: (' + f2(tm[0]) + ', ' + f2(tm[1]) + ')',
+            'mean of the truth: (' + f2(targetMean[0]) + ', ' + f2(targetMean[1]) + ')',
             'variances: ' +
-              f2(tC[0]) +
+              f2(targetCovariance[0]) +
               ' left-right, ' +
-              f2(tC[2]) +
+              f2(targetCovariance[2]) +
               ' up-down; covariance ' +
-              f2(tC[1]),
+              f2(targetCovariance[1]),
             'q is the bell with exactly these moments. This minimizes KL(p ‖ q).',
           ],
           0,
@@ -244,7 +255,7 @@ export default {
               ' = <b>' +
               f3(1 / Math.sqrt(j ? LAM[2] : LAM[0])) +
               '</b> (the true spread is ' +
-              f3(Math.sqrt(j ? tC[2] : tC[0])) +
+              f3(Math.sqrt(j ? targetCovariance[2] : targetCovariance[0])) +
               ')',
             'the centre moved by ' + f3(Math.abs(nv - old)),
           ],
@@ -252,7 +263,7 @@ export default {
         );
       } else {
         if (!ad) ad = { m: [0, 0, 0, 0, 0], v: [0, 0, 0, 0, 0], t: 0 };
-        const np = S.f === 'full' ? 5 : 4,
+        const np = settings.f === 'full' ? 5 : 4,
           g = [0, 0, 0, 0, 0];
         for (let i = 0; i < np; i++) {
           const a = th.slice(),
@@ -288,7 +299,7 @@ export default {
                 ', ' +
                 f3(g[3]) +
                 ')' +
-                (S.f === 'full' ? ', and to the tilt: ' + f3(g[4]) : ''),
+                (settings.f === 'full' ? ', and to the tilt: ' + f3(g[4]) : ''),
               'centre → (' +
                 f3(th[0]) +
                 ', ' +
@@ -305,9 +316,9 @@ export default {
       path.push([th[0], th[1]]);
       const e1 = elbo(th);
       hist.push(e1);
-      cu = exact() ? 3 : 3;
+      activeStepIndex = exact() ? 3 : 3;
       const gain = e1 - e0;
-      small = Math.abs(gain) < 1e-5 ? small + 1 : 0;
+      smallGainStreak = Math.abs(gain) < 1e-5 ? smallGainStreak + 1 : 0;
       msg =
         'Step ' +
         it +
@@ -319,12 +330,12 @@ export default {
         '). Gap to the true log evidence: ' +
         f3(Math.max(0, lz - e1)) +
         '.';
-      if (small >= (exact() ? 2 : 10) || it >= 2500) {
+      if (smallGainStreak >= (exact() ? 2 : 10) || it >= 2500) {
         fin = true;
-        cu = 5;
+        activeStepIndex = 5;
         const C = cov(th),
-          rx = Math.sqrt(C[0] / tC[0]),
-          ry = Math.sqrt(C[2] / tC[2]);
+          rx = Math.sqrt(C[0] / targetCovariance[0]),
+          ry = Math.sqrt(C[2] / targetCovariance[2]);
         msg =
           'Stopped after ' +
           it +
@@ -333,7 +344,7 @@ export default {
           ', ' +
           f3(Math.max(0, lz - e1)) +
           ' below the true log evidence. ' +
-          (S.tg === 'two'
+          (settings.tg === 'two'
             ? 'The approximation has settled on the ' +
               (th[0] < 0 ? 'left' : 'right') +
               ' island and ignores the other, which holds half of the probability.'
@@ -357,7 +368,7 @@ export default {
       );
     };
     const draw = () => {
-      const t = T(),
+      const colors = readThemeColors(),
         C = cov(th);
       {
         const V = uView(c),
@@ -367,39 +378,44 @@ export default {
           for (let q = 0; q < GW; q++) {
             const v = dens[r * GW + q] / dmax;
             if (v < 0.01) continue;
-            g.fillStyle = mix(t.accent, t.accent, 0, Math.min(0.85, Math.pow(v, 0.55) * 0.8));
+            g.fillStyle = mix(
+              colors.accent,
+              colors.accent,
+              0,
+              Math.min(0.85, Math.pow(v, 0.55) * 0.8),
+            );
             const xa = Math.round(X(-XR + (2 * XR * q) / GW)),
               xb = Math.round(X(-XR + (2 * XR * (q + 1)) / GW)),
               ya = Math.round(Y(YR - (2 * YR * r) / GH)),
               yb = Math.round(Y(YR - (2 * YR * (r + 1)) / GH));
             g.fillRect(xa, ya, xb - xa, yb - ya);
           }
-        g.strokeStyle = mix(t.gold, t.gold, 0, 0.7);
+        g.strokeStyle = mix(colors.gold, colors.gold, 0, 0.7);
         g.lineWidth = 1.4;
         g.beginPath();
         path.forEach((p, i) => (i ? g.lineTo(X(p[0]), Y(p[1])) : g.moveTo(X(p[0]), Y(p[1]))));
         g.stroke();
-        g.strokeStyle = t.gold;
+        g.strokeStyle = colors.gold;
         for (const r of [1, 2]) {
           g.lineWidth = r === 1 ? 2.8 : 1.6;
           ellPath(g, X, Y, th[0], th[1], C[0], C[1], C[2], r);
           g.stroke();
         }
         g.lineWidth = 2;
-        dotAt(g, X(th[0]), Y(th[1]), 5, t.gold, t.bg);
+        dotAt(g, X(th[0]), Y(th[1]), 5, colors.gold, colors.bg);
         g2Note(
           g,
-          t,
+          colors,
           h,
-          S.f === 'mf'
+          settings.f === 'mf'
             ? 'mean-field: the ellipse must stay upright'
-            : S.f === 'full'
+            : settings.f === 'full'
               ? 'full bell: the ellipse may tilt'
               : 'moment matching: same mean and covariance as the truth',
         );
       }
       {
-        const { g, w, h } = fit(cr),
+        const { g: ctx, w, h } = prepareCanvas(cr),
           h1 = h * 0.5,
           qm = Array.from({ length: NB }, (_, i) => {
             const x = -XR + (2 * XR * (i + 0.5)) / NB;
@@ -408,115 +424,123 @@ export default {
               ((2 * XR) / NB)
             );
           }),
-          ym = Math.max(...margT, ...qm) * 1.08,
-          A = uLine(g, t, 0, 0, w, h1, [], {
+          ym = Math.max(...targetMarginalX, ...qm) * 1.08,
+          A = drawSeriesChart(ctx, colors, 0, 0, w, h1, [], {
             title: 'left-to-right spread: truth (line), approximation (filled)',
             n: NB,
             ym,
             y1: 0,
           });
-        g.fillStyle = mix(t.gold, t.gold, 0, 0.4);
-        g.beginPath();
-        g.moveTo(A.X(0), A.Y(0));
-        qm.forEach((v, i) => g.lineTo(A.X(i), A.Y(v)));
-        g.lineTo(A.X(NB - 1), A.Y(0));
-        g.fill();
-        g.strokeStyle = t.accent;
-        g.lineWidth = 2.2;
-        g.beginPath();
+        ctx.fillStyle = mix(colors.gold, colors.gold, 0, 0.4);
+        ctx.beginPath();
+        ctx.moveTo(A.X(0), A.Y(0));
+        qm.forEach((v, i) => ctx.lineTo(A.X(i), A.Y(v)));
+        ctx.lineTo(A.X(NB - 1), A.Y(0));
+        ctx.fill();
+        ctx.strokeStyle = colors.accent;
+        ctx.lineWidth = 2.2;
+        ctx.beginPath();
         for (let i = 0; i < NB; i++)
-          i ? g.lineTo(A.X(i), A.Y(margT[i])) : g.moveTo(A.X(i), A.Y(margT[i]));
-        g.stroke();
+          i
+            ? ctx.lineTo(A.X(i), A.Y(targetMarginalX[i]))
+            : ctx.moveTo(A.X(i), A.Y(targetMarginalX[i]));
+        ctx.stroke();
         const lo = Math.max(Math.min(...hist), lz - 6),
           hi = lz + 0.15,
-          B = uLine(g, t, 0, h1, w, h - h1, hist, {
+          B = drawSeriesChart(ctx, colors, 0, h1, w, h - h1, hist, {
             title: 'ELBO (solid) and its ceiling, the true log evidence (dashed)',
             n: Math.max(20, hist.length),
             y1: lo - 0.1,
             ym: hi,
           });
-        g.strokeStyle = t.cut;
-        g.setLineDash([6, 4]);
-        g.lineWidth = 1.6;
-        g.beginPath();
-        g.moveTo(B.X(0), B.Y(lz));
-        g.lineTo(B.X(Math.max(20, hist.length) - 1), B.Y(lz));
-        g.stroke();
-        g.setLineDash([]);
-        g.save();
-        g.beginPath();
-        g.rect(0, h1 + 16, w, h - h1 - 34);
-        g.clip();
-        g.strokeStyle = t.accent;
-        g.lineWidth = 2.2;
-        g.beginPath();
-        hist.forEach((v, i) => (i ? g.lineTo(B.X(i), B.Y(v)) : g.moveTo(B.X(i), B.Y(v))));
-        g.stroke();
-        g.restore();
-        if (hist.length === 1) dotAt(g, B.X(0), B.Y(Math.max(lo, hist[0])), 4, t.accent);
+        ctx.strokeStyle = colors.cut;
+        ctx.setLineDash([6, 4]);
+        ctx.lineWidth = 1.6;
+        ctx.beginPath();
+        ctx.moveTo(B.X(0), B.Y(lz));
+        ctx.lineTo(B.X(Math.max(20, hist.length) - 1), B.Y(lz));
+        ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(0, h1 + 16, w, h - h1 - 34);
+        ctx.clip();
+        ctx.strokeStyle = colors.accent;
+        ctx.lineWidth = 2.2;
+        ctx.beginPath();
+        hist.forEach((v, i) => (i ? ctx.lineTo(B.X(i), B.Y(v)) : ctx.moveTo(B.X(i), B.Y(v))));
+        ctx.stroke();
+        ctx.restore();
+        if (hist.length === 1) dotAt(ctx, B.X(0), B.Y(Math.max(lo, hist[0])), 4, colors.accent);
       }
       const e = hist[hist.length - 1],
         rq = 0.5 * (1 + erf(th[0] / Math.sqrt(2 * C[0])));
       live.textContent = msg;
-      uCur(root, 'vb', cu);
-      setR(root, 'it', S.f === 'fwd' ? 'none needed' : it + (fin ? ' (stopped)' : ''));
-      setR(root, 'elbo', f3(e));
-      setR(root, 'lz', f3(lz));
-      setR(
+      highlightLessonStep(root, 'vb', activeStepIndex);
+      setReadout(root, 'it', settings.f === 'fwd' ? 'none needed' : it + (fin ? ' (stopped)' : ''));
+      setReadout(root, 'elbo', f3(e));
+      setReadout(root, 'lz', f3(lz));
+      setReadout(
         root,
         'kl',
-        S.f === 'fwd'
+        settings.f === 'fwd'
           ? f3(Math.max(0, lz - e)) + ' (not what this method minimizes)'
           : f3(Math.max(0, lz - e)),
       );
-      setR(root, 'sx', f2(Math.sqrt(C[0] / tC[0])) + ', ' + f2(Math.sqrt(C[2] / tC[2])));
-      setR(root, 'isl', pct(rq) + ' / ' + pct(rT));
+      setReadout(
+        root,
+        'sx',
+        f2(Math.sqrt(C[0] / targetCovariance[0])) +
+          ', ' +
+          f2(Math.sqrt(C[2] / targetCovariance[2])),
+      );
+      setReadout(root, 'isl', pct(rq) + ' / ' + pct(targetRightMass));
     };
     setup();
     reset();
-    if (RM) {
+    if (prefersReducedMotion) {
       while (!fin) step();
     }
     const anim = Anim(() => {
       if (fin) {
-        pb.stop();
+        playback.stop();
         return;
       }
-      fr++;
-      if (exact() || S.sp === 1) {
-        if (fr % (S.sp === 3 ? 8 : S.sp === 2 ? 22 : 40)) return;
+      frameCount++;
+      if (exact() || settings.sp === 1) {
+        if (frameCount % (settings.sp === 3 ? 8 : settings.sp === 2 ? 22 : 40)) return;
         step();
       } else {
-        const k = S.sp === 2 ? 2 : 8;
-        for (let i = 0; i < k && !fin && chk.remaining() > 0; i++) step();
+        const k = settings.sp === 2 ? 2 : 8;
+        for (let i = 0; i < k && !fin && checkRunStop.remaining() > 0; i++) step();
       }
       draw();
-      chk();
+      checkRunStop();
     });
-    pb = playBtn($('#vb-play', root), anim);
-    chk = runCtl(pb, root, 'vb', {
+    playback = playBtn($('#vb-play', root), anim);
+    checkRunStop = attachRunLimit(playback, root, 'vb', {
       done: () => fin,
       restart: reset,
       count: () => it,
       what: 'steps',
     });
     const go = () => {
-      pb.stop();
+      playback.stop();
       reset();
       draw();
-      if (S.f !== 'fwd') {
-        fr = 0;
-        pb.start();
+      if (settings.f !== 'fwd') {
+        frameCount = 0;
+        playback.start();
       }
     };
     $('#vb-step', root).onclick = () => {
-      pb.stop();
+      playback.stop();
       if (fin) reset();
       else step();
       draw();
     };
     $('#vb-reset', root).onclick = () => {
-      pb.stop();
+      playback.stop();
       reset();
       draw();
     };
@@ -524,18 +548,18 @@ export default {
       root,
       'vb-sp',
       (v) => {
-        S.sp = v;
+        settings.sp = v;
       },
       (v) => ['', 'slow', 'steady', 'fast'][+v],
     );
-    segBind(root, 'vb-tg', S.tg, (v) => {
-      S.tg = v;
+    segBind(root, 'vb-tg', settings.tg, (v) => {
+      settings.tg = v;
       start = v === 'two' ? [-1, 0.9] : [-2.6, 1.6];
       setup();
       go();
     });
-    segBind(root, 'vb-f', S.f, (v) => {
-      S.f = v;
+    segBind(root, 'vb-f', settings.f, (v) => {
+      settings.f = v;
       go();
     });
     c.style.cursor = 'crosshair';
@@ -547,12 +571,12 @@ export default {
     });
     return {
       draw,
-      stop: () => pb.stop(),
+      stop: () => playback.stop(),
       auto: () => {
         reset();
         draw();
-        fr = 0;
-        if (S.f !== 'fwd') pb.start();
+        frameCount = 0;
+        if (settings.f !== 'fwd') playback.start();
       },
     };
   },

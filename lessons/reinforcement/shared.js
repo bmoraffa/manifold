@@ -1,16 +1,16 @@
 /* Manifold. © 2026 Bahman Moraffah. All rights reserved. */
 import { MONO, mix } from '../../js/core/shared.js';
 
-const GWD = [
+const ACTION_OFFSETS = [
   [-1, 0],
   [0, 1],
   [1, 0],
   [0, -1],
 ];
 
-const GWN = ['up', 'right', 'down', 'left'];
+const ACTION_NAMES = ['up', 'right', 'down', 'left'];
 
-const GWS = ['↑', '→', '↓', '←'];
+const ACTION_ARROWS = ['↑', '→', '↓', '←'];
 
 const rlN = (v) =>
   (v < 0 ? '−' : '') +
@@ -41,8 +41,8 @@ function gwMake(rows, o = {}) {
   G.start = rows.join('').indexOf('S');
   G.states = [...Array(R * C).keys()].filter((s) => !G.wall(s));
   G.move = (s, a) => {
-    const r = Math.floor(s / C) + GWD[a][0],
-      c = (s % C) + GWD[a][1];
+    const r = Math.floor(s / C) + ACTION_OFFSETS[a][0],
+      c = (s % C) + ACTION_OFFSETS[a][1];
     if (r < 0 || c < 0 || r >= R || c >= C || rows[r][c] === '#') return s;
     return r * C + c;
   };
@@ -133,8 +133,8 @@ function gwRoute(G, Q, s0, cap = 60) {
 }
 
 function gwArrow(g, cx, cy, a, len, col, lw = 2) {
-  const dx = GWD[a][1],
-    dy = GWD[a][0],
+  const dx = ACTION_OFFSETS[a][1],
+    dy = ACTION_OFFSETS[a][0],
     x2 = cx + dx * len,
     y2 = cy + dy * len,
     hs = Math.max(3, Math.min(7, len * 0.45));
@@ -242,8 +242,8 @@ function gwDraw(g, t, x0, y0, w, h, G, o = {}) {
           g.fillStyle = any && a === b ? t.ink : t.muted;
           g.fillText(
             rlN(o.Q[s * 4 + a]),
-            cx + GWD[a][1] * cs * 0.3,
-            cy + GWD[a][0] * cs * 0.33 + fs * 0.35,
+            cx + ACTION_OFFSETS[a][1] * cs * 0.3,
+            cy + ACTION_OFFSETS[a][0] * cs * 0.33 + fs * 0.35,
           );
         }
       } else if (any) gwArrow(g, cx, cy, b, cs * 0.26, t.ink, 1.6);
@@ -259,8 +259,8 @@ function gwDraw(g, t, x0, y0, w, h, G, o = {}) {
       if (o.pol && o.pol[s] >= 0)
         gwArrow(
           g,
-          cx - GWD[o.pol[s]][1] * cs * 0.14,
-          cy - 4 - GWD[o.pol[s]][0] * cs * 0.14,
+          cx - ACTION_OFFSETS[o.pol[s]][1] * cs * 0.14,
+          cy - 4 - ACTION_OFFSETS[o.pol[s]][0] * cs * 0.14,
           o.pol[s],
           cs * 0.28,
           t.ink,
@@ -349,4 +349,17 @@ const gwClick = (c, fn) =>
     fn(e.clientX - r.left, e.clientY - r.top);
   });
 
-export { GWD, GWN, GWS, rlN, gwMake, gwQstar, gwBest, gwMax, gwRoute, gwArrow, gwDraw, gwClick };
+export {
+  ACTION_OFFSETS,
+  ACTION_NAMES,
+  ACTION_ARROWS,
+  rlN,
+  gwMake,
+  gwQstar,
+  gwBest,
+  gwMax,
+  gwRoute,
+  gwArrow,
+  gwDraw,
+  gwClick,
+};

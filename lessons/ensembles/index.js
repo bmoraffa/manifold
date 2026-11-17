@@ -1,7 +1,7 @@
 /* Manifold. © 2026 Bahman Moraffah. All rights reserved. */
 export default {
   id: 'ensembles',
-  t: 'Ensembles',
+  title: 'Ensembles',
   lessons: [
     {
       id: 'bagging',

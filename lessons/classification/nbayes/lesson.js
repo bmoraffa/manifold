@@ -5,7 +5,7 @@ import {
   curve,
   ellPath,
   f2,
-  fit,
+  prepareCanvas,
   mix,
   npdf,
   plot,
@@ -23,17 +23,17 @@ export default clfLesson({
     const S = api.S;
     let G = [],
       pr = 0.5,
-      cs,
-      tk;
-    const nb = (k, x, y) =>
+      correlationSlider,
+      advanceCorrelationSweep;
+    const naiveBayesLogScore = (k, x, y) =>
       -0.5 * Math.log(G[k].a * G[k].d) -
       0.5 * ((x - G[k].mx) ** 2 / G[k].a + (y - G[k].my) ** 2 / G[k].d);
-    cs = api.bind('corr', 'corr', f2, () => api.regen());
-    tk = sweepTick(
+    correlationSlider = api.bind('corr', 'corr', f2, () => api.regen());
+    advanceCorrelationSweep = sweepTick(
       () => S.corr,
       (v) => {
         S.corr = v;
-        cs.set(v);
+        correlationSlider.set(v);
         api.regen();
       },
       -0.9,
@@ -46,9 +46,14 @@ export default clfLesson({
         G = [gfit(T, 0), gfit(T, 1)];
         pr = G[1].n / Math.max(1, T.length);
       },
-      p: (x, y) => sig(Math.log(pr / (1 - pr) + 1e-12) + nb(1, x, y) - nb(0, x, y)),
+      p: (x, y) =>
+        sig(
+          Math.log(pr / (1 - pr) + 1e-12) +
+            naiveBayesLogScore(1, x, y) -
+            naiveBayesLogScore(0, x, y),
+        ),
       tick() {
-        tk();
+        advanceCorrelationSweep();
         return false;
       },
       overlay(g, X, Y, t) {
@@ -64,32 +69,32 @@ export default clfLesson({
         });
       },
       right(t) {
-        const { g, w, h } = fit(api.cr),
+        const { g: ctx, w, h } = prepareCanvas(api.cr),
           hh = h / 2;
         [
           ['x', (k) => [G[k].mx, Math.sqrt(G[k].a)]],
           ['y', (k) => [G[k].my, Math.sqrt(G[k].d)]],
         ].forEach(([nm, fn], r) => {
-          g.save();
-          g.translate(0, r * hh);
+          ctx.save();
+          ctx.translate(0, r * hh);
           let ym = 0;
           [0, 1].forEach((k) => {
             ym = Math.max(ym, npdf(0, 0, fn(k)[1]));
           });
-          const P = plot(g, w, hh, [-3, 3], [0, ym * 1.2], t, { xlabel: 'feature ' + nm });
-          clipPlot(g, P);
+          const P = plot(ctx, w, hh, [-3, 3], [0, ym * 1.2], t, { xlabel: 'feature ' + nm });
+          clipPlot(ctx, P);
           [t.accent, t.gold].forEach((cl, k) => {
             const a = fn(k);
-            area(g, P, (x) => npdf(x, a[0], a[1]), -3, 3);
-            g.fillStyle = mix(cl, cl, 0, 0.22);
-            g.fill();
-            curve(g, P, (x) => npdf(x, a[0], a[1]), -3, 3);
-            g.strokeStyle = cl;
-            g.lineWidth = 2.4;
-            g.stroke();
+            area(ctx, P, (x) => npdf(x, a[0], a[1]), -3, 3);
+            ctx.fillStyle = mix(cl, cl, 0, 0.22);
+            ctx.fill();
+            curve(ctx, P, (x) => npdf(x, a[0], a[1]), -3, 3);
+            ctx.strokeStyle = cl;
+            ctx.lineWidth = 2.4;
+            ctx.stroke();
           });
-          g.restore();
-          g.restore();
+          ctx.restore();
+          ctx.restore();
         });
       },
       read(set) {

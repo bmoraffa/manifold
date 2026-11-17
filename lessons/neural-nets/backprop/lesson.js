@@ -3,46 +3,46 @@ import {
   $,
   Anim,
   MONO,
-  RM,
+  prefersReducedMotion,
   SANS,
-  T,
+  readThemeColors,
   bind,
   clamp,
   eqShow,
   f2,
   f3,
-  fit,
+  prepareCanvas,
   mix,
   playBtn,
-  runCtl,
-  setR,
+  attachRunLimit,
+  setReadout,
 } from '../../../js/core/shared.js';
-import { UC, segBind, uCur, uLine } from '../../unsupervised/shared.js';
+import { UC, segBind, highlightLessonStep, drawSeriesChart } from '../../unsupervised/shared.js';
 import { sig } from '../../classification/shared.js';
 
 export default {
   init(root) {
-    const c = $('#bp-c', root),
+    const mainCanvas = $('#bp-c', root),
       cr = $('#bp-r', root),
       live = $('#bp-live', root),
       tab = $('#bp-tab', root),
       eq = $('#bp-eq', root),
-      S = { x: [0.8, 0.6], y: 1, lr: 1.5, slow: true };
+      settings = { x: [0.8, 0.6], y: 1, lr: 1.5, slow: true };
     let w,
       b,
       v,
       cc,
       ph = 0,
-      V = {},
+      passState = {},
       hist = [],
-      WH = [],
+      parameterHistory = [],
       upd = 0,
       msg = '',
-      fr = 0,
+      frameCount = 0,
       t0 = 0,
-      pb,
-      chk = () => false,
-      old = null,
+      playback,
+      checkRunStop = () => false,
+      beforeUpdate = null,
       nl = 1;
     const s4 = (q) => (q >= 0 ? '+' : '−') + Math.abs(q).toFixed(3),
       n3 = (q) => (q < 0 ? '(−' + Math.abs(q).toFixed(3) + ')' : q.toFixed(3)),
@@ -62,14 +62,14 @@ export default {
         'output bias',
       ];
     const calc = () => {
-      const z = [0, 1].map((j) => w[j][0] * S.x[0] + w[j][1] * S.x[1] + b[j]),
+      const z = [0, 1].map((j) => w[j][0] * settings.x[0] + w[j][1] * settings.x[1] + b[j]),
         h = z.map(Math.tanh),
         zo = v[0] * h[0] + v[1] * h[1] + cc,
         o = sig(zo),
-        L = 0.5 * (o - S.y) ** 2,
-        dO = (o - S.y) * o * (1 - o),
+        L = 0.5 * (o - settings.y) ** 2,
+        dO = (o - settings.y) * o * (1 - o),
         dH = [0, 1].map((j) => dO * v[j] * (1 - h[j] * h[j]));
-      V = {
+      passState = {
         z,
         h,
         zo,
@@ -78,11 +78,11 @@ export default {
         dO,
         dH,
         G: [
-          dH[0] * S.x[0],
-          dH[0] * S.x[1],
+          dH[0] * settings.x[0],
+          dH[0] * settings.x[1],
           dH[0],
-          dH[1] * S.x[0],
-          dH[1] * S.x[1],
+          dH[1] * settings.x[0],
+          dH[1] * settings.x[1],
           dH[1],
           dO * h[0],
           dO * h[1],
@@ -92,8 +92,8 @@ export default {
     };
     const show = (lines) => {
       nl = lines.length;
-      eqShow(eq, lines, S.slow ? 480 : 0);
-      t0 = fr;
+      eqShow(eq, lines, settings.slow ? 480 : 0);
+      t0 = frameCount;
     };
     const start = () => {
       w = [
@@ -106,31 +106,31 @@ export default {
       ph = 0;
       hist = [];
       upd = 0;
-      old = null;
+      beforeUpdate = null;
       calc();
-      hist.push(V.L);
-      WH = [all()];
+      hist.push(passState.L);
+      parameterHistory = [all()];
       msg =
         'The example: cloud cover ' +
-        f2(S.x[0]) +
+        f2(settings.x[0]) +
         ', humidity ' +
-        f2(S.x[1]) +
+        f2(settings.x[1]) +
         '. What really happened: ' +
-        (S.y ? 'it rained' : 'it stayed dry') +
+        (settings.y ? 'it rained' : 'it stayed dry') +
         '. The weights are an arbitrary starting guess. Press Run or One step.';
       show([
-        'x₁ = ' + B(f2(S.x[0])) + '   (cloud cover)',
-        'x₂ = ' + B(f2(S.x[1])) + '   (humidity)',
-        'y  = ' + B(S.y) + '   (what really happened)',
+        'x₁ = ' + B(f2(settings.x[0])) + '   (cloud cover)',
+        'x₂ = ' + B(f2(settings.x[1])) + '   (humidity)',
+        'y  = ' + B(settings.y) + '   (what really happened)',
       ]);
     };
-    const done = () => (V.L < 5e-4 && ph === 0 && upd > 0) || upd >= 600;
+    const done = () => (passState.L < 5e-4 && ph === 0 && upd > 0) || upd >= 600;
     const gk = () => (ph >= 10 ? 9 : ph >= 9 ? [0, 1, 2, 6, 7, 8] : ph >= 6 ? [6, 7, 8] : []);
     const step = () => {
       calc();
       ph = ph >= 11 ? 1 : ph + 1;
-      const x = S.x,
-        q = V;
+      const x = settings.x,
+        q = passState;
       if (ph === 1 || ph === 2) {
         const j = ph - 1,
           s = j ? '₂' : '₁';
@@ -176,7 +176,11 @@ export default {
       } else if (ph === 4) {
         msg =
           'The loss measures how far the answer is from the truth. Everything after this asks: which weights caused it?';
-        show(['L = ½ (ŷ − y)²', '  = ½ (' + f3(q.o) + ' − ' + S.y + ')²', '  = ' + B(f3(q.L))]);
+        show([
+          'L = ½ (ŷ − y)²',
+          '  = ½ (' + f3(q.o) + ' − ' + settings.y + ')²',
+          '  = ' + B(f3(q.L)),
+        ]);
       } else if (ph === 5) {
         msg =
           'Blame at the output: the error times the slope of the sigmoid. ' +
@@ -185,7 +189,7 @@ export default {
             : 'It is positive, so the output’s input should go down.');
         show([
           'δ = (ŷ − y) · ŷ · (1 − ŷ)',
-          '  = (' + f3(q.o) + ' − ' + S.y + ') · ' + f3(q.o) + ' · ' + f3(1 - q.o),
+          '  = (' + f3(q.o) + ' − ' + settings.y + ') · ' + f3(q.o) + ' · ' + f3(1 - q.o),
           '  = ' + B(s4(q.dO)),
         ]);
       } else if (ph === 6) {
@@ -243,18 +247,18 @@ export default {
         const o0 = q.o,
           L0 = q.L,
           A0 = all();
-        old = { A: A0, G: q.G.slice() };
+        beforeUpdate = { A: A0, G: q.G.slice() };
         for (let j = 0; j < 2; j++) {
-          v[j] -= S.lr * q.G[6 + j];
-          b[j] -= S.lr * q.G[3 * j + 2];
-          for (let i = 0; i < 2; i++) w[j][i] -= S.lr * q.G[3 * j + i];
+          v[j] -= settings.lr * q.G[6 + j];
+          b[j] -= settings.lr * q.G[3 * j + 2];
+          for (let i = 0; i < 2; i++) w[j][i] -= settings.lr * q.G[3 * j + i];
         }
-        cc -= S.lr * q.G[8];
+        cc -= settings.lr * q.G[8];
         upd++;
         calc();
-        hist.push(V.L);
+        hist.push(passState.L);
         const A1 = all();
-        WH.push(A1);
+        parameterHistory.push(A1);
         ph = 0;
         msg =
           'Update ' +
@@ -262,11 +266,11 @@ export default {
           ': every weight moved against its gradient. Running the same example forward again, the answer goes from ' +
           f3(o0) +
           ' to ' +
-          f3(V.o) +
+          f3(passState.o) +
           ' and the loss from ' +
           f3(L0) +
           ' to ' +
-          f3(V.L) +
+          f3(passState.L) +
           '.' +
           (done()
             ? upd >= 600
@@ -274,7 +278,7 @@ export default {
               : ' Converged: the answer is within a few points of the truth, so it stops here.'
             : '');
         show(
-          ['new weight = old weight − η · gradient,   η = ' + f2(S.lr)].concat(
+          ['new weight = old weight − η · gradient,   η = ' + f2(settings.lr)].concat(
             NM.map(
               (nm, i) =>
                 nm +
@@ -282,9 +286,9 @@ export default {
                 ' : ' +
                 n3(A0[i]) +
                 ' − ' +
-                f2(S.lr) +
+                f2(settings.lr) +
                 '·' +
-                n3(old.G[i]) +
+                n3(beforeUpdate.G[i]) +
                 ' = ' +
                 B(n3(A1[i])),
             ),
@@ -293,19 +297,19 @@ export default {
       }
     };
     const full = () => {
-      const sl = S.slow;
-      S.slow = false;
+      const sl = settings.slow;
+      settings.slow = false;
       do {
         step();
       } while (ph !== 0);
-      S.slow = sl;
+      settings.slow = sl;
     };
     const draw = () => {
-      const t = T(),
+      const colors = readThemeColors(),
         known = gk(),
         kn = (i) => known === 9 || (Array.isArray(known) && known.includes(i));
       {
-        const { g, w: W, h } = fit(c),
+        const { g: ctx, w: W, h } = prepareCanvas(mainCanvas),
           P = {
             i: [
               [W * 0.13, h * 0.3],
@@ -318,45 +322,45 @@ export default {
             o: [W * 0.87, h * 0.51],
           },
           R = 27,
-          u = RM ? 1 : clamp((fr - t0) / 70, 0, 1),
+          u = prefersReducedMotion ? 1 : clamp((frameCount - t0) / 70, 0, 1),
           e = u < 0.5 ? 2 * u * u : 1 - 2 * (1 - u) * (1 - u);
-        g.font = MONO;
+        ctx.font = MONO;
         const edge = (a, b2, wt, gi, act, dir, pk) => {
-          g.strokeStyle = act ? t.ink : mix(t.ink, t.ink, 0, 0.3);
-          g.lineWidth = act ? 2.6 : 1.2;
-          g.beginPath();
-          g.moveTo(a[0], a[1]);
-          g.lineTo(b2[0], b2[1]);
-          g.stroke();
+          ctx.strokeStyle = act ? colors.ink : mix(colors.ink, colors.ink, 0, 0.3);
+          ctx.lineWidth = act ? 2.6 : 1.2;
+          ctx.beginPath();
+          ctx.moveTo(a[0], a[1]);
+          ctx.lineTo(b2[0], b2[1]);
+          ctx.stroke();
           const lx = a[0] + (b2[0] - a[0]) * 0.28,
             ly = a[1] + (b2[1] - a[1]) * 0.28;
-          g.font = MONO;
-          g.fillStyle = t.bg;
-          g.fillRect(lx - 21, ly - 9, 42, 17);
-          g.fillStyle = t.ink;
-          g.textAlign = 'center';
-          g.fillText(f2(wt), lx, ly + 4);
+          ctx.font = MONO;
+          ctx.fillStyle = colors.bg;
+          ctx.fillRect(lx - 21, ly - 9, 42, 17);
+          ctx.fillStyle = colors.ink;
+          ctx.textAlign = 'center';
+          ctx.fillText(f2(wt), lx, ly + 4);
           if (kn(gi)) {
             const gx2 = a[0] + (b2[0] - a[0]) * 0.7,
               gy = a[1] + (b2[1] - a[1]) * 0.7;
-            g.fillStyle = t.bg;
-            g.fillRect(gx2 - 27, gy - 9, 54, 17);
-            g.fillStyle = t.ok;
-            g.fillText(s4(V.G[gi]), gx2, gy + 4);
+            ctx.fillStyle = colors.bg;
+            ctx.fillRect(gx2 - 27, gy - 9, 54, 17);
+            ctx.fillStyle = colors.ok;
+            ctx.fillText(s4(passState.G[gi]), gx2, gy + 4);
           }
           if (act && u < 1) {
             const q = dir > 0 ? e : 1 - e,
               px = a[0] + (b2[0] - a[0]) * q,
               py = a[1] + (b2[1] - a[1]) * q,
-              cl = dir > 0 ? t.gold : t.ok;
-            g.font = SANS;
-            const tw = g.measureText(pk).width + 14;
-            g.fillStyle = cl;
-            g.beginPath();
-            g.rect(px - tw / 2, py - 11, tw, 22);
-            g.fill();
-            g.fillStyle = t.bg;
-            g.fillText(pk, px, py + 5);
+              cl = dir > 0 ? colors.gold : colors.ok;
+            ctx.font = SANS;
+            const tw = ctx.measureText(pk).width + 14;
+            ctx.fillStyle = cl;
+            ctx.beginPath();
+            ctx.rect(px - tw / 2, py - 11, tw, 22);
+            ctx.fill();
+            ctx.fillStyle = colors.bg;
+            ctx.fillText(pk, px, py + 5);
           }
         };
         for (let j = 0; j < 2; j++)
@@ -370,7 +374,7 @@ export default {
               3 * j + i,
               fw || bk,
               bk ? -1 : 1,
-              bk ? s4(V.dH[j]) : f2(S.x[i]) + '×' + f2(w[j][i]),
+              bk ? s4(passState.dH[j]) : f2(settings.x[i]) + '×' + f2(w[j][i]),
             );
           }
         for (let j = 0; j < 2; j++) {
@@ -383,57 +387,57 @@ export default {
             6 + j,
             fw || bk,
             bk ? -1 : 1,
-            bk ? s4(V.dO) : f3(V.h[j]) + '×' + f2(v[j]),
+            bk ? s4(passState.dO) : f3(passState.h[j]) + '×' + f2(v[j]),
           );
         }
         const node = (p, val, lab, on, blame) => {
-          g.fillStyle = on ? mix(t.gold, t.bg, 0, 0.9) : t.bg;
-          g.strokeStyle = t.ink;
-          g.lineWidth = on ? 2.8 : 1.5;
-          g.beginPath();
-          g.arc(p[0], p[1], on ? R + 3 * Math.sin(Math.PI * u) : R, 0, 7);
-          g.fill();
-          g.stroke();
-          g.font = SANS;
-          g.fillStyle = on ? t.bg : t.ink;
-          g.textAlign = 'center';
-          g.fillText(val, p[0], p[1] + 5);
-          g.font = MONO;
-          g.fillStyle = t.muted;
-          g.fillText(lab, p[0], p[1] - R - 9);
+          ctx.fillStyle = on ? mix(colors.gold, colors.bg, 0, 0.9) : colors.bg;
+          ctx.strokeStyle = colors.ink;
+          ctx.lineWidth = on ? 2.8 : 1.5;
+          ctx.beginPath();
+          ctx.arc(p[0], p[1], on ? R + 3 * Math.sin(Math.PI * u) : R, 0, 7);
+          ctx.fill();
+          ctx.stroke();
+          ctx.font = SANS;
+          ctx.fillStyle = on ? colors.bg : colors.ink;
+          ctx.textAlign = 'center';
+          ctx.fillText(val, p[0], p[1] + 5);
+          ctx.font = MONO;
+          ctx.fillStyle = colors.muted;
+          ctx.fillText(lab, p[0], p[1] - R - 9);
           if (blame != null) {
-            g.fillStyle = t.ok;
-            g.fillText('blame ' + s4(blame), p[0], p[1] + R + 16);
+            ctx.fillStyle = colors.ok;
+            ctx.fillText('blame ' + s4(blame), p[0], p[1] + R + 16);
           }
         };
         const seen = ph === 0 && upd > 0;
-        node(P.i[0], f2(S.x[0]), 'cloud cover', ph === 0 && !upd);
-        node(P.i[1], f2(S.x[1]), 'humidity', ph === 0 && !upd);
+        node(P.i[0], f2(settings.x[0]), 'cloud cover', ph === 0 && !upd);
+        node(P.i[1], f2(settings.x[1]), 'humidity', ph === 0 && !upd);
         node(
           P.h[0],
-          ph >= 1 || seen ? f3(V.h[0]) : '?',
+          ph >= 1 || seen ? f3(passState.h[0]) : '?',
           'hidden 1',
           (ph === 1 && u > 0.6) || ph === 7,
-          ph >= 7 ? V.dH[0] : null,
+          ph >= 7 ? passState.dH[0] : null,
         );
         node(
           P.h[1],
-          ph >= 2 || seen ? f3(V.h[1]) : '?',
+          ph >= 2 || seen ? f3(passState.h[1]) : '?',
           'hidden 2',
           (ph === 2 && u > 0.6) || ph === 8,
-          ph >= 8 ? V.dH[1] : null,
+          ph >= 8 ? passState.dH[1] : null,
         );
         node(
           P.o,
-          ph >= 3 || seen ? f3(V.o) : '?',
+          ph >= 3 || seen ? f3(passState.o) : '?',
           'chance of rain',
           (ph === 3 && u > 0.6) || ph === 4 || ph === 5,
-          ph >= 5 ? V.dO : null,
+          ph >= 5 ? passState.dO : null,
         );
-        g.font = MONO;
-        g.fillStyle = t.muted;
-        g.textAlign = 'left';
-        g.fillText(
+        ctx.font = MONO;
+        ctx.fillStyle = colors.muted;
+        ctx.textAlign = 'left';
+        ctx.fillText(
           ph >= 1 && ph <= 4
             ? 'forward pass →'
             : ph >= 5
@@ -444,32 +448,32 @@ export default {
           8,
           h - 8,
         );
-        g.textAlign = 'right';
-        g.fillText('black on lines: weight.  red: its gradient', W - 8, h - 8);
+        ctx.textAlign = 'right';
+        ctx.fillText('black on lines: weight.  red: its gradient', W - 8, h - 8);
       }
       {
-        const { g, w: W, h } = fit(cr),
-          o = V.o,
+        const { g: ctx, w: W, h } = prepareCanvas(cr),
+          o = passState.o,
           x0 = 24,
           bw = W - 48,
           y0 = 30;
-        g.font = MONO;
-        g.fillStyle = t.muted;
-        g.textAlign = 'left';
-        g.fillText('the network’s answer (gold) and the truth (black line)', 8, 13);
-        g.fillStyle = mix(t.ink, t.ink, 0, 0.1);
-        g.fillRect(x0, y0, bw, 20);
-        g.fillStyle = t.gold;
-        g.fillRect(x0, y0, bw * o, 20);
-        g.strokeStyle = t.ink;
-        g.lineWidth = 3;
-        g.beginPath();
-        g.moveTo(x0 + bw * S.y, y0 - 6);
-        g.lineTo(x0 + bw * S.y, y0 + 26);
-        g.stroke();
-        g.fillStyle = t.ink;
-        g.textAlign = 'center';
-        g.fillText(
+        ctx.font = MONO;
+        ctx.fillStyle = colors.muted;
+        ctx.textAlign = 'left';
+        ctx.fillText('the network’s answer (gold) and the truth (black line)', 8, 13);
+        ctx.fillStyle = mix(colors.ink, colors.ink, 0, 0.1);
+        ctx.fillRect(x0, y0, bw, 20);
+        ctx.fillStyle = colors.gold;
+        ctx.fillRect(x0, y0, bw * o, 20);
+        ctx.strokeStyle = colors.ink;
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.moveTo(x0 + bw * settings.y, y0 - 6);
+        ctx.lineTo(x0 + bw * settings.y, y0 + 26);
+        ctx.stroke();
+        ctx.fillStyle = colors.ink;
+        ctx.textAlign = 'center';
+        ctx.fillText(
           (100 * o).toFixed(0) + '% rain',
           clamp(x0 + bw * o, x0 + 30, x0 + bw - 30),
           y0 + 38,
@@ -477,85 +481,87 @@ export default {
         const ya = 84,
           ha = h * 0.3,
           rh = (ha - 18) / 9,
-          G = ph === 0 && old ? old.G : V.G,
+          G = ph === 0 && beforeUpdate ? beforeUpdate.G : passState.G,
           gm = Math.max(0.02, ...G.map(Math.abs)),
           xc = W * 0.58,
           sx = W * 0.36;
-        g.fillStyle = t.muted;
-        g.textAlign = 'left';
-        g.fillText(
-          ph === 0 && old
+        ctx.fillStyle = colors.muted;
+        ctx.textAlign = 'left';
+        ctx.fillText(
+          ph === 0 && beforeUpdate
             ? 'gradients used in the last update'
             : 'gradient of each weight (appears when computed)',
           8,
           ya,
         );
-        g.strokeStyle = t.muted;
-        g.lineWidth = 1;
-        g.beginPath();
-        g.moveTo(xc, ya + 8);
-        g.lineTo(xc, ya + 10 + 9 * rh);
-        g.stroke();
+        ctx.strokeStyle = colors.muted;
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(xc, ya + 8);
+        ctx.lineTo(xc, ya + 10 + 9 * rh);
+        ctx.stroke();
         for (let i = 0; i < 9; i++) {
           const y = ya + 10 + i * rh,
-            on = (ph === 0 && old) || kn(i);
-          g.fillStyle = t.muted;
-          g.textAlign = 'right';
-          g.fillText(NM[i], xc - sx - 6, y + rh * 0.7);
+            on = (ph === 0 && beforeUpdate) || kn(i);
+          ctx.fillStyle = colors.muted;
+          ctx.textAlign = 'right';
+          ctx.fillText(NM[i], xc - sx - 6, y + rh * 0.7);
           if (on) {
             const q = G[i];
-            g.fillStyle = q < 0 ? t.accent : t.ok;
-            g.fillRect(q < 0 ? xc + (q / gm) * sx : xc, y + 2, (Math.abs(q) / gm) * sx, rh - 4);
-            g.fillStyle = t.muted;
-            g.textAlign = q < 0 ? 'right' : 'left';
-            g.fillText(s4(q), xc + (q / gm) * sx + (q < 0 ? -4 : 4), y + rh * 0.7);
+            ctx.fillStyle = q < 0 ? colors.accent : colors.ok;
+            ctx.fillRect(q < 0 ? xc + (q / gm) * sx : xc, y + 2, (Math.abs(q) / gm) * sx, rh - 4);
+            ctx.fillStyle = colors.muted;
+            ctx.textAlign = q < 0 ? 'right' : 'left';
+            ctx.fillText(s4(q), xc + (q / gm) * sx + (q < 0 ? -4 : 4), y + rh * 0.7);
           }
         }
-        g.fillStyle = t.accent;
-        g.textAlign = 'left';
-        g.fillText('← raise this weight', xc - sx, ya + 18 + 9 * rh);
-        g.fillStyle = t.ok;
-        g.textAlign = 'right';
-        g.fillText('lower it →', xc + sx, ya + 18 + 9 * rh);
+        ctx.fillStyle = colors.accent;
+        ctx.textAlign = 'left';
+        ctx.fillText('← raise this weight', xc - sx, ya + 18 + 9 * rh);
+        ctx.fillStyle = colors.ok;
+        ctx.textAlign = 'right';
+        ctx.fillText('lower it →', xc + sx, ya + 18 + 9 * rh);
         const yb = ya + ha + 22,
           hb = (h - yb) / 2;
-        uLine(g, t, 0, yb, W, hb, hist, {
+        drawSeriesChart(ctx, colors, 0, yb, W, hb, hist, {
           title: 'loss after each update',
           n: Math.max(20, hist.length),
-          col: t.ok,
+          col: colors.ok,
           dots: hist.length < 40,
           ym: Math.max(0.02, hist[0] || 0.1),
         });
         let lo = 1e9,
           hi = -1e9;
-        for (const r of WH)
+        for (const r of parameterHistory)
           for (const q of r) {
             lo = Math.min(lo, q);
             hi = Math.max(hi, q);
           }
         const pad = (hi - lo) * 0.08 + 0.05,
-          col = UC(t);
-        const U = uLine(g, t, 0, yb + hb, W, hb, [], {
+          col = UC(colors);
+        const U = drawSeriesChart(ctx, colors, 0, yb + hb, W, hb, [], {
           title: 'the nine weights, update by update',
-          n: Math.max(20, WH.length),
+          n: Math.max(20, parameterHistory.length),
           y1: lo - pad,
           ym: hi + pad,
         });
         for (let i = 0; i < 9; i++) {
-          g.strokeStyle = col[i % 8];
-          g.lineWidth = 1.6;
-          g.beginPath();
-          WH.forEach((r, k) => (k ? g.lineTo(U.X(k), U.Y(r[i])) : g.moveTo(U.X(k), U.Y(r[i]))));
-          g.stroke();
+          ctx.strokeStyle = col[i % 8];
+          ctx.lineWidth = 1.6;
+          ctx.beginPath();
+          parameterHistory.forEach((r, k) =>
+            k ? ctx.lineTo(U.X(k), U.Y(r[i])) : ctx.moveTo(U.X(k), U.Y(r[i])),
+          );
+          ctx.stroke();
         }
       }
-      const O = ph === 0 && old ? old : null,
+      const O = ph === 0 && beforeUpdate ? beforeUpdate : null,
         A = all();
       tab.innerHTML =
         '<table><thead><tr><th>weight</th><th></th><th>' +
         (O ? 'before' : 'value now') +
         '</th><th>gradient</th><th>' +
-        (O ? 'after: before − ' + f2(S.lr) + ' × gradient' : '') +
+        (O ? 'after: before − ' + f2(settings.lr) + ' × gradient' : '') +
         '</th></tr></thead><tbody>' +
         LB.map(
           (lb, i) =>
@@ -566,32 +572,40 @@ export default {
             '</td><td>' +
             f3(O ? O.A[i] : A[i]) +
             '</td><td>' +
-            (O ? s4(O.G[i]) : kn(i) ? s4(V.G[i]) : 'not known yet') +
+            (O ? s4(O.G[i]) : kn(i) ? s4(passState.G[i]) : 'not known yet') +
             '</td><td>' +
             (O ? f3(A[i]) : '') +
             '</td></tr>',
         ).join('') +
         '</tbody></table>';
       live.textContent = msg;
-      uCur(root, 'bp', ph === 0 ? (upd ? 8 : 0) : [0, 1, 1, 2, 3, 4, 5, 6, 6, 7, 7][ph]);
-      setR(root, 'o', (100 * V.o).toFixed(1) + '%');
-      setR(root, 'y', S.y ? 'It rained (1)' : 'It stayed dry (0)');
-      setR(root, 'L', f3(V.L) + (V.L < 0.001 ? ' (' + V.L.toExponential(1) + ')' : ''));
-      setR(root, 'u', String(upd));
-      setR(root, 'st', done() ? 'Converged' : upd ? 'Learning' : 'Not started');
+      highlightLessonStep(
+        root,
+        'bp',
+        ph === 0 ? (upd ? 8 : 0) : [0, 1, 1, 2, 3, 4, 5, 6, 6, 7, 7][ph],
+      );
+      setReadout(root, 'o', (100 * passState.o).toFixed(1) + '%');
+      setReadout(root, 'y', settings.y ? 'It rained (1)' : 'It stayed dry (0)');
+      setReadout(
+        root,
+        'L',
+        f3(passState.L) + (passState.L < 0.001 ? ' (' + passState.L.toExponential(1) + ')' : ''),
+      );
+      setReadout(root, 'u', String(upd));
+      setReadout(root, 'st', done() ? 'Converged' : upd ? 'Learning' : 'Not started');
     };
     const fx = Anim(() => {
-      fr++;
+      frameCount++;
       draw();
-      if (fr - t0 > 80) fx.stop();
+      if (frameCount - t0 > 80) fx.stop();
     });
     start();
     const anim = Anim(() => {
-      fr++;
-      if (S.slow && upd < 2) {
-        if (fr - t0 > Math.max(150, nl * 30 + 110)) {
+      frameCount++;
+      if (settings.slow && upd < 2) {
+        if (frameCount - t0 > Math.max(150, nl * 30 + 110)) {
           step();
-          if (chk()) {
+          if (checkRunStop()) {
             draw();
             return;
           }
@@ -599,69 +613,69 @@ export default {
         draw();
         return;
       }
-      if (fr % (upd < 10 ? 10 : 3) === 0) {
+      if (frameCount % (upd < 10 ? 10 : 3) === 0) {
         full();
         draw();
-        chk();
+        checkRunStop();
         return;
       }
     });
-    pb = playBtn($('#bp-play', root), anim);
-    chk = runCtl(pb, root, 'bp', {
+    playback = playBtn($('#bp-play', root), anim);
+    checkRunStop = attachRunLimit(playback, root, 'bp', {
       done,
       restart: () => start(),
       count: () => upd,
       what: 'updates',
     });
     $('#bp-step', root).onclick = () => {
-      pb.stop();
+      playback.stop();
       if (done()) start();
       else step();
       fx.start();
     };
     $('#bp-reset', root).onclick = () => {
-      pb.stop();
+      playback.stop();
       start();
       draw();
     };
     const re = () => {
-      pb.stop();
+      playback.stop();
       start();
       draw();
     };
     bind(root, 'bp-x1', (q) => {
-      S.x[0] = q;
+      settings.x[0] = q;
       re();
     });
     bind(root, 'bp-x2', (q) => {
-      S.x[1] = q;
+      settings.x[1] = q;
       re();
     });
     bind(
       root,
       'bp-lr',
       (q) => {
-        S.lr = q;
+        settings.lr = q;
       },
       f2,
     );
-    segBind(root, 'bp-y', String(S.y), (q) => {
-      S.y = +q;
+    segBind(root, 'bp-y', String(settings.y), (q) => {
+      settings.y = +q;
       re();
     });
     $('#bp-slow', root).onchange = (e) => {
-      S.slow = e.target.checked;
+      settings.slow = e.target.checked;
     };
     return {
       draw,
       stop: () => {
-        pb.stop();
+        playback.stop();
         fx.stop();
       },
       auto: () => {
         start();
         draw();
-        pb.start();
+        playback.start();
       },
     };
   },

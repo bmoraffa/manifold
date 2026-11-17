@@ -2,25 +2,25 @@
 import {
   $,
   Anim,
-  RM,
-  T,
+  prefersReducedMotion,
+  readThemeColors,
   bind,
   f2,
   f3,
-  fit,
+  prepareCanvas,
   markTP,
   mix,
   playBtn,
   randnFrom,
-  runCtl,
-  setR,
+  attachRunLimit,
+  setReadout,
   testPoint,
 } from '../../../js/core/shared.js';
 import { AD } from '../../../js/math/autodiff.js';
 import {
   G2S,
   g2Data,
-  g2Near,
+  fractionNearData,
   g2Note,
   g2Panel,
   g2Pts,
@@ -31,7 +31,7 @@ import {
   nfMake,
 } from '../shared.js';
 import { pct } from '../../ensembles/shared.js';
-import { uCur, uLine, uView } from '../../unsupervised/shared.js';
+import { highlightLessonStep, drawSeriesChart, uView } from '../../unsupervised/shared.js';
 
 export default {
   init(root) {
@@ -52,17 +52,17 @@ export default {
       phase = 'train',
       data = [],
       msg = '',
-      cu = 0,
-      fr = 0,
-      pb,
-      chk = () => false,
+      activeStepIndex = 0,
+      frameCount = 0,
+      playback,
+      checkRunStop = () => false,
       run = 1,
       Z,
       GZ,
       gn = 0,
-      st = null,
-      gs = null,
-      gl = 2 * K,
+      sampleLayerSnapshots = null,
+      gridLayerSnapshots = null,
+      generationSubstep = 2 * K,
       done = false,
       dens = null,
       dmax = 1,
@@ -80,8 +80,8 @@ export default {
       return Float64Array.from(P);
     };
     const refresh = (full) => {
-      st = nfInv(F, Z, M);
-      gs = nfInv(F, GZ, gn);
+      sampleLayerSnapshots = nfInv(F, Z, M);
+      gridLayerSnapshots = nfInv(F, GZ, gn);
       if (full) {
         lastD = ts;
         const G = new Float64Array(2 * GW * GH);
@@ -108,8 +108,8 @@ export default {
       sm = [];
       phase = 'train';
       done = false;
-      cu = 0;
-      gl = 2 * K;
+      activeStepIndex = 0;
+      generationSubstep = 2 * K;
       nearV = NaN;
       data = Array.from({ length: 500 }, () => g2Samp(S.ds, RN));
       Z = Float64Array.from({ length: 2 * M }, () => RN());
@@ -142,7 +142,7 @@ export default {
         }
       }
       refresh(ts - lastD >= 30 || ts >= MAXS);
-      cu = Math.floor(ts / 60) % 3;
+      activeStepIndex = Math.floor(ts / 60) % 3;
       msg =
         'Training step ' +
         ts +
@@ -155,21 +155,21 @@ export default {
         ').';
       if (ts >= MAXS) {
         phase = 'gen';
-        gl = 0;
+        generationSubstep = 0;
         done = false;
-        cu = 3;
-        nearV = g2Near(st[2 * K], M, data);
+        activeStepIndex = 3;
+        nearV = fractionNearData(sampleLayerSnapshots[2 * K], M, data);
         msg =
           'Training is finished. The left picture is back at the start: 350 points from a round Gaussian, with no layers applied. Press Run to send them through the six layers.';
       }
     };
     const gstep = () => {
       if (done) return;
-      gl = Math.min(2 * K, Math.floor(gl + 1e-6) + 1);
-      const ly = Math.ceil(gl / 2);
-      cu = 4;
+      generationSubstep = Math.min(2 * K, Math.floor(generationSubstep + 1e-6) + 1);
+      const ly = Math.ceil(generationSubstep / 2);
+      activeStepIndex = 4;
       msg =
-        gl % 2
+        generationSubstep % 2
           ? 'Layer ' +
             ly +
             ' of ' +
@@ -182,24 +182,24 @@ export default {
             ', second half: the whole picture is turned by 60°' +
             (ly < K ? ', so that the next layer stretches along a new direction' : '') +
             '. A turn does not change any area, so it does not change any density.';
-      if (gl >= 2 * K) {
+      if (generationSubstep >= 2 * K) {
         done = true;
-        cu = 5;
+        activeStepIndex = 5;
         msg += ' All six layers are applied: ' + pct(nearV) + ' of the points lie on the shape.';
       }
     };
     const step = () => {
       if (phase === 'train') train(50);
       else if (done) {
-        gl = 0;
+        generationSubstep = 0;
         done = false;
-        cu = 3;
+        activeStepIndex = 3;
         msg = 'Back to the round Gaussian, with no layers applied. Press Run or One step.';
       } else gstep();
     };
     const at = (sn, i, n, o) => {
-      const j = Math.min(2 * K - 1, Math.floor(gl)),
-        u = gl >= 2 * K ? 1 : gl - j,
+      const j = Math.min(2 * K - 1, Math.floor(generationSubstep)),
+        u = generationSubstep >= 2 * K ? 1 : generationSubstep - j,
         A = sn[j],
         B = sn[j + 1];
       if (j % 2 === 0) {
@@ -227,20 +227,20 @@ export default {
       ],
     );
     const draw = () => {
-      const t = T(),
+      const colors = readThemeColors(),
         o = [0, 0];
       {
         const V = uView(c),
           { g, h } = V;
-        g2Data(g, V, t, data);
-        if (gs) {
-          g.strokeStyle = mix(t.accent, t.accent, 0, 0.38);
+        g2Data(g, V, colors, data);
+        if (gridLayerSnapshots) {
+          g.strokeStyle = mix(colors.accent, colors.accent, 0, 0.38);
           g.lineWidth = 1;
           g.lineJoin = 'round';
           for (let ln = 0; ln < gn / 49; ln++) {
             g.beginPath();
             for (let b = 0; b < 49; b++) {
-              at(gs, ln * 49 + b, gn, o);
+              at(gridLayerSnapshots, ln * 49 + b, gn, o);
               const x = V.X(o[0] * G2S),
                 y = V.Y(o[1] * G2S);
               b ? g.lineTo(x, y) : g.moveTo(x, y);
@@ -248,31 +248,31 @@ export default {
             g.stroke();
           }
         }
-        if (st) {
+        if (sampleLayerSnapshots) {
           const P = new Float64Array(2 * M);
           for (let i = 0; i < M; i++) {
-            at(st, i, M, o);
+            at(sampleLayerSnapshots, i, M, o);
             P[2 * i] = o[0];
             P[2 * i + 1] = o[1];
           }
-          g2Pts(g, V, t, P, M, t.gold);
+          g2Pts(g, V, colors, P, M, colors.gold);
         }
-        markTP(g, V.X(tp.v[0] * G2S), V.Y(tp.v[1] * G2S), t);
+        markTP(g, V.X(tp.v[0] * G2S), V.Y(tp.v[1] * G2S), colors);
         g2Note(
           g,
-          t,
+          colors,
           h,
           phase === 'train'
             ? 'all ' + K + ' layers applied, as trained so far'
-            : f2(gl / 2) + ' of ' + K + ' layers applied',
+            : f2(generationSubstep / 2) + ' of ' + K + ' layers applied',
         );
       }
       {
-        const { g, w, h } = fit(cr),
+        const { g: ctx, w, h } = prepareCanvas(cr),
           h1 = h * 0.56,
           P = g2Panel(
-            g,
-            t,
+            ctx,
+            colors,
             0,
             0,
             w,
@@ -285,38 +285,43 @@ export default {
             for (let q = 0; q < GW; q++) {
               const v = dens[r * GW + q] / dmax;
               if (v < 0.012) continue;
-              g.fillStyle = mix(t.accent, t.accent, 0, Math.min(0.95, Math.pow(v, 0.6)));
+              ctx.fillStyle = mix(
+                colors.accent,
+                colors.accent,
+                0,
+                Math.min(0.95, Math.pow(v, 0.6)),
+              );
               const xa = Math.round(P.X(-4 + (8 * q) / GW)),
                 xb = Math.round(P.X(-4 + (8 * (q + 1)) / GW)),
                 ya = Math.round(P.Y(3 - (6 * r) / GH)),
                 yb = Math.round(P.Y(3 - (6 * (r + 1)) / GH));
-              g.fillRect(xa, ya, xb - xa, yb - ya);
+              ctx.fillRect(xa, ya, xb - xa, yb - ya);
             }
         }
-        g2Data(g, P, t, data, 0.3, 1.2);
-        markTP(g, P.X(tp.v[0] * G2S), P.Y(tp.v[1] * G2S), t, false);
-        g.restore();
-        const Lp = uLine(g, t, 0, h1, w, h - h1, sm, {
+        g2Data(ctx, P, colors, data, 0.3, 1.2);
+        markTP(ctx, P.X(tp.v[0] * G2S), P.Y(tp.v[1] * G2S), colors, false);
+        ctx.restore();
+        const Lp = drawSeriesChart(ctx, colors, 0, h1, w, h - h1, sm, {
           title: 'minus the average log-probability of the data (lower is better)',
           n: MAXS / 20,
-          col: t.ok,
+          col: colors.ok,
           ym: Math.max(base * 1.08, sm[0] || 0),
           y1: Math.min(0, ...sm),
         });
-        g.setLineDash([5, 4]);
-        g.strokeStyle = t.gold;
-        g.lineWidth = 1.4;
-        g.beginPath();
-        g.moveTo(Lp.m.l, Lp.Y(base));
-        g.lineTo(w - Lp.m.r, Lp.Y(base));
-        g.stroke();
-        g.setLineDash([]);
-        g.fillStyle = t.cut;
-        g.textAlign = 'right';
-        g.fillText('a plain round Gaussian', w - Lp.m.r, Lp.Y(base) + 14);
+        ctx.setLineDash([5, 4]);
+        ctx.strokeStyle = colors.gold;
+        ctx.lineWidth = 1.4;
+        ctx.beginPath();
+        ctx.moveTo(Lp.m.l, Lp.Y(base));
+        ctx.lineTo(w - Lp.m.r, Lp.Y(base));
+        ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.fillStyle = colors.cut;
+        ctx.textAlign = 'right';
+        ctx.fillText('a plain round Gaussian', w - Lp.m.r, Lp.Y(base) + 14);
       }
       live.textContent = msg;
-      uCur(root, 'nf', cu);
+      highlightLessonStep(root, 'nf', activeStepIndex);
       {
         const lp = nfLogp(F, Float64Array.of(tp.v[0], tp.v[1]), 1)[0];
         let lo = 0;
@@ -331,7 +336,7 @@ export default {
             '% of the real data points.'
           : 'Train the model first: press Run.';
       }
-      setR(
+      setReadout(
         root,
         'ph',
         phase === 'train'
@@ -342,64 +347,64 @@ export default {
             ? 'Finished'
             : 'Applying the layers',
       );
-      setR(root, 'ts', ts + ' of ' + MAXS);
-      setR(root, 'L', sm.length ? f3(sm[sm.length - 1]) : '–');
-      setR(root, 'base', f3(base));
-      setR(root, 'ly', (phase === 'train' ? K : f2(gl / 2)) + ' of ' + K);
-      setR(root, 'near', isFinite(nearV) ? pct(nearV) : '–');
+      setReadout(root, 'ts', ts + ' of ' + MAXS);
+      setReadout(root, 'L', sm.length ? f3(sm[sm.length - 1]) : '–');
+      setReadout(root, 'base', f3(base));
+      setReadout(root, 'ly', (phase === 'train' ? K : f2(generationSubstep / 2)) + ' of ' + K);
+      setReadout(root, 'near', isFinite(nearV) ? pct(nearV) : '–');
     };
     tp.on = () => draw();
     build();
-    if (RM) {
+    if (prefersReducedMotion) {
       train(MAXS);
-      gl = 2 * K;
+      generationSubstep = 2 * K;
       done = true;
     }
     const anim = Anim(() => {
-      fr++;
+      frameCount++;
       if (phase === 'train') {
-        train(Math.min(ts < 40 ? 1 : 4, chk.remaining()));
+        train(Math.min(ts < 40 ? 1 : 4, checkRunStop.remaining()));
         draw();
-        chk();
+        checkRunStop();
         return;
       }
       if (!done) {
-        const n = gl + 1 / 45;
-        if (Math.floor(n + 1e-9) > Math.floor(gl + 1e-9) || n >= 2 * K) {
+        const n = generationSubstep + 1 / 45;
+        if (Math.floor(n + 1e-9) > Math.floor(generationSubstep + 1e-9) || n >= 2 * K) {
           gstep();
-        } else gl = n;
+        } else generationSubstep = n;
       }
       draw();
-      if (done) pb.stop();
+      if (done) playback.stop();
     });
-    pb = playBtn($('#nf-play', root), anim);
-    chk = runCtl(pb, root, 'nf', {
+    playback = playBtn($('#nf-play', root), anim);
+    checkRunStop = attachRunLimit(playback, root, 'nf', {
       done: () => phase === 'gen' && done,
       restart: () => {
-        gl = 0;
+        generationSubstep = 0;
         done = false;
       },
       count: () => ts,
       what: 'training steps',
     });
     $('#nf-step', root).onclick = () => {
-      pb.stop();
+      playback.stop();
       step();
       draw();
     };
     $('#nf-reset', root).onclick = () => {
-      pb.stop();
+      playback.stop();
       run++;
       build();
       draw();
     };
     $('#nf-ds', root).onchange = (e) => {
       S.ds = e.target.value;
-      pb.stop();
+      playback.stop();
       run++;
       build();
       draw();
-      pb.start();
+      playback.start();
     };
     $('#nf-gen', root).onclick = () => {
       if (phase !== 'gen') {
@@ -407,25 +412,25 @@ export default {
         draw();
         return;
       }
-      pb.stop();
-      gl = 0;
+      playback.stop();
+      generationSubstep = 0;
       done = false;
       draw();
-      pb.start();
+      playback.start();
     };
     bind(
       root,
       'nf-ly',
       (v) => {
-        if (!pb) return;
+        if (!playback) return;
         if (phase !== 'gen') {
           draw();
           return;
         }
-        pb.stop();
-        gl = 2 * +v;
-        done = gl >= 2 * K;
-        cu = 4;
+        playback.stop();
+        generationSubstep = 2 * +v;
+        done = generationSubstep >= 2 * K;
+        activeStepIndex = 4;
         msg = 'Showing the cloud after ' + v + ' of ' + K + ' layers.';
         draw();
       },
@@ -433,12 +438,12 @@ export default {
     );
     return {
       draw,
-      stop: () => pb.stop(),
+      stop: () => playback.stop(),
       auto: () => {
         run++;
         build();
         draw();
-        pb.start();
+        playback.start();
       },
     };
   },

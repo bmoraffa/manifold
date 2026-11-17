@@ -7,12 +7,12 @@ async function fetchSource(url) {
 }
 
 export function createLessonLoader({ fetchText = fetchSource } = {}) {
-  const texts = new Map();
-  const lessons = new Map();
-  function cached(cache, key, start) {
+  const htmlPromisesByUrl = new Map();
+  const resourcePromisesByEntry = new Map();
+  function getOrLoad(cache, key, loadResource) {
     if (!cache.has(key)) {
       const pending = Promise.resolve()
-        .then(start)
+        .then(loadResource)
         .catch((error) => {
           cache.delete(key);
           throw error;
@@ -21,11 +21,11 @@ export function createLessonLoader({ fetchText = fetchSource } = {}) {
     }
     return cache.get(key);
   }
-  const loadText = (url) => cached(texts, url.href, () => fetchText(url));
+  const loadText = (url) => getOrLoad(htmlPromisesByUrl, url.href, () => fetchText(url));
   return {
     loadText,
     load(entry) {
-      return cached(lessons, entry, async () => {
+      return getOrLoad(resourcePromisesByEntry, entry, async () => {
         const [html, { default: definition }, controlsHTML] = await Promise.all([
           loadText(entry.viewUrl),
           entry.load(),

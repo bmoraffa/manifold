@@ -3,21 +3,21 @@ import {
   $,
   Anim,
   MONO,
-  RM,
-  T,
+  prefersReducedMotion,
+  readThemeColors,
   bind,
   eqShow,
   f2,
   f3,
-  fit,
+  prepareCanvas,
   mix,
   playBtn,
-  runCtl,
-  setR,
+  attachRunLimit,
+  setReadout,
 } from '../../../js/core/shared.js';
 import {
-  GWN,
-  GWS,
+  ACTION_NAMES,
+  ACTION_ARROWS,
   gwBest,
   gwClick,
   gwDraw,
@@ -27,16 +27,16 @@ import {
   gwRoute,
   rlN,
 } from '../shared.js';
-import { segBind, uCur, uLine } from '../../unsupervised/shared.js';
+import { segBind, highlightLessonStep, drawSeriesChart } from '../../unsupervised/shared.js';
 
 export default {
   init(root) {
-    const c = $('#ql-c', root),
+    const mainCanvas = $('#ql-c', root),
       cr = $('#ql-r', root),
       live = $('#ql-live', root),
       eq = $('#ql-eq', root),
       tab = $('#ql-tab', root),
-      S = { w: 'room', al: 0.5, ga: 0.9, eps: 0.2, slip: 0, sp: 2 },
+      settings = { w: 'room', al: 0.5, ga: 0.9, eps: 0.2, slip: 0, sp: 2 },
       W = {
         hall: ['S...G'],
         room: ['...G', '.#.X', 'S...'],
@@ -52,17 +52,17 @@ export default {
       stp = 0,
       epR = 0,
       RET = [],
-      ERR = [],
-      DM = [],
-      dmx = 0,
+      meanQErrorHistory = [],
+      maxQChangeHistory = [],
+      episodeMaxQChange = 0,
       trail = [],
       last = null,
       sel = -1,
       msg = '',
-      cu = 0,
-      fr = 0,
-      pb,
-      chk = () => false,
+      activeStepIndex = 0,
+      frameCount = 0,
+      playback,
+      checkRunStop = () => false,
       fin = false,
       P = null,
       tv = 0,
@@ -95,12 +95,12 @@ export default {
       return k + ' of ' + n;
     };
     const truth = () => {
-      Qs = gwQstar(G, S.ga);
+      Qs = gwQstar(G, settings.ga);
       const R = gwRoute(gwMake(G.rows, { slip: 0 }), Qs, G.start);
       best0 = R.ok ? R.ret : NaN;
     };
     const build = () => {
-      G = gwMake(W[S.w], { slip: S.slip });
+      G = gwMake(W[settings.w], { slip: settings.slip });
       Q = new Float64Array(G.n * 4);
       truth();
       s = G.start;
@@ -108,13 +108,13 @@ export default {
       stp = 0;
       epR = 0;
       RET = [];
-      ERR = [gap()];
-      DM = [];
-      dmx = 0;
+      meanQErrorHistory = [gap()];
+      maxQChangeHistory = [];
+      episodeMaxQChange = 0;
       trail = [s];
       last = null;
       fin = false;
-      cu = 0;
+      activeStepIndex = 0;
       tv++;
       sel = -1;
       msg =
@@ -134,7 +134,7 @@ export default {
       if (fin) return;
       const row = [0, 1, 2, 3].map((a) => Q[s * 4 + a]),
         mx = Math.max(...row),
-        explore = Math.random() < S.eps;
+        explore = Math.random() < settings.eps;
       let a,
         ties = [0, 1, 2, 3].filter((k) => row[k] >= mx - 1e-12);
       if (explore) a = Math.floor(Math.random() * 4);
@@ -143,10 +143,10 @@ export default {
         old = Q[s * 4 + a],
         s2 = o.s2,
         nx = o.done ? 0 : gwMax(Q, s2),
-        tg = o.r + S.ga * nx,
-        nw = old + S.al * (tg - old);
+        tg = o.r + settings.ga * nx,
+        nw = old + settings.al * (tg - old);
       Q[s * 4 + a] = nw;
-      dmx = Math.max(dmx, Math.abs(nw - old));
+      episodeMaxQChange = Math.max(episodeMaxQChange, Math.abs(nw - old));
       stp++;
       epR += o.r;
       trail.push(s2);
@@ -161,23 +161,23 @@ export default {
             '. The robot is in <b>' +
             G.name(s) +
             '</b>. Its row of the table: ' +
-            row.map((v, k) => GWS[k] + ' ' + rlN(v)).join('   '),
+            row.map((v, k) => ACTION_ARROWS[k] + ' ' + rlN(v)).join('   '),
           explore
             ? 'It rolled a random number below ε = ' +
-              f2(S.eps) +
+              f2(settings.eps) +
               ', so it <b>explores</b>: a random move, ' +
-              GWS[a] +
+              ACTION_ARROWS[a] +
               ' ' +
-              GWN[a] +
+              ACTION_NAMES[a] +
               '.'
             : 'It <b>exploits</b>: the highest value in the row is ' +
               rlN(mx) +
               (ties.length > 1
                 ? ', shared by ' + ties.length + ' moves, so one of them is picked at random: '
                 : ', which is ') +
-              GWS[a] +
+              ACTION_ARROWS[a] +
               ' ' +
-              GWN[a] +
+              ACTION_NAMES[a] +
               '.',
           (o.slipped ? 'The floor was slippery and it slid sideways. ' : '') +
             (o.bump
@@ -193,7 +193,10 @@ export default {
               ':  max( ' +
               [0, 1, 2, 3]
                 .map(
-                  (k) => GWS[k] + ' ' + rlN(Q[s2 * 4 + k] - (s2 === s && k === a ? nw - old : 0)),
+                  (k) =>
+                    ACTION_ARROWS[k] +
+                    ' ' +
+                    rlN(Q[s2 * 4 + k] - (s2 === s && k === a ? nw - old : 0)),
                 )
                 .join(',  ') +
               ' ) = ' +
@@ -201,7 +204,7 @@ export default {
           'target = reward + γ × best next = ' +
             rlN(o.r) +
             ' + ' +
-            f2(S.ga) +
+            f2(settings.ga) +
             ' × ' +
             rlN(nx) +
             ' = <b>' +
@@ -210,11 +213,11 @@ export default {
           'new Q(' +
             G.name(s) +
             ', ' +
-            GWS[a] +
+            ACTION_ARROWS[a] +
             ') = old + α × (target − old) = ' +
             rlN(old) +
             ' + ' +
-            f2(S.al) +
+            f2(settings.al) +
             ' × (' +
             rlN(tg) +
             ' − ' +
@@ -225,12 +228,12 @@ export default {
         ];
         lastL = L;
         if (!quiet) eqShow(eq, L, 0);
-        cu = o.done ? 5 : 4;
+        activeStepIndex = o.done ? 5 : 4;
         msg =
           'The entry for ' +
-          GWS[a] +
+          ACTION_ARROWS[a] +
           ' ' +
-          GWN[a] +
+          ACTION_NAMES[a] +
           ' in row ' +
           G.name(s) +
           ' changed from ' +
@@ -252,19 +255,19 @@ export default {
       s = s2;
       if (o.done || stp >= CAP) {
         RET.push(epR);
-        ERR.push(gap());
-        DM.push(dmx);
+        meanQErrorHistory.push(gap());
+        maxQChangeHistory.push(episodeMaxQChange);
         ep++;
         const lastR = epR;
-        dmx = 0;
+        episodeMaxQChange = 0;
         stp = 0;
         epR = 0;
         s = G.start;
         trail = [s];
-        const w = DM.slice(-25);
-        if (ep >= MAXE || (DM.length >= 25 && Math.max(...w) < 0.01)) {
+        const w = maxQChangeHistory.slice(-25);
+        if (ep >= MAXE || (maxQChangeHistory.length >= 25 && Math.max(...w) < 0.01)) {
           fin = true;
-          cu = 5;
+          activeStepIndex = 5;
           const R = gwRoute(G, Q, G.start);
           msg =
             (ep >= MAXE
@@ -273,7 +276,7 @@ export default {
                 ' episodes: the table is still changing by up to ' +
                 f2(Math.max(...w)) +
                 ' per episode' +
-                (S.slip ? ', which is what a slippery floor and a fixed α produce' : '') +
+                (settings.slip ? ', which is what a slippery floor and a fixed α produce' : '') +
                 '.'
               : 'The table has stopped changing: for 25 episodes in a row no entry moved by more than 0.01. Finished after ' +
                 ep +
@@ -281,7 +284,7 @@ export default {
             ' ' +
             okShare() +
             ' entries are within 0.1 of their true values' +
-            (S.slip
+            (settings.slip
               ? '. A smaller α would steady them. '
               : ': the ones still off belong to moves the robot rarely makes. ') +
             (R.ok
@@ -295,7 +298,7 @@ export default {
     const tableHTML = (t) => {
       let h =
         '<table><thead><tr><th>square</th>' +
-        GWS.map((x, k) => '<th>' + x + ' ' + GWN[k] + '</th>').join('') +
+        ACTION_ARROWS.map((x, k) => '<th>' + x + ' ' + ACTION_NAMES[k] + '</th>').join('') +
         '<th>best move</th></tr></thead><tbody>';
       for (const q of G.states) {
         if (G.term(q)) {
@@ -331,7 +334,7 @@ export default {
             })
             .join('') +
           '<td>' +
-          (any ? GWS[b] + ' ' + GWN[b] : '–') +
+          (any ? ACTION_ARROWS[b] + ' ' + ACTION_NAMES[b] : '–') +
           '</td></tr>';
       }
       return h + '</tbody></table>';
@@ -357,9 +360,9 @@ export default {
         : 'Square ' +
           G.name(sel) +
           ': the table says the best move is ' +
-          GWS[b] +
+          ACTION_ARROWS[b] +
           ' ' +
-          GWN[b] +
+          ACTION_NAMES[b] +
           ', worth ' +
           rlN(Q[sel * 4 + b]) +
           '. ' +
@@ -369,7 +372,7 @@ export default {
               ' step' +
               (R.acts.length > 1 ? 's' : '') +
               ' (' +
-              R.acts.map((a) => GWS[a]).join(' ') +
+              R.acts.map((a) => ACTION_ARROWS[a]).join(' ') +
               ') for a total reward of ' +
               rlN(R.ret).replace('.00', '') +
               '.'
@@ -379,16 +382,16 @@ export default {
           ' The true value of the best move here is ' +
           rlN(Qs[sel * 4 + tb]) +
           ' (' +
-          GWS[tb] +
+          ACTION_ARROWS[tb] +
           ' ' +
-          GWN[tb] +
+          ACTION_NAMES[tb] +
           ').';
     };
     const draw = () => {
-      const t = T();
+      const colors = readThemeColors();
       {
-        const { g, w, h } = fit(c);
-        P = gwDraw(g, t, 6, 6, w - 12, h - 12, G, {
+        const { g: ctx, w, h } = prepareCanvas(mainCanvas);
+        P = gwDraw(ctx, colors, 6, 6, w - 12, h - 12, G, {
           Q,
           agent: s,
           trail,
@@ -397,12 +400,12 @@ export default {
         });
       }
       {
-        const { g, w, h } = fit(cr),
+        const { g: ctx, w, h } = prepareCanvas(cr),
           n = Math.max(30, RET.length),
           lo = Math.min(-20, ...RET.slice(-n)),
-          A = uLine(
-            g,
-            t,
+          A = drawSeriesChart(
+            ctx,
+            colors,
             0,
             0,
             w / 2,
@@ -413,111 +416,111 @@ export default {
               n,
               y1: lo,
               ym: Math.max(10, isFinite(best0) ? best0 : 10),
-              col: t.accent,
+              col: colors.accent,
             },
           );
         if (isFinite(best0)) {
-          g.setLineDash([5, 4]);
-          g.strokeStyle = t.gold;
-          g.lineWidth = 1.3;
-          g.beginPath();
-          g.moveTo(A.m.l, A.Y(best0));
-          g.lineTo(w / 2 - A.m.r, A.Y(best0));
-          g.stroke();
-          g.setLineDash([]);
-          g.fillStyle = t.cut;
-          g.textAlign = 'right';
-          g.fillText(
-            'dashed: best possible' + (S.slip ? ' without sliding' : ''),
+          ctx.setLineDash([5, 4]);
+          ctx.strokeStyle = colors.gold;
+          ctx.lineWidth = 1.3;
+          ctx.beginPath();
+          ctx.moveTo(A.m.l, A.Y(best0));
+          ctx.lineTo(w / 2 - A.m.r, A.Y(best0));
+          ctx.stroke();
+          ctx.setLineDash([]);
+          ctx.fillStyle = colors.cut;
+          ctx.textAlign = 'right';
+          ctx.fillText(
+            'dashed: best possible' + (settings.slip ? ' without sliding' : ''),
             w / 2 - A.m.r,
             h - A.m.b - 8,
           );
         }
-        uLine(g, t, w / 2, 0, w / 2, h, ERR, {
+        drawSeriesChart(ctx, colors, w / 2, 0, w / 2, h, meanQErrorHistory, {
           title: 'average gap: table against true values',
           n: n + 1,
-          col: t.ok,
-          ym: Math.max(0.5, ERR[0]),
+          col: colors.ok,
+          ym: Math.max(0.5, meanQErrorHistory[0]),
         });
-        g.font = MONO;
-        g.fillStyle = t.muted;
-        g.textAlign = 'right';
-        g.fillText('episodes →', w - 12, h - 5);
+        ctx.font = MONO;
+        ctx.fillStyle = colors.muted;
+        ctx.textAlign = 'right';
+        ctx.fillText('episodes →', w - 12, h - 5);
       }
       if (tvd !== tv) {
         tvd = tv;
-        tab.innerHTML = tableHTML(t);
+        tab.innerHTML = tableHTML(colors);
         ask();
       }
       live.textContent = msg;
-      uCur(root, 'ql', cu);
+      highlightLessonStep(root, 'ql', activeStepIndex);
       const R = gwRoute(G, Q, G.start),
-        w25 = DM.slice(-25);
-      setR(root, 'ep', ep + (fin ? ' (stopped)' : ''));
-      setR(root, 'st', String(stp));
-      setR(root, 'lr', RET.length ? rlN(RET[RET.length - 1]).replace('.00', '') : '–');
-      setR(
+        w25 = maxQChangeHistory.slice(-25);
+      setReadout(root, 'ep', ep + (fin ? ' (stopped)' : ''));
+      setReadout(root, 'st', String(stp));
+      setReadout(root, 'lr', RET.length ? rlN(RET[RET.length - 1]).replace('.00', '') : '–');
+      setReadout(
         root,
         'rt',
         R.ok
-          ? R.acts.map((a) => GWS[a]).join(' ') + ' (' + R.acts.length + ' steps)'
+          ? R.acts.map((a) => ACTION_ARROWS[a]).join(' ') + ' (' + R.acts.length + ' steps)'
           : 'not found yet',
       );
-      setR(root, 'ok', okShare());
-      setR(root, 'dm', w25.length ? f3(Math.max(...w25)) : '–');
+      setReadout(root, 'ok', okShare());
+      setReadout(root, 'dm', w25.length ? f3(Math.max(...w25)) : '–');
     };
     const one = (q) => {
       step(q);
       lastSeq = tv;
     };
     build();
-    if (RM) {
+    if (prefersReducedMotion) {
       while (!fin) step(true);
       lastSeq = -1;
     }
     const anim = Anim(() => {
-      fr++;
+      frameCount++;
       if (fin) {
-        pb.stop();
+        playback.stop();
         return;
       }
-      if (S.sp === 1) {
-        if (fr % 34) return;
+      if (settings.sp === 1) {
+        if (frameCount % 34) return;
         one(false);
-      } else if (S.sp === 2) {
-        if (fr % 7) return;
+      } else if (settings.sp === 2) {
+        if (frameCount % 7) return;
         one(false);
-      } else if (S.sp === 3) {
-        for (let i = 0; i < 4 && !fin && chk.remaining() > 0; i++) one(true);
+      } else if (settings.sp === 3) {
+        for (let i = 0; i < 4 && !fin && checkRunStop.remaining() > 0; i++) one(true);
         if (lastL) eqShow(eq, lastL, 0);
       } else {
         const e0 = ep;
-        while (ep < e0 + 2 && !fin && chk.remaining() > 0) one(true);
+        while (ep < e0 + 2 && !fin && checkRunStop.remaining() > 0) one(true);
         if (lastL) eqShow(eq, lastL, 0);
       }
       draw();
-      chk();
+      checkRunStop();
     });
-    pb = playBtn($('#ql-play', root), anim);
-    chk = runCtl(pb, root, 'ql', {
+    playback = playBtn($('#ql-play', root), anim);
+    checkRunStop = attachRunLimit(playback, root, 'ql', {
       done: () => fin,
       restart: () => build(),
       count: () => ep,
       what: 'episodes',
     });
     $('#ql-step', root).onclick = () => {
-      pb.stop();
+      playback.stop();
       if (fin) build();
       else one(false);
       draw();
     };
     $('#ql-reset', root).onclick = () => {
-      pb.stop();
+      playback.stop();
       build();
       draw();
     };
     $('#ql-ep', root).onclick = () => {
-      pb.stop();
+      playback.stop();
       if (fin) {
         draw();
         return;
@@ -527,15 +530,15 @@ export default {
       while (ep === e0 && !fin && k++ < CAP + 2) one(false);
       draw();
     };
-    segBind(root, 'ql-w', S.w, (v) => {
-      S.w = v;
-      pb.stop();
+    segBind(root, 'ql-w', settings.w, (v) => {
+      settings.w = v;
+      playback.stop();
       build();
       draw();
     });
-    segBind(root, 'ql-sl', String(S.slip), (v) => {
-      S.slip = +v;
-      pb.stop();
+    segBind(root, 'ql-sl', String(settings.slip), (v) => {
+      settings.slip = +v;
+      playback.stop();
       build();
       draw();
     });
@@ -543,7 +546,7 @@ export default {
       root,
       'ql-sp',
       (v) => {
-        S.sp = +v;
+        settings.sp = +v;
       },
       (v) => ['', 'slow, to read each update', 'steady', 'fast', 'two episodes at a time'][+v],
     );
@@ -551,7 +554,7 @@ export default {
       root,
       'ql-al',
       (v) => {
-        S.al = +v;
+        settings.al = +v;
       },
       f2,
     );
@@ -559,7 +562,7 @@ export default {
       root,
       'ql-ep2',
       (v) => {
-        S.eps = +v;
+        settings.eps = +v;
       },
       f2,
     );
@@ -567,12 +570,12 @@ export default {
       root,
       'ql-ga',
       (v) => {
-        S.ga = +v;
-        if (!pb) return;
+        settings.ga = +v;
+        if (!playback) return;
         truth();
-        ERR = [gap()];
+        meanQErrorHistory = [gap()];
         RET = [];
-        DM = [];
+        maxQChangeHistory = [];
         ep = 0;
         fin = false;
         tv++;
@@ -582,7 +585,7 @@ export default {
       },
       f2,
     );
-    gwClick(c, (x, y) => {
+    gwClick(mainCanvas, (x, y) => {
       if (!P) return;
       const q = P.at(x, y);
       if (q < 0 || G.wall(q)) return;
@@ -592,11 +595,11 @@ export default {
     });
     return {
       draw,
-      stop: () => pb.stop(),
+      stop: () => playback.stop(),
       auto: () => {
         build();
         draw();
-        pb.start();
+        playback.start();
       },
     };
   },

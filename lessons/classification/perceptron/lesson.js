@@ -1,5 +1,5 @@
 /* Manifold. © 2026 Bahman Moraffah. All rights reserved. */
-import { MONO, clipPlot, f2, fit, plot } from '../../../js/core/shared.js';
+import { MONO, clipPlot, f2, prepareCanvas, plot } from '../../../js/core/shared.js';
 import { clfLesson, sig } from '../shared.js';
 
 export default clfLesson({
@@ -17,12 +17,12 @@ export default clfLesson({
       order,
       i,
       ep,
-      mist,
+      epochMistakes,
       hist,
       last,
-      upd,
+      totalUpdates,
       wait = 0,
-      fr = 0,
+      frameCount = 0,
       msg = '',
       cu = 0;
     const newEp = () => {
@@ -32,13 +32,13 @@ export default clfLesson({
         [order[a], order[b]] = [order[b], order[a]];
       }
       i = 0;
-      mist = 0;
+      epochMistakes = 0;
     };
     const reset = () => {
       w = [0, Math.random() - 0.5, Math.random() - 0.5];
       ep = 0;
       hist = [];
-      upd = 0;
+      totalUpdates = 0;
       last = null;
       wait = 0;
       newEp();
@@ -46,7 +46,7 @@ export default clfLesson({
       msg = 'A random starting line. Press Train or One step.';
       cu = 0;
     };
-    const adv = () => {
+    const advanceToCorrection = () => {
       while (i < order.length) {
         const p = order[i++],
           y = p.c ? 1 : -1;
@@ -55,8 +55,8 @@ export default clfLesson({
           w[0] += S.lr * y;
           w[1] += S.lr * y * p.x;
           w[2] += S.lr * y * p.y;
-          mist++;
-          upd++;
+          epochMistakes++;
+          totalUpdates++;
           last = p;
           cu = 3;
           msg =
@@ -87,20 +87,20 @@ export default clfLesson({
             ') → (' +
             w.map(f2).join(', ') +
             '). Correction number ' +
-            upd +
+            totalUpdates +
             '.';
           return 'upd';
         }
       }
-      hist.push(mist);
+      hist.push(epochMistakes);
       ep++;
-      const done = mist === 0;
+      const done = epochMistakes === 0;
       msg =
         'Pass ' +
         ep +
         ' finished with ' +
-        mist +
-        (mist === 1 ? ' mistake.' : ' mistakes.') +
+        epochMistakes +
+        (epochMistakes === 1 ? ' mistake.' : ' mistakes.') +
         (done
           ? ' Every point is on the correct side, so the perceptron stops.'
           : ' Start the next pass.');
@@ -114,15 +114,15 @@ export default clfLesson({
       reset,
       p: (x, y) => sig((7 * (w[0] + w[1] * x + w[2] * y)) / (Math.hypot(w[1], w[2]) || 1)),
       stepOnce: () => {
-        adv();
+        advanceToCorrection();
       },
       count: () => ep,
       done: () => wait > 0,
       tick() {
-        fr++;
+        frameCount++;
         if (wait > 0) return false;
-        if (fr % 5) return false;
-        const r = adv();
+        if (frameCount % 5) return false;
+        const r = advanceToCorrection();
         if (r === 'done') {
           api.note(
             'A full pass with no mistakes: every training point is on the right side, so it stops.',
@@ -160,36 +160,36 @@ export default clfLesson({
         }
       },
       right(t) {
-        const { g, w: cw, h } = fit(api.cr),
+        const { g: ctx, w: cw, h } = prepareCanvas(api.cr),
           n = Math.max(12, hist.length),
           mx = Math.max(4, ...hist),
-          P = plot(g, cw, h, [0, n + 0.5], [0, mx * 1.1], t, {
+          P = plot(ctx, cw, h, [0, n + 0.5], [0, mx * 1.1], t, {
             xstep: n > 30 ? 10 : n > 14 ? 5 : 2,
             xlabel: 'pass',
           });
-        g.font = MONO;
-        g.fillStyle = t.muted;
-        g.textAlign = 'right';
-        g.fillText(String(mx), P.m.l - 6, P.Y(mx) + 4);
-        g.fillText('0', P.m.l - 6, P.Y(0) + 4);
-        clipPlot(g, P);
+        ctx.font = MONO;
+        ctx.fillStyle = t.muted;
+        ctx.textAlign = 'right';
+        ctx.fillText(String(mx), P.m.l - 6, P.Y(mx) + 4);
+        ctx.fillText('0', P.m.l - 6, P.Y(0) + 4);
+        clipPlot(ctx, P);
         const bw = (P.X(1) - P.X(0)) * 0.7;
         hist.forEach((v, k) => {
-          g.fillStyle = v ? t.ok : t.accent;
-          g.fillRect(
+          ctx.fillStyle = v ? t.ok : t.accent;
+          ctx.fillRect(
             P.X(k + 1) - bw / 2,
             P.Y(Math.max(v, mx * 0.012)),
             bw,
             P.Y(0) - P.Y(Math.max(v, mx * 0.012)),
           );
         });
-        g.restore();
+        ctx.restore();
       },
       status: () => msg,
       cur: () => cu,
       read(set) {
         set('ep', String(ep));
-        set('up', String(upd));
+        set('up', String(totalUpdates));
         set('ms', hist.length ? String(hist[hist.length - 1]) : '–');
       },
     };

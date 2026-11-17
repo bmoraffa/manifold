@@ -3,28 +3,28 @@ import {
   $,
   Anim,
   MONO,
-  RM,
-  T,
+  prefersReducedMotion,
+  readThemeColors,
   bind,
   clamp,
   f3,
-  fit,
+  prepareCanvas,
   mix,
   playBtn,
   randnFrom,
   rng,
-  runCtl,
-  setR,
+  attachRunLimit,
+  setReadout,
 } from '../../../js/core/shared.js';
-import { UC, jacobi, uCur, uLine } from '../shared.js';
+import { UC, jacobi, highlightLessonStep, drawSeriesChart } from '../shared.js';
 import { pct } from '../../ensembles/shared.js';
 
 export default {
   init(root) {
-    const c = $('#ts-c', root),
+    const mainCanvas = $('#ts-c', root),
       cr = $('#ts-r', root),
       live = $('#ts-live', root),
-      S = { perp: 15, lr: 40, flip: 0.06, col: true },
+      settings = { perp: 15, lr: 40, flip: 0.06, col: true },
       EX = 90,
       MAXIT = 1000,
       GL = {
@@ -42,21 +42,21 @@ export default {
       Pm = null,
       Y = null,
       vel = null,
-      gn = null,
+      adaptiveGains = null,
       it = 0,
       KL = [],
-      pY = [],
-      pShare = 0,
+      pcaEmbedding = [],
+      pcaVarianceShare = 0,
       nbH = [],
       seed = 1,
       run = 1,
       scl = 1,
       hover = -1,
       msg = '',
-      cu = 1,
+      activeStepIndex = 1,
       wait = 0,
-      fr = 0,
-      pb,
+      frameCount = 0,
+      playback,
       conv = false;
     const fin = () => conv || it >= MAXIT;
     const knn = (dist, k) => {
@@ -89,7 +89,7 @@ export default {
           Xh.push(
             [...bits].map((b) => {
               let v = b === '#' ? 1 : 0;
-              if (r() < S.flip) v = 1 - v;
+              if (r() < settings.flip) v = 1 - v;
               return v + 0.04 * rn();
             }),
           );
@@ -111,10 +111,10 @@ export default {
         }
       for (let j = 0; j < d; j++) for (let k = 0; k < j; k++) Cv[j][k] = Cv[k][j];
       const E = jacobi(Cv);
-      pY = Xh.map((x) =>
+      pcaEmbedding = Xh.map((x) =>
         [0, 1].map((k) => x.reduce((s, v, j) => s + (v - mu[j]) * E.vec[k][j], 0)),
       );
-      pShare = (E.val[0] + E.val[1]) / E.val.reduce((a, b) => a + Math.max(0, b), 0);
+      pcaVarianceShare = (E.val[0] + E.val[1]) / E.val.reduce((a, b) => a + Math.max(0, b), 0);
       nbH = knn((i, j) => {
         let s = 0;
         for (let k = 0; k < d; k++) s += (Xh[i][k] - Xh[j][k]) ** 2;
@@ -131,7 +131,7 @@ export default {
           D[i * n + j] = D[j * n + i] = s;
         }
       const C = new Float64Array(n * n),
-        H = Math.log(Math.min(S.perp, (n - 1) / 3));
+        H = Math.log(Math.min(settings.perp, (n - 1) / 3));
       for (let i = 0; i < n; i++) {
         let lo = 0,
           hi = Infinity,
@@ -170,16 +170,16 @@ export default {
       Y = new Float64Array(2 * N);
       for (let i = 0; i < 2 * N; i++) Y[i] = r() * 0.01;
       vel = new Float64Array(2 * N);
-      gn = new Float64Array(2 * N).fill(1);
+      adaptiveGains = new Float64Array(2 * N).fill(1);
       it = 0;
       KL = [];
       scl = 0.03;
-      cu = 1;
+      activeStepIndex = 1;
       wait = 0;
       conv = false;
       msg =
         'Steps 1 and 2 are done. Every picture now has about ' +
-        S.perp +
+        settings.perp +
         ' neighbours in the original 35-dimensional space, and all ' +
         N +
         ' points have been dropped in a tiny random blob. Press Run or Ten iterations.';
@@ -219,8 +219,9 @@ export default {
       let mx = 0,
         my = 0;
       for (let k = 0; k < 2 * n; k++) {
-        gn[k] = G[k] > 0 !== vel[k] > 0 ? gn[k] + 0.2 : Math.max(0.01, gn[k] * 0.8);
-        vel[k] = mom * vel[k] - S.lr * gn[k] * G[k];
+        adaptiveGains[k] =
+          G[k] > 0 !== vel[k] > 0 ? adaptiveGains[k] + 0.2 : Math.max(0.01, adaptiveGains[k] * 0.8);
+        vel[k] = mom * vel[k] - settings.lr * adaptiveGains[k] * G[k];
         Y[k] += vel[k];
         if (k % 2) my += Y[k];
         else mx += Y[k];
@@ -237,7 +238,7 @@ export default {
         conv = true;
     };
     const say = () => {
-      cu = fin() ? 4 : 3;
+      activeStepIndex = fin() ? 4 : 3;
       msg =
         'Iteration ' +
         it +
@@ -266,7 +267,7 @@ export default {
       say();
     };
     const mark = (g, x, y, i, t, col, big) => {
-      if (S.col) {
+      if (settings.col) {
         g.font = (big ? '600 13px' : '600 11px') + ' "Hanken Grotesk",sans-serif';
         g.fillStyle = col[lab[i] % 8];
         g.textAlign = 'center';
@@ -287,86 +288,88 @@ export default {
     };
     let PX = [];
     const draw = () => {
-      const t = T(),
-        col = UC(t);
+      const colors = readThemeColors(),
+        col = UC(colors);
       {
-        const { g, w, h } = fit(c);
+        const { g: ctx, w, h } = prepareCanvas(mainCanvas);
         let m = 1e-9;
         for (let k = 0; k < 2 * N; k++) m = Math.max(m, Math.abs(Y[k]));
-        scl += (m * 1.12 - scl) * (pb && pb.on ? 0.25 : 1);
+        scl += (m * 1.12 - scl) * (playback && playback.on ? 0.25 : 1);
         const s = (Math.min(w, h) / 2 / scl) * 0.94;
         PX = [];
         for (let i = 0; i < N; i++) {
           const x = w / 2 + Y[2 * i] * s,
             y = h / 2 - Y[2 * i + 1] * s;
           PX.push([x, y]);
-          mark(g, x, y, i, t, col, true);
+          mark(ctx, x, y, i, colors, col, true);
         }
         if (hover >= 0) {
           const cz = 8,
             x0 = 10,
             y0 = 10;
-          g.fillStyle = t.bg;
-          g.fillRect(x0 - 4, y0 - 4, 5 * cz + 8, 7 * cz + 8);
-          g.strokeStyle = t.muted;
-          g.lineWidth = 1;
-          g.strokeRect(x0 - 4, y0 - 4, 5 * cz + 8, 7 * cz + 8);
+          ctx.fillStyle = colors.bg;
+          ctx.fillRect(x0 - 4, y0 - 4, 5 * cz + 8, 7 * cz + 8);
+          ctx.strokeStyle = colors.muted;
+          ctx.lineWidth = 1;
+          ctx.strokeRect(x0 - 4, y0 - 4, 5 * cz + 8, 7 * cz + 8);
           for (let k = 0; k < 35; k++) {
             const v = clamp(Xh[hover][k], 0, 1);
-            g.fillStyle = mix(t.bg, t.ink, v);
-            g.fillRect(x0 + (k % 5) * cz, y0 + Math.floor(k / 5) * cz, cz - 1, cz - 1);
+            ctx.fillStyle = mix(colors.bg, colors.ink, v);
+            ctx.fillRect(x0 + (k % 5) * cz, y0 + Math.floor(k / 5) * cz, cz - 1, cz - 1);
           }
-          g.font = MONO;
-          g.fillStyle = t.muted;
-          g.textAlign = 'left';
-          g.fillText('the picture behind this point', x0 + 5 * cz + 12, y0 + 12);
+          ctx.font = MONO;
+          ctx.fillStyle = colors.muted;
+          ctx.textAlign = 'left';
+          ctx.fillText('the picture behind this point', x0 + 5 * cz + 12, y0 + 12);
         }
-        g.font = MONO;
-        g.fillStyle = t.muted;
-        g.textAlign = 'right';
-        g.fillText('iteration ' + it, w - 8, h - 8);
+        ctx.font = MONO;
+        ctx.fillStyle = colors.muted;
+        ctx.textAlign = 'right';
+        ctx.fillText('iteration ' + it, w - 8, h - 8);
       }
       {
-        const { g, w, h } = fit(cr),
+        const { g: ctx, w, h } = prepareCanvas(cr),
           h1 = h * 0.56;
         let mx = 1e-9,
           my = 1e-9;
-        for (const q of pY) {
+        for (const q of pcaEmbedding) {
           mx = Math.max(mx, Math.abs(q[0]));
           my = Math.max(my, Math.abs(q[1]));
         }
-        g.font = MONO;
-        g.fillStyle = t.muted;
-        g.textAlign = 'left';
-        g.fillText(
-          'PCA: the best flat shadow keeps ' + (100 * pShare).toFixed(0) + '% of the spread',
+        ctx.font = MONO;
+        ctx.fillStyle = colors.muted;
+        ctx.textAlign = 'left';
+        ctx.fillText(
+          'PCA: the best flat shadow keeps ' +
+            (100 * pcaVarianceShare).toFixed(0) +
+            '% of the spread',
           8,
           13,
         );
         for (let i = 0; i < N; i++)
           mark(
-            g,
-            w / 2 + (pY[i][0] / mx) * (w / 2 - 18),
-            22 + (h1 - 30) / 2 - (pY[i][1] / my) * ((h1 - 30) / 2 - 8),
+            ctx,
+            w / 2 + (pcaEmbedding[i][0] / mx) * (w / 2 - 18),
+            22 + (h1 - 30) / 2 - (pcaEmbedding[i][1] / my) * ((h1 - 30) / 2 - 8),
             i,
-            t,
+            colors,
             col,
             false,
           );
-        uLine(g, t, 0, h1, w, h - h1, KL, {
+        drawSeriesChart(ctx, colors, 0, h1, w, h - h1, KL, {
           title: 'mismatch between map and original neighbourhoods, by iteration',
           n: MAXIT,
           ym: Math.max(0.5, ...KL),
-          col: t.ok,
+          col: colors.ok,
         });
       }
       live.textContent = msg;
-      uCur(root, 'ts', cu);
-      setR(root, 'it', String(it));
-      setR(root, 'kl', KL.length ? f3(KL[KL.length - 1]) : '–');
-      setR(root, 'nt', it ? pct(keep((i) => [Y[2 * i], Y[2 * i + 1]])) : '–');
-      setR(root, 'np', pct(keep((i) => pY[i])));
-      setR(
+      highlightLessonStep(root, 'ts', activeStepIndex);
+      setReadout(root, 'it', String(it));
+      setReadout(root, 'kl', KL.length ? f3(KL[KL.length - 1]) : '–');
+      setReadout(root, 'nt', it ? pct(keep((i) => [Y[2 * i], Y[2 * i + 1]])) : '–');
+      setReadout(root, 'np', pct(keep((i) => pcaEmbedding[i])));
+      setReadout(
         root,
         'ph',
         it === 0
@@ -383,19 +386,19 @@ export default {
     gen();
     calcP();
     reset();
-    if (RM) while (!fin()) iter();
+    if (prefersReducedMotion) while (!fin()) iter();
     say();
     scl = 1e-9;
     const anim = Anim(() => {
-      fr++;
-      if (it < 12 && fr % 6) return;
-      for (let i = 0; i < (it < 40 ? 1 : 3) && !fin() && chk.remaining() > 0; i++) iter();
+      frameCount++;
+      if (it < 12 && frameCount % 6) return;
+      for (let i = 0; i < (it < 40 ? 1 : 3) && !fin() && checkRunStop.remaining() > 0; i++) iter();
       say();
       draw();
-      chk();
+      checkRunStop();
     });
-    pb = playBtn($('#ts-play', root), anim);
-    const chk = runCtl(pb, root, 'ts', {
+    playback = playBtn($('#ts-play', root), anim);
+    const checkRunStop = attachRunLimit(playback, root, 'ts', {
       done: fin,
       restart: () => {
         run++;
@@ -405,12 +408,12 @@ export default {
       what: 'iterations',
     });
     $('#ts-step', root).onclick = () => {
-      pb.stop();
+      playback.stop();
       step(10);
       draw();
     };
     $('#ts-reset', root).onclick = () => {
-      pb.stop();
+      playback.stop();
       run++;
       reset();
       draw();
@@ -419,8 +422,8 @@ export default {
       root,
       'ts-perp',
       (v) => {
-        S.perp = v;
-        pb.stop();
+        settings.perp = v;
+        playback.stop();
         calcP();
         reset();
         draw();
@@ -431,17 +434,17 @@ export default {
       root,
       'ts-lr',
       (v) => {
-        S.lr = v;
+        settings.lr = v;
       },
       (v) => String(v),
     );
     $('#ts-col', root).onchange = (e) => {
-      S.col = e.target.checked;
+      settings.col = e.target.checked;
       draw();
     };
     bind(root, 'ts-flip', (v) => {
-      S.flip = v;
-      pb.stop();
+      settings.flip = v;
+      playback.stop();
       gen();
       calcP();
       reset();
@@ -449,14 +452,14 @@ export default {
     });
     $('#ts-new', root).onclick = () => {
       seed++;
-      pb.stop();
+      playback.stop();
       gen();
       calcP();
       reset();
       draw();
     };
-    c.addEventListener('pointermove', (e) => {
-      const r = c.getBoundingClientRect(),
+    mainCanvas.addEventListener('pointermove', (e) => {
+      const r = mainCanvas.getBoundingClientRect(),
         x = e.clientX - r.left,
         y = e.clientY - r.top;
       let b = -1,
@@ -470,22 +473,22 @@ export default {
       });
       if (b !== hover) {
         hover = b;
-        if (!pb.on) draw();
+        if (!playback.on) draw();
       }
     });
-    c.addEventListener('pointerleave', () => {
+    mainCanvas.addEventListener('pointerleave', () => {
       if (hover >= 0) {
         hover = -1;
-        if (!pb.on) draw();
+        if (!playback.on) draw();
       }
     });
     return {
       draw,
-      stop: () => pb.stop(),
+      stop: () => playback.stop(),
       auto: () => {
         reset();
         draw();
-        pb.start();
+        playback.start();
       },
     };
   },

@@ -1,35 +1,35 @@
 export function createMathTypesetter({ window }) {
-  const completed = new WeakSet();
-  const pending = new WeakMap();
+  const typesetRoots = new WeakSet();
+  const typesettingByRoot = new WeakMap();
   let disposed = false;
-  let queue = Promise.resolve();
+  let typesettingQueue = Promise.resolve();
 
   function typeset(root) {
-    if (disposed || completed.has(root) || !root.isConnected) return null;
-    if (pending.has(root)) return pending.get(root);
+    if (disposed || typesetRoots.has(root) || !root.isConnected) return null;
+    if (typesettingByRoot.has(root)) return typesettingByRoot.get(root);
     const math = window.MathJax;
     const prose = [...root.querySelectorAll('.prose')];
     if (!math?.typesetPromise || !prose.length) return null;
     // MathJax 3 reuses one document for every typesetting call.
-    const work = queue
+    const typesettingPromise = typesettingQueue
       .then(async () => {
         if (disposed || !root.isConnected) return;
         await math.typesetPromise(prose);
-        completed.add(root);
+        typesetRoots.add(root);
       })
       .catch(() => {})
-      .finally(() => pending.delete(root));
-    pending.set(root, work);
-    queue = work;
-    return work;
+      .finally(() => typesettingByRoot.delete(root));
+    typesettingByRoot.set(root, typesettingPromise);
+    typesettingQueue = typesettingPromise;
+    return typesettingPromise;
   }
 
   function prepare(root) {
-    const work = typeset(root);
-    if (!work) return null;
+    const typesettingPromise = typeset(root);
+    if (!typesettingPromise) return null;
     let timer;
     return Promise.race([
-      work,
+      typesettingPromise,
       new Promise((resolve) => {
         timer = setTimeout(resolve, 300);
       }),
@@ -37,10 +37,10 @@ export function createMathTypesetter({ window }) {
   }
 
   function retry(root, isCurrent, redraw, attempt = 0) {
-    if (disposed || !isCurrent() || completed.has(root) || !root.querySelector('.prose')) return;
-    const work = typeset(root);
-    if (work)
-      work.then(() => {
+    if (disposed || !isCurrent() || typesetRoots.has(root) || !root.querySelector('.prose')) return;
+    const typesettingPromise = typeset(root);
+    if (typesettingPromise)
+      typesettingPromise.then(() => {
         if (!disposed && isCurrent()) redraw();
       });
     else if (attempt < 60) setTimeout(() => retry(root, isCurrent, redraw, attempt + 1), 400);

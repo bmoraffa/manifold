@@ -1,7 +1,7 @@
 /* Manifold. © 2026 Bahman Moraffah. All rights reserved. */
 export default {
   id: 'neural-nets',
-  t: 'Neural networks',
+  title: 'Neural networks',
   lessons: [
     {
       id: 'mlp',

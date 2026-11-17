@@ -3,31 +3,31 @@ import {
   $,
   Anim,
   MONO,
-  RM,
+  prefersReducedMotion,
   SANS,
-  T,
+  readThemeColors,
   bind,
   f3,
-  fit,
+  prepareCanvas,
   mix,
   playBtn,
   randnFrom,
   rng,
-  runCtl,
-  setR,
+  attachRunLimit,
+  setReadout,
 } from '../../../js/core/shared.js';
 import { AD } from '../../../js/math/autodiff.js';
 import { pct } from '../../ensembles/shared.js';
-import { segBind, uCur, uLine } from '../../unsupervised/shared.js';
+import { segBind, highlightLessonStep, drawSeriesChart } from '../../unsupervised/shared.js';
 
 export default {
   init(root) {
-    const c = $('#tf-c', root),
+    const mainCanvas = $('#tf-c', root),
       cr = $('#tf-r', root),
       cs = $('#tf-s', root),
       live = $('#tf-live', root),
       st = $('#tf-st', root),
-      S = { task: 'rev', text: 'cafeb', pos: 1 },
+      settings = { task: 'rev', text: 'cafeb', pos: 1 },
       n = 5,
       V = 8,
       d = 16,
@@ -41,10 +41,10 @@ export default {
       conv = false,
       good = 0,
       msg = '',
-      cu = 0,
-      fr = 0,
-      pb,
-      chk = () => false,
+      activeStepIndex = 0,
+      frameCount = 0,
+      playback,
+      checkRunStop = () => false,
       run = 1,
       demo = null;
     const build = () => {
@@ -66,11 +66,11 @@ export default {
       AC = [];
       conv = false;
       good = 0;
-      cu = 0;
-      run2();
+      activeStepIndex = 0;
+      refreshDemoPrediction();
       msg =
         'A Transformer with random weights. It has never seen the task. Its answer for “' +
-        S.text +
+        settings.text +
         '” is “' +
         demo.out +
         '”. Press Train.';
@@ -90,8 +90,8 @@ export default {
         L = AD.mm(R2, P.Wu);
       return { X, A, Z, R2, L, loss: tg ? AD.ce(L, tg, n) : null };
     };
-    const ans = (x) => (S.task === 'rev' ? x.slice().reverse() : x.slice()),
-      mk = () => {
+    const ans = (x) => (settings.task === 'rev' ? x.slice().reverse() : x.slice()),
+      makeTrainingExample = () => {
         const x = Array.from({ length: n }, () => Math.floor(Math.random() * V)),
           y = ans(x),
           tg = new Array(T2).fill(0);
@@ -112,11 +112,11 @@ export default {
       }
       return { tok, o, out: tok.out };
     };
-    const run2 = () => {
-      const x = [...S.text].map((ch) => Math.max(0, LT.indexOf(ch)));
+    const refreshDemoPrediction = () => {
+      const x = [...settings.text].map((ch) => Math.max(0, LT.indexOf(ch)));
       while (x.length < n) x.push(0);
       const gq = gen(x),
-        pr = [];
+        outputTokenProbs = [];
       for (let t = n; t < T2; t++) {
         const row = [];
         let mx = -1e30,
@@ -127,7 +127,7 @@ export default {
           row.push(e);
           z += e;
         }
-        pr.push(row.map((v) => v / z));
+        outputTokenProbs.push(row.map((v) => v / z));
       }
       demo = {
         x,
@@ -136,7 +136,7 @@ export default {
         X: gq.o.X.v,
         Z: gq.o.Z.v,
         R2: gq.o.R2.v,
-        pr,
+        pr: outputTokenProbs,
         outI: gq.out,
         out: gq.out.map((i) => LT[i]).join(''),
         want: ans(x)
@@ -156,7 +156,7 @@ export default {
       for (let q = 0; q < k && !conv; q++) {
         let l = 0;
         for (let b = 0; b < 12; b++) {
-          const s = mk(),
+          const s = makeTrainingExample(),
             o = fwd(s.tok, s.tg);
           l += o.loss.v[0];
           AD.backward(o.loss);
@@ -170,8 +170,8 @@ export default {
           if (good >= 3 || ts >= 4000) conv = true;
         }
       }
-      run2();
-      cu = conv ? 4 : 1 + (ts % 3);
+      refreshDemoPrediction();
+      activeStepIndex = conv ? 4 : 1 + (ts % 3);
       msg =
         'Step ' +
         ts +
@@ -180,7 +180,7 @@ export default {
         ', and backpropagation adjusted all ' +
         ps.reduce((a, p) => a + p.v.length, 0) +
         ' weights. For “' +
-        S.text +
+        settings.text +
         '” it now writes “' +
         demo.out +
         '” (the right answer is “' +
@@ -193,13 +193,13 @@ export default {
           : '');
     };
     const draw = () => {
-      const t = T(),
+      const colors = readThemeColors(),
         D = demo,
-        pi = n + S.pos - 1,
+        pi = n + settings.pos - 1,
         lab = (i) => (i < n ? LT[D.x[i]] : i === n ? '▸' : LT[D.tok[i]]),
         u = 1;
       {
-        const { g, w, h } = fit(c),
+        const { g: ctx, w, h } = prepareCanvas(mainCanvas),
           bw = Math.min(46, (w - 20) / 11.6),
           x0 = (w - bw * 11.4) / 2,
           X = (i) => x0 + (i < n ? i : i === n ? i + 0.2 : i + 0.4) * bw + bw / 2,
@@ -207,22 +207,22 @@ export default {
           cell = Math.min((w - 140) / T2, (h * 0.62 - 30) / n),
           mx = (w - cell * T2) / 2 + 20,
           my = h * 0.4 + 6;
-        g.font = SANS;
+        ctx.font = SANS;
         for (let j = 0; j <= pi; j++) {
           const wt = D.A[pi * T2 + j];
           if (j === pi || wt < 0.02) continue;
-          g.strokeStyle = mix(t.gold, t.gold, 0, 0.2 + 0.8 * wt);
-          g.lineWidth = 0.5 + 10 * wt;
+          ctx.strokeStyle = mix(colors.gold, colors.gold, 0, 0.2 + 0.8 * wt);
+          ctx.lineWidth = 0.5 + 10 * wt;
           const xo = pi + 1 < T2 ? X(pi + 1) : X(T2 - 1) + bw;
-          g.beginPath();
-          g.moveTo(xo, yw - 15);
-          g.quadraticCurveTo(
+          ctx.beginPath();
+          ctx.moveTo(xo, yw - 15);
+          ctx.quadraticCurveTo(
             (xo + X(j)) / 2,
             yw - 15 - Math.min(h * 0.14, Math.abs(xo - X(j)) * 0.3),
             X(j),
             yw - 15,
           );
-          g.stroke();
+          ctx.stroke();
         }
         for (let i = 0; i < T2 + 1; i++) {
           const isOut = i > n,
@@ -231,57 +231,68 @@ export default {
             ok = isOut && ch === D.want[i - n - 1],
             hi = i === pi + 1 || (i === pi && false);
           if (i === T2) void 0;
-          g.fillStyle =
-            i === pi + 1 ? t.gold : isOut ? mix(ok ? t.accent : t.ok, t.bg, 0, 0.18) : t.bg;
-          g.strokeStyle = isOut ? (ok ? t.accent : t.ok) : t.ink;
-          g.lineWidth = i === pi + 1 ? 2.6 : 1.3;
-          g.beginPath();
-          g.rect(x - bw * 0.42, yw - 14, bw * 0.84, 28);
-          g.fill();
-          g.stroke();
-          g.fillStyle = i === pi + 1 ? t.bg : t.ink;
-          g.textAlign = 'center';
-          g.fillText(ch, x, yw + 5);
+          ctx.fillStyle =
+            i === pi + 1
+              ? colors.gold
+              : isOut
+                ? mix(ok ? colors.accent : colors.ok, colors.bg, 0, 0.18)
+                : colors.bg;
+          ctx.strokeStyle = isOut ? (ok ? colors.accent : colors.ok) : colors.ink;
+          ctx.lineWidth = i === pi + 1 ? 2.6 : 1.3;
+          ctx.beginPath();
+          ctx.rect(x - bw * 0.42, yw - 14, bw * 0.84, 28);
+          ctx.fill();
+          ctx.stroke();
+          ctx.fillStyle = i === pi + 1 ? colors.bg : colors.ink;
+          ctx.textAlign = 'center';
+          ctx.fillText(ch, x, yw + 5);
         }
-        g.font = MONO;
-        g.fillStyle = t.muted;
-        g.textAlign = 'center';
-        g.fillText('input', X(2), yw + 30);
-        g.fillText('its output', X(n + 3), yw + 30);
+        ctx.font = MONO;
+        ctx.fillStyle = colors.muted;
+        ctx.textAlign = 'center';
+        ctx.fillText('input', X(2), yw + 30);
+        ctx.fillText('its output', X(n + 3), yw + 30);
         for (let r = 0; r < n; r++) {
           const ti = n + r;
-          g.fillStyle = r === S.pos - 1 ? t.ink : t.muted;
-          g.textAlign = 'right';
-          g.fillText('output ' + (r + 1), mx - 6, my + (r + 0.65) * cell);
+          ctx.fillStyle = r === settings.pos - 1 ? colors.ink : colors.muted;
+          ctx.textAlign = 'right';
+          ctx.fillText('output ' + (r + 1), mx - 6, my + (r + 0.65) * cell);
           for (let j = 0; j < T2; j++) {
             const v = j <= ti ? D.A[ti * T2 + j] : -1;
-            g.fillStyle = v < 0 ? mix(t.ink, t.ink, 0, 0.13) : mix(t.bg, t.gold, Math.pow(v, 0.6));
-            g.fillRect(mx + j * cell, my + r * cell, cell - 1.5, cell - 1.5);
+            ctx.fillStyle =
+              v < 0
+                ? mix(colors.ink, colors.ink, 0, 0.13)
+                : mix(colors.bg, colors.gold, Math.pow(v, 0.6));
+            ctx.fillRect(mx + j * cell, my + r * cell, cell - 1.5, cell - 1.5);
           }
-          if (r === S.pos - 1) {
-            g.strokeStyle = t.ink;
-            g.lineWidth = 1.6;
-            g.strokeRect(mx - 1, my + r * cell - 1, cell * T2, cell);
+          if (r === settings.pos - 1) {
+            ctx.strokeStyle = colors.ink;
+            ctx.lineWidth = 1.6;
+            ctx.strokeRect(mx - 1, my + r * cell - 1, cell * T2, cell);
           }
         }
         for (let j = 0; j < T2; j++) {
-          g.fillStyle = t.muted;
-          g.textAlign = 'center';
-          g.fillText(lab(j), mx + (j + 0.5) * cell, my + n * cell + 13);
+          ctx.fillStyle = colors.muted;
+          ctx.textAlign = 'center';
+          ctx.fillText(lab(j), mx + (j + 0.5) * cell, my + n * cell + 13);
         }
-        g.textAlign = 'left';
-        g.fillText('looks at →   (grey: not yet written, hidden by the mask)', mx, my - 7);
+        ctx.textAlign = 'left';
+        ctx.fillText('looks at →   (grey: not yet written, hidden by the mask)', mx, my - 7);
       }
       {
-        const { g, w, h } = fit(cr),
+        const { g: ctx, w, h } = prepareCanvas(cr),
           ha = h * 0.34,
-          pr = D.pr[S.pos - 1],
+          pr = D.pr[settings.pos - 1],
           bw = (w - 30) / (V + 1);
-        g.font = MONO;
-        g.fillStyle = t.muted;
-        g.textAlign = 'left';
-        g.fillText(
-          'output ' + S.pos + ': confidence in each letter (should be “' + D.want[S.pos - 1] + '”)',
+        ctx.font = MONO;
+        ctx.fillStyle = colors.muted;
+        ctx.textAlign = 'left';
+        ctx.fillText(
+          'output ' +
+            settings.pos +
+            ': confidence in each letter (should be “' +
+            D.want[settings.pos - 1] +
+            '”)',
           8,
           13,
         );
@@ -289,35 +300,35 @@ export default {
           const x = 15 + j * bw,
             p = pr[j],
             top = ha - 22 - p * (ha - 48);
-          g.fillStyle = j < V && LT[j] === D.want[S.pos - 1] ? t.accent : t.gold;
-          g.fillRect(x + bw * 0.15, top, bw * 0.7, ha - 22 - top);
-          g.font = SANS;
-          g.fillStyle = t.ink;
-          g.textAlign = 'center';
-          g.fillText(j < V ? LT[j] : '▸', x + bw / 2, ha - 6);
-          g.font = MONO;
+          ctx.fillStyle = j < V && LT[j] === D.want[settings.pos - 1] ? colors.accent : colors.gold;
+          ctx.fillRect(x + bw * 0.15, top, bw * 0.7, ha - 22 - top);
+          ctx.font = SANS;
+          ctx.fillStyle = colors.ink;
+          ctx.textAlign = 'center';
+          ctx.fillText(j < V ? LT[j] : '▸', x + bw / 2, ha - 6);
+          ctx.font = MONO;
           if (p > 0.04) {
-            g.fillStyle = t.muted;
-            g.fillText((100 * p).toFixed(0), x + bw / 2, top - 4);
+            ctx.fillStyle = colors.muted;
+            ctx.fillText((100 * p).toFixed(0), x + bw / 2, top - 4);
           }
         }
         const hb = (h - ha) / 2;
-        uLine(g, t, 0, ha, w, hb, LL, {
+        drawSeriesChart(ctx, colors, 0, ha, w, hb, LL, {
           title: 'error, by training step',
           n: Math.max(200, LL.length),
-          col: t.ok,
+          col: colors.ok,
           ym: Math.max(2.2, LL[0] || 2.2),
         });
-        uLine(g, t, 0, ha + hb, w, hb, AC, {
+        drawSeriesChart(ctx, colors, 0, ha + hb, w, hb, AC, {
           title: 'fresh sequences written entirely correctly (checked every 10 steps)',
           n: Math.max(20, AC.length),
-          col: t.accent,
+          col: colors.accent,
           ym: 1,
           dots: AC.length < 40,
         });
       }
       {
-        const { g, w, h } = fit(cs),
+        const { g: ctx, w, h } = prepareCanvas(cs),
           lm = 64,
           tw = (w - lm - 10) / 3,
           cw = Math.min((tw * 0.8) / d, 22),
@@ -328,11 +339,11 @@ export default {
             [D.Z, 'what attention adds, Z'],
             [D.R2, 'leaving the block, R₂'],
           ];
-        g.font = MONO;
+        ctx.font = MONO;
         for (let i = 0; i < T2; i++) {
-          g.fillStyle = i === pi ? t.ink : t.muted;
-          g.textAlign = 'right';
-          g.fillText(
+          ctx.fillStyle = i === pi ? colors.ink : colors.muted;
+          ctx.textAlign = 'right';
+          ctx.fillText(
             (i < n ? 'in ' : i === n ? '' : 'out ') + lab(i),
             lm - 8,
             y0 + (i + 0.7) * chh,
@@ -340,52 +351,56 @@ export default {
         }
         TB.forEach((tb, q) => {
           const x0 = lm + q * tw;
-          g.fillStyle = t.muted;
-          g.textAlign = 'left';
-          g.fillText(tb[1], x0, y0 - 10);
+          ctx.fillStyle = colors.muted;
+          ctx.textAlign = 'left';
+          ctx.fillText(tb[1], x0, y0 - 10);
           let m = 1e-9;
           for (const v of tb[0]) m = Math.max(m, Math.abs(v));
           for (let i = 0; i < T2; i++)
             for (let j = 0; j < d; j++) {
               const v = tb[0][i * d + j] / m;
-              g.fillStyle = mix(t.bg, v >= 0 ? t.gold : t.accent, Math.min(1, Math.abs(v) * 1.3));
-              g.fillRect(x0 + j * cw, y0 + i * chh, cw - 0.8, chh - 0.8);
+              ctx.fillStyle = mix(
+                colors.bg,
+                v >= 0 ? colors.gold : colors.accent,
+                Math.min(1, Math.abs(v) * 1.3),
+              );
+              ctx.fillRect(x0 + j * cw, y0 + i * chh, cw - 0.8, chh - 0.8);
             }
-          g.strokeStyle = t.ink;
-          g.lineWidth = 1.4;
-          g.strokeRect(x0 - 1, y0 + pi * chh - 1, cw * d + 1, chh + 1);
+          ctx.strokeStyle = colors.ink;
+          ctx.lineWidth = 1.4;
+          ctx.strokeRect(x0 - 1, y0 + pi * chh - 1, cw * d + 1, chh + 1);
           if (q < 2) {
             const xa = x0 + cw * d + 4,
               xb = x0 + tw - 6,
               ym = y0 + (chh * T2) / 2;
-            g.strokeStyle = t.muted;
-            g.lineWidth = 1.2;
-            g.beginPath();
-            g.moveTo(xa, ym);
-            g.lineTo(xb, ym);
-            g.lineTo(xb - 5, ym - 4);
-            g.moveTo(xb, ym);
-            g.lineTo(xb - 5, ym + 4);
-            g.stroke();
-            g.fillStyle = t.muted;
-            g.textAlign = 'center';
-            g.fillText(q ? '+ X, feed-forward, +' : 'attention', (xa + xb) / 2, ym - 8);
+            ctx.strokeStyle = colors.muted;
+            ctx.lineWidth = 1.2;
+            ctx.beginPath();
+            ctx.moveTo(xa, ym);
+            ctx.lineTo(xb, ym);
+            ctx.lineTo(xb - 5, ym - 4);
+            ctx.moveTo(xb, ym);
+            ctx.lineTo(xb - 5, ym + 4);
+            ctx.stroke();
+            ctx.fillStyle = colors.muted;
+            ctx.textAlign = 'center';
+            ctx.fillText(q ? '+ X, feed-forward, +' : 'attention', (xa + xb) / 2, ym - 8);
           }
         });
       }
       live.textContent = msg;
-      uCur(root, 'tf', cu);
+      highlightLessonStep(root, 'tf', activeStepIndex);
       let b = 0;
       for (let j = 0; j <= pi; j++) if (D.A[pi * T2 + j] > D.A[pi * T2 + b]) b = j;
-      setR(root, 'step', String(ts));
-      setR(root, 'L', ts ? f3(LL[ts - 1]) : '–');
-      setR(root, 'acc', AC.length ? pct(AC[AC.length - 1]) : '–');
-      setR(
+      setReadout(root, 'step', String(ts));
+      setReadout(root, 'L', ts ? f3(LL[ts - 1]) : '–');
+      setReadout(root, 'acc', AC.length ? pct(AC[AC.length - 1]) : '–');
+      setReadout(
         root,
         'out',
         '“' + D.out + '”' + (D.out === D.want ? ' (correct)' : ' (should be “' + D.want + '”)'),
       );
-      setR(
+      setReadout(
         root,
         'look',
         (b < n
@@ -397,19 +412,19 @@ export default {
           (100 * D.A[pi * T2 + b]).toFixed(0) +
           '%)',
       );
-      setR(root, 'np', String(ps.reduce((a, p) => a + p.v.length, 0)));
+      setReadout(root, 'np', String(ps.reduce((a, p) => a + p.v.length, 0)));
     };
     build();
-    if (RM) while (!conv) train(20);
+    if (prefersReducedMotion) while (!conv) train(20);
     const anim = Anim(() => {
-      fr++;
-      if (fr % (ts < 30 ? 5 : ts < 150 ? 2 : 1)) return;
-      train(Math.min(ts < 150 ? 1 : 3, chk.remaining()));
+      frameCount++;
+      if (frameCount % (ts < 30 ? 5 : ts < 150 ? 2 : 1)) return;
+      train(Math.min(ts < 150 ? 1 : 3, checkRunStop.remaining()));
       draw();
-      chk();
+      checkRunStop();
     });
-    pb = playBtn($('#tf-play', root), anim);
-    chk = runCtl(pb, root, 'tf', {
+    playback = playBtn($('#tf-play', root), anim);
+    checkRunStop = attachRunLimit(playback, root, 'tf', {
       done: () => conv,
       restart: () => {
         run++;
@@ -419,7 +434,7 @@ export default {
       what: 'steps',
     });
     $('#tf-step', root).onclick = () => {
-      pb.stop();
+      playback.stop();
       if (conv) {
         run++;
         build();
@@ -427,24 +442,24 @@ export default {
       draw();
     };
     $('#tf-reset', root).onclick = () => {
-      pb.stop();
+      playback.stop();
       run++;
       build();
       draw();
     };
-    segBind(root, 'tf-task', S.task, (v) => {
-      S.task = v;
-      pb.stop();
+    segBind(root, 'tf-task', settings.task, (v) => {
+      settings.task = v;
+      playback.stop();
       run++;
       build();
       draw();
-      pb.start();
+      playback.start();
     });
     bind(
       root,
       'tf-pos',
       (v) => {
-        S.pos = v;
+        settings.pos = v;
         draw();
       },
       (v) => String(v),
@@ -453,11 +468,11 @@ export default {
       const v = e.target.value.toLowerCase().replace(/[^a-h]/g, '');
       st.textContent = v.length < 5 ? 'Type five letters, using only a to h.' : '';
       if (v.length === 5) {
-        S.text = v;
-        run2();
+        settings.text = v;
+        refreshDemoPrediction();
         msg =
           'For “' +
-          S.text +
+          settings.text +
           '” it writes “' +
           demo.out +
           '”' +
@@ -465,17 +480,17 @@ export default {
             ? ', which is correct' +
               (conv ? '. It was never trained on this particular sequence.' : '.')
             : '. The right answer is “' + demo.want + '”.');
-        if (!pb.on) draw();
+        if (!playback.on) draw();
       }
     });
     return {
       draw,
-      stop: () => pb.stop(),
+      stop: () => playback.stop(),
       auto: () => {
         run++;
         build();
         draw();
-        pb.start();
+        playback.start();
       },
     };
   },

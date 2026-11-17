@@ -1,7 +1,7 @@
 /* Manifold. © 2026 Bahman Moraffah. All rights reserved. */
 import { AD } from '../../js/math/autodiff.js';
 import { MONO, clamp, mix, randnFrom, rng } from '../../js/core/shared.js';
-import { uLine } from '../unsupervised/shared.js';
+import { drawSeriesChart } from '../unsupervised/shared.js';
 
 const G2S = 1.75;
 
@@ -34,7 +34,7 @@ function g2Samp(ds, RN) {
   return [m[0] + 0.18 * RN(), m[1] + 0.18 * RN()];
 }
 
-function g2Near(xs, M, data, r = 0.15) {
+function fractionNearData(xs, M, data, r = 0.15) {
   let ok = 0;
   for (let i = 0; i < M; i++) {
     let b = 1e9;
@@ -69,7 +69,7 @@ function g2Pred(net, P, e) {
   return o.v;
 }
 
-const G2G = (() => {
+const vectorFieldGrid = (() => {
   const G = [];
   for (let a = 0; a < 10; a++)
     for (let b = 0; b < 14; b++)
@@ -90,9 +90,9 @@ function g2Arrows(g, V, e, col, sgn = 1, al = 0.6, k = 7, mx = 15) {
   g.strokeStyle = mix(col, col, 0, al);
   g.fillStyle = col;
   g.lineWidth = 1.2;
-  for (let i = 0; i < G2G.length / 2; i++) {
-    const x = V.X(G2G[2 * i] * G2S),
-      y = V.Y(G2G[2 * i + 1] * G2S),
+  for (let i = 0; i < vectorFieldGrid.length / 2; i++) {
+    const x = V.X(vectorFieldGrid[2 * i] * G2S),
+      y = V.Y(vectorFieldGrid[2 * i + 1] * G2S),
       dx = sgn * e[2 * i],
       dy = sgn * e[2 * i + 1],
       m = Math.hypot(dx, dy) || 1,
@@ -148,10 +148,10 @@ const g2Note = (g, t, h, s) => {
   g.fillText(s, 8, h - 8);
 };
 
-function g2Bench(g, t, x0, y0, w, h, NS, series, cur, title) {
+function drawSamplerBenchmark(g, t, x0, y0, w, h, NS, series, cur, title) {
   let L = null;
   series.forEach((s, i) => {
-    L = uLine(g, t, x0, y0, w, h - 12, s.ys, {
+    L = drawSeriesChart(g, t, x0, y0, w, h - 12, s.ys, {
       title: i ? '' : title,
       n: NS.length,
       ym: 1,
@@ -329,16 +329,16 @@ function ebLang(net, P, n, k, a, sg, RN) {
 export {
   G2S,
   g2Samp,
-  g2Near,
+  fractionNearData,
   g2Emb,
   g2Pred,
-  G2G,
+  vectorFieldGrid,
   g2Data,
   g2Arrows,
   g2Pts,
   g2Trails,
   g2Note,
-  g2Bench,
+  drawSamplerBenchmark,
   g2Levels,
   g2Panel,
   g2Uni,

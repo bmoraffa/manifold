@@ -2,26 +2,26 @@
 import {
   $,
   Anim,
-  RM,
-  T,
+  prefersReducedMotion,
+  readThemeColors,
   bind,
   clamp,
   f2,
   f3,
-  fit,
+  prepareCanvas,
   playBtn,
   randnFrom,
   rng,
-  runCtl,
-  setR,
+  attachRunLimit,
+  setReadout,
 } from '../../../js/core/shared.js';
 import { AD } from '../../../js/math/autodiff.js';
 import {
-  g2Bench,
+  drawSamplerBenchmark,
   g2Data,
   g2Emb,
   g2Levels,
-  g2Near,
+  fractionNearData,
   g2Note,
   g2Panel,
   g2Pred,
@@ -30,14 +30,14 @@ import {
   g2Trails,
 } from '../shared.js';
 import { pct } from '../../ensembles/shared.js';
-import { uCur, uLine, uView } from '../../unsupervised/shared.js';
+import { highlightLessonStep, drawSeriesChart, uView } from '../../unsupervised/shared.js';
 
 export default {
   init(root) {
     const c = $('#dm-c', root),
       cr = $('#dm-r', root),
       live = $('#dm-live', root),
-      S = { ds: 'ring', ni: 6, eta: 0 },
+      settings = { ds: 'ring', ni: 6, eta: 0 },
       Tn = 100,
       MAXS = 2500,
       M = 400,
@@ -59,10 +59,10 @@ export default {
       phase = 'train',
       data = [],
       msg = '',
-      cu = 0,
-      fr = 0,
-      pb,
-      chk = () => false,
+      activeStepIndex = 0,
+      frameCount = 0,
+      playback,
+      checkRunStop = () => false,
       run = 1,
       z0 = null,
       xs = null,
@@ -71,10 +71,10 @@ export default {
       si = 0,
       done = false,
       tr = [],
-      prevOut = null,
+      previousSamples = null,
       moved = NaN,
-      Q = [[], []],
-      bi = 0,
+      nearDataRatesBySampler = [[], []],
+      benchmarkIndex = 0,
       nearV = NaN;
     const ab = (k) => (k > 0 ? AB[k - 1] : 1),
       pred = (P, k) => g2Pred(net, P, g2Emb(k / Tn));
@@ -87,16 +87,16 @@ export default {
       xs = null;
       x0h = null;
       done = false;
-      cu = 0;
-      Q = [NS.map(() => NaN), NS.map(() => NaN)];
-      bi = 0;
+      activeStepIndex = 0;
+      nearDataRatesBySampler = [NS.map(() => NaN), NS.map(() => NaN)];
+      benchmarkIndex = 0;
       z0 = null;
-      prevOut = null;
+      previousSamples = null;
       moved = NaN;
       nearV = NaN;
       tr = [];
       si = 0;
-      data = Array.from({ length: 500 }, () => g2Samp(S.ds, RN));
+      data = Array.from({ length: 500 }, () => g2Samp(settings.ds, RN));
       msg =
         'A network with random weights. Press Run: it trains first, then the page tries it with different numbers of sampler steps.';
     };
@@ -106,7 +106,7 @@ export default {
         const X = new Float64Array(B * 10),
           E = new Float64Array(B * 2);
         for (let i = 0; i < B; i++) {
-          const p = g2Samp(S.ds, RN),
+          const p = g2Samp(settings.ds, RN),
             tt = 1 + Math.floor(Math.random() * Tn),
             e0 = RN(),
             e1 = RN(),
@@ -129,7 +129,7 @@ export default {
           sm.push(s / 20);
         }
       }
-      cu = 0;
+      activeStepIndex = 0;
       msg =
         'Training step ' +
         ts +
@@ -142,8 +142,8 @@ export default {
         '.';
       if (ts >= MAXS) {
         phase = 'bench';
-        bi = 0;
-        cu = 1;
+        benchmarkIndex = 0;
+        activeStepIndex = 1;
         msg =
           'Training is finished and the network will not change again. Next it is used with eleven different numbers of sampler steps, with and without fresh randomness.';
       }
@@ -175,28 +175,28 @@ export default {
       const x = Float64Array.from({ length: 2 * Mm }, () => RN()),
         s = mkSeq(N);
       for (let j = 0; j < N; j++) sstep(x, s[j], s[j + 1], eta);
-      return g2Near(x, Mm, data, 0.1);
+      return fractionNearData(x, Mm, data, 0.1);
     };
     const startGen = (fresh) => {
       if (fresh || !z0) {
         z0 = Float64Array.from({ length: 2 * M }, () => RN());
-        prevOut = null;
+        previousSamples = null;
         moved = NaN;
       }
       xs = Float64Array.from(z0);
       x0h = null;
-      seq = mkSeq(NS[S.ni]);
+      seq = mkSeq(NS[settings.ni]);
       si = 0;
       done = false;
       nearV = NaN;
       tr = Array.from({ length: 14 }, (_, i) => [[xs[2 * i], xs[2 * i + 1]]]);
     };
     const bench = () => {
-      const j = bi >> 1,
-        e = bi & 1;
-      Q[e][j] = sampleAll(NS[j], e, 200);
-      bi++;
-      cu = 1;
+      const j = benchmarkIndex >> 1,
+        e = benchmarkIndex & 1;
+      nearDataRatesBySampler[e][j] = sampleAll(NS[j], e, 200);
+      benchmarkIndex++;
+      activeStepIndex = 1;
       msg =
         'Measuring: ' +
         NS[j] +
@@ -206,12 +206,12 @@ export default {
         e +
         (e ? ' (fresh noise at every step, the DDPM rule)' : ' (no fresh noise, the DDIM rule)') +
         ' put ' +
-        pct(Q[e][j]) +
+        pct(nearDataRatesBySampler[e][j]) +
         ' of 200 new points on the shape.';
-      if (bi >= 2 * NS.length) {
+      if (benchmarkIndex >= 2 * NS.length) {
         phase = 'gen';
         startGen(true);
-        cu = 2;
+        activeStepIndex = 2;
         msg =
           'All settings are measured: see the chart at the bottom right. Now watch one run. ' +
           M +
@@ -224,35 +224,38 @@ export default {
       if (done || !xs) return;
       const k = seq[si],
         kp = seq[si + 1];
-      x0h = sstep(xs, k, kp, S.eta);
+      x0h = sstep(xs, k, kp, settings.eta);
       si++;
       tr.forEach((p, i) => p.push([xs[2 * i], xs[2 * i + 1]]));
-      cu = 4;
+      activeStepIndex = 4;
       msg =
         'Step ' +
         si +
         ' of ' +
-        NS[S.ni] +
+        NS[settings.ni] +
         ': the network guessed the noise at level ' +
         k +
         '. Removing it gave the guessed finished points (top right). They were put back at level ' +
         kp +
         (kp === 0
           ? ', which is no noise at all.'
-          : S.eta > 0
+          : settings.eta > 0
             ? ', using the guessed noise mixed with fresh random noise.'
             : ', using the same guessed noise and nothing random.');
       if (si >= seq.length - 1) {
         done = true;
-        cu = 5;
-        nearV = g2Near(xs, M, data, 0.1);
-        if (prevOut) {
+        activeStepIndex = 5;
+        nearV = fractionNearData(xs, M, data, 0.1);
+        if (previousSamples) {
           let d = 0;
           for (let i = 0; i < M; i++)
-            d += Math.hypot(xs[2 * i] - prevOut[2 * i], xs[2 * i + 1] - prevOut[2 * i + 1]);
+            d += Math.hypot(
+              xs[2 * i] - previousSamples[2 * i],
+              xs[2 * i + 1] - previousSamples[2 * i + 1],
+            );
           moved = d / M;
         }
-        prevOut = Float64Array.from(xs);
+        previousSamples = Float64Array.from(xs);
         msg +=
           ' Finished after ' +
           si +
@@ -273,30 +276,30 @@ export default {
       else if (phase === 'bench') bench();
       else if (done) {
         startGen(false);
-        cu = 2;
+        activeStepIndex = 2;
         msg = 'The same starting noise again. Press Run or One step.';
       } else gstep();
     };
     const draw = () => {
-      const t = T();
+      const colors = readThemeColors();
       {
         const V = uView(c),
           { g, h } = V;
-        g2Data(g, V, t, data);
+        g2Data(g, V, colors, data);
         if (xs) {
-          g2Trails(g, V, t, tr);
-          g2Pts(g, V, t, xs, M, t.gold);
+          g2Trails(g, V, colors, tr);
+          g2Pts(g, V, colors, xs, M, colors.gold);
         }
         g2Note(
           g,
-          t,
+          colors,
           h,
           phase === 'gen'
-            ? NS[S.ni] +
+            ? NS[settings.ni] +
                 ' step' +
-                (NS[S.ni] > 1 ? 's' : '') +
+                (NS[settings.ni] > 1 ? 's' : '') +
                 ', η = ' +
-                f2(S.eta) +
+                f2(settings.eta) +
                 (xs ? ', now at noise level ' + seq[si] : '')
             : phase === 'bench'
               ? 'measuring each number of steps'
@@ -304,12 +307,12 @@ export default {
         );
       }
       {
-        const { g, w, h } = fit(cr),
+        const { g: ctx, w, h } = prepareCanvas(cr),
           h1 = h * 0.52;
         if (phase === 'gen' && x0h) {
           const P = g2Panel(
-            g,
-            t,
+            ctx,
+            colors,
             0,
             0,
             w,
@@ -317,13 +320,13 @@ export default {
             'the network’s guess of where each point will finish, at this step',
             1.22,
           );
-          g2Data(g, P, t, data, 0.22, 1.5);
-          g2Pts(g, P, t, x0h, M, t.accent, 2);
-          g.restore();
+          g2Data(ctx, P, colors, data, 0.22, 1.5);
+          g2Pts(ctx, P, colors, x0h, M, colors.accent, 2);
+          ctx.restore();
         } else
           g2Levels(
-            g,
-            t,
+            ctx,
+            colors,
             w,
             h1,
             data,
@@ -335,32 +338,36 @@ export default {
             'the real data at four of the 100 noise levels: what training sees',
           );
         if (phase === 'train')
-          uLine(g, t, 0, h1, w, h - h1, sm, {
+          drawSeriesChart(ctx, colors, 0, h1, w, h - h1, sm, {
             title: 'error at guessing the noise (average of every 20 steps)',
             n: MAXS / 20,
-            col: t.ok,
+            col: colors.ok,
             ym: Math.max(1.05, sm[0] || 1.05),
           });
         else
-          g2Bench(
-            g,
-            t,
+          drawSamplerBenchmark(
+            ctx,
+            colors,
             0,
             h1,
             w,
             h - h1,
             NS,
             [
-              { ys: Q[1], col: t.cut, lab: 'η = 1: fresh noise each step' },
-              { ys: Q[0], col: t.accent, lab: 'η = 0: DDIM' },
+              {
+                ys: nearDataRatesBySampler[1],
+                col: colors.cut,
+                lab: 'η = 1: fresh noise each step',
+              },
+              { ys: nearDataRatesBySampler[0], col: colors.accent, lab: 'η = 0: DDIM' },
             ],
-            phase === 'gen' ? S.ni : -1,
+            phase === 'gen' ? settings.ni : -1,
             'share of points on the shape, by number of sampler steps',
           );
       }
       live.textContent = msg;
-      uCur(root, 'dm', cu);
-      setR(
+      highlightLessonStep(root, 'dm', activeStepIndex);
+      setReadout(
         root,
         'ph',
         phase === 'train'
@@ -373,38 +380,38 @@ export default {
               ? 'Finished'
               : 'Generating',
       );
-      setR(root, 'ts', ts + ' of ' + MAXS);
-      setR(root, 'nc', phase === 'gen' ? si + ' of ' + NS[S.ni] : '–');
-      setR(root, 'near', isFinite(nearV) ? pct(nearV) : '–');
-      setR(root, 'mv', isFinite(moved) && done ? f2(moved) : '–');
+      setReadout(root, 'ts', ts + ' of ' + MAXS);
+      setReadout(root, 'nc', phase === 'gen' ? si + ' of ' + NS[settings.ni] : '–');
+      setReadout(root, 'near', isFinite(nearV) ? pct(nearV) : '–');
+      setReadout(root, 'mv', isFinite(moved) && done ? f2(moved) : '–');
     };
     build();
-    if (RM) {
+    if (prefersReducedMotion) {
       train(MAXS);
       while (phase === 'bench') bench();
       while (!done) gstep();
     }
     const anim = Anim(() => {
-      fr++;
+      frameCount++;
       if (phase === 'train') {
-        train(Math.min(ts < 60 ? 1 : 5, chk.remaining()));
+        train(Math.min(ts < 60 ? 1 : 5, checkRunStop.remaining()));
         draw();
-        chk();
+        checkRunStop();
         return;
       }
       if (phase === 'bench') {
-        if (fr % 4 === 0) {
+        if (frameCount % 4 === 0) {
           bench();
           draw();
         }
         return;
       }
-      if (fr % clamp(Math.round(220 / NS[S.ni]), 4, 40) === 0 && !done) gstep();
+      if (frameCount % clamp(Math.round(220 / NS[settings.ni]), 4, 40) === 0 && !done) gstep();
       draw();
-      if (done) pb.stop();
+      if (done) playback.stop();
     });
-    pb = playBtn($('#dm-play', root), anim);
-    chk = runCtl(pb, root, 'dm', {
+    playback = playBtn($('#dm-play', root), anim);
+    checkRunStop = attachRunLimit(playback, root, 'dm', {
       done: () => phase === 'gen' && done,
       restart: () => startGen(false),
       count: () => ts,
@@ -416,29 +423,29 @@ export default {
         draw();
         return;
       }
-      pb.stop();
+      playback.stop();
       startGen(fresh);
       draw();
-      pb.start();
+      playback.start();
     };
     $('#dm-step', root).onclick = () => {
-      pb.stop();
+      playback.stop();
       step();
       draw();
     };
     $('#dm-reset', root).onclick = () => {
-      pb.stop();
+      playback.stop();
       run++;
       build();
       draw();
     };
     $('#dm-ds', root).onchange = (e) => {
-      S.ds = e.target.value;
-      pb.stop();
+      settings.ds = e.target.value;
+      playback.stop();
       run++;
       build();
       draw();
-      pb.start();
+      playback.start();
     };
     $('#dm-same', root).onclick = () => regen(false);
     $('#dm-new', root).onclick = () => regen(true);
@@ -446,8 +453,8 @@ export default {
       root,
       'dm-n',
       (v) => {
-        S.ni = +v;
-        if (pb && phase === 'gen') regen(false);
+        settings.ni = +v;
+        if (playback && phase === 'gen') regen(false);
       },
       (v) => String(NS[+v]),
     );
@@ -455,19 +462,19 @@ export default {
       root,
       'dm-eta',
       (v) => {
-        S.eta = +v;
-        if (pb && phase === 'gen') regen(false);
+        settings.eta = +v;
+        if (playback && phase === 'gen') regen(false);
       },
       f2,
     );
     return {
       draw,
-      stop: () => pb.stop(),
+      stop: () => playback.stop(),
       auto: () => {
         run++;
         build();
         draw();
-        pb.start();
+        playback.start();
       },
     };
   },

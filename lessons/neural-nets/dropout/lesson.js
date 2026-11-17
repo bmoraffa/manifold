@@ -3,66 +3,66 @@ import {
   $,
   Anim,
   MONO,
-  RM,
+  prefersReducedMotion,
   SANS,
-  T,
+  readThemeColors,
   bind,
   f2,
   f3,
-  fit,
+  prepareCanvas,
   mix,
   playBtn,
   rng,
-  runCtl,
-  setR,
+  attachRunLimit,
+  setReadout,
 } from '../../../js/core/shared.js';
 import { NNet, drawEdges, netPos, nnData } from '../shared.js';
 import { pct } from '../../ensembles/shared.js';
-import { uCur, uLine } from '../../unsupervised/shared.js';
+import { highlightLessonStep, drawSeriesChart } from '../../unsupervised/shared.js';
 
 export default {
   init(root) {
-    const c = $('#dr-c', root),
+    const mainCanvas = $('#dr-c', root),
       cr = $('#dr-r', root),
       live = $('#dr-live', root),
-      S = { p: 0.5, hw: 24, n: 60, fl: 0.12, seed: 2 },
+      settings = { dropoutProbability: 0.5, hw: 24, n: 60, fl: 0.12, seed: 2 },
       EPM = 500;
     let tr = [],
       te = [],
-      N0,
-      N1,
+      baselineNet,
+      dropoutNet,
       ep = 0,
-      H = [[], [], [], []],
+      lossHistories = [[], [], [], []],
       mask = null,
       msg = '',
-      cu = 0,
-      fr = 0,
-      pb,
-      chk = () => false,
+      activeStepIndex = 0,
+      frameCount = 0,
+      playback,
+      checkRunStop = () => false,
       run = 1;
     const gen = () => {
-      const a = nnData('moons', Math.round((S.n * 4) / 3) + 2, 0.28, S.seed)
+      const a = nnData('moons', Math.round((settings.n * 4) / 3) + 2, 0.28, settings.seed)
           .filter((p) => !p.test)
-          .slice(0, S.n),
-        r = rng(S.seed * 5 + 1);
-      tr = a.map((p) => ({ ...p, bad: r() < S.fl }));
+          .slice(0, settings.n),
+        r = rng(settings.seed * 5 + 1);
+      tr = a.map((p) => ({ ...p, bad: r() < settings.fl }));
       tr.forEach((p) => {
         if (p.bad) p.c = 1 - p.c;
       });
-      te = nnData('moons', 400, 0.28, S.seed + 77);
+      te = nnData('moons', 400, 0.28, settings.seed + 77);
     };
     const build = () => {
-      const sz = [2, S.hw, S.hw, 1],
-        sd = S.seed * 3 + run * 17;
-      N0 = NNet(sz, { act: 'relu', seed: sd });
-      N1 = NNet(sz, { act: 'relu', seed: sd });
+      const sz = [2, settings.hw, settings.hw, 1],
+        sd = settings.seed * 3 + run * 17;
+      baselineNet = NNet(sz, { act: 'relu', seed: sd });
+      dropoutNet = NNet(sz, { act: 'relu', seed: sd });
       ep = 0;
-      H = [[], [], [], []];
+      lossHistories = [[], [], [], []];
       mask = null;
-      cu = 0;
+      activeStepIndex = 0;
       msg =
         'Two networks with the same ' +
-        (2 * S.hw + S.hw * S.hw + S.hw + 2 * S.hw + 1) +
+        (2 * settings.hw + settings.hw * settings.hw + settings.hw + 2 * settings.hw + 1) +
         ' starting weights and the same ' +
         tr.length +
         ' training points, ' +
@@ -71,22 +71,23 @@ export default {
     };
     const ll = (N, P) =>
         -P.reduce((s, p) => {
-          const o = N.p([p.x, p.y]);
+          const o = N.predictScalar([p.x, p.y]);
           return s + (p.c ? Math.log(o + 1e-9) : Math.log(1 - o + 1e-9));
         }, 0) / P.length,
-      ac = (N, P) => P.filter((p) => (N.p([p.x, p.y]) >= 0.5 ? 1 : 0) === p.c).length / P.length;
+      ac = (N, P) =>
+        P.filter((p) => (N.predictScalar([p.x, p.y]) >= 0.5 ? 1 : 0) === p.c).length / P.length;
     const epoch = () => {
       const X = tr.map((p) => [p.x, p.y]),
         Y = tr.map((p) => p.c),
-        a = N0.train(X, Y, 0.02),
-        b = N1.train(X, Y, 0.02, { drop: S.p });
+        a = baselineNet.train(X, Y, 0.02),
+        b = dropoutNet.train(X, Y, 0.02, { drop: settings.dropoutProbability });
       mask = b.mask;
       ep++;
-      H[0].push(a.loss);
-      H[1].push(b.loss);
-      H[2].push(ll(N0, te));
-      H[3].push(ll(N1, te));
-      cu = ep < 3 ? 2 : 3;
+      lossHistories[0].push(a.loss);
+      lossHistories[1].push(b.loss);
+      lossHistories[2].push(ll(baselineNet, te));
+      lossHistories[3].push(ll(dropoutNet, te));
+      activeStepIndex = ep < 3 ? 2 : 3;
       const off = mask ? mask.reduce((s, m) => s + m.filter((v) => v === 0).length, 0) : 0;
       msg =
         'Epoch ' +
@@ -94,185 +95,195 @@ export default {
         ': on the last example ' +
         off +
         ' of the ' +
-        2 * S.hw +
+        2 * settings.hw +
         ' hidden neurons in the dropout network were switched off. Loss on new data: normal ' +
-        f3(H[2][ep - 1]) +
+        f3(lossHistories[2][ep - 1]) +
         ', dropout ' +
-        f3(H[3][ep - 1]) +
+        f3(lossHistories[3][ep - 1]) +
         '.' +
         (ep >= EPM
           ? ' Both have had their ' +
             EPM +
             ' epochs, so training stops. ' +
-            (H[3][ep - 1] < H[2][ep - 1]
+            (lossHistories[3][ep - 1] < lossHistories[2][ep - 1]
               ? 'Dropout ends with the lower error on new data.'
               : 'Here dropout did not help: there was little overfitting to cure, or p is too large.')
           : '');
-      if (ep >= EPM) cu = 4;
+      if (ep >= EPM) activeStepIndex = 4;
     };
     const draw = () => {
-      const t = T();
+      const colors = readThemeColors();
       {
-        const { g, w, h } = fit(c),
+        const { g: ctx, w, h } = prepareCanvas(mainCanvas),
           hw = w / 2,
           cs = 7;
-        [N0, N1].forEach((N, q) => {
+        [baselineNet, dropoutNet].forEach((N, q) => {
           const x0 = q * hw,
             X = (x) => x0 + hw / 2 + (x * hw) / 6.4,
             Y = (y) => h / 2 - (y * h) / 6.4;
-          g.save();
-          g.beginPath();
-          g.rect(x0, 0, hw, h);
-          g.clip();
+          ctx.save();
+          ctx.beginPath();
+          ctx.rect(x0, 0, hw, h);
+          ctx.clip();
           for (let py = 0; py < h; py += cs)
             for (let px = 0; px < hw; px += cs) {
-              const p = N.p([
+              const p = N.predictScalar([
                   ((px + cs / 2 - hw / 2) * 6.4) / hw,
                   (-(py + cs / 2 - h / 2) * 6.4) / h,
                 ]),
                 s = Math.abs(p - 0.5) * 2;
-              g.fillStyle = mix(p < 0.5 ? t.accent : t.gold, t.bg, 0, 0.12 + 0.42 * s);
-              g.fillRect(x0 + px, py, cs, cs);
+              ctx.fillStyle = mix(
+                p < 0.5 ? colors.accent : colors.gold,
+                colors.bg,
+                0,
+                0.12 + 0.42 * s,
+              );
+              ctx.fillRect(x0 + px, py, cs, cs);
             }
           for (const p of tr) {
-            g.beginPath();
-            g.arc(X(p.x), Y(p.y), 3.6, 0, 7);
-            g.fillStyle = p.c ? t.gold : t.accent;
-            g.fill();
-            g.strokeStyle = p.bad ? t.ink : t.bg;
-            g.lineWidth = p.bad ? 2 : 0.8;
-            g.stroke();
+            ctx.beginPath();
+            ctx.arc(X(p.x), Y(p.y), 3.6, 0, 7);
+            ctx.fillStyle = p.c ? colors.gold : colors.accent;
+            ctx.fill();
+            ctx.strokeStyle = p.bad ? colors.ink : colors.bg;
+            ctx.lineWidth = p.bad ? 2 : 0.8;
+            ctx.stroke();
           }
-          g.restore();
-          g.font = SANS;
-          g.fillStyle = t.ink;
-          g.textAlign = 'left';
-          g.fillText(q ? 'With dropout, p = ' + f2(S.p) : 'Without dropout', x0 + 10, 18);
+          ctx.restore();
+          ctx.font = SANS;
+          ctx.fillStyle = colors.ink;
+          ctx.textAlign = 'left';
+          ctx.fillText(
+            q ? 'With dropout, p = ' + f2(settings.dropoutProbability) : 'Without dropout',
+            x0 + 10,
+            18,
+          );
         });
-        g.strokeStyle = t.ink;
-        g.lineWidth = 1.5;
-        g.beginPath();
-        g.moveTo(hw, 0);
-        g.lineTo(hw, h);
-        g.stroke();
-        g.font = MONO;
-        g.fillStyle = t.muted;
-        g.textAlign = 'right';
-        g.fillText('black ring = wrong label', w - 8, h - 8);
+        ctx.strokeStyle = colors.ink;
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.moveTo(hw, 0);
+        ctx.lineTo(hw, h);
+        ctx.stroke();
+        ctx.font = MONO;
+        ctx.fillStyle = colors.muted;
+        ctx.textAlign = 'right';
+        ctx.fillText('black ring = wrong label', w - 8, h - 8);
       }
       {
-        const { g, w, h } = fit(cr),
+        const { g: ctx, w, h } = prepareCanvas(cr),
           h1 = h * 0.5,
-          sh = Math.min(10, S.hw),
+          sh = Math.min(10, settings.hw),
           pos = netPos([2, sh, sh, 1], 30, 4, w - 60, h1 - 20);
         drawEdges(
-          g,
+          ctx,
           [
-            N1.W[0].slice(0, sh),
-            N1.W[1].slice(0, sh).map((q) => q.slice(0, sh)),
-            [N1.W[2][0].slice(0, sh)],
+            dropoutNet.W[0].slice(0, sh),
+            dropoutNet.W[1].slice(0, sh).map((q) => q.slice(0, sh)),
+            [dropoutNet.W[2][0].slice(0, sh)],
           ],
           pos,
-          t,
-          pb && pb.on ? fr / 45 : null,
+          colors,
+          playback && playback.on ? frameCount / 45 : null,
         );
         pos.forEach((col, l) =>
           col.forEach((q, j) => {
             const off = mask && l > 0 && l < 3 && mask[l - 1][j] === 0;
-            g.fillStyle = off ? t.bg : t.ink;
-            g.strokeStyle = off ? t.muted : t.ink;
-            g.lineWidth = 1.4;
-            g.beginPath();
-            g.arc(q[0], q[1], 6.5, 0, 7);
-            g.fill();
-            g.stroke();
+            ctx.fillStyle = off ? colors.bg : colors.ink;
+            ctx.strokeStyle = off ? colors.muted : colors.ink;
+            ctx.lineWidth = 1.4;
+            ctx.beginPath();
+            ctx.arc(q[0], q[1], 6.5, 0, 7);
+            ctx.fill();
+            ctx.stroke();
             if (off) {
-              g.strokeStyle = t.ok;
-              g.lineWidth = 2;
-              g.beginPath();
-              g.moveTo(q[0] - 6, q[1] - 6);
-              g.lineTo(q[0] + 6, q[1] + 6);
-              g.moveTo(q[0] + 6, q[1] - 6);
-              g.lineTo(q[0] - 6, q[1] + 6);
-              g.stroke();
+              ctx.strokeStyle = colors.ok;
+              ctx.lineWidth = 2;
+              ctx.beginPath();
+              ctx.moveTo(q[0] - 6, q[1] - 6);
+              ctx.lineTo(q[0] + 6, q[1] + 6);
+              ctx.moveTo(q[0] + 6, q[1] - 6);
+              ctx.lineTo(q[0] - 6, q[1] + 6);
+              ctx.stroke();
             }
           }),
         );
-        g.font = MONO;
-        g.fillStyle = t.muted;
-        g.textAlign = 'center';
-        g.fillText(
-          S.hw > sh
-            ? 'first ' + sh + ' of ' + S.hw + ' neurons in each hidden layer'
+        ctx.font = MONO;
+        ctx.fillStyle = colors.muted;
+        ctx.textAlign = 'center';
+        ctx.fillText(
+          settings.hw > sh
+            ? 'first ' + sh + ' of ' + settings.hw + ' neurons in each hidden layer'
             : 'the dropout network',
           w / 2,
           h1 + 2,
         );
         const ym = 1.6,
-          U = uLine(
-            g,
-            t,
+          U = drawSeriesChart(
+            ctx,
+            colors,
             0,
             h1 + 8,
             w,
             h - h1 - 8,
-            H[2].map((v) => Math.min(v, ym)),
+            lossHistories[2].map((v) => Math.min(v, ym)),
             {
               title:
                 'loss on new data: normal (red), dropout (green). Dashed: on the training points',
               n: EPM,
               ym,
-              col: t.ok,
+              col: colors.ok,
             },
           );
-        g.strokeStyle = t.accent;
-        g.lineWidth = 2.4;
-        g.beginPath();
-        H[3].forEach((v, i) =>
-          i ? g.lineTo(U.X(i), U.Y(Math.min(v, ym))) : g.moveTo(U.X(i), U.Y(Math.min(v, ym))),
+        ctx.strokeStyle = colors.accent;
+        ctx.lineWidth = 2.4;
+        ctx.beginPath();
+        lossHistories[3].forEach((v, i) =>
+          i ? ctx.lineTo(U.X(i), U.Y(Math.min(v, ym))) : ctx.moveTo(U.X(i), U.Y(Math.min(v, ym))),
         );
-        g.stroke();
+        ctx.stroke();
         [
-          [H[0], t.ok],
-          [H[1], t.accent],
+          [lossHistories[0], colors.ok],
+          [lossHistories[1], colors.accent],
         ].forEach((q) => {
-          g.strokeStyle = mix(q[1], q[1], 0, 0.4);
-          g.lineWidth = 1;
-          g.setLineDash([3, 3]);
-          g.beginPath();
+          ctx.strokeStyle = mix(q[1], q[1], 0, 0.4);
+          ctx.lineWidth = 1;
+          ctx.setLineDash([3, 3]);
+          ctx.beginPath();
           q[0].forEach((v, i) =>
-            i ? g.lineTo(U.X(i), U.Y(Math.min(v, ym))) : g.moveTo(U.X(i), U.Y(Math.min(v, ym))),
+            i ? ctx.lineTo(U.X(i), U.Y(Math.min(v, ym))) : ctx.moveTo(U.X(i), U.Y(Math.min(v, ym))),
           );
-          g.stroke();
-          g.setLineDash([]);
+          ctx.stroke();
+          ctx.setLineDash([]);
         });
       }
       live.textContent = msg;
-      uCur(root, 'dr', cu);
-      setR(root, 'ep', ep + ' of ' + EPM);
-      setR(root, 'a0', pct(ac(N0, tr)) + ' / ' + pct(ac(N0, te)));
-      setR(root, 'a1', pct(ac(N1, tr)) + ' / ' + pct(ac(N1, te)));
-      setR(root, 'l0', ep ? f3(H[2][ep - 1]) : '–');
-      setR(root, 'l1', ep ? f3(H[3][ep - 1]) : '–');
+      highlightLessonStep(root, 'dr', activeStepIndex);
+      setReadout(root, 'ep', ep + ' of ' + EPM);
+      setReadout(root, 'a0', pct(ac(baselineNet, tr)) + ' / ' + pct(ac(baselineNet, te)));
+      setReadout(root, 'a1', pct(ac(dropoutNet, tr)) + ' / ' + pct(ac(dropoutNet, te)));
+      setReadout(root, 'l0', ep ? f3(lossHistories[2][ep - 1]) : '–');
+      setReadout(root, 'l1', ep ? f3(lossHistories[3][ep - 1]) : '–');
     };
     gen();
     build();
-    if (RM) for (let i = 0; i < EPM; i++) epoch();
+    if (prefersReducedMotion) for (let i = 0; i < EPM; i++) epoch();
     const redo = () => {
-      pb.stop();
+      playback.stop();
       run++;
       build();
       draw();
     };
     const anim = Anim(() => {
-      fr++;
-      if (ep < 12 && fr % 8) return;
-      for (let i = 0; i < (ep < 12 ? 1 : 2) && ep < EPM && chk.remaining() > 0; i++) epoch();
+      frameCount++;
+      if (ep < 12 && frameCount % 8) return;
+      for (let i = 0; i < (ep < 12 ? 1 : 2) && ep < EPM && checkRunStop.remaining() > 0; i++)
+        epoch();
       draw();
-      chk();
+      checkRunStop();
     });
-    pb = playBtn($('#dr-play', root), anim);
-    chk = runCtl(pb, root, 'dr', {
+    playback = playBtn($('#dr-play', root), anim);
+    checkRunStop = attachRunLimit(playback, root, 'dr', {
       done: () => ep >= EPM,
       restart: () => {
         run++;
@@ -282,7 +293,7 @@ export default {
       what: 'epochs',
     });
     $('#dr-step', root).onclick = () => {
-      pb.stop();
+      playback.stop();
       if (ep >= EPM) {
         run++;
         build();
@@ -291,14 +302,14 @@ export default {
     };
     $('#dr-reset', root).onclick = redo;
     bind(root, 'dr-p', (v) => {
-      S.p = v;
+      settings.dropoutProbability = v;
       redo();
     });
     bind(
       root,
       'dr-hw',
       (v) => {
-        S.hw = v;
+        settings.hw = v;
         redo();
       },
       (v) => String(v),
@@ -307,30 +318,30 @@ export default {
       root,
       'dr-n',
       (v) => {
-        S.n = v;
+        settings.n = v;
         gen();
         redo();
       },
       (v) => String(v),
     );
     bind(root, 'dr-fl', (v) => {
-      S.fl = v;
+      settings.fl = v;
       gen();
       redo();
     });
     $('#dr-new', root).onclick = () => {
-      S.seed++;
+      settings.seed++;
       gen();
       redo();
     };
     return {
       draw,
-      stop: () => pb.stop(),
+      stop: () => playback.stop(),
       auto: () => {
         run++;
         build();
         draw();
-        pb.start();
+        playback.start();
       },
     };
   },

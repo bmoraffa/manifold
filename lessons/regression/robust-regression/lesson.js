@@ -2,27 +2,27 @@
 import {
   $,
   Anim,
-  RM,
-  T,
+  prefersReducedMotion,
+  readThemeColors,
   bind,
   clamp,
   f2,
   f3,
-  fit,
+  prepareCanvas,
   mix,
   playBtn,
   randnFrom,
   rng,
-  runCtl,
-  setR,
+  attachRunLimit,
+  setReadout,
 } from '../../../js/core/shared.js';
 import {
   canvasXY,
   dotAt,
   segBind,
-  uCur,
+  highlightLessonStep,
   uFrame,
-  uLine,
+  drawSeriesChart,
   uView,
   xyUp,
 } from '../../unsupervised/shared.js';
@@ -33,36 +33,36 @@ export default {
     const c = $('#rr-c', root),
       cr = $('#rr-r', root),
       live = $('#rr-live', root),
-      S = { d: 'one', m: 'huber', k: 1.35, s: 'ols' },
-      TR = [0.3, 0.55];
+      settings = { d: 'one', m: 'huber', k: 1.35, s: 'ols' },
+      trueCoefficients = [0.3, 0.55];
     let D = [],
       W = [],
       a = 0,
       b = 0,
       ols = [0, 0],
-      sc = 1,
+      residualScale = 1,
       it = 0,
       fin = false,
       msg = '',
-      cu = 0,
+      activeStepIndex = 0,
       seed = 1,
-      pb,
-      chk = () => false,
+      playback,
+      checkRunStop = () => false,
       V = null,
-      drag = -1,
+      draggedPointIndex = -1,
       kB;
     const gen = () => {
-      const r = rng(seed * 13 + S.d.length),
+      const r = rng(seed * 13 + settings.d.length),
         rn = randnFrom(r);
       D = [];
       for (let i = 0; i < 30; i++) {
         const x = -3.4 + (6.8 * (i + 0.5)) / 30 + 0.1 * rn();
-        D.push([x, TR[0] + TR[1] * x + 0.3 * rn()]);
+        D.push([x, trueCoefficients[0] + trueCoefficients[1] * x + 0.3 * rn()]);
       }
-      if (S.d === 'one') D[27][1] = -2.6;
-      else if (S.d === 'few')
+      if (settings.d === 'one') D[27][1] = -2.6;
+      else if (settings.d === 'few')
         for (const i of [3, 12, 24, 28]) D[i][1] += (i > 15 ? -3 : 3) * (0.7 + 0.5 * r());
-      else if (S.d === 'many') for (let i = 20; i < 30; i++) D[i][1] = -1.6 + 0.25 * rn();
+      else if (settings.d === 'many') for (let i = 20; i < 30; i++) D[i][1] = -1.6 + 0.25 * rn();
     };
     const wls = (w) => {
       let sw = 0,
@@ -93,11 +93,11 @@ export default {
     };
     const wOf = (u) => {
       const au = Math.abs(u);
-      return S.m === 'huber'
-        ? Math.min(1, S.k / Math.max(au, 1e-9))
-        : S.m === 'tukey'
-          ? au < S.k
-            ? (1 - (u * u) / (S.k * S.k)) ** 2
+      return settings.m === 'huber'
+        ? Math.min(1, settings.k / Math.max(au, 1e-9))
+        : settings.m === 'tukey'
+          ? au < settings.k
+            ? (1 - (u * u) / (settings.k * settings.k)) ** 2
             : 0
           : 1 / Math.max(au, 0.05);
     };
@@ -119,23 +119,23 @@ export default {
       return best;
     };
     const weights = () => {
-      sc = scale();
-      W = D.map((d) => wOf((d[1] - a - b * d[0]) / sc));
-      if (S.m === 'l1') {
+      residualScale = scale();
+      W = D.map((d) => wOf((d[1] - a - b * d[0]) / residualScale));
+      if (settings.m === 'l1') {
         const m = Math.max(...W);
         W = W.map((v) => v / m);
       }
     };
     const reset = () => {
       ols = wls(D.map(() => 1));
-      [a, b] = S.s === 'ols' ? ols : lmsfit();
+      [a, b] = settings.s === 'ols' ? ols : lmsfit();
       it = 0;
       fin = false;
       weights();
-      cu = 0;
+      activeStepIndex = 0;
       msg =
         'First line: ' +
-        (S.s === 'ols'
+        (settings.s === 'ols'
           ? 'least squares'
           : 'the line through two data points that leaves the smallest median miss') +
         '. Every point has been given a weight from the size of its miss. Press One refit.';
@@ -154,7 +154,7 @@ export default {
       b = nb;
       it++;
       weights();
-      cu = 3;
+      activeStepIndex = 3;
       const low = W.filter((v) => v < 0.5).length;
       msg =
         'Refit ' +
@@ -162,12 +162,12 @@ export default {
         ': the line moved by ' +
         (da < 1e-3 ? da.toExponential(1) : f3(da)) +
         '.' +
-        (S.m === 'l1'
+        (settings.m === 'l1'
           ? ''
           : ' ' + low + ' point' + (low === 1 ? ' has' : 's have') + ' weight below one half.');
       if (da < 1e-5 || it >= 200) {
         fin = true;
-        cu = 5;
+        activeStepIndex = 5;
         msg =
           'Stopped after ' +
           it +
@@ -176,54 +176,54 @@ export default {
           ', least-squares slope ' +
           f2(ols[1]) +
           ', true slope ' +
-          f2(TR[1]) +
+          f2(trueCoefficients[1]) +
           '. ' +
-          (Math.abs(b - TR[1]) < Math.abs(ols[1] - TR[1]) - 0.02
+          (Math.abs(b - trueCoefficients[1]) < Math.abs(ols[1] - trueCoefficients[1]) - 0.02
             ? 'The robust line is closer to the truth.'
-            : Math.abs(b - TR[1]) > Math.abs(ols[1] - TR[1]) + 0.02
+            : Math.abs(b - trueCoefficients[1]) > Math.abs(ols[1] - trueCoefficients[1]) + 0.02
               ? 'Here the robust line is further from the truth than least squares.'
               : 'The two lines are about equally close to the truth.');
       }
     };
     const rho = (u) => {
       const au = Math.abs(u);
-      return S.m === 'huber'
-        ? au <= S.k
+      return settings.m === 'huber'
+        ? au <= settings.k
           ? 0.5 * u * u
-          : S.k * au - 0.5 * S.k * S.k
-        : S.m === 'tukey'
-          ? au <= S.k
-            ? ((S.k * S.k) / 6) * (1 - (1 - (u * u) / (S.k * S.k)) ** 3)
-            : (S.k * S.k) / 6
+          : settings.k * au - 0.5 * settings.k * settings.k
+        : settings.m === 'tukey'
+          ? au <= settings.k
+            ? ((settings.k * settings.k) / 6) * (1 - (1 - (u * u) / (settings.k * settings.k)) ** 3)
+            : (settings.k * settings.k) / 6
           : au;
     };
     const draw = () => {
-      const t = T();
+      const colors = readThemeColors();
       V = uView(c);
       const { g, w, h, X, Y } = V;
-      uFrame(V, t, 'x', 'y');
+      uFrame(V, colors, 'x', 'y');
       const ln = (p, q) => {
         g.beginPath();
         g.moveTo(X(-4), Y(p - 4 * q));
         g.lineTo(X(4), Y(p + 4 * q));
         g.stroke();
       };
-      g.strokeStyle = t.muted;
+      g.strokeStyle = colors.muted;
       g.lineWidth = 1;
       g.globalAlpha = 0.6;
-      ln(TR[0], TR[1]);
+      ln(trueCoefficients[0], trueCoefficients[1]);
       g.globalAlpha = 1;
-      g.strokeStyle = t.cut;
+      g.strokeStyle = colors.cut;
       g.lineWidth = 2;
       g.setLineDash([7, 5]);
       ln(ols[0], ols[1]);
       g.setLineDash([]);
-      g.strokeStyle = t.accent;
+      g.strokeStyle = colors.accent;
       g.lineWidth = 2.8;
       ln(a, b);
       D.forEach((d, i) => {
         const wv = W[i] || 0;
-        g.strokeStyle = mix(t.ink, t.ink, 0, 0.25);
+        g.strokeStyle = mix(colors.ink, colors.ink, 0, 0.25);
         g.lineWidth = 1;
         g.beginPath();
         g.moveTo(X(d[0]), Y(d[1]));
@@ -235,125 +235,125 @@ export default {
           X(d[0]),
           Y(d[1]),
           2 + 5 * Math.sqrt(wv),
-          mix(t.ink, t.cut, 1 - wv, 0.85),
-          wv < 0.05 ? t.cut : null,
+          mix(colors.ink, colors.cut, 1 - wv, 0.85),
+          wv < 0.05 ? colors.cut : null,
         );
       });
-      g2Note(g, t, h, 'big dark dots are trusted; small amber dots have been turned down');
+      g2Note(g, colors, h, 'big dark dots are trusted; small amber dots have been turned down');
       {
-        const { g, w, h } = fit(cr),
+        const { g: ctx, w, h } = prepareCanvas(cr),
           h1 = h * 0.5,
           U = 6,
           n = 121,
           us = Array.from({ length: n }, (_, i) => -U + (2 * U * i) / (n - 1)),
           rs = us.map(rho),
           ym = Math.min(8, Math.max(...rs) * 1.1),
-          A = uLine(g, t, 0, 0, w, h1, [], {
+          A = drawSeriesChart(ctx, colors, 0, 0, w, h1, [], {
             title: 'penalty against the size of the miss (in typical-miss units, −6 to 6)',
             n,
             ym,
             y1: 0,
           });
-        g.save();
-        g.beginPath();
-        g.rect(0, 0, w, h1 - 18);
-        g.clip();
-        g.strokeStyle = t.cut;
-        g.lineWidth = 1.6;
-        g.setLineDash([6, 4]);
-        g.beginPath();
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(0, 0, w, h1 - 18);
+        ctx.clip();
+        ctx.strokeStyle = colors.cut;
+        ctx.lineWidth = 1.6;
+        ctx.setLineDash([6, 4]);
+        ctx.beginPath();
         us.forEach((u, i) =>
-          i ? g.lineTo(A.X(i), A.Y(0.5 * u * u)) : g.moveTo(A.X(i), A.Y(0.5 * u * u)),
+          i ? ctx.lineTo(A.X(i), A.Y(0.5 * u * u)) : ctx.moveTo(A.X(i), A.Y(0.5 * u * u)),
         );
-        g.stroke();
-        g.setLineDash([]);
-        g.strokeStyle = t.accent;
-        g.lineWidth = 2.4;
-        g.beginPath();
-        rs.forEach((v, i) => (i ? g.lineTo(A.X(i), A.Y(v)) : g.moveTo(A.X(i), A.Y(v))));
-        g.stroke();
-        g.restore();
+        ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.strokeStyle = colors.accent;
+        ctx.lineWidth = 2.4;
+        ctx.beginPath();
+        rs.forEach((v, i) => (i ? ctx.lineTo(A.X(i), A.Y(v)) : ctx.moveTo(A.X(i), A.Y(v))));
+        ctx.stroke();
+        ctx.restore();
         const ws = us.map((u) =>
-            S.m === 'l1' ? Math.min(1, 0.25 / Math.max(Math.abs(u), 0.01)) : wOf(u),
+            settings.m === 'l1' ? Math.min(1, 0.25 / Math.max(Math.abs(u), 0.01)) : wOf(u),
           ),
-          B = uLine(g, t, 0, h1, w, h - h1, [], {
+          B = drawSeriesChart(ctx, colors, 0, h1, w, h - h1, [], {
             title: 'weight against the size of the miss',
             n,
             ym: 1.08,
             y1: 0,
           });
-        g.strokeStyle = t.accent;
-        g.lineWidth = 2.4;
-        g.beginPath();
-        ws.forEach((v, i) => (i ? g.lineTo(B.X(i), B.Y(v)) : g.moveTo(B.X(i), B.Y(v))));
-        g.stroke();
+        ctx.strokeStyle = colors.accent;
+        ctx.lineWidth = 2.4;
+        ctx.beginPath();
+        ws.forEach((v, i) => (i ? ctx.lineTo(B.X(i), B.Y(v)) : ctx.moveTo(B.X(i), B.Y(v))));
+        ctx.stroke();
         D.forEach((d, i) => {
-          const u = clamp((d[1] - a - b * d[0]) / sc, -U, U),
+          const u = clamp((d[1] - a - b * d[0]) / residualScale, -U, U),
             xi = ((u + U) / (2 * U)) * (n - 1);
-          g.lineWidth = 1;
+          ctx.lineWidth = 1;
           dotAt(
-            g,
+            ctx,
             B.X(xi),
-            B.Y(S.m === 'l1' ? Math.min(1, 0.25 / Math.max(Math.abs(u), 0.01)) : wOf(u)),
+            B.Y(settings.m === 'l1' ? Math.min(1, 0.25 / Math.max(Math.abs(u), 0.01)) : wOf(u)),
             3.5,
-            mix(t.gold, t.gold, 0, 0.8),
-            t.bg,
+            mix(colors.gold, colors.gold, 0, 0.8),
+            colors.bg,
           );
         });
       }
       live.textContent = msg;
-      uCur(root, 'rr', cu);
-      setR(root, 'it', it + (fin ? ' (stopped)' : ''));
-      setR(root, 'tr', f2(TR[0]) + ', ' + f2(TR[1]));
-      setR(root, 'ls', f2(ols[0]) + ', ' + f2(ols[1]));
-      setR(root, 'rb', f2(a) + ', ' + f2(b));
-      setR(root, 'sc', f2(sc));
-      setR(
+      highlightLessonStep(root, 'rr', activeStepIndex);
+      setReadout(root, 'it', it + (fin ? ' (stopped)' : ''));
+      setReadout(root, 'tr', f2(trueCoefficients[0]) + ', ' + f2(trueCoefficients[1]));
+      setReadout(root, 'ls', f2(ols[0]) + ', ' + f2(ols[1]));
+      setReadout(root, 'rb', f2(a) + ', ' + f2(b));
+      setReadout(root, 'sc', f2(residualScale));
+      setReadout(
         root,
         'dn',
-        S.m === 'l1'
+        settings.m === 'l1'
           ? 'not meaningful for this penalty'
           : W.filter((v) => v < 0.5).length + ' of ' + D.length,
       );
     };
     gen();
     reset();
-    if (RM) {
+    if (prefersReducedMotion) {
       while (!fin) step();
     }
-    let fr = 0;
+    let frameCount = 0;
     const anim = Anim(() => {
       if (fin) {
-        pb.stop();
+        playback.stop();
         return;
       }
-      if (++fr % 14) return;
+      if (++frameCount % 14) return;
       step();
       draw();
-      chk();
+      checkRunStop();
     });
-    pb = playBtn($('#rr-play', root), anim);
-    chk = runCtl(pb, root, 'rr', {
+    playback = playBtn($('#rr-play', root), anim);
+    checkRunStop = attachRunLimit(playback, root, 'rr', {
       done: () => fin,
       restart: reset,
       count: () => it,
       what: 'refits',
     });
     const go = () => {
-      pb.stop();
+      playback.stop();
       reset();
       draw();
-      fr = 0;
-      pb.start();
+      frameCount = 0;
+      playback.start();
     };
     $('#rr-step', root).onclick = () => {
-      pb.stop();
+      playback.stop();
       if (fin) reset();
       else step();
       draw();
     };
     $('#rr-reset', root).onclick = () => {
-      pb.stop();
+      playback.stop();
       gen();
       reset();
       draw();
@@ -364,31 +364,31 @@ export default {
       go();
     };
     kB = bind(root, 'rr-k', (v) => {
-      S.k = v;
-      pb.stop();
+      settings.k = v;
+      playback.stop();
       reset();
       draw();
     });
-    segBind(root, 'rr-d', S.d, (v) => {
-      S.d = v;
+    segBind(root, 'rr-d', settings.d, (v) => {
+      settings.d = v;
       gen();
       go();
     });
-    segBind(root, 'rr-m', S.m, (v) => {
-      S.m = v;
-      S.k = v === 'tukey' ? 4.69 : 1.35;
-      kB.set(S.k);
+    segBind(root, 'rr-m', settings.m, (v) => {
+      settings.m = v;
+      settings.k = v === 'tukey' ? 4.69 : 1.35;
+      kB.set(settings.k);
       kB.el.disabled = v === 'l1';
       go();
     });
-    segBind(root, 'rr-s', S.s, (v) => {
-      S.s = v;
+    segBind(root, 'rr-s', settings.s, (v) => {
+      settings.s = v;
       go();
     });
     xyUp(root, 'rr', (q) => {
       D = q.slice(0, 120);
-      TR[0] = NaN;
-      TR[1] = NaN;
+      trueCoefficients[0] = NaN;
+      trueCoefficients[1] = NaN;
       go();
     });
     c.style.cursor = 'grab';
@@ -396,37 +396,37 @@ export default {
     c.addEventListener('pointerdown', (e) => {
       if (!V) return;
       const [x, y] = canvasXY(c, V, e);
-      drag = D.findIndex((d) => Math.hypot((d[0] - x) * V.s, (d[1] - y) * V.s) < 12);
-      if (drag < 0 && D.length < 120) {
+      draggedPointIndex = D.findIndex((d) => Math.hypot((d[0] - x) * V.s, (d[1] - y) * V.s) < 12);
+      if (draggedPointIndex < 0 && D.length < 120) {
         D.push([x, y]);
-        drag = D.length - 1;
+        draggedPointIndex = D.length - 1;
       }
       c.setPointerCapture(e.pointerId);
-      pb.stop();
+      playback.stop();
       reset();
       draw();
     });
     c.addEventListener('pointermove', (e) => {
-      if (drag < 0 || !V) return;
+      if (draggedPointIndex < 0 || !V) return;
       const [x, y] = canvasXY(c, V, e);
-      D[drag] = [clamp(x, -4, 4), clamp(y, -3, 3)];
+      D[draggedPointIndex] = [clamp(x, -4, 4), clamp(y, -3, 3)];
       reset();
       while (!fin) step();
       draw();
     });
     const end = () => {
-      drag = -1;
+      draggedPointIndex = -1;
     };
     c.addEventListener('pointerup', end);
     c.addEventListener('pointercancel', end);
     return {
       draw,
-      stop: () => pb.stop(),
+      stop: () => playback.stop(),
       auto: () => {
         reset();
         draw();
-        fr = 0;
-        pb.start();
+        frameCount = 0;
+        playback.start();
       },
     };
   },

@@ -3,22 +3,29 @@ import {
   $,
   Anim,
   MONO,
-  RM,
-  T,
+  prefersReducedMotion,
+  readThemeColors,
   bind,
   clamp,
   f3,
-  fit,
+  prepareCanvas,
   markTP,
   mix,
   playBtn,
   randnFrom,
   rng,
-  runCtl,
-  setR,
+  attachRunLimit,
+  setReadout,
   testPoint,
 } from '../../../js/core/shared.js';
-import { canvasXY, dotAt, segBind, uCur, uLine, uView } from '../../unsupervised/shared.js';
+import {
+  canvasXY,
+  dotAt,
+  segBind,
+  highlightLessonStep,
+  drawSeriesChart,
+  uView,
+} from '../../unsupervised/shared.js';
 import { g2Note } from '../../generative/shared.js';
 import { pct } from '../../ensembles/shared.js';
 
@@ -28,23 +35,23 @@ export default {
       cr = $('#ss-r', root),
       live = $('#ss-live', root),
       ol = $('#ss-steps', root),
-      S = { d: 'moons', m: 'lp', n: 3, k: 7 };
+      settings = { d: 'moons', m: 'lp', n: 3, k: 7 };
     let D = [],
       Y = [],
       L = [],
       F = [],
-      nb = [],
-      base = [],
+      neighborGraph = [],
+      baselinePredictions = [],
       hist = [],
       it = 0,
       fin = false,
       seed = 1,
       msg = '',
-      cu = 0,
-      pb,
-      chk = () => false,
+      activeStepIndex = 0,
+      playback,
+      checkRunStop = () => false,
       V = null,
-      bacc = 0,
+      baselineAccuracy = 0,
       pseudo = [];
     const HOW = {
       lp: [
@@ -65,25 +72,25 @@ export default {
       ],
     };
     const gen = () => {
-      const r = rng(seed * 37 + S.d.length),
+      const r = rng(seed * 37 + settings.d.length),
         rn = randnFrom(r);
       D = [];
       Y = [];
       for (let i = 0; i < 180; i++) {
         const k = i % 2;
         let p;
-        if (S.d === 'moons') {
+        if (settings.d === 'moons') {
           const a = Math.PI * r();
           p = k
             ? [1.7 * Math.cos(a) - 0.85 + 0.1 * rn(), 1.7 * Math.sin(a) - 0.6 + 0.1 * rn()]
             : [0.85 - 1.7 * Math.cos(a) + 0.1 * rn(), 0.6 - 1.7 * Math.sin(a) + 0.1 * rn()];
-        } else if (S.d === 'mixed')
+        } else if (settings.d === 'mixed')
           p = [(k ? 0.75 : -0.75) + 0.85 * rn(), (k ? 0.3 : -0.3) + 0.8 * rn()];
         else p = [(k ? 1.9 : -1.9) + 0.55 * rn(), (k ? 0.5 : -0.5) + 0.6 * rn()];
         D.push(p);
         Y.push(k);
       }
-      if (S.d === 'bridge')
+      if (settings.d === 'bridge')
         for (let i = 0; i < 14; i++) {
           const u = (i + 0.5) / 14;
           D.push([-1.3 + 2.6 * u + 0.05 * rn(), -0.35 + 0.7 * u + 0.05 * rn()]);
@@ -92,29 +99,29 @@ export default {
       L = D.map(() => false);
       for (const k of [0, 1]) {
         const idx = D.map((_, i) => i).filter((i) => Y[i] === k && i < 180);
-        for (let q = 0; q < S.n; q++) {
+        for (let q = 0; q < settings.n; q++) {
           const j = Math.floor(r() * idx.length);
           L[idx.splice(j, 1)[0]] = true;
         }
       }
     };
     const graph = () => {
-      nb = D.map((p, i) => {
+      neighborGraph = D.map((p, i) => {
         const ds = D.map((q, j) => [Math.hypot(p[0] - q[0], p[1] - q[1]), j])
             .filter((e) => e[1] !== i)
             .sort((a, b) => a[0] - b[0])
-            .slice(0, S.k),
+            .slice(0, settings.k),
           sg = ds[ds.length - 1][0] || 1;
         return ds.map(([d, j]) => [j, Math.exp((-d * d) / (sg * sg))]);
       });
       const sym = D.map(() => new Map());
-      nb.forEach((a, i) =>
+      neighborGraph.forEach((a, i) =>
         a.forEach(([j, w]) => {
           sym[i].set(j, Math.max(w, sym[i].get(j) || 0));
           sym[j].set(i, Math.max(w, sym[j].get(i) || 0));
         }),
       );
-      nb = sym.map((m) => {
+      neighborGraph = sym.map((m) => {
         const a = [...m.entries()],
           s = a.reduce((p, e) => p + e[1], 0);
         return a.map(([j, w]) => [j, w / s]);
@@ -144,7 +151,7 @@ export default {
       return n ? ok / n : 1;
     };
     const thr = () => {
-      if (S.m !== 'lp') return [0.5, 0.5];
+      if (settings.m !== 'lp') return [0.5, 0.5];
       const u = F.filter((_, i) => !L[i]).sort((a, b) => a - b);
       if (!u.length) return [0.5, 0.5];
       const n1 = L.reduce((s, v, i) => s + (v && Y[i] ? 1 : 0), 0),
@@ -158,40 +165,40 @@ export default {
       return F.map((f) => (Math.abs(f - th) <= 0.03 * sp ? -1 : f > th ? 1 : 0));
     };
     const reset = () => {
-      ol.innerHTML = HOW[S.m].map((s) => '<li>' + s + '</li>').join('');
+      ol.innerHTML = HOW[settings.m].map((s) => '<li>' + s + '</li>').join('');
       graph();
       const lab = D.map((_, i) => (L[i] ? Y[i] : -1));
-      base = D.map((p, i) => (L[i] ? Y[i] : Y[nearLab(p, lab)]));
-      bacc = accOf(base);
+      baselinePredictions = D.map((p, i) => (L[i] ? Y[i] : Y[nearLab(p, lab)]));
+      baselineAccuracy = accOf(baselinePredictions);
       F = D.map((_, i) => (L[i] ? Y[i] : 0.5));
       pseudo = lab.slice();
       it = 0;
       fin = false;
       hist = [accOf(cur())];
-      cu = 1;
+      activeStepIndex = 1;
       msg =
         L.filter(Boolean).length +
         ' points carry a label; ' +
         (D.length - L.filter(Boolean).length) +
         ' do not. Using the labels alone, ' +
-        pct(bacc) +
+        pct(baselineAccuracy) +
         ' of the unlabelled points would be classified correctly. Press Run.';
     };
     const step = () => {
       if (fin) return;
-      if (S.m === 'lp') {
+      if (settings.m === 'lp') {
         const N = F.slice();
         let mx = 0;
         for (let i = 0; i < D.length; i++) {
           if (L[i]) continue;
           let s = 0;
-          for (const [j, w] of nb[i]) s += w * F[j];
+          for (const [j, w] of neighborGraph[i]) s += w * F[j];
           N[i] = s;
           mx = Math.max(mx, Math.abs(s - F[i]));
         }
         F = N;
         it++;
-        cu = it % 2 ? 2 : 3;
+        activeStepIndex = it % 2 ? 2 : 3;
         const und = cur().filter((v, i) => v < 0 && !L[i]).length;
         msg =
           'Step ' +
@@ -228,7 +235,7 @@ export default {
           F[i] = y;
         }
         it++;
-        cu = 3;
+        activeStepIndex = 3;
         const left = pseudo.filter((v) => v < 0).length;
         msg =
           'Step ' +
@@ -242,21 +249,23 @@ export default {
       }
       hist.push(accOf(cur()));
       if (fin) {
-        cu = 5;
+        activeStepIndex = 5;
         const a = hist[hist.length - 1];
         msg =
           'Stopped after ' +
           it +
           ' steps: ' +
-          (S.m === 'lp' ? 'the beliefs have stopped changing.' : 'every point has a label.') +
+          (settings.m === 'lp'
+            ? 'the beliefs have stopped changing.'
+            : 'every point has a label.') +
           ' Accuracy on the unlabelled points: ' +
           pct(a) +
           ', against ' +
-          pct(bacc) +
+          pct(baselineAccuracy) +
           ' from the labels alone. ' +
-          (a > bacc + 0.03
+          (a > baselineAccuracy + 0.03
             ? 'The unlabelled data helped.'
-            : a < bacc - 0.03
+            : a < baselineAccuracy - 0.03
               ? 'The unlabelled data made things worse here: their shape pointed the wrong way.'
               : 'The unlabelled data made little difference here.');
       }
@@ -272,21 +281,21 @@ export default {
       ],
     );
     const draw = () => {
-      const t = T(),
-        cs = [t.accent, t.gold],
+      const colors = readThemeColors(),
+        cs = [colors.accent, colors.gold],
         [TH, SP] = thr(),
         col = (f) =>
           f > TH
-            ? mix(t.muted, cs[1], clamp(((f - TH) / SP) * 1.5, 0, 1))
-            : mix(t.muted, cs[0], clamp(((TH - f) / SP) * 1.5, 0, 1));
+            ? mix(colors.muted, cs[1], clamp(((f - TH) / SP) * 1.5, 0, 1))
+            : mix(colors.muted, cs[0], clamp(((TH - f) / SP) * 1.5, 0, 1));
       V = uView(c);
       {
         const { g, w, h, X, Y: PY } = V;
-        if (S.m === 'lp' && D.length < 260) {
-          g.strokeStyle = mix(t.ink, t.ink, 0, 0.07);
+        if (settings.m === 'lp' && D.length < 260) {
+          g.strokeStyle = mix(colors.ink, colors.ink, 0, 0.07);
           g.lineWidth = 1;
           g.beginPath();
-          nb.forEach((a, i) =>
+          neighborGraph.forEach((a, i) =>
             a.forEach(([j]) => {
               if (j > i) {
                 g.moveTo(X(D[i][0]), PY(D[i][1]));
@@ -300,23 +309,23 @@ export default {
           if (L[i]) return;
           const wrong = fin && cur()[i] >= 0 && cur()[i] !== Y[i];
           g.lineWidth = 1.5;
-          dotAt(g, X(p[0]), PY(p[1]), 4.2, col(F[i]), wrong ? t.ink : null);
+          dotAt(g, X(p[0]), PY(p[1]), 4.2, col(F[i]), wrong ? colors.ink : null);
         });
         D.forEach((p, i) => {
           if (!L[i]) return;
           g.lineWidth = 2.5;
-          dotAt(g, X(p[0]), PY(p[1]), 7, cs[Y[i]], t.ink);
+          dotAt(g, X(p[0]), PY(p[1]), 7, cs[Y[i]], colors.ink);
         });
         const ds = D.map((p, j) => [Math.hypot(tp.v[0] - p[0], tp.v[1] - p[1]), j])
             .sort((a, b) => a[0] - b[0])
-            .slice(0, S.k),
+            .slice(0, settings.k),
           f = 0.5 + clamp((ds.reduce((s, e) => s + F[e[1]], 0) / ds.length - TH) / SP, -1, 1) / 2,
           lab = D.map((_, i) => (L[i] ? Y[i] : -1)),
           bl = Y[nearLab(tp.v, lab)];
-        markTP(g, X(tp.v[0]), PY(tp.v[1]), t);
+        markTP(g, X(tp.v[0]), PY(tp.v[1]), colors);
         tp.out.textContent =
           'Your point: the ' +
-          S.k +
+          settings.k +
           ' nearest data points believe "' +
           (f > 0.5 ? 'gold' : 'green') +
           '" with strength ' +
@@ -324,100 +333,108 @@ export default {
           '. The nearest labelled point alone says "' +
           (bl ? 'gold' : 'green') +
           '".';
-        g2Note(g, t, h, fin ? 'black outline: classified wrongly' : 'ringed: labelled');
+        g2Note(g, colors, h, fin ? 'black outline: classified wrongly' : 'ringed: labelled');
       }
       {
-        const { g, w, h } = fit(cr),
+        const { g: ctx, w, h } = prepareCanvas(cr),
           h1 = h * 0.56,
           sc = Math.min(w / 8.4, (h1 - 20) / 6),
           X = (x) => w / 2 + x * sc,
           Yc = (y) => 10 + (h1 - 10) / 2 - y * sc;
-        g.font = MONO;
-        g.fillStyle = t.muted;
-        g.textAlign = 'left';
-        g.fillText('labels alone: nearest labelled point decides', 8, 13);
+        ctx.font = MONO;
+        ctx.fillStyle = colors.muted;
+        ctx.textAlign = 'left';
+        ctx.fillText('labels alone: nearest labelled point decides', 8, 13);
         D.forEach((p, i) => {
-          g.lineWidth = 1.5;
-          if (L[i]) dotAt(g, X(p[0]), Yc(p[1]), 5, cs[Y[i]], t.ink);
-          else dotAt(g, X(p[0]), Yc(p[1]), 2.8, cs[base[i]], base[i] !== Y[i] ? t.ink : null);
+          ctx.lineWidth = 1.5;
+          if (L[i]) dotAt(ctx, X(p[0]), Yc(p[1]), 5, cs[Y[i]], colors.ink);
+          else
+            dotAt(
+              ctx,
+              X(p[0]),
+              Yc(p[1]),
+              2.8,
+              cs[baselinePredictions[i]],
+              baselinePredictions[i] !== Y[i] ? colors.ink : null,
+            );
         });
-        const A = uLine(g, t, 0, h1, w, h - h1, hist, {
+        const A = drawSeriesChart(ctx, colors, 0, h1, w, h - h1, hist, {
           title: 'accuracy on the unlabelled points',
           n: Math.max(20, hist.length),
           y1: 0.4,
           ym: 1,
         });
-        g.strokeStyle = t.cut;
-        g.setLineDash([6, 4]);
-        g.lineWidth = 1.6;
-        g.beginPath();
-        g.moveTo(A.X(0), A.Y(Math.max(0.4, bacc)));
-        g.lineTo(A.X(Math.max(20, hist.length) - 1), A.Y(Math.max(0.4, bacc)));
-        g.stroke();
-        g.setLineDash([]);
-        g.strokeStyle = t.accent;
-        g.lineWidth = 2.2;
-        g.beginPath();
+        ctx.strokeStyle = colors.cut;
+        ctx.setLineDash([6, 4]);
+        ctx.lineWidth = 1.6;
+        ctx.beginPath();
+        ctx.moveTo(A.X(0), A.Y(Math.max(0.4, baselineAccuracy)));
+        ctx.lineTo(A.X(Math.max(20, hist.length) - 1), A.Y(Math.max(0.4, baselineAccuracy)));
+        ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.strokeStyle = colors.accent;
+        ctx.lineWidth = 2.2;
+        ctx.beginPath();
         hist.forEach((v, i) =>
-          i ? g.lineTo(A.X(i), A.Y(Math.max(0.4, v))) : g.moveTo(A.X(i), A.Y(Math.max(0.4, v))),
+          i ? ctx.lineTo(A.X(i), A.Y(Math.max(0.4, v))) : ctx.moveTo(A.X(i), A.Y(Math.max(0.4, v))),
         );
-        g.stroke();
+        ctx.stroke();
       }
       const nl = L.filter(Boolean).length;
       live.textContent = msg;
-      uCur(root, 'ss', cu);
-      setR(root, 'lab', nl + ' / ' + (D.length - nl));
-      setR(root, 'it', it + (fin ? ' (stopped)' : ''));
-      setR(root, 'base', pct(bacc));
-      setR(root, 'acc', pct(hist[hist.length - 1]));
-      setR(root, 'und', String(cur().filter((v, i) => v < 0 && !L[i]).length));
+      highlightLessonStep(root, 'ss', activeStepIndex);
+      setReadout(root, 'lab', nl + ' / ' + (D.length - nl));
+      setReadout(root, 'it', it + (fin ? ' (stopped)' : ''));
+      setReadout(root, 'base', pct(baselineAccuracy));
+      setReadout(root, 'acc', pct(hist[hist.length - 1]));
+      setReadout(root, 'und', String(cur().filter((v, i) => v < 0 && !L[i]).length));
     };
     tp.on = () => draw();
     gen();
     reset();
-    if (RM) {
+    if (prefersReducedMotion) {
       while (!fin) step();
     }
-    let fr = 0;
+    let frameCount = 0;
     const anim = Anim(() => {
       if (fin) {
-        pb.stop();
+        playback.stop();
         return;
       }
-      fr++;
-      if (S.m === 'self') {
-        if (fr % 6) return;
+      frameCount++;
+      if (settings.m === 'self') {
+        if (frameCount % 6) return;
         step();
       } else {
         const k = it < 30 ? 1 : it < 120 ? 3 : it < 400 ? 10 : 30;
-        if (it < 30 && fr % 3) return;
-        for (let i = 0; i < k && !fin && chk.remaining() > 0; i++) step();
+        if (it < 30 && frameCount % 3) return;
+        for (let i = 0; i < k && !fin && checkRunStop.remaining() > 0; i++) step();
       }
       draw();
-      chk();
+      checkRunStop();
     });
-    pb = playBtn($('#ss-play', root), anim);
-    chk = runCtl(pb, root, 'ss', {
+    playback = playBtn($('#ss-play', root), anim);
+    checkRunStop = attachRunLimit(playback, root, 'ss', {
       done: () => fin,
       restart: reset,
       count: () => it,
       what: 'steps',
     });
     const go = () => {
-      pb.stop();
+      playback.stop();
       reset();
       draw();
-      fr = 0;
-      pb.start();
+      frameCount = 0;
+      playback.start();
     };
     $('#ss-step', root).onclick = () => {
-      pb.stop();
+      playback.stop();
       if (fin) reset();
       else step();
       draw();
     };
     $('#ss-reset', root).onclick = () => {
-      pb.stop();
+      playback.stop();
       reset();
       draw();
     };
@@ -430,7 +447,7 @@ export default {
       root,
       'ss-n',
       (v) => {
-        S.n = v;
+        settings.n = v;
         gen();
         go();
       },
@@ -440,18 +457,18 @@ export default {
       root,
       'ss-k',
       (v) => {
-        S.k = v;
+        settings.k = v;
         go();
       },
       (v) => String(+v),
     );
-    segBind(root, 'ss-d', S.d, (v) => {
-      S.d = v;
+    segBind(root, 'ss-d', settings.d, (v) => {
+      settings.d = v;
       gen();
       go();
     });
-    segBind(root, 'ss-m', S.m, (v) => {
-      S.m = v;
+    segBind(root, 'ss-m', settings.m, (v) => {
+      settings.m = v;
       go();
     });
     c.style.cursor = 'pointer';
@@ -477,12 +494,12 @@ export default {
     });
     return {
       draw,
-      stop: () => pb.stop(),
+      stop: () => playback.stop(),
       auto: () => {
         reset();
         draw();
-        fr = 0;
-        pb.start();
+        frameCount = 0;
+        playback.start();
       },
     };
   },

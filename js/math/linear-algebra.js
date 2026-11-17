@@ -69,11 +69,11 @@ const laT = (A) => A[0].map((_, j) => A.map((r) => r[j]));
 
 const laTop = (A, k, seed = 3) => {
   const n = A.length,
-    r = randnFrom(rng(seed)),
-    vals = [],
-    vecs = [];
+    sampleNormal = randnFrom(rng(seed)),
+    eigenvalues = [],
+    eigenvectors = [];
   for (let c = 0; c < k; c++) {
-    let v = Array.from({ length: n }, r);
+    let v = Array.from({ length: n }, sampleNormal);
     for (let it = 0; it < 300; it++) {
       const w = new Array(n).fill(0);
       for (let i = 0; i < n; i++) {
@@ -82,19 +82,19 @@ const laTop = (A, k, seed = 3) => {
         for (let j = 0; j < n; j++) s += Ai[j] * v[j];
         w[i] = s;
       }
-      for (const u of vecs) {
+      for (const u of eigenvectors) {
         let d = 0;
         for (let i = 0; i < n; i++) d += w[i] * u[i];
         for (let i = 0; i < n; i++) w[i] -= d * u[i];
       }
-      let nm = Math.hypot(...w) || 1e-12,
-        df = 0;
+      let norm = Math.hypot(...w) || 1e-12,
+        convergenceDelta = 0;
       for (let i = 0; i < n; i++) {
-        w[i] /= nm;
-        df += Math.abs(w[i] - v[i]);
+        w[i] /= norm;
+        convergenceDelta += Math.abs(w[i] - v[i]);
       }
       v = w;
-      if (df < 1e-9 && it > 5) break;
+      if (convergenceDelta < 1e-9 && it > 5) break;
     }
     let lam = 0;
     for (let i = 0; i < n; i++) {
@@ -102,10 +102,10 @@ const laTop = (A, k, seed = 3) => {
       for (let j = 0; j < n; j++) s += A[i][j] * v[j];
       lam += v[i] * s;
     }
-    vals.push(lam);
-    vecs.push(v);
+    eigenvalues.push(lam);
+    eigenvectors.push(v);
   }
-  return { vals, vecs };
+  return { eigenvalues, eigenvectors };
 };
 
 export { laChol, laFwd, laBck, laInv, laMul, laT, laTop };

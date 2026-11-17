@@ -3,50 +3,60 @@ import {
   $,
   Anim,
   MONO,
-  RM,
-  T,
+  prefersReducedMotion,
+  readThemeColors,
   bind,
   eqShow,
   f2,
-  fit,
+  prepareCanvas,
   mix,
   playBtn,
-  runCtl,
-  setR,
+  attachRunLimit,
+  setReadout,
 } from '../../../js/core/shared.js';
-import { GWN, GWS, gwClick, gwDraw, gwMake, gwMax, gwQstar, gwRoute, rlN } from '../shared.js';
+import {
+  ACTION_NAMES,
+  ACTION_ARROWS,
+  gwClick,
+  gwDraw,
+  gwMake,
+  gwMax,
+  gwQstar,
+  gwRoute,
+  rlN,
+} from '../shared.js';
 import { pct } from '../../ensembles/shared.js';
-import { segBind, uCur, uLine } from '../../unsupervised/shared.js';
+import { segBind, highlightLessonStep, drawSeriesChart } from '../../unsupervised/shared.js';
 
 export default {
   init(root) {
-    const c = $('#pg-c', root),
+    const mainCanvas = $('#pg-c', root),
       cr = $('#pg-r', root),
       live = $('#pg-live', root),
       eq = $('#pg-eq', root),
-      S = { al: 0.1, base: 1, sp: 2 },
+      settings = { al: 0.1, base: 1, sp: 2 },
       GA = 0.95,
       CAP = 60,
       MAXE = 1500;
     let G,
       TH,
       B,
-      BN,
+      baselineVisitCounts,
       ep = 0,
       RET = [],
       lastPath = [],
       lastN = 0,
       sel,
       msg = '',
-      cu = 0,
-      fr = 0,
-      pb,
-      chk = () => false,
+      activeStepIndex = 0,
+      frameCount = 0,
+      playback,
+      checkRunStop = () => false,
       fin = false,
       P = null,
-      best0 = 0,
+      optimalRouteReturn = 0,
       bpath = [],
-      okrun = 0,
+      nearOptimalStreak = 0,
       QS = null;
     const prob = (s) => {
       const z = [0, 1, 2, 3].map((a) => TH[s * 4 + a]),
@@ -59,19 +69,19 @@ export default {
       G = gwMake(['...G', '.#.X', 'S...']);
       TH = new Float64Array(G.n * 4);
       B = new Float64Array(G.n);
-      BN = new Int32Array(G.n);
+      baselineVisitCounts = new Int32Array(G.n);
       ep = 0;
       RET = [];
       lastPath = [G.start];
       lastN = 0;
       sel = G.start;
       fin = false;
-      cu = 0;
-      okrun = 0;
+      activeStepIndex = 0;
+      nearOptimalStreak = 0;
       const Qs = gwQstar(G, GA),
         R = gwRoute(G, Qs, G.start);
       QS = Qs;
-      best0 = R.ret;
+      optimalRouteReturn = R.ret;
       bpath = R.path.slice(0, -1).map((s, i) => [s, R.acts[i]]);
       msg =
         'All preferences are zero: in every square the four moves are equally likely, as the equal arrows show. Press One episode or Run.';
@@ -107,15 +117,16 @@ export default {
       let ex = null;
       const pick = Math.floor(Math.random() * Math.min(tr.length, 6));
       tr.forEach((e, i) => {
-        const b = S.base ? B[e.s] : 0,
+        const b = settings.base ? B[e.s] : 0,
           adv = e.G - b,
           p = prob(e.s),
           old = TH[e.s * 4 + e.a];
-        for (let k = 0; k < 4; k++) TH[e.s * 4 + k] += S.al * adv * ((k === e.a ? 1 : 0) - p[k]);
+        for (let k = 0; k < 4; k++)
+          TH[e.s * 4 + k] += settings.al * adv * ((k === e.a ? 1 : 0) - p[k]);
         if (i === pick)
           ex = { e, b, adv, p: p[e.a], old, nw: TH[e.s * 4 + e.a], p2: prob(e.s)[e.a], i };
-        BN[e.s]++;
-        B[e.s] += (e.G - B[e.s]) / Math.min(BN[e.s], 20);
+        baselineVisitCounts[e.s]++;
+        B[e.s] += (e.G - B[e.s]) / Math.min(baselineVisitCounts[e.s], 20);
       });
       ep++;
       RET.push(tot);
@@ -146,16 +157,16 @@ export default {
             'in <b>' +
               G.name(e.s) +
               '</b> the robot chose ' +
-              GWS[e.a] +
+              ACTION_ARROWS[e.a] +
               ' ' +
-              GWN[e.a] +
+              ACTION_NAMES[e.a] +
               ', which had probability ' +
               pct(ex.p) +
               '.',
             'return from that step to the end:  G = <b>' +
               rlN(e.G) +
               '</b>' +
-              (S.base
+              (settings.base
                 ? '     usual return from ' + G.name(e.s) + ' (baseline): ' + rlN(ex.b)
                 : '     no baseline: compared with 0'),
             'better or worse than usual:  G − baseline = ' +
@@ -166,13 +177,13 @@ export default {
               rlN(ex.adv) +
               '</b>',
             'preference for ' +
-              GWS[e.a] +
+              ACTION_ARROWS[e.a] +
               ' in ' +
               G.name(e.s) +
               ':  ' +
               rlN(ex.old) +
               ' + ' +
-              f2(S.al) +
+              f2(settings.al) +
               ' × ' +
               rlN(ex.adv) +
               ' × (1 − ' +
@@ -181,7 +192,7 @@ export default {
               rlN(ex.nw) +
               '</b>',
             'so the probability of ' +
-              GWS[e.a] +
+              ACTION_ARROWS[e.a] +
               ' in ' +
               G.name(e.s) +
               ' went from ' +
@@ -194,7 +205,7 @@ export default {
         );
       }
       const av = RET.slice(-30).reduce((a, b) => a + b, 0) / Math.min(30, RET.length);
-      cu = 4;
+      activeStepIndex = 4;
       msg =
         'Episode ' +
         ep +
@@ -205,13 +216,13 @@ export default {
         '. Every move made in it was strengthened or weakened according to what followed. Average over the last 30 episodes: ' +
         f2(av) +
         ' (best possible: ' +
-        rlN(best0).replace('.00', '') +
+        rlN(optimalRouteReturn).replace('.00', '') +
         ').';
-      if (RET.length >= 30 && av >= best0 - 1) okrun++;
-      else okrun = 0;
-      if (okrun >= 30 || ep >= MAXE) {
+      if (RET.length >= 30 && av >= optimalRouteReturn - 1) nearOptimalStreak++;
+      else nearOptimalStreak = 0;
+      if (nearOptimalStreak >= 30 || ep >= MAXE) {
         fin = true;
-        cu = 5;
+        activeStepIndex = 5;
         msg =
           (ep >= MAXE
             ? 'Stopped at the limit of ' +
@@ -222,7 +233,7 @@ export default {
             : 'Converged after ' +
               ep +
               ' episodes: for 30 episodes in a row the average reward has been within 1 of the best possible (' +
-              rlN(best0).replace('.00', '') +
+              rlN(optimalRouteReturn).replace('.00', '') +
               '). It is now ' +
               f2(av) +
               '.') +
@@ -243,12 +254,12 @@ export default {
       return t2 / sq.length;
     };
     const draw = () => {
-      const t = T(),
+      const colors = readThemeColors(),
         PR = new Float64Array(G.n * 4);
       for (const s of G.states) if (!G.term(s)) prob(s).forEach((p, a) => (PR[s * 4 + a] = p));
       {
-        const { g, w, h } = fit(c);
-        P = gwDraw(g, t, 6, 6, w - 12, h - 12, G, {
+        const { g: ctx, w, h } = prepareCanvas(mainCanvas);
+        P = gwDraw(ctx, colors, 6, 6, w - 12, h - 12, G, {
           probs: PR,
           trail: lastPath,
           thin: true,
@@ -256,120 +267,124 @@ export default {
         });
       }
       {
-        const { g, w, h } = fit(cr),
+        const { g: ctx, w, h } = prepareCanvas(cr),
           h1 = h * 0.56,
           n = Math.max(60, RET.length),
           lo = -70,
-          A = uLine(g, t, 0, 0, w, h1, [], {
+          A = drawSeriesChart(ctx, colors, 0, 0, w, h1, [], {
             title: 'total reward of each episode, and its average over 30',
             n,
             y1: lo,
             ym: 10,
           });
-        g.strokeStyle = mix(t.accent, t.accent, 0, 0.3);
-        g.lineWidth = 1;
-        g.beginPath();
+        ctx.strokeStyle = mix(colors.accent, colors.accent, 0, 0.3);
+        ctx.lineWidth = 1;
+        ctx.beginPath();
         RET.forEach((v, i) =>
-          i ? g.lineTo(A.X(i), A.Y(Math.max(lo, v))) : g.moveTo(A.X(i), A.Y(Math.max(lo, v))),
+          i ? ctx.lineTo(A.X(i), A.Y(Math.max(lo, v))) : ctx.moveTo(A.X(i), A.Y(Math.max(lo, v))),
         );
-        g.stroke();
-        g.strokeStyle = t.accent;
-        g.lineWidth = 2.4;
-        g.beginPath();
+        ctx.stroke();
+        ctx.strokeStyle = colors.accent;
+        ctx.lineWidth = 2.4;
+        ctx.beginPath();
         RET.forEach((_, i) => {
           const a = RET.slice(Math.max(0, i - 29), i + 1),
             v = Math.max(lo, a.reduce((x, y) => x + y, 0) / a.length);
-          i ? g.lineTo(A.X(i), A.Y(v)) : g.moveTo(A.X(i), A.Y(v));
+          i ? ctx.lineTo(A.X(i), A.Y(v)) : ctx.moveTo(A.X(i), A.Y(v));
         });
-        g.stroke();
-        g.setLineDash([5, 4]);
-        g.strokeStyle = t.gold;
-        g.lineWidth = 1.3;
-        g.beginPath();
-        g.moveTo(A.m.l, A.Y(best0));
-        g.lineTo(w - A.m.r, A.Y(best0));
-        g.stroke();
-        g.setLineDash([]);
-        g.font = MONO;
-        g.fillStyle = t.cut;
-        g.textAlign = 'right';
-        g.fillText('best possible', w - A.m.r, A.Y(best0) + 13);
+        ctx.stroke();
+        ctx.setLineDash([5, 4]);
+        ctx.strokeStyle = colors.gold;
+        ctx.lineWidth = 1.3;
+        ctx.beginPath();
+        ctx.moveTo(A.m.l, A.Y(optimalRouteReturn));
+        ctx.lineTo(w - A.m.r, A.Y(optimalRouteReturn));
+        ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.font = MONO;
+        ctx.fillStyle = colors.cut;
+        ctx.textAlign = 'right';
+        ctx.fillText('best possible', w - A.m.r, A.Y(optimalRouteReturn) + 13);
         const p = G.term(sel) ? [0, 0, 0, 0] : prob(sel),
           y0 = h1 + 24,
           H = h - h1 - 48,
           bw = (w - 80) / 4;
-        g.fillStyle = t.muted;
-        g.textAlign = 'left';
-        g.fillText('square ' + G.name(sel) + ': probability of each move', 8, h1 + 14);
+        ctx.fillStyle = colors.muted;
+        ctx.textAlign = 'left';
+        ctx.fillText('square ' + G.name(sel) + ': probability of each move', 8, h1 + 14);
         for (let a = 0; a < 4; a++) {
           const x = 50 + a * bw;
-          g.fillStyle = mix(t.accent, t.accent, 0, 0.35 + 0.65 * p[a]);
-          g.fillRect(x, y0 + H - p[a] * H, bw * 0.6, p[a] * H);
-          g.fillStyle = t.muted;
-          g.textAlign = 'center';
-          g.fillText(GWS[a] + ' ' + GWN[a] + '  ' + pct(p[a]), x + bw * 0.3, h - 8);
+          ctx.fillStyle = mix(colors.accent, colors.accent, 0, 0.35 + 0.65 * p[a]);
+          ctx.fillRect(x, y0 + H - p[a] * H, bw * 0.6, p[a] * H);
+          ctx.fillStyle = colors.muted;
+          ctx.textAlign = 'center';
+          ctx.fillText(
+            ACTION_ARROWS[a] + ' ' + ACTION_NAMES[a] + '  ' + pct(p[a]),
+            x + bw * 0.3,
+            h - 8,
+          );
         }
-        g.strokeStyle = t.muted;
-        g.lineWidth = 1;
-        g.beginPath();
-        g.moveTo(40, y0 + H);
-        g.lineTo(w - 20, y0 + H);
-        g.stroke();
+        ctx.strokeStyle = colors.muted;
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(40, y0 + H);
+        ctx.lineTo(w - 20, y0 + H);
+        ctx.stroke();
       }
       live.textContent = msg;
-      uCur(root, 'pg', cu);
+      highlightLessonStep(root, 'pg', activeStepIndex);
       const av = RET.length
         ? RET.slice(-30).reduce((a, b) => a + b, 0) / Math.min(30, RET.length)
         : NaN;
-      setR(root, 'ep', ep + (fin ? ' (stopped)' : ''));
-      setR(root, 'lr', RET.length ? rlN(RET[RET.length - 1]).replace('.00', '') : '–');
-      setR(root, 'av', isFinite(av) ? f2(av) : '–');
-      setR(root, 'op', rlN(best0).replace('.00', ''));
-      setR(root, 'ps', pct(pbest()));
-      setR(root, 'ls', lastN ? String(lastN) : '–');
+      setReadout(root, 'ep', ep + (fin ? ' (stopped)' : ''));
+      setReadout(root, 'lr', RET.length ? rlN(RET[RET.length - 1]).replace('.00', '') : '–');
+      setReadout(root, 'av', isFinite(av) ? f2(av) : '–');
+      setReadout(root, 'op', rlN(optimalRouteReturn).replace('.00', ''));
+      setReadout(root, 'ps', pct(pbest()));
+      setReadout(root, 'ls', lastN ? String(lastN) : '–');
     };
     build();
-    if (RM) {
+    if (prefersReducedMotion) {
       while (!fin) episode(true);
     }
     const anim = Anim(() => {
-      fr++;
+      frameCount++;
       if (fin) {
-        pb.stop();
+        playback.stop();
         return;
       }
-      if (S.sp === 1) {
-        if (fr % 45) return;
+      if (settings.sp === 1) {
+        if (frameCount % 45) return;
         episode(false);
-      } else if (S.sp === 2) {
+      } else if (settings.sp === 2) {
         if (ep < 5) {
-          if (fr % 20) return;
+          if (frameCount % 20) return;
           episode(false);
         } else {
-          if (fr % 2) return;
+          if (frameCount % 2) return;
           episode(false);
         }
       } else {
-        for (let i = 0; i < 5 && !fin && chk.remaining() > 0; i++) episode(i < 4);
+        for (let i = 0; i < 5 && !fin && checkRunStop.remaining() > 0; i++) episode(i < 4);
       }
       draw();
-      chk();
+      checkRunStop();
     });
-    pb = playBtn($('#pg-play', root), anim);
-    chk = runCtl(pb, root, 'pg', {
+    playback = playBtn($('#pg-play', root), anim);
+    checkRunStop = attachRunLimit(playback, root, 'pg', {
       done: () => fin,
       restart: () => build(),
       count: () => ep,
       what: 'episodes',
     });
     $('#pg-step', root).onclick = () => {
-      pb.stop();
+      playback.stop();
       if (fin) build();
       else episode(false);
       draw();
     };
     $('#pg-reset', root).onclick = () => {
-      pb.stop();
+      playback.stop();
       build();
       draw();
     };
@@ -377,7 +392,7 @@ export default {
       root,
       'pg-al',
       (v) => {
-        S.al = +v;
+        settings.al = +v;
       },
       f2,
     );
@@ -385,18 +400,18 @@ export default {
       root,
       'pg-sp',
       (v) => {
-        S.sp = +v;
+        settings.sp = +v;
       },
       (v) => ['', 'one episode at a time', 'steady', 'fast'][+v],
     );
-    segBind(root, 'pg-b', String(S.base), (v) => {
-      S.base = +v;
-      pb.stop();
+    segBind(root, 'pg-b', String(settings.base), (v) => {
+      settings.base = +v;
+      playback.stop();
       build();
       draw();
-      pb.start();
+      playback.start();
     });
-    gwClick(c, (x, y) => {
+    gwClick(mainCanvas, (x, y) => {
       if (!P) return;
       const q = P.at(x, y);
       if (q < 0 || G.wall(q) || G.term(q)) return;
@@ -405,11 +420,11 @@ export default {
     });
     return {
       draw,
-      stop: () => pb.stop(),
+      stop: () => playback.stop(),
       auto: () => {
         build();
         draw();
-        pb.start();
+        playback.start();
       },
     };
   },

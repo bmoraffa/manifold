@@ -1,5 +1,5 @@
 /* Manifold. © 2026 Bahman Moraffah. All rights reserved. */
-import { $, MONO, bind, clamp, fit, randnFrom, rng } from '../../js/core/shared.js';
+import { $, MONO, bind, clamp, prepareCanvas, randnFrom, rng } from '../../js/core/shared.js';
 import { parseXY } from '../regression/shared.js';
 
 function xyUp(root, id, fn, fitBox = true) {
@@ -9,9 +9,9 @@ function xyUp(root, id, fn, fitBox = true) {
   f.onchange = () => {
     const file = f.files[0];
     if (!file) return;
-    const fr = new FileReader();
-    fr.onload = () => {
-      const p = parseXY(fr.result);
+    const fileReader = new FileReader();
+    fileReader.onload = () => {
+      const p = parseXY(fileReader.result);
       if (typeof p === 'string') {
         st.textContent = p;
         return;
@@ -33,7 +33,7 @@ function xyUp(root, id, fn, fitBox = true) {
         (fitBox ? ', rescaled to fit the picture.' : '.');
       fn(q);
     };
-    fr.readAsText(file);
+    fileReader.readAsText(file);
     f.value = '';
   };
 }
@@ -152,11 +152,11 @@ function uData(kind, n, seed, bg = 0) {
 }
 
 function uView(c) {
-  const { g, w, h } = fit(c),
+  const { g: ctx, w, h } = prepareCanvas(c),
     s = Math.min(w / 8, h / 6),
     X = (x) => w / 2 + x * s,
     Y = (y) => h / 2 - y * s;
-  return { g, w, h, s, X, Y };
+  return { g: ctx, w, h, s, X, Y };
 }
 
 const uInv = (c, e) => {
@@ -194,7 +194,7 @@ const uNum = (v) =>
         ? v.toFixed(1)
         : v.toFixed(2);
 
-function uLine(g, t, x0, y0, w, h, ys, o = {}) {
+function drawSeriesChart(g, t, x0, y0, w, h, ys, o = {}) {
   const m = { l: 44, r: 12, t: 24, b: 20 },
     n = Math.max(2, o.n || ys.length),
     fin = ys.filter(isFinite),
@@ -233,47 +233,51 @@ function uLine(g, t, x0, y0, w, h, ys, o = {}) {
   return { X, Y, m };
 }
 
-function uDataBind(root, id, S, cb, mk) {
+function uDataBind(root, id, settings, onDatasetChange, generateDataset) {
   const st = $('#' + id + '-st', root);
   let custom = null;
   const gen = () =>
-    custom ? custom.map((p) => ({ ...p })) : mk ? mk() : uData(S.ds, S.n, S.seed, S.bg || 0);
+    custom
+      ? custom.map((p) => ({ ...p }))
+      : generateDataset
+        ? generateDataset()
+        : uData(settings.ds, settings.n, settings.seed, settings.bg || 0);
   $('#' + id + '-ds', root).onchange = (e) => {
-    S.ds = e.target.value;
+    settings.ds = e.target.value;
     custom = null;
     st.textContent = '';
-    cb();
+    onDatasetChange();
   };
   bind(
     root,
     id + '-n',
     (v) => {
-      S.n = v;
-      if (!custom) cb();
+      settings.n = v;
+      if (!custom) onDatasetChange();
     },
     (v) => String(v),
   );
   $('#' + id + '-new', root).onclick = () => {
-    S.seed++;
+    settings.seed++;
     custom = null;
     st.textContent = '';
-    cb();
+    onDatasetChange();
   };
   $('#' + id + '-file', root).onchange = (e) => {
     const f = e.target.files[0];
     if (!f) return;
-    const fr = new FileReader();
-    fr.onerror = () => {
+    const fileReader = new FileReader();
+    fileReader.onerror = () => {
       st.textContent =
         'That file could not be read. Save it again as plain CSV and upload it once more.';
     };
-    fr.onload = () => {
-      const p = parseXY(fr.result);
+    fileReader.onload = () => {
+      const p = parseXY(fileReader.result);
       if (typeof p === 'string') {
         st.textContent = p;
         return;
       }
-      const q = p.slice(0, S.cap || 600),
+      const q = p.slice(0, settings.cap || 600),
         m = [0, 1].map((j) => q.reduce((s, v) => s + v[j], 0) / q.length),
         sd = [0, 1].map(
           (j) => Math.sqrt(q.reduce((s, v) => s + (v[j] - m[j]) ** 2, 0) / q.length) || 1,
@@ -288,9 +292,9 @@ function uDataBind(root, id, S, cb, mk) {
         ': ' +
         q.length +
         ' rows from the first two numeric columns, each rescaled to mean 0 and the same spread.';
-      cb();
+      onDatasetChange();
     };
-    fr.readAsText(f);
+    fileReader.readAsText(f);
     e.target.value = '';
   };
   return gen;
@@ -310,17 +314,19 @@ const segBind = (root, id, val, fn) => {
   set(val);
 };
 
-const uCur = (root, id, i) =>
+const highlightLessonStep = (root, lessonId, stepIndex) =>
   root
-    .querySelectorAll('#' + id + '-steps li')
-    .forEach((e, k) => e.setAttribute('aria-current', k === i ? 'true' : 'false'));
+    .querySelectorAll('#' + lessonId + '-steps li')
+    .forEach((step, index) =>
+      step.setAttribute('aria-current', index === stepIndex ? 'true' : 'false'),
+    );
 
 const d2 = (p, c) => (p.x - c.x) ** 2 + (p.y - c.y) ** 2;
 
-function kmSeed(P, K, pp, r) {
+function kmSeed(P, K, useKMeansPlusPlus, r) {
   const C = [];
   if (!P.length) return C;
-  if (!pp) {
+  if (!useKMeansPlusPlus) {
     const idx = P.map((_, i) => i);
     for (let k = 0; k < K && idx.length; k++) {
       const j = Math.floor(r() * idx.length);
@@ -450,10 +456,10 @@ export {
   uInv,
   uFrame,
   uNum,
-  uLine,
+  drawSeriesChart,
   uDataBind,
   segBind,
-  uCur,
+  highlightLessonStep,
   d2,
   kmSeed,
   kmRun,

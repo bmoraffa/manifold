@@ -1,7 +1,7 @@
 /* Manifold. © 2026 Bahman Moraffah. All rights reserved. */
 export default {
   id: 'reinforcement',
-  t: 'Reinforcement learning',
+  title: 'Reinforcement learning',
   lessons: [
     {
       id: 'bandits',

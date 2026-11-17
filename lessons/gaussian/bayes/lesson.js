@@ -4,7 +4,7 @@ import {
   Anim,
   MONO,
   SANS,
-  T,
+  readThemeColors,
   area,
   bind,
   clamp,
@@ -12,7 +12,7 @@ import {
   curve,
   ellPath,
   f2,
-  fit,
+  prepareCanvas,
   gammaS,
   lgam,
   mix,
@@ -22,16 +22,16 @@ import {
   randn,
   randnFrom,
   rng,
-  setR,
+  setReadout,
 } from '../../../js/core/shared.js';
 
 export default {
   init(root) {
-    const c = $('#by-c', root),
+    const mainCanvas = $('#by-c', root),
       c2 = $('#by-c2', root),
       cap = $('#by-cap', root),
       TR = { mx: 1.3, my: 0.6, s: 1, rho: 0.6 },
-      S = { n: 0, m0: [-1.8, -0.9], k0: 6, v0: 10, s0: 1.3, mode: 'map' };
+      settings = { n: 0, m0: [-1.8, -0.9], k0: 6, v0: 10, s0: 1.3, mode: 'map' };
     let seed = 21,
       data = [];
     const mk = () => {
@@ -49,8 +49,8 @@ export default {
       dirty = true,
       view = null,
       acc = 0,
-      fr = 0,
-      pb;
+      frameCount = 0,
+      playback;
     const tpdf = (x, nu, loc, sc) => {
       const z = (x - loc) / sc;
       return (
@@ -59,7 +59,7 @@ export default {
       );
     };
     const post = () => {
-      const n = S.n;
+      const n = settings.n;
       let mx = 0,
         my = 0;
       for (let i = 0; i < n; i++) {
@@ -80,12 +80,12 @@ export default {
         b += u * v;
         d += v * v;
       }
-      const kn = S.k0 + n,
-        vn = S.v0 + n,
-        l0 = S.v0 * S.s0 * S.s0,
-        dx = mx - S.m0[0],
-        dy = my - S.m0[1],
-        sh = n ? (S.k0 * n) / kn : 0;
+      const kn = settings.k0 + n,
+        vn = settings.v0 + n,
+        l0 = settings.v0 * settings.s0 * settings.s0,
+        dx = mx - settings.m0[0],
+        dy = my - settings.m0[1],
+        sh = n ? (settings.k0 * n) / kn : 0;
       return {
         n,
         mx,
@@ -96,7 +96,12 @@ export default {
         kn,
         vn,
         l0,
-        mun: n ? [(S.k0 * S.m0[0] + n * mx) / kn, (S.k0 * S.m0[1] + n * my) / kn] : S.m0.slice(),
+        mun: n
+          ? [
+              (settings.k0 * settings.m0[0] + n * mx) / kn,
+              (settings.k0 * settings.m0[1] + n * my) / kn,
+            ]
+          : settings.m0.slice(),
         La: l0 + a + sh * dx * dx,
         Lb: b + sh * dx * dy,
         Ld: l0 + d + sh * dy * dy,
@@ -131,221 +136,252 @@ export default {
       return { mx: P.mun[0] + c11 * z1, my: P.mun[1] + c21 * z1 + c22 * z2, a: sa, b: sb, d: sd };
     };
     const draw = () => {
-      const t = T(),
+      const colors = readThemeColors(),
         P = post(),
-        M = S.mode,
-        sM = M === 'mle' || M === 'all',
+        M = settings.mode,
+        showMle = M === 'mle' || M === 'all',
         sP = M !== 'mle',
-        sA = M === 'map' || M === 'all',
-        sB = M === 'bayes' || M === 'all',
+        showMap = M === 'map' || M === 'all',
+        showBayes = M === 'bayes' || M === 'all',
         hasM = P.n >= 3 && P.a * P.d - P.b * P.b > 1e-9;
       {
-        const { g, w, h } = fit(c),
+        const { g: ctx, w, h } = prepareCanvas(mainCanvas),
           sc = Math.min(w / 9.6, h / 6.6),
           X = (x) => w / 2 + x * sc,
           Y = (y) => h / 2 - y * sc;
         view = { w, h, sc };
         const lab = (s, mx, my, d, col) => {
-          g.font = SANS;
-          g.fillStyle = col;
-          g.textAlign = 'center';
-          g.fillText(s, clamp(X(mx), 40, w - 40), clamp(Y(my + 2 * Math.sqrt(d)) - 7, 13, h - 6));
+          ctx.font = SANS;
+          ctx.fillStyle = col;
+          ctx.textAlign = 'center';
+          ctx.fillText(s, clamp(X(mx), 40, w - 40), clamp(Y(my + 2 * Math.sqrt(d)) - 7, 13, h - 6));
         };
         if (dirty) {
           samples = [];
           for (let i = 0; i < 12; i++) samples.push(sampleNIW(P));
           dirty = false;
         }
-        g.strokeStyle = t.line;
-        g.lineWidth = 1;
+        ctx.strokeStyle = colors.line;
+        ctx.lineWidth = 1;
         for (let k = -5; k <= 5; k++) {
-          g.beginPath();
-          g.moveTo(X(k), 0);
-          g.lineTo(X(k), h);
-          g.moveTo(0, Y(k));
-          g.lineTo(w, Y(k));
-          g.stroke();
+          ctx.beginPath();
+          ctx.moveTo(X(k), 0);
+          ctx.lineTo(X(k), h);
+          ctx.moveTo(0, Y(k));
+          ctx.lineTo(w, Y(k));
+          ctx.stroke();
         }
         const tsx = 1.15 * TR.s,
           tsy = 0.7 * TR.s;
-        g.setLineDash([7, 5]);
-        g.strokeStyle = mix(t.ink, t.ink, 0, 0.45);
-        g.lineWidth = 1.3;
-        ellPath(g, X, Y, TR.mx, TR.my, tsx * tsx, TR.rho * tsx * tsy, tsy * tsy, 2);
-        g.stroke();
-        g.setLineDash([]);
-        g.font = MONO;
-        g.fillStyle = t.muted;
-        g.textAlign = 'center';
-        g.fillText('truth, dashed', X(TR.mx), Math.min(h - 6, Y(TR.my - 2 * tsy) + 15));
-        if (sB) {
-          g.lineWidth = 1;
-          g.strokeStyle = mix(t.gold, t.gold, 0, 0.5);
+        ctx.setLineDash([7, 5]);
+        ctx.strokeStyle = mix(colors.ink, colors.ink, 0, 0.45);
+        ctx.lineWidth = 1.3;
+        ellPath(ctx, X, Y, TR.mx, TR.my, tsx * tsx, TR.rho * tsx * tsy, tsy * tsy, 2);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.font = MONO;
+        ctx.fillStyle = colors.muted;
+        ctx.textAlign = 'center';
+        ctx.fillText('truth, dashed', X(TR.mx), Math.min(h - 6, Y(TR.my - 2 * tsy) + 15));
+        if (showBayes) {
+          ctx.lineWidth = 1;
+          ctx.strokeStyle = mix(colors.gold, colors.gold, 0, 0.5);
           for (const s of samples) {
-            ellPath(g, X, Y, s.mx, s.my, s.a, s.b, s.d, 2);
-            g.stroke();
+            ellPath(ctx, X, Y, s.mx, s.my, s.a, s.b, s.d, 2);
+            ctx.stroke();
           }
         }
-        g.fillStyle = mix(t.accent, t.accent, 0, 0.9);
-        for (let i = 0; i < S.n; i++) {
-          g.beginPath();
-          g.arc(X(data[i][0]), Y(data[i][1]), i === S.n - 1 && S.n < data.length ? 6.5 : 3.2, 0, 7);
-          g.fill();
+        ctx.fillStyle = mix(colors.accent, colors.accent, 0, 0.9);
+        for (let i = 0; i < settings.n; i++) {
+          ctx.beginPath();
+          ctx.arc(
+            X(data[i][0]),
+            Y(data[i][1]),
+            i === settings.n - 1 && settings.n < data.length ? 6.5 : 3.2,
+            0,
+            7,
+          );
+          ctx.fill();
         }
-        const hx = X(S.m0[0]),
-          hy = Y(S.m0[1]);
+        const hx = X(settings.m0[0]),
+          hy = Y(settings.m0[1]);
         if (sP) {
-          g.setLineDash([3, 5]);
-          g.strokeStyle = t.muted;
-          g.lineWidth = 1.6;
-          ellPath(g, X, Y, S.m0[0], S.m0[1], S.s0 * S.s0, 0, S.s0 * S.s0, 2);
-          g.stroke();
-          g.setLineDash([]);
-          lab('prior guess', S.m0[0], S.m0[1], S.s0 * S.s0, t.muted);
-          if (P.n && sA) {
-            g.strokeStyle = t.muted;
-            g.lineWidth = 1.2;
-            g.setLineDash([2, 4]);
-            g.beginPath();
-            g.moveTo(hx, hy);
-            g.lineTo(X(P.mx), Y(P.my));
-            g.stroke();
-            g.setLineDash([]);
+          ctx.setLineDash([3, 5]);
+          ctx.strokeStyle = colors.muted;
+          ctx.lineWidth = 1.6;
+          ellPath(
+            ctx,
+            X,
+            Y,
+            settings.m0[0],
+            settings.m0[1],
+            settings.s0 * settings.s0,
+            0,
+            settings.s0 * settings.s0,
+            2,
+          );
+          ctx.stroke();
+          ctx.setLineDash([]);
+          lab(
+            'prior guess',
+            settings.m0[0],
+            settings.m0[1],
+            settings.s0 * settings.s0,
+            colors.muted,
+          );
+          if (P.n && showMap) {
+            ctx.strokeStyle = colors.muted;
+            ctx.lineWidth = 1.2;
+            ctx.setLineDash([2, 4]);
+            ctx.beginPath();
+            ctx.moveTo(hx, hy);
+            ctx.lineTo(X(P.mx), Y(P.my));
+            ctx.stroke();
+            ctx.setLineDash([]);
           }
         }
-        if (sM) {
+        if (showMle) {
           if (hasM) {
-            g.strokeStyle = t.ok;
-            g.lineWidth = 3;
-            ellPath(g, X, Y, P.mx, P.my, P.a / P.n, P.b / P.n, P.d / P.n, 2);
-            g.stroke();
-            lab('MLE', P.mx, P.my, P.d / P.n, t.ok);
+            ctx.strokeStyle = colors.ok;
+            ctx.lineWidth = 3;
+            ellPath(ctx, X, Y, P.mx, P.my, P.a / P.n, P.b / P.n, P.d / P.n, 2);
+            ctx.stroke();
+            lab('MLE', P.mx, P.my, P.d / P.n, colors.ok);
           }
           if (P.n) {
-            g.fillStyle = t.ok;
-            g.beginPath();
-            g.arc(X(P.mx), Y(P.my), 5.5, 0, 7);
-            g.fill();
+            ctx.fillStyle = colors.ok;
+            ctx.beginPath();
+            ctx.arc(X(P.mx), Y(P.my), 5.5, 0, 7);
+            ctx.fill();
           }
-        } else if (P.n && sA) {
-          g.strokeStyle = t.ok;
-          g.lineWidth = 2;
-          g.beginPath();
-          g.arc(X(P.mx), Y(P.my), 5, 0, 7);
-          g.stroke();
-          g.font = MONO;
-          g.fillStyle = t.ok;
-          g.textAlign = 'left';
-          g.fillText('data mean', X(P.mx) + 9, Y(P.my) + 4);
+        } else if (P.n && showMap) {
+          ctx.strokeStyle = colors.ok;
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.arc(X(P.mx), Y(P.my), 5, 0, 7);
+          ctx.stroke();
+          ctx.font = MONO;
+          ctx.fillStyle = colors.ok;
+          ctx.textAlign = 'left';
+          ctx.fillText('data mean', X(P.mx) + 9, Y(P.my) + 4);
         }
-        if (sB) {
+        if (showBayes) {
           const dn = P.kn * (P.vn - 1);
-          ellPath(g, X, Y, P.mun[0], P.mun[1], P.La / dn, P.Lb / dn, P.Ld / dn, 2);
-          g.fillStyle = mix(t.gold, t.gold, 0, 0.4);
-          g.fill();
-          g.strokeStyle = t.gold;
-          g.lineWidth = 1.5;
-          g.stroke();
+          ellPath(ctx, X, Y, P.mun[0], P.mun[1], P.La / dn, P.Lb / dn, P.Ld / dn, 2);
+          ctx.fillStyle = mix(colors.gold, colors.gold, 0, 0.4);
+          ctx.fill();
+          ctx.strokeStyle = colors.gold;
+          ctx.lineWidth = 1.5;
+          ctx.stroke();
           if (M === 'bayes') {
-            g.font = MONO;
-            g.fillStyle = t.cut;
-            g.textAlign = 'left';
-            g.fillText('where the mean could be', X(P.mun[0]) + 10, Y(P.mun[1]) - 10);
+            ctx.font = MONO;
+            ctx.fillStyle = colors.cut;
+            ctx.textAlign = 'left';
+            ctx.fillText('where the mean could be', X(P.mun[0]) + 10, Y(P.mun[1]) - 10);
           }
         }
-        if (sA) {
+        if (showMap) {
           const dn = P.vn + 4;
-          g.strokeStyle = t.gold;
-          g.lineWidth = 3.2;
-          ellPath(g, X, Y, P.mun[0], P.mun[1], P.La / dn, P.Lb / dn, P.Ld / dn, 2);
-          g.stroke();
-          lab('MAP', P.mun[0], P.mun[1], P.Ld / dn, t.cut);
-          g.fillStyle = t.gold;
-          g.beginPath();
-          g.arc(X(P.mun[0]), Y(P.mun[1]), 6, 0, 7);
-          g.fill();
+          ctx.strokeStyle = colors.gold;
+          ctx.lineWidth = 3.2;
+          ellPath(ctx, X, Y, P.mun[0], P.mun[1], P.La / dn, P.Lb / dn, P.Ld / dn, 2);
+          ctx.stroke();
+          lab('MAP', P.mun[0], P.mun[1], P.Ld / dn, colors.cut);
+          ctx.fillStyle = colors.gold;
+          ctx.beginPath();
+          ctx.arc(X(P.mun[0]), Y(P.mun[1]), 6, 0, 7);
+          ctx.fill();
         }
         if (sP) {
-          g.fillStyle = t.bg;
-          g.strokeStyle = t.muted;
-          g.lineWidth = 2.5;
-          g.beginPath();
-          g.arc(hx, hy, 7.5, 0, 7);
-          g.fill();
-          g.stroke();
+          ctx.fillStyle = colors.bg;
+          ctx.strokeStyle = colors.muted;
+          ctx.lineWidth = 2.5;
+          ctx.beginPath();
+          ctx.arc(hx, hy, 7.5, 0, 7);
+          ctx.fill();
+          ctx.stroke();
         }
       }
       {
-        const { g, w, h } = fit(c2),
-          share = P.n / (S.k0 + P.n),
+        const { g: ctx, w, h } = prepareCanvas(c2),
+          share = P.n / (settings.k0 + P.n),
           bx = 38,
           bw = w - 50;
-        g.font = MONO;
-        g.textAlign = 'left';
-        g.fillStyle = t.muted;
-        g.fillText('who has the vote', bx, 12);
-        g.fillStyle = mix(t.muted, t.muted, 0, 0.45);
-        g.fillRect(bx, 18, bw * (1 - share), 12);
-        g.fillStyle = t.accent;
-        g.fillRect(bx + bw * (1 - share), 18, bw * share, 12);
-        g.fillStyle = t.muted;
-        g.fillText('prior κ₀ = ' + (+S.k0).toFixed(1), bx, 44);
-        g.textAlign = 'right';
-        g.fillStyle = t.accent;
-        g.fillText('data n = ' + P.n, bx + bw, 44);
-        g.save();
-        g.translate(0, 52);
+        ctx.font = MONO;
+        ctx.textAlign = 'left';
+        ctx.fillStyle = colors.muted;
+        ctx.fillText('who has the vote', bx, 12);
+        ctx.fillStyle = mix(colors.muted, colors.muted, 0, 0.45);
+        ctx.fillRect(bx, 18, bw * (1 - share), 12);
+        ctx.fillStyle = colors.accent;
+        ctx.fillRect(bx + bw * (1 - share), 18, bw * share, 12);
+        ctx.fillStyle = colors.muted;
+        ctx.fillText('prior κ₀ = ' + (+settings.k0).toFixed(1), bx, 44);
+        ctx.textAlign = 'right';
+        ctx.fillStyle = colors.accent;
+        ctx.fillText('data n = ' + P.n, bx + bw, 44);
+        ctx.save();
+        ctx.translate(0, 52);
         const hh = h - 52,
-          pri = (x) => tpdf(x, S.v0 - 1, S.m0[0], Math.sqrt(P.l0 / (S.k0 * (S.v0 - 1)))),
+          pri = (x) =>
+            tpdf(
+              x,
+              settings.v0 - 1,
+              settings.m0[0],
+              Math.sqrt(P.l0 / (settings.k0 * (settings.v0 - 1))),
+            ),
           pos = (x) => tpdf(x, P.vn - 1, P.mun[0], Math.sqrt(P.La / (P.kn * (P.vn - 1))));
         const sdD = P.n >= 2 ? Math.sqrt(P.a / (P.n - 1) / P.n) : 0,
           dat = (x) => npdf(x, P.mx, sdD);
         let ym = 0.3;
-        if (sP) ym = Math.max(ym, pri(S.m0[0]), pos(P.mun[0]));
+        if (sP) ym = Math.max(ym, pri(settings.m0[0]), pos(P.mun[0]));
         if (sdD > 0 && M !== 'bayes') ym = Math.max(ym, dat(P.mx));
         ym = Math.min(ym * 1.12, 8);
-        const Pl = plot(g, w, hh, [-4.8, 4.8], [0, ym], t, { xlabel: 'mean, x-coordinate' });
-        clipPlot(g, Pl);
+        const Pl = plot(ctx, w, hh, [-4.8, 4.8], [0, ym], colors, { xlabel: 'mean, x-coordinate' });
+        clipPlot(ctx, Pl);
         if (sP) {
-          g.setLineDash([3, 5]);
-          curve(g, Pl, pri, -4.8, 4.8);
-          g.strokeStyle = t.muted;
-          g.lineWidth = 2;
-          g.stroke();
-          g.setLineDash([]);
+          ctx.setLineDash([3, 5]);
+          curve(ctx, Pl, pri, -4.8, 4.8);
+          ctx.strokeStyle = colors.muted;
+          ctx.lineWidth = 2;
+          ctx.stroke();
+          ctx.setLineDash([]);
         }
         if (sdD > 0 && M !== 'bayes') {
-          curve(g, Pl, dat, -4.8, 4.8, 520);
-          g.strokeStyle = t.ok;
-          g.lineWidth = 2.4;
-          g.stroke();
+          curve(ctx, Pl, dat, -4.8, 4.8, 520);
+          ctx.strokeStyle = colors.ok;
+          ctx.lineWidth = 2.4;
+          ctx.stroke();
         }
         if (sP) {
-          area(g, Pl, pos, -4.8, 4.8, 520);
-          g.fillStyle = mix(t.gold, t.gold, 0, 0.3);
-          g.fill();
-          curve(g, Pl, pos, -4.8, 4.8, 520);
-          g.strokeStyle = t.gold;
-          g.lineWidth = 3;
-          g.stroke();
+          area(ctx, Pl, pos, -4.8, 4.8, 520);
+          ctx.fillStyle = mix(colors.gold, colors.gold, 0, 0.3);
+          ctx.fill();
+          curve(ctx, Pl, pos, -4.8, 4.8, 520);
+          ctx.strokeStyle = colors.gold;
+          ctx.lineWidth = 3;
+          ctx.stroke();
         }
-        g.restore();
-        g.font = MONO;
-        g.textAlign = 'left';
+        ctx.restore();
+        ctx.font = MONO;
+        ctx.textAlign = 'left';
         let ly = 70;
         const L = [];
-        if (sP) L.push([t.muted, 'prior, dotted']);
+        if (sP) L.push([colors.muted, 'prior, dotted']);
         if (M !== 'bayes')
-          L.push([t.ok, sdD > 0 ? 'data alone (peak = MLE)' : 'data alone (needs 2 points)']);
+          L.push([colors.ok, sdD > 0 ? 'data alone (peak = MLE)' : 'data alone (needs 2 points)']);
         if (sP)
-          L.push([t.cut, M === 'bayes' ? 'posterior (keep all of it)' : 'posterior (peak = MAP)']);
+          L.push([
+            colors.cut,
+            M === 'bayes' ? 'posterior (keep all of it)' : 'posterior (peak = MAP)',
+          ]);
         L.forEach(([col, s]) => {
-          g.fillStyle = col;
-          g.fillText(s, 46, ly);
+          ctx.fillStyle = col;
+          ctx.fillText(s, 46, ly);
           ly += 15;
         });
       }
-      const pc = Math.round((100 * P.n) / (S.k0 + P.n));
+      const pc = Math.round((100 * P.n) / (settings.k0 + P.n));
       cap.textContent =
         M === 'mle'
           ? hasM
@@ -366,18 +402,18 @@ export default {
             : M === 'bayes'
               ? 'Bayesian: each thin outline is one Gaussian that could still explain the data. The shaded patch is where the true mean probably lies. Both tighten as points arrive.'
               : 'All three. Burgundy is MLE, gold is MAP, thin gold outlines are the Bayesian bundle. They disagree with little data and merge with a lot.';
-      setR(root, 'n', String(P.n) + ' of ' + data.length);
-      setR(root, 'mle', P.n ? '(' + f2(P.mx) + ', ' + f2(P.my) + ')' : '–');
-      setR(root, 'map', '(' + f2(P.mun[0]) + ', ' + f2(P.mun[1]) + ')');
-      setR(root, 'w', pc + '%');
-      setR(root, 'pm', '(' + f2(S.m0[0]) + ', ' + f2(S.m0[1]) + ')');
+      setReadout(root, 'n', String(P.n) + ' of ' + data.length);
+      setReadout(root, 'mle', P.n ? '(' + f2(P.mx) + ', ' + f2(P.my) + ')' : '–');
+      setReadout(root, 'map', '(' + f2(P.mun[0]) + ', ' + f2(P.mun[1]) + ')');
+      setReadout(root, 'w', pc + '%');
+      setReadout(root, 'pm', '(' + f2(settings.m0[0]) + ', ' + f2(settings.m0[1]) + ')');
     };
     const chg = () => {
       dirty = true;
       draw();
     };
     const setMode = (m) => {
-      S.mode = m;
+      settings.mode = m;
       root
         .querySelectorAll('#by-mode button')
         .forEach((b) => b.setAttribute('aria-pressed', b.dataset.m === m ? 'true' : 'false'));
@@ -388,33 +424,33 @@ export default {
       if (m) setMode(m);
     });
     const anim = Anim(() => {
-      fr++;
-      acc += S.n < 10 ? 0.022 : S.n < 40 ? 0.1 : 0.4;
+      frameCount++;
+      acc += settings.n < 10 ? 0.022 : settings.n < 40 ? 0.1 : 0.4;
       if (acc >= 1) {
         acc = 0;
-        if (S.n < data.length) {
-          S.n++;
+        if (settings.n < data.length) {
+          settings.n++;
           dirty = true;
         }
       }
-      if (fr % 18 === 0) dirty = true;
+      if (frameCount % 18 === 0) dirty = true;
       draw();
     });
-    pb = playBtn($('#by-play', root), anim);
+    playback = playBtn($('#by-play', root), anim);
     $('#by-play', root).addEventListener('click', () => {
-      if (anim.on && S.n >= data.length) {
-        S.n = 0;
+      if (anim.on && settings.n >= data.length) {
+        settings.n = 0;
         dirty = true;
       }
     });
     $('#by-step', root).onclick = () => {
-      pb.stop();
-      if (S.n < data.length) S.n++;
+      playback.stop();
+      if (settings.n < data.length) settings.n++;
       chg();
     };
     $('#by-reset', root).onclick = () => {
-      pb.stop();
-      S.n = 0;
+      playback.stop();
+      settings.n = 0;
       acc = 0;
       chg();
     };
@@ -422,7 +458,7 @@ export default {
       root,
       'by-k',
       (v) => {
-        S.k0 = v;
+        settings.k0 = v;
         chg();
       },
       (v) => (+v).toFixed(1),
@@ -431,13 +467,13 @@ export default {
       root,
       'by-v',
       (v) => {
-        S.v0 = v;
+        settings.v0 = v;
         chg();
       },
       (v) => String(v),
     );
     bind(root, 'by-s', (v) => {
-      S.s0 = v;
+      settings.s0 = v;
       chg();
     });
     bind(root, 'by-ds', (v) => {
@@ -453,36 +489,36 @@ export default {
     $('#by-new', root).onclick = () => {
       seed++;
       mk();
-      S.n = 0;
+      settings.n = 0;
       acc = 0;
       chg();
-      pb.start();
+      playback.start();
     };
     let drag = false;
     const mv = (e) => {
       if (!view) return;
-      const r = c.getBoundingClientRect();
-      S.m0 = [
+      const r = mainCanvas.getBoundingClientRect();
+      settings.m0 = [
         clamp((e.clientX - r.left - view.w / 2) / view.sc, -4.4, 4.4),
         clamp(-(e.clientY - r.top - view.h / 2) / view.sc, -2.9, 2.9),
       ];
       chg();
     };
-    c.addEventListener('pointerdown', (e) => {
-      if (S.mode === 'mle') return;
+    mainCanvas.addEventListener('pointerdown', (e) => {
+      if (settings.mode === 'mle') return;
       drag = true;
-      c.setPointerCapture(e.pointerId);
+      mainCanvas.setPointerCapture(e.pointerId);
       mv(e);
     });
-    c.addEventListener('pointermove', (e) => {
+    mainCanvas.addEventListener('pointermove', (e) => {
       if (drag) mv(e);
     });
     ['pointerup', 'pointercancel'].forEach((n) =>
-      c.addEventListener(n, () => {
+      mainCanvas.addEventListener(n, () => {
         drag = false;
       }),
     );
     setMode('map');
-    return { draw, stop: () => pb.stop(), auto: () => pb.start() };
+    return { draw, stop: () => playback.stop(), auto: () => playback.start() };
   },
 };

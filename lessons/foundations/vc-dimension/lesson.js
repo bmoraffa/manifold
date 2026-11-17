@@ -3,18 +3,25 @@ import {
   $,
   Anim,
   MONO,
-  RM,
+  prefersReducedMotion,
   SANS,
-  T,
+  readThemeColors,
   bind,
   clamp,
-  fit,
+  prepareCanvas,
   mix,
   playBtn,
-  runCtl,
-  setR,
+  attachRunLimit,
+  setReadout,
 } from '../../../js/core/shared.js';
-import { canvasXY, dotAt, segBind, uCur, uLine, uView } from '../../unsupervised/shared.js';
+import {
+  canvasXY,
+  dotAt,
+  segBind,
+  highlightLessonStep,
+  drawSeriesChart,
+  uView,
+} from '../../unsupervised/shared.js';
 import { g2Note } from '../../generative/shared.js';
 
 export default {
@@ -22,7 +29,7 @@ export default {
     const c = $('#vc-c', root),
       cr = $('#vc-r', root),
       live = $('#vc-live', root),
-      S = { h: 'line', n: 3, sp: 2 },
+      settings = { h: 'line', n: 3, sp: 2 },
       VC = { int: 2, line: 3, rect: 4 },
       GOOD = {
         int: [
@@ -51,25 +58,25 @@ export default {
         ],
       };
     let P = [],
-      k = 0,
-      res = [],
+      nextLabelingMask = 0,
+      matchesByLabeling = [],
       hyp = null,
       fin = false,
       msg = '',
-      cu = 0,
-      pb,
-      chk = () => false,
+      activeStepIndex = 0,
+      playback,
+      checkRunStop = () => false,
       V = null,
       drag = -1,
-      fr = 0,
+      frameCount = 0,
       firstFail = -1;
     const lab = (m, i) => (m >> i) & 1;
-    const find = (m) => {
-      const n = S.n,
+    const findMatchingHypothesis = (m) => {
+      const n = settings.n,
         pos = [],
         neg = [];
       for (let i = 0; i < n; i++) (lab(m, i) ? pos : neg).push(P[i]);
-      if (S.h === 'int') {
+      if (settings.h === 'int') {
         if (!pos.length) return { t: 'int', a: 9, b: 9 };
         const a = Math.min(...pos.map((p) => p[0])),
           b = Math.max(...pos.map((p) => p[0]));
@@ -77,7 +84,7 @@ export default {
           ? null
           : { t: 'int', a: a - 0.25, b: b + 0.25 };
       }
-      if (S.h === 'rect') {
+      if (settings.h === 'rect') {
         if (!pos.length) return { t: 'rect', none: true };
         const x0 = Math.min(...pos.map((p) => p[0])),
           x1 = Math.max(...pos.map((p) => p[0])),
@@ -107,57 +114,58 @@ export default {
     };
     const place = (kind) => {
       const n = 6;
-      if (kind === 'good') P = GOOD[S.h].map((p) => p.slice());
+      if (kind === 'good') P = GOOD[settings.h].map((p) => p.slice());
       else if (kind === 'row')
         P = Array.from({ length: n }, (_, i) => [
           -3 + 1.2 * i,
-          S.h === 'int' ? 0 : -1.2 + 0.48 * i,
+          settings.h === 'int' ? 0 : -1.2 + 0.48 * i,
         ]);
       else
         P = Array.from({ length: n }, () => [
           -3.3 + 6.6 * Math.random(),
-          S.h === 'int' ? 0 : -2.3 + 4.6 * Math.random(),
+          settings.h === 'int' ? 0 : -2.3 + 4.6 * Math.random(),
         ]);
     };
     const reset = () => {
-      k = 0;
-      res = [];
+      nextLabelingMask = 0;
+      matchesByLabeling = [];
       hyp = null;
       fin = false;
       firstFail = -1;
-      cu = 0;
+      activeStepIndex = 0;
       msg =
         'There are ' +
-        (1 << S.n) +
+        (1 << settings.n) +
         ' ways to label ' +
-        S.n +
+        settings.n +
         ' point' +
-        (S.n === 1 ? '' : 's') +
+        (settings.n === 1 ? '' : 's') +
         '. Press Run to try them all, or Next labelling to go one at a time.';
     };
-    const str = (m) => Array.from({ length: S.n }, (_, i) => (lab(m, i) ? '+' : '−')).join(' ');
+    const str = (m) =>
+      Array.from({ length: settings.n }, (_, i) => (lab(m, i) ? '+' : '−')).join(' ');
     const step = () => {
       if (fin) return;
-      const tot = 1 << S.n;
-      hyp = find(k);
-      res.push(!!hyp);
-      if (!hyp && firstFail < 0) firstFail = k;
-      cu = 2;
+      const tot = 1 << settings.n;
+      hyp = findMatchingHypothesis(nextLabelingMask);
+      matchesByLabeling.push(!!hyp);
+      if (!hyp && firstFail < 0) firstFail = nextLabelingMask;
+      activeStepIndex = 2;
       msg =
         'Labelling ' +
-        (k + 1) +
+        (nextLabelingMask + 1) +
         ' of ' +
         tot +
         ' (' +
-        str(k) +
+        str(nextLabelingMask) +
         '): ' +
         (hyp ? 'matched.' : 'no member of the family can do this.');
-      k++;
-      if (k >= tot) {
+      nextLabelingMask++;
+      if (nextLabelingMask >= tot) {
         fin = true;
-        const ok = res.filter(Boolean).length,
+        const ok = matchesByLabeling.filter(Boolean).length,
           sh = ok === tot;
-        cu = sh ? 3 : 4;
+        activeStepIndex = sh ? 3 : 4;
         msg =
           'All ' +
           tot +
@@ -166,44 +174,48 @@ export default {
           ' matched. ' +
           (sh
             ? 'These ' +
-              S.n +
+              settings.n +
               ' points are shattered, so the VC dimension is at least ' +
-              S.n +
+              settings.n +
               '.' +
-              (S.n === VC[S.h]
+              (settings.n === VC[settings.h]
                 ? ' It is exactly ' +
-                  S.n +
+                  settings.n +
                   ': no arrangement of ' +
-                  (S.n + 1) +
+                  (settings.n + 1) +
                   ' points can be shattered.'
                 : '')
             : 'These points are not shattered. ' +
-              (S.n <= VC[S.h]
-                ? 'Another arrangement of ' + S.n + ' points can be: try A good arrangement.'
+              (settings.n <= VC[settings.h]
+                ? 'Another arrangement of ' + settings.n + ' points can be: try A good arrangement.'
                 : 'No arrangement of ' +
-                  S.n +
+                  settings.n +
                   ' points can be, because the VC dimension of this family is ' +
-                  VC[S.h] +
+                  VC[settings.h] +
                   '.'));
       }
     };
     const draw = () => {
-      const t = T();
+      const colors = readThemeColors();
       V = uView(c);
       const { g, w, h, X, Y } = V,
-        m = fin ? (firstFail >= 0 ? firstFail : k - 1) : Math.max(0, k - 1),
+        m = fin
+          ? firstFail >= 0
+            ? firstFail
+            : nextLabelingMask - 1
+          : Math.max(0, nextLabelingMask - 1),
         show = fin && firstFail >= 0 ? null : hyp;
-      if (S.h === 'int') {
-        g.strokeStyle = t.line;
+      if (settings.h === 'int') {
+        g.strokeStyle = colors.line;
         g.lineWidth = 1;
         g.beginPath();
         g.moveTo(X(-4), Y(0));
         g.lineTo(X(4), Y(0));
         g.stroke();
       }
-      if (show && k > 0) {
-        g.fillStyle = mix(t.gold, t.gold, 0, 0.16);
-        g.strokeStyle = t.gold;
+      if (show && nextLabelingMask > 0) {
+        g.fillStyle = mix(colors.gold, colors.gold, 0, 0.16);
+        g.strokeStyle = colors.gold;
         g.lineWidth = 2;
         if (show.t === 'int') {
           if (show.a < 5) {
@@ -233,20 +245,31 @@ export default {
           g.stroke();
         }
       }
-      for (let i = 0; i < S.n; i++) {
-        const on = k > 0 || fin ? lab(m, i) : 0;
+      for (let i = 0; i < settings.n; i++) {
+        const on = nextLabelingMask > 0 || fin ? lab(m, i) : 0;
         g.lineWidth = 2.5;
-        dotAt(g, X(P[i][0]), Y(P[i][1]), 10, k > 0 ? (on ? t.gold : t.ink) : t.muted, t.bg);
+        dotAt(
+          g,
+          X(P[i][0]),
+          Y(P[i][1]),
+          10,
+          nextLabelingMask > 0 ? (on ? colors.gold : colors.ink) : colors.muted,
+          colors.bg,
+        );
         g.font = SANS;
-        g.fillStyle = t.bg;
+        g.fillStyle = colors.bg;
         g.textAlign = 'center';
-        g.fillText(k > 0 ? (on ? '+' : '−') : String(i + 1), X(P[i][0]), Y(P[i][1]) + 4.5);
+        g.fillText(
+          nextLabelingMask > 0 ? (on ? '+' : '−') : String(i + 1),
+          X(P[i][0]),
+          Y(P[i][1]) + 4.5,
+        );
       }
       g2Note(
         g,
-        t,
+        colors,
         h,
-        k === 0
+        nextLabelingMask === 0
           ? 'drag the points, then press Run'
           : fin && firstFail >= 0
             ? 'showing the first labelling that cannot be matched: ' + str(firstFail)
@@ -255,57 +278,57 @@ export default {
               : 'no model matches this labelling',
       );
       {
-        const { g, w, h } = fit(cr),
+        const { g: ctx, w, h } = prepareCanvas(cr),
           h1 = h * 0.5,
-          tot = 1 << S.n,
+          tot = 1 << settings.n,
           cols = tot <= 8 ? tot : tot <= 16 ? 8 : tot <= 32 ? 8 : 16,
           rows = Math.ceil(tot / cols),
           tw = Math.min(46, (w - 40) / cols),
           th = Math.min(34, (h1 - 34) / rows),
           ox = (w - cols * tw) / 2,
           oy = 26;
-        g.font = MONO;
-        g.fillStyle = t.muted;
-        g.textAlign = 'left';
-        g.fillText('all ' + tot + ' labellings', 8, 13);
+        ctx.font = MONO;
+        ctx.fillStyle = colors.muted;
+        ctx.textAlign = 'left';
+        ctx.fillText('all ' + tot + ' labellings', 8, 13);
         for (let q = 0; q < tot; q++) {
           const x = ox + (q % cols) * tw,
             y = oy + Math.floor(q / cols) * th,
-            dn = q < res.length;
-          g.strokeStyle = q === k - 1 && !fin ? t.gold : t.line;
-          g.lineWidth = q === k - 1 && !fin ? 2.5 : 1;
-          g.fillStyle = dn
-            ? res[q]
-              ? mix(t.accent, t.accent, 0, 0.55)
-              : mix(t.cut, t.cut, 0, 0.2)
+            dn = q < matchesByLabeling.length;
+          ctx.strokeStyle = q === nextLabelingMask - 1 && !fin ? colors.gold : colors.line;
+          ctx.lineWidth = q === nextLabelingMask - 1 && !fin ? 2.5 : 1;
+          ctx.fillStyle = dn
+            ? matchesByLabeling[q]
+              ? mix(colors.accent, colors.accent, 0, 0.55)
+              : mix(colors.cut, colors.cut, 0, 0.2)
             : 'transparent';
-          g.fillRect(x + 2, y + 2, tw - 4, th - 4);
-          g.strokeRect(x + 2, y + 2, tw - 4, th - 4);
-          if (dn && !res[q]) {
-            g.strokeStyle = t.cut;
-            g.lineWidth = 2;
-            g.beginPath();
-            g.moveTo(x + 6, y + 6);
-            g.lineTo(x + tw - 6, y + th - 6);
-            g.moveTo(x + tw - 6, y + 6);
-            g.lineTo(x + 6, y + th - 6);
-            g.stroke();
+          ctx.fillRect(x + 2, y + 2, tw - 4, th - 4);
+          ctx.strokeRect(x + 2, y + 2, tw - 4, th - 4);
+          if (dn && !matchesByLabeling[q]) {
+            ctx.strokeStyle = colors.cut;
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(x + 6, y + 6);
+            ctx.lineTo(x + tw - 6, y + th - 6);
+            ctx.moveTo(x + tw - 6, y + 6);
+            ctx.lineTo(x + 6, y + th - 6);
+            ctx.stroke();
           }
           if (tw > 30) {
-            for (let i = 0; i < S.n; i++)
+            for (let i = 0; i < settings.n; i++)
               dotAt(
-                g,
-                x + tw / 2 + (i - (S.n - 1) / 2) * Math.min(7, (tw - 10) / S.n),
+                ctx,
+                x + tw / 2 + (i - (settings.n - 1) / 2) * Math.min(7, (tw - 10) / settings.n),
                 y + th / 2,
                 2,
-                lab(q, i) ? t.gold : t.ink,
+                lab(q, i) ? colors.gold : colors.ink,
               );
           }
         }
         const gf = (n) =>
-            S.h === 'int'
+            settings.h === 'int'
               ? (n * (n - 1)) / 2 + n + 1
-              : S.h === 'line'
+              : settings.h === 'line'
                 ? n <= 1
                   ? 2
                   : n * n - n + 2
@@ -324,88 +347,102 @@ export default {
                     0,
                   ),
           NS = [1, 2, 3, 4, 5, 6, 7, 8],
-          A = uLine(g, t, 0, h1, w, h - h1, [], {
+          A = drawSeriesChart(ctx, colors, 0, h1, w, h - h1, [], {
             title:
               'labellings on n points, n = 1 to 8 (log scale): family (solid), all 2ⁿ (dashed)',
             n: 8,
             ym: 8,
             y1: 1,
           });
-        g.strokeStyle = t.cut;
-        g.lineWidth = 1.6;
-        g.setLineDash([6, 4]);
-        g.beginPath();
-        NS.forEach((n, i) => (i ? g.lineTo(A.X(i), A.Y(n)) : g.moveTo(A.X(i), A.Y(n))));
-        g.stroke();
-        g.setLineDash([]);
-        g.strokeStyle = t.accent;
-        g.lineWidth = 2.4;
-        g.beginPath();
+        ctx.strokeStyle = colors.cut;
+        ctx.lineWidth = 1.6;
+        ctx.setLineDash([6, 4]);
+        ctx.beginPath();
+        NS.forEach((n, i) => (i ? ctx.lineTo(A.X(i), A.Y(n)) : ctx.moveTo(A.X(i), A.Y(n))));
+        ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.strokeStyle = colors.accent;
+        ctx.lineWidth = 2.4;
+        ctx.beginPath();
         NS.forEach((n, i) => {
           const v = Math.log2(Math.min(gf(n), 2 ** n));
-          i ? g.lineTo(A.X(i), A.Y(v)) : g.moveTo(A.X(i), A.Y(v));
+          i ? ctx.lineTo(A.X(i), A.Y(v)) : ctx.moveTo(A.X(i), A.Y(v));
         });
-        g.stroke();
-        dotAt(g, A.X(S.n - 1), A.Y(Math.log2(Math.min(gf(S.n), 2 ** S.n))), 5, t.gold, t.bg);
-        g.strokeStyle = t.muted;
-        g.lineWidth = 1;
-        g.setLineDash([2, 4]);
-        g.beginPath();
-        g.moveTo(A.X(VC[S.h] - 1), A.Y(1));
-        g.lineTo(A.X(VC[S.h] - 1), A.Y(8));
-        g.stroke();
-        g.setLineDash([]);
-        g.fillStyle = t.muted;
-        g.textAlign = 'left';
-        g.fillText('VC dimension', A.X(VC[S.h] - 1) + 5, A.Y(7.6));
+        ctx.stroke();
+        dotAt(
+          ctx,
+          A.X(settings.n - 1),
+          A.Y(Math.log2(Math.min(gf(settings.n), 2 ** settings.n))),
+          5,
+          colors.gold,
+          colors.bg,
+        );
+        ctx.strokeStyle = colors.muted;
+        ctx.lineWidth = 1;
+        ctx.setLineDash([2, 4]);
+        ctx.beginPath();
+        ctx.moveTo(A.X(VC[settings.h] - 1), A.Y(1));
+        ctx.lineTo(A.X(VC[settings.h] - 1), A.Y(8));
+        ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.fillStyle = colors.muted;
+        ctx.textAlign = 'left';
+        ctx.fillText('VC dimension', A.X(VC[settings.h] - 1) + 5, A.Y(7.6));
       }
-      const ok = res.filter(Boolean).length;
+      const ok = matchesByLabeling.filter(Boolean).length;
       live.textContent = msg;
-      uCur(root, 'vc', cu);
-      setR(root, 'n', S.n);
-      setR(root, 'done', res.length + ' of ' + (1 << S.n) + (fin ? ' (finished)' : ''));
-      setR(root, 'ok', String(ok));
-      setR(root, 'sh', fin ? (ok === 1 << S.n ? 'Yes' : 'No') : '–');
-      setR(root, 'vc', VC[S.h]);
-      setR(root, 'fail', firstFail >= 0 ? str(firstFail) : fin ? 'none' : '–');
+      highlightLessonStep(root, 'vc', activeStepIndex);
+      setReadout(root, 'n', settings.n);
+      setReadout(
+        root,
+        'done',
+        matchesByLabeling.length + ' of ' + (1 << settings.n) + (fin ? ' (finished)' : ''),
+      );
+      setReadout(root, 'ok', String(ok));
+      setReadout(root, 'sh', fin ? (ok === 1 << settings.n ? 'Yes' : 'No') : '–');
+      setReadout(root, 'vc', VC[settings.h]);
+      setReadout(root, 'fail', firstFail >= 0 ? str(firstFail) : fin ? 'none' : '–');
     };
     place('good');
     reset();
-    if (RM) {
+    if (prefersReducedMotion) {
       while (!fin) step();
     }
     const anim = Anim(() => {
       if (fin) {
-        pb.stop();
+        playback.stop();
         return;
       }
-      if (++fr % (S.sp === 1 ? 40 : S.sp === 2 ? (S.n > 4 ? 5 : 14) : 2)) return;
+      if (
+        ++frameCount % (settings.sp === 1 ? 40 : settings.sp === 2 ? (settings.n > 4 ? 5 : 14) : 2)
+      )
+        return;
       step();
       draw();
-      chk();
+      checkRunStop();
     });
-    pb = playBtn($('#vc-play', root), anim);
-    chk = runCtl(pb, root, 'vc', {
+    playback = playBtn($('#vc-play', root), anim);
+    checkRunStop = attachRunLimit(playback, root, 'vc', {
       done: () => fin,
       restart: reset,
-      count: () => k,
+      count: () => nextLabelingMask,
       what: 'labellings',
     });
     const go = () => {
-      pb.stop();
+      playback.stop();
       reset();
       draw();
-      fr = 0;
-      pb.start();
+      frameCount = 0;
+      playback.start();
     };
     $('#vc-step', root).onclick = () => {
-      pb.stop();
+      playback.stop();
       if (fin) reset();
       else step();
       draw();
     };
     $('#vc-reset', root).onclick = () => {
-      pb.stop();
+      playback.stop();
       reset();
       draw();
     };
@@ -425,7 +462,7 @@ export default {
       root,
       'vc-n',
       (v) => {
-        S.n = v;
+        settings.n = v;
         go();
       },
       (v) => String(+v),
@@ -434,12 +471,12 @@ export default {
       root,
       'vc-sp',
       (v) => {
-        S.sp = v;
+        settings.sp = v;
       },
       (v) => ['', 'slow', 'steady', 'fast'][+v],
     );
-    segBind(root, 'vc-h', S.h, (v) => {
-      S.h = v;
+    segBind(root, 'vc-h', settings.h, (v) => {
+      settings.h = v;
       place('good');
       go();
     });
@@ -448,16 +485,18 @@ export default {
     c.addEventListener('pointerdown', (e) => {
       if (!V) return;
       const [x, y] = canvasXY(c, V, e);
-      drag = P.slice(0, S.n).findIndex((p) => Math.hypot((p[0] - x) * V.s, (p[1] - y) * V.s) < 16);
+      drag = P.slice(0, settings.n).findIndex(
+        (p) => Math.hypot((p[0] - x) * V.s, (p[1] - y) * V.s) < 16,
+      );
       if (drag >= 0) {
         c.setPointerCapture(e.pointerId);
-        pb.stop();
+        playback.stop();
       }
     });
     c.addEventListener('pointermove', (e) => {
       if (drag < 0 || !V) return;
       const [x, y] = canvasXY(c, V, e);
-      P[drag] = [clamp(x, -3.7, 3.7), S.h === 'int' ? 0 : clamp(y, -2.7, 2.7)];
+      P[drag] = [clamp(x, -3.7, 3.7), settings.h === 'int' ? 0 : clamp(y, -2.7, 2.7)];
       reset();
       while (!fin) step();
       draw();
@@ -469,12 +508,12 @@ export default {
     c.addEventListener('pointercancel', end);
     return {
       draw,
-      stop: () => pb.stop(),
+      stop: () => playback.stop(),
       auto: () => {
         reset();
         draw();
-        fr = 0;
-        pb.start();
+        frameCount = 0;
+        playback.start();
       },
     };
   },

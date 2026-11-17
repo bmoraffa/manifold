@@ -1,7 +1,7 @@
 /* Manifold. © 2026 Bahman Moraffah. All rights reserved. */
 export default {
   id: 'unsupervised',
-  t: 'Unsupervised learning',
+  title: 'Unsupervised learning',
   lessons: [
     {
       id: 'kmeans',

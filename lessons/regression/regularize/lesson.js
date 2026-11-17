@@ -3,14 +3,14 @@ import {
   $,
   MONO,
   SANS,
-  T,
+  readThemeColors,
   bind,
   clamp,
   clipPlot,
   curve,
   f2,
   f3,
-  fit,
+  prepareCanvas,
   grab,
   markTP,
   mix,
@@ -19,7 +19,7 @@ import {
   ramp,
   randnFrom,
   rng,
-  setR,
+  setReadout,
   sweeper,
   testPoint,
 } from '../../../js/core/shared.js';
@@ -27,19 +27,19 @@ import { dot, legendre, lsq } from '../shared.js';
 
 export default {
   init(root) {
-    const c = $('#rg-c', root),
+    const mainCanvas = $('#rg-c', root),
       cp = $('#rg-p', root),
       cb = $('#rg-b', root),
       cg = $('#rg-g', root),
       c1 = $('#rg-s1', root),
       ca = $('#rg-ap', root),
-      TC2 = [1.7, 0.75],
+      unpenalizedOptimum = [1.7, 0.75],
       TA = [1, 0.55, 1.3],
-      S = { li: 20, a: 0, noise: 0.3, n: 26 },
+      settings = { li: 20, a: 0, noise: 0.3, n: 26 },
       Fq = (x) => Math.sin(2.8 * x),
       D = 10,
       NL = 60,
-      LL = (i) => -4.2 + (5.4 * i) / (NL - 1);
+      logLambdaAt = (i) => -4.2 + (5.4 * i) / (NL - 1);
     let seed = 12,
       pts = [],
       mu = [],
@@ -48,7 +48,7 @@ export default {
       W = [],
       etr = [],
       ete = [],
-      pb;
+      playback;
     const feat = (x) => {
         const P = legendre(x, D),
           o = [];
@@ -60,9 +60,9 @@ export default {
       const r = rng(seed),
         rn = randnFrom(r);
       pts = [];
-      for (let i = 0; i < S.n; i++) {
+      for (let i = 0; i < settings.n; i++) {
         const x = r() * 2 - 1;
-        pts.push({ x, y: Fq(x) + S.noise * rn(), test: r() < 0.3 });
+        pts.push({ x, y: Fq(x) + settings.noise * rn(), test: r() < 0.3 });
       }
     };
     const solveAll = () => {
@@ -89,7 +89,7 @@ export default {
       etr = [];
       ete = [];
       for (let i = NL - 1; i >= 0; i--) {
-        const lam = Math.pow(10, LL(i)),
+        const lam = Math.pow(10, logLambdaAt(i)),
           res = yc.map((v, k) => v - dot(w, Xs[k]));
         for (let it = 0; it < 260; it++) {
           let mxd = 0;
@@ -97,8 +97,8 @@ export default {
             let rho = 0;
             for (let k = 0; k < n; k++) rho += Xs[k][j] * (res[k] + Xs[k][j] * w[j]);
             rho /= n;
-            const th = lam * S.a,
-              nw = (rho > th ? rho - th : rho < -th ? rho + th : 0) / (1 + lam * (1 - S.a)),
+            const th = lam * settings.a,
+              nw = (rho > th ? rho - th : rho < -th ? rho + th : 0) / (1 + lam * (1 - settings.a)),
               dl = nw - w[j];
             if (dl) {
               for (let k = 0; k < n; k++) res[k] -= Xs[k][j] * dl;
@@ -117,7 +117,7 @@ export default {
     };
     data();
     solveAll();
-    let GV = null;
+    let geometryViewport = null;
     const tp = testPoint(root, 'rg', ['Your x'], [0.4], [[-1, 1]]);
     tp.on = () => draw();
     const AP = (() => {
@@ -193,127 +193,137 @@ export default {
       };
     })();
     const toy = (lam) => {
-      let w = [TC2[0], TC2[1]];
+      let w = [unpenalizedOptimum[0], unpenalizedOptimum[1]];
       const sft = (r, th) => (r > th ? r - th : r < -th ? r + th : 0);
       for (let it = 0; it < 120; it++) {
-        w[0] = sft(TA[0] * TC2[0] - TA[1] * (w[1] - TC2[1]), lam * S.a) / (TA[0] + lam * (1 - S.a));
-        w[1] = sft(TA[2] * TC2[1] - TA[1] * (w[0] - TC2[0]), lam * S.a) / (TA[2] + lam * (1 - S.a));
+        w[0] =
+          sft(
+            TA[0] * unpenalizedOptimum[0] - TA[1] * (w[1] - unpenalizedOptimum[1]),
+            lam * settings.a,
+          ) /
+          (TA[0] + lam * (1 - settings.a));
+        w[1] =
+          sft(
+            TA[2] * unpenalizedOptimum[1] - TA[1] * (w[0] - unpenalizedOptimum[0]),
+            lam * settings.a,
+          ) /
+          (TA[2] + lam * (1 - settings.a));
       }
       return w;
     };
     const tlam = (i) => Math.pow(10, -2.2 + (3.3 * i) / (NL - 1));
     const draw = () => {
-      const t = T(),
-        w = W[S.li];
+      const colors = readThemeColors(),
+        w = W[settings.li];
       {
-        const { g, w: cw, h } = fit(c1),
-          lam = Math.pow(10, -1.5 + (1.9 * S.li) / (NL - 1)),
+        const { g: ctx, w: cw, h } = prepareCanvas(c1),
+          lam = Math.pow(10, -1.5 + (1.9 * settings.li) / (NL - 1)),
           m = { l: 46, r: 12, t: 12, b: 40 },
           R = 3,
           X = (v) => m.l + ((v + R) / (2 * R)) * (cw - m.l - m.r),
           Y = (v) => h - m.b - ((v + R) / (2 * R)) * (h - m.t - m.b),
           sf = (v) => (v > lam ? v - lam : v < -lam ? v + lam : 0);
-        g.fillStyle = mix(t.ok, t.ok, 0, 0.1);
-        g.fillRect(
+        ctx.fillStyle = mix(colors.ok, colors.ok, 0, 0.1);
+        ctx.fillRect(
           X(-Math.min(lam, R)),
           m.t,
           X(Math.min(lam, R)) - X(-Math.min(lam, R)),
           h - m.t - m.b,
         );
-        g.strokeStyle = t.line;
-        g.lineWidth = 1;
-        g.font = MONO;
-        g.fillStyle = t.muted;
+        ctx.strokeStyle = colors.line;
+        ctx.lineWidth = 1;
+        ctx.font = MONO;
+        ctx.fillStyle = colors.muted;
         for (let v = -3; v <= 3; v++) {
-          g.beginPath();
-          g.moveTo(X(v), m.t);
-          g.lineTo(X(v), h - m.b);
-          g.moveTo(m.l, Y(v));
-          g.lineTo(cw - m.r, Y(v));
-          g.stroke();
-          g.textAlign = 'center';
-          g.fillText(String(v), X(v), h - m.b + 14);
-          g.textAlign = 'right';
-          g.fillText(String(v), m.l - 6, Y(v) + 4);
+          ctx.beginPath();
+          ctx.moveTo(X(v), m.t);
+          ctx.lineTo(X(v), h - m.b);
+          ctx.moveTo(m.l, Y(v));
+          ctx.lineTo(cw - m.r, Y(v));
+          ctx.stroke();
+          ctx.textAlign = 'center';
+          ctx.fillText(String(v), X(v), h - m.b + 14);
+          ctx.textAlign = 'right';
+          ctx.fillText(String(v), m.l - 6, Y(v) + 4);
         }
-        g.strokeStyle = t.muted;
-        g.beginPath();
-        g.moveTo(X(0), m.t);
-        g.lineTo(X(0), h - m.b);
-        g.moveTo(m.l, Y(0));
-        g.lineTo(cw - m.r, Y(0));
-        g.stroke();
-        g.textAlign = 'center';
-        g.fillText('coefficient with no penalty', cw / 2 + m.l / 2, h - 8);
-        g.save();
-        g.translate(12, h / 2);
-        g.rotate(-Math.PI / 2);
-        g.fillText('coefficient after the penalty', 0, 0);
-        g.restore();
-        g.save();
-        g.beginPath();
-        g.rect(m.l, m.t, cw - m.l - m.r, h - m.t - m.b);
-        g.clip();
-        g.setLineDash([5, 5]);
-        g.strokeStyle = t.muted;
-        g.lineWidth = 1.5;
-        g.beginPath();
-        g.moveTo(X(-R), Y(-R));
-        g.lineTo(X(R), Y(R));
-        g.stroke();
-        g.setLineDash([]);
-        g.strokeStyle = t.accent;
-        g.lineWidth = 3.2;
-        g.beginPath();
-        g.moveTo(X(-R), Y(-R / (1 + lam)));
-        g.lineTo(X(R), Y(R / (1 + lam)));
-        g.stroke();
-        g.strokeStyle = t.ok;
-        g.lineWidth = 3.2;
-        g.beginPath();
-        g.moveTo(X(-R), Y(sf(-R)));
-        g.lineTo(X(-Math.min(lam, R)), Y(0));
-        g.lineTo(X(Math.min(lam, R)), Y(0));
-        g.lineTo(X(R), Y(sf(R)));
-        g.stroke();
+        ctx.strokeStyle = colors.muted;
+        ctx.beginPath();
+        ctx.moveTo(X(0), m.t);
+        ctx.lineTo(X(0), h - m.b);
+        ctx.moveTo(m.l, Y(0));
+        ctx.lineTo(cw - m.r, Y(0));
+        ctx.stroke();
+        ctx.textAlign = 'center';
+        ctx.fillText('coefficient with no penalty', cw / 2 + m.l / 2, h - 8);
+        ctx.save();
+        ctx.translate(12, h / 2);
+        ctx.rotate(-Math.PI / 2);
+        ctx.fillText('coefficient after the penalty', 0, 0);
+        ctx.restore();
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(m.l, m.t, cw - m.l - m.r, h - m.t - m.b);
+        ctx.clip();
+        ctx.setLineDash([5, 5]);
+        ctx.strokeStyle = colors.muted;
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.moveTo(X(-R), Y(-R));
+        ctx.lineTo(X(R), Y(R));
+        ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.strokeStyle = colors.accent;
+        ctx.lineWidth = 3.2;
+        ctx.beginPath();
+        ctx.moveTo(X(-R), Y(-R / (1 + lam)));
+        ctx.lineTo(X(R), Y(R / (1 + lam)));
+        ctx.stroke();
+        ctx.strokeStyle = colors.ok;
+        ctx.lineWidth = 3.2;
+        ctx.beginPath();
+        ctx.moveTo(X(-R), Y(sf(-R)));
+        ctx.lineTo(X(-Math.min(lam, R)), Y(0));
+        ctx.lineTo(X(Math.min(lam, R)), Y(0));
+        ctx.lineTo(X(R), Y(sf(R)));
+        ctx.stroke();
         [-2.4, -1.5, -0.6, 0.4, 1.1, 2.1].forEach((v) => {
-          g.strokeStyle = t.line;
-          g.lineWidth = 1;
-          g.beginPath();
-          g.moveTo(X(v), Y(v));
-          g.lineTo(X(v), Y(Math.abs(sf(v)) < Math.abs(v / (1 + lam)) ? sf(v) : v / (1 + lam)));
-          g.stroke();
-          g.fillStyle = t.muted;
-          g.beginPath();
-          g.arc(X(v), Y(v), 3.5, 0, 7);
-          g.fill();
-          g.fillStyle = t.accent;
-          g.beginPath();
-          g.arc(X(v), Y(v / (1 + lam)), 5, 0, 7);
-          g.fill();
-          g.fillStyle = t.ok;
-          g.beginPath();
-          g.arc(X(v), Y(sf(v)), 5, 0, 7);
-          g.fill();
+          ctx.strokeStyle = colors.line;
+          ctx.lineWidth = 1;
+          ctx.beginPath();
+          ctx.moveTo(X(v), Y(v));
+          ctx.lineTo(X(v), Y(Math.abs(sf(v)) < Math.abs(v / (1 + lam)) ? sf(v) : v / (1 + lam)));
+          ctx.stroke();
+          ctx.fillStyle = colors.muted;
+          ctx.beginPath();
+          ctx.arc(X(v), Y(v), 3.5, 0, 7);
+          ctx.fill();
+          ctx.fillStyle = colors.accent;
+          ctx.beginPath();
+          ctx.arc(X(v), Y(v / (1 + lam)), 5, 0, 7);
+          ctx.fill();
+          ctx.fillStyle = colors.ok;
+          ctx.beginPath();
+          ctx.arc(X(v), Y(sf(v)), 5, 0, 7);
+          ctx.fill();
         });
-        g.restore();
-        g.font = SANS;
-        g.textAlign = 'left';
+        ctx.restore();
+        ctx.font = SANS;
+        ctx.textAlign = 'left';
         let ly = m.t + 16;
         [
-          [t.muted, 'No penalty: unchanged'],
-          [t.accent, 'Ridge: every one scaled down, none reach zero'],
-          [t.ok, 'Lasso: every one moved toward zero by λ;'],
-          [t.ok, 'anything inside the shaded band becomes exactly 0'],
+          [colors.muted, 'No penalty: unchanged'],
+          [colors.accent, 'Ridge: every one scaled down, none reach zero'],
+          [colors.ok, 'Lasso: every one moved toward zero by λ;'],
+          [colors.ok, 'anything inside the shaded band becomes exactly 0'],
         ].forEach(([col, sx]) => {
-          g.fillStyle = col;
-          g.fillText(sx, m.l + 10, ly);
+          ctx.fillStyle = col;
+          ctx.fillText(sx, m.l + 10, ly);
           ly += 17;
         });
       }
       {
-        const { g, w: cw, h } = fit(ca),
-          lam = Math.pow(10, LL(S.li)),
+        const { g: ctx, w: cw, h } = prepareCanvas(ca),
+          lam = Math.pow(10, logLambdaAt(settings.li)),
           wr = AP.ridge(lam),
           wl = AP.lasso(lam),
           m = { l: 128, r: 14, t: 66, b: 30 },
@@ -321,171 +331,175 @@ export default {
           X = (v) => m.l + ((v - VR[0]) / (VR[1] - VR[0])) * (cw - m.l - m.r),
           rh = (h - m.t - m.b) / AP.p,
           bh = Math.min(5, rh / 5.2);
-        g.font = MONO;
-        g.strokeStyle = t.line;
-        g.lineWidth = 1;
-        g.fillStyle = t.muted;
-        g.textAlign = 'center';
+        ctx.font = MONO;
+        ctx.strokeStyle = colors.line;
+        ctx.lineWidth = 1;
+        ctx.fillStyle = colors.muted;
+        ctx.textAlign = 'center';
         [-0.5, 0, 0.5, 1, 1.5].forEach((v) => {
-          g.strokeStyle = v === 0 ? t.muted : t.line;
-          g.beginPath();
-          g.moveTo(X(v), m.t - 4);
-          g.lineTo(X(v), h - m.b);
-          g.stroke();
-          g.fillText(String(v), X(v), h - m.b + 14);
+          ctx.strokeStyle = v === 0 ? colors.muted : colors.line;
+          ctx.beginPath();
+          ctx.moveTo(X(v), m.t - 4);
+          ctx.lineTo(X(v), h - m.b);
+          ctx.stroke();
+          ctx.fillText(String(v), X(v), h - m.b + 14);
         });
-        g.fillText('coefficient', X(0.4), h - 4);
+        ctx.fillText('coefficient', X(0.4), h - 4);
         const sets = [
-          [AP.bt, t.ink],
-          [AP.ols, t.muted],
-          [wr, t.accent],
-          [wl, t.ok],
+          [AP.bt, colors.ink],
+          [AP.ols, colors.muted],
+          [wr, colors.accent],
+          [wl, colors.ok],
         ];
         for (let j = 0; j < AP.p; j++) {
           const y0 = m.t + j * rh;
           if (j === 3) {
-            g.setLineDash([3, 4]);
-            g.strokeStyle = t.muted;
-            g.beginPath();
-            g.moveTo(8, y0 - 1);
-            g.lineTo(cw - m.r, y0 - 1);
-            g.stroke();
-            g.setLineDash([]);
+            ctx.setLineDash([3, 4]);
+            ctx.strokeStyle = colors.muted;
+            ctx.beginPath();
+            ctx.moveTo(8, y0 - 1);
+            ctx.lineTo(cw - m.r, y0 - 1);
+            ctx.stroke();
+            ctx.setLineDash([]);
           }
-          g.font = j < 3 ? SANS : MONO;
-          g.fillStyle = j < 3 ? t.ink : t.muted;
-          g.textAlign = 'right';
-          g.fillText(AP.names[j], m.l - 10, y0 + rh / 2 + 4);
+          ctx.font = j < 3 ? SANS : MONO;
+          ctx.fillStyle = j < 3 ? colors.ink : colors.muted;
+          ctx.textAlign = 'right';
+          ctx.fillText(AP.names[j], m.l - 10, y0 + rh / 2 + 4);
           sets.forEach(([wv, col], k) => {
             const v = clamp(wv[j], VR[0], VR[1]),
               yy = y0 + rh / 2 + (k - 1.5) * (bh + 1.5) - bh / 2;
             if (Math.abs(wv[j]) < 1e-7) {
               if (k === 3) {
-                g.strokeStyle = col;
-                g.lineWidth = 1.8;
-                g.beginPath();
-                g.arc(X(0), yy + bh / 2, 3.6, 0, 7);
-                g.stroke();
+                ctx.strokeStyle = col;
+                ctx.lineWidth = 1.8;
+                ctx.beginPath();
+                ctx.arc(X(0), yy + bh / 2, 3.6, 0, 7);
+                ctx.stroke();
               }
               return;
             }
-            g.fillStyle = col;
-            g.fillRect(Math.min(X(0), X(v)), yy, Math.abs(X(v) - X(0)), bh);
+            ctx.fillStyle = col;
+            ctx.fillRect(Math.min(X(0), X(v)), yy, Math.abs(X(v) - X(0)), bh);
           });
         }
         const nz = wl.filter((v) => Math.abs(v) > 1e-7).length;
-        g.font = MONO;
-        g.textAlign = 'left';
+        ctx.font = MONO;
+        ctx.textAlign = 'left';
         let ly = 12;
         [
-          [t.ink, 'truth: 3 matter, 9 are noise'],
-          [t.muted, 'least squares, no penalty      test error ' + f2(AP.eo)],
+          [colors.ink, 'truth: 3 matter, 9 are noise'],
+          [colors.muted, 'least squares, no penalty      test error ' + f2(AP.eo)],
           [
-            t.accent,
+            colors.accent,
             'ridge  λ = ' +
               (lam < 0.01 ? lam.toExponential(1) : lam.toFixed(2)) +
               ', keeps all 12       test error ' +
               f2(AP.mse(wr)),
           ],
-          [t.ok, 'lasso  same λ, keeps ' + nz + ' of 12 (○ = 0)  test error ' + f2(AP.mse(wl))],
+          [
+            colors.ok,
+            'lasso  same λ, keeps ' + nz + ' of 12 (○ = 0)  test error ' + f2(AP.mse(wl)),
+          ],
         ].forEach(([col, sx]) => {
-          g.fillStyle = col;
-          g.fillRect(8, ly - 7, 10, 7);
-          g.fillText(sx, 24, ly);
+          ctx.fillStyle = col;
+          ctx.fillRect(8, ly - 7, 10, 7);
+          ctx.fillText(sx, 24, ly);
           ly += 14;
         });
       }
       {
-        const { g, w: cw, h } = fit(cb);
+        const { g: ctx, w: cw, h } = prepareCanvas(cb);
         let mx = 0.2;
         for (let i = 14; i < NL; i++) for (const v of W[i]) mx = Math.max(mx, Math.abs(v));
         mx *= 1.15;
-        const P = plot(g, cw, h, [0.3, D + 0.7], [-mx, mx], t, { xlabel: 'coefficient' }),
+        const P = plot(ctx, cw, h, [0.3, D + 0.7], [-mx, mx], colors, { xlabel: 'coefficient' }),
           bw = (P.X(2) - P.X(1)) * 0.6;
-        clipPlot(g, P);
-        g.strokeStyle = t.muted;
-        g.lineWidth = 1;
-        g.beginPath();
-        g.moveTo(P.X(0.3), P.Y(0));
-        g.lineTo(P.X(D + 0.7), P.Y(0));
-        g.stroke();
+        clipPlot(ctx, P);
+        ctx.strokeStyle = colors.muted;
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(P.X(0.3), P.Y(0));
+        ctx.lineTo(P.X(D + 0.7), P.Y(0));
+        ctx.stroke();
         for (let j = 0; j < D; j++) {
           const x = P.X(j + 1),
             v0 = clamp(W[0][j], -mx * 1.5, mx * 1.5),
             v = w[j];
-          g.setLineDash([3, 3]);
-          g.strokeStyle = t.muted;
-          g.lineWidth = 1.2;
-          g.strokeRect(x - bw / 2, Math.min(P.Y(0), P.Y(v0)), bw, Math.abs(P.Y(v0) - P.Y(0)));
-          g.setLineDash([]);
+          ctx.setLineDash([3, 3]);
+          ctx.strokeStyle = colors.muted;
+          ctx.lineWidth = 1.2;
+          ctx.strokeRect(x - bw / 2, Math.min(P.Y(0), P.Y(v0)), bw, Math.abs(P.Y(v0) - P.Y(0)));
+          ctx.setLineDash([]);
           if (Math.abs(v) > 1e-6) {
-            g.fillStyle = ramp(t, 0.15 + (0.85 * j) / (D - 1));
-            g.fillRect(x - bw / 2, Math.min(P.Y(0), P.Y(v)), bw, Math.abs(P.Y(v) - P.Y(0)));
+            ctx.fillStyle = ramp(colors, 0.15 + (0.85 * j) / (D - 1));
+            ctx.fillRect(x - bw / 2, Math.min(P.Y(0), P.Y(v)), bw, Math.abs(P.Y(v) - P.Y(0)));
           } else {
-            g.strokeStyle = t.ok;
-            g.lineWidth = 2.4;
-            g.beginPath();
-            g.arc(x, P.Y(0), 6, 0, 7);
-            g.stroke();
+            ctx.strokeStyle = colors.ok;
+            ctx.lineWidth = 2.4;
+            ctx.beginPath();
+            ctx.arc(x, P.Y(0), 6, 0, 7);
+            ctx.stroke();
           }
         }
-        g.restore();
-        g.font = MONO;
-        g.textAlign = 'left';
-        g.fillStyle = t.ok;
-        g.fillText('○ exactly zero', P.m.l + 8, P.m.t + 8);
+        ctx.restore();
+        ctx.font = MONO;
+        ctx.textAlign = 'left';
+        ctx.fillStyle = colors.ok;
+        ctx.fillText('○ exactly zero', P.m.l + 8, P.m.t + 8);
       }
       {
-        const { g, w: cw, h } = fit(cg),
+        const { g: ctx, w: cw, h } = prepareCanvas(cg),
           sc = Math.min(cw, h) / 5.4,
           X = (v) => cw / 2 + v * sc,
           Y = (v) => h / 2 - v * sc;
-        GV = { cw, h, sc };
-        const lam = tlam(S.li),
+        geometryViewport = { cw, h, sc };
+        const lam = tlam(settings.li),
           ws = toy(lam),
           pen = (v) =>
-            S.a * (Math.abs(v[0]) + Math.abs(v[1])) + ((1 - S.a) / 2) * (v[0] * v[0] + v[1] * v[1]),
+            settings.a * (Math.abs(v[0]) + Math.abs(v[1])) +
+            ((1 - settings.a) / 2) * (v[0] * v[0] + v[1] * v[1]),
           Pv = pen(ws);
-        g.strokeStyle = t.line;
-        g.lineWidth = 1;
+        ctx.strokeStyle = colors.line;
+        ctx.lineWidth = 1;
         for (let k = -2; k <= 2; k++) {
-          g.beginPath();
-          g.moveTo(X(k), 0);
-          g.lineTo(X(k), h);
-          g.moveTo(0, Y(k));
-          g.lineTo(cw, Y(k));
-          g.stroke();
+          ctx.beginPath();
+          ctx.moveTo(X(k), 0);
+          ctx.lineTo(X(k), h);
+          ctx.moveTo(0, Y(k));
+          ctx.lineTo(cw, Y(k));
+          ctx.stroke();
         }
-        g.strokeStyle = t.muted;
-        g.beginPath();
-        g.moveTo(X(0), 0);
-        g.lineTo(X(0), h);
-        g.moveTo(0, Y(0));
-        g.lineTo(cw, Y(0));
-        g.stroke();
+        ctx.strokeStyle = colors.muted;
+        ctx.beginPath();
+        ctx.moveTo(X(0), 0);
+        ctx.lineTo(X(0), h);
+        ctx.moveTo(0, Y(0));
+        ctx.lineTo(cw, Y(0));
+        ctx.stroke();
         if (Pv > 1e-9) {
-          g.beginPath();
+          ctx.beginPath();
           for (let k = 0; k <= 180; k++) {
             const th = (k / 180) * 2 * Math.PI,
               cs = Math.cos(th),
               sn = Math.sin(th),
-              a = (1 - S.a) / 2,
-              b = S.a * (Math.abs(cs) + Math.abs(sn)),
+              a = (1 - settings.a) / 2,
+              b = settings.a * (Math.abs(cs) + Math.abs(sn)),
               r = a > 1e-9 ? (-b + Math.sqrt(b * b + 4 * a * Pv)) / (2 * a) : Pv / b;
-            k ? g.lineTo(X(r * cs), Y(r * sn)) : g.moveTo(X(r * cs), Y(r * sn));
+            k ? ctx.lineTo(X(r * cs), Y(r * sn)) : ctx.moveTo(X(r * cs), Y(r * sn));
           }
-          g.closePath();
-          g.fillStyle = mix(t.gold, t.gold, 0, 0.3);
-          g.fill();
-          g.strokeStyle = t.gold;
-          g.lineWidth = 2.2;
-          g.stroke();
+          ctx.closePath();
+          ctx.fillStyle = mix(colors.gold, colors.gold, 0, 0.3);
+          ctx.fill();
+          ctx.strokeStyle = colors.gold;
+          ctx.lineWidth = 2.2;
+          ctx.stroke();
         }
         const l22 = Math.sqrt(TA[2] - (TA[1] * TA[1]) / TA[0]),
           l21 = TA[1] / Math.sqrt(TA[0]),
           l11 = Math.sqrt(TA[0]),
           ell = (q) => {
-            g.beginPath();
+            ctx.beginPath();
             for (let k = 0; k <= 90; k++) {
               const th = (k / 90) * 2 * Math.PI,
                 u1 = Math.cos(th),
@@ -494,62 +508,62 @@ export default {
                 v1 = (u1 - l21 * v2) / l11,
                 r = Math.sqrt(q);
               k
-                ? g.lineTo(X(TC2[0] + r * v1), Y(TC2[1] + r * v2))
-                : g.moveTo(X(TC2[0] + r * v1), Y(TC2[1] + r * v2));
+                ? ctx.lineTo(X(unpenalizedOptimum[0] + r * v1), Y(unpenalizedOptimum[1] + r * v2))
+                : ctx.moveTo(X(unpenalizedOptimum[0] + r * v1), Y(unpenalizedOptimum[1] + r * v2));
             }
-            g.closePath();
+            ctx.closePath();
           };
-        g.strokeStyle = mix(t.accent, t.accent, 0, 0.4);
-        g.lineWidth = 1;
+        ctx.strokeStyle = mix(colors.accent, colors.accent, 0, 0.4);
+        ctx.lineWidth = 1;
         [0.12, 0.45, 1, 1.8, 2.9, 4.3, 6].forEach((q) => {
           ell(q);
-          g.stroke();
+          ctx.stroke();
         });
-        const d0 = ws[0] - TC2[0],
-          d1 = ws[1] - TC2[1],
+        const d0 = ws[0] - unpenalizedOptimum[0],
+          d1 = ws[1] - unpenalizedOptimum[1],
           qs = TA[0] * d0 * d0 + 2 * TA[1] * d0 * d1 + TA[2] * d1 * d1;
         if (qs > 1e-6) {
           ell(qs);
-          g.strokeStyle = t.accent;
-          g.lineWidth = 2.4;
-          g.stroke();
+          ctx.strokeStyle = colors.accent;
+          ctx.lineWidth = 2.4;
+          ctx.stroke();
         }
-        g.strokeStyle = t.ink;
-        g.lineWidth = 1.3;
-        g.beginPath();
+        ctx.strokeStyle = colors.ink;
+        ctx.lineWidth = 1.3;
+        ctx.beginPath();
         for (let i = 0; i < NL; i++) {
           const q = toy(tlam(i));
-          i ? g.lineTo(X(q[0]), Y(q[1])) : g.moveTo(X(q[0]), Y(q[1]));
+          i ? ctx.lineTo(X(q[0]), Y(q[1])) : ctx.moveTo(X(q[0]), Y(q[1]));
         }
-        g.stroke();
-        const tx = X(TC2[0]),
-          ty = Y(TC2[1]);
-        g.strokeStyle = t.ink;
-        g.lineWidth = 2.4;
-        g.beginPath();
-        g.moveTo(tx - 8, ty);
-        g.lineTo(tx + 8, ty);
-        g.moveTo(tx, ty - 8);
-        g.lineTo(tx, ty + 8);
-        g.stroke();
-        g.fillStyle = t.ok;
-        g.strokeStyle = t.bg;
-        g.lineWidth = 2;
-        g.beginPath();
-        g.arc(X(ws[0]), Y(ws[1]), 7.5, 0, 7);
-        g.fill();
-        g.stroke();
-        g.font = MONO;
-        g.fillStyle = t.muted;
-        g.textAlign = 'right';
-        g.fillText('w₁', cw - 6, Y(0) - 6);
-        g.textAlign = 'left';
-        g.fillText('w₂', X(0) + 6, 12);
+        ctx.stroke();
+        const tx = X(unpenalizedOptimum[0]),
+          ty = Y(unpenalizedOptimum[1]);
+        ctx.strokeStyle = colors.ink;
+        ctx.lineWidth = 2.4;
+        ctx.beginPath();
+        ctx.moveTo(tx - 8, ty);
+        ctx.lineTo(tx + 8, ty);
+        ctx.moveTo(tx, ty - 8);
+        ctx.lineTo(tx, ty + 8);
+        ctx.stroke();
+        ctx.fillStyle = colors.ok;
+        ctx.strokeStyle = colors.bg;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(X(ws[0]), Y(ws[1]), 7.5, 0, 7);
+        ctx.fill();
+        ctx.stroke();
+        ctx.font = MONO;
+        ctx.fillStyle = colors.muted;
+        ctx.textAlign = 'right';
+        ctx.fillText('w₁', cw - 6, Y(0) - 6);
+        ctx.textAlign = 'left';
+        ctx.fillText('w₂', X(0) + 6, 12);
         let ly = h - 40;
         [
-          [t.ink, '+ best fit with no penalty'],
+          [colors.ink, '+ best fit with no penalty'],
           [
-            t.ok,
+            colors.ok,
             '● penalised answer: (' +
               f2(ws[0]) +
               ', ' +
@@ -558,100 +572,104 @@ export default {
               (Math.abs(ws[0]) < 1e-9 || Math.abs(ws[1]) < 1e-9 ? '  one is exactly 0' : ''),
           ],
           [
-            t.cut,
+            colors.cut,
             'shaded = norm ball, ' +
-              (S.a < 0.01 ? 'L2 circle' : S.a > 0.99 ? 'L1 diamond' : 'elastic net'),
+              (settings.a < 0.01 ? 'L2 circle' : settings.a > 0.99 ? 'L1 diamond' : 'elastic net'),
           ],
         ].forEach(([col, sx]) => {
-          g.fillStyle = col;
-          g.fillText(sx, 8, ly);
+          ctx.fillStyle = col;
+          ctx.fillText(sx, 8, ly);
           ly += 15;
         });
       }
       {
-        const { g, w: cw, h } = fit(c),
-          P = plot(g, cw, h, [-1.05, 1.05], [-2.2, 2.2], t, {
+        const { g: ctx, w: cw, h } = prepareCanvas(mainCanvas),
+          P = plot(ctx, cw, h, [-1.05, 1.05], [-2.2, 2.2], colors, {
             yticks: [-2, -1, 0, 1, 2],
             xstep: 0.5,
             xlabel: 'x',
           });
-        clipPlot(g, P);
-        g.setLineDash([6, 5]);
-        curve(g, P, Fq, -1, 1);
-        g.strokeStyle = t.muted;
-        g.lineWidth = 1.6;
-        g.stroke();
-        g.setLineDash([]);
-        curve(g, P, (x) => clamp(pred(x, W[0]), -9, 9), -1, 1, 300);
-        g.strokeStyle = mix(t.muted, t.muted, 0, 0.45);
-        g.lineWidth = 1.2;
-        g.stroke();
-        curve(g, P, (x) => clamp(pred(x, w), -9, 9), -1, 1, 300);
-        g.strokeStyle = t.gold;
-        g.lineWidth = 3.2;
-        g.stroke();
-        g.strokeStyle = t.ok;
-        g.lineWidth = 1.5;
+        clipPlot(ctx, P);
+        ctx.setLineDash([6, 5]);
+        curve(ctx, P, Fq, -1, 1);
+        ctx.strokeStyle = colors.muted;
+        ctx.lineWidth = 1.6;
+        ctx.stroke();
+        ctx.setLineDash([]);
+        curve(ctx, P, (x) => clamp(pred(x, W[0]), -9, 9), -1, 1, 300);
+        ctx.strokeStyle = mix(colors.muted, colors.muted, 0, 0.45);
+        ctx.lineWidth = 1.2;
+        ctx.stroke();
+        curve(ctx, P, (x) => clamp(pred(x, w), -9, 9), -1, 1, 300);
+        ctx.strokeStyle = colors.gold;
+        ctx.lineWidth = 3.2;
+        ctx.stroke();
+        ctx.strokeStyle = colors.ok;
+        ctx.lineWidth = 1.5;
         for (const p of pts)
           if (p.test) {
-            g.beginPath();
-            g.arc(P.X(p.x), P.Y(p.y), 4, 0, 7);
-            g.stroke();
+            ctx.beginPath();
+            ctx.arc(P.X(p.x), P.Y(p.y), 4, 0, 7);
+            ctx.stroke();
           }
-        g.fillStyle = t.accent;
+        ctx.fillStyle = colors.accent;
         for (const p of pts)
           if (!p.test) {
-            g.beginPath();
-            g.arc(P.X(p.x), P.Y(p.y), 4.2, 0, 7);
-            g.fill();
+            ctx.beginPath();
+            ctx.arc(P.X(p.x), P.Y(p.y), 4.2, 0, 7);
+            ctx.fill();
           }
-        markTP(g, P.X(tp.v[0]), P.Y(clamp(pred(tp.v[0], w), -9, 9)), t);
-        g.restore();
-        g.font = MONO;
-        g.textAlign = 'left';
-        g.fillStyle = t.muted;
-        g.fillText('thin grey = no penalty, dashed = truth', P.m.l + 8, P.m.t + 8);
+        markTP(ctx, P.X(tp.v[0]), P.Y(clamp(pred(tp.v[0], w), -9, 9)), colors);
+        ctx.restore();
+        ctx.font = MONO;
+        ctx.textAlign = 'left';
+        ctx.fillStyle = colors.muted;
+        ctx.fillText('thin grey = no penalty, dashed = truth', P.m.l + 8, P.m.t + 8);
       }
       {
-        const { g, w: cw, h } = fit(cp);
+        const { g: ctx, w: cw, h } = prepareCanvas(cp);
         let mx = 0.2;
         for (let i = 14; i < NL; i++) for (const v of W[i]) mx = Math.max(mx, Math.abs(v));
         mx *= 1.15;
-        const P = plot(g, cw, h, [LL(0), LL(NL - 1)], [-mx, mx], t, { xlabel: 'log₁₀ λ' });
-        clipPlot(g, P);
-        g.strokeStyle = t.muted;
-        g.lineWidth = 1;
-        g.beginPath();
-        g.moveTo(P.X(LL(0)), P.Y(0));
-        g.lineTo(P.X(LL(NL - 1)), P.Y(0));
-        g.stroke();
-        g.strokeStyle = mix(t.gold, t.gold, 0, 0.5);
-        g.lineWidth = 8;
-        g.beginPath();
-        g.moveTo(P.X(LL(S.li)), P.Y(-mx));
-        g.lineTo(P.X(LL(S.li)), P.Y(mx));
-        g.stroke();
+        const P = plot(ctx, cw, h, [logLambdaAt(0), logLambdaAt(NL - 1)], [-mx, mx], colors, {
+          xlabel: 'log₁₀ λ',
+        });
+        clipPlot(ctx, P);
+        ctx.strokeStyle = colors.muted;
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(P.X(logLambdaAt(0)), P.Y(0));
+        ctx.lineTo(P.X(logLambdaAt(NL - 1)), P.Y(0));
+        ctx.stroke();
+        ctx.strokeStyle = mix(colors.gold, colors.gold, 0, 0.5);
+        ctx.lineWidth = 8;
+        ctx.beginPath();
+        ctx.moveTo(P.X(logLambdaAt(settings.li)), P.Y(-mx));
+        ctx.lineTo(P.X(logLambdaAt(settings.li)), P.Y(mx));
+        ctx.stroke();
         for (let j = 0; j < D; j++) {
-          g.strokeStyle = ramp(t, 0.15 + (0.85 * j) / (D - 1));
-          g.lineWidth = 2;
-          g.beginPath();
+          ctx.strokeStyle = ramp(colors, 0.15 + (0.85 * j) / (D - 1));
+          ctx.lineWidth = 2;
+          ctx.beginPath();
           for (let i = 0; i < NL; i++)
-            i ? g.lineTo(P.X(LL(i)), P.Y(W[i][j])) : g.moveTo(P.X(LL(i)), P.Y(W[i][j]));
-          g.stroke();
-          g.fillStyle = g.strokeStyle;
-          g.beginPath();
-          g.arc(P.X(LL(S.li)), P.Y(clamp(W[S.li][j], -mx, mx)), 4, 0, 7);
-          g.fill();
+            i
+              ? ctx.lineTo(P.X(logLambdaAt(i)), P.Y(W[i][j]))
+              : ctx.moveTo(P.X(logLambdaAt(i)), P.Y(W[i][j]));
+          ctx.stroke();
+          ctx.fillStyle = ctx.strokeStyle;
+          ctx.beginPath();
+          ctx.arc(P.X(logLambdaAt(settings.li)), P.Y(clamp(W[settings.li][j], -mx, mx)), 4, 0, 7);
+          ctx.fill();
         }
-        g.restore();
+        ctx.restore();
       }
       let bi = 0;
       for (let i = 1; i < NL; i++) if (ete[i] < ete[bi]) bi = i;
-      const lam = Math.pow(10, LL(S.li));
-      setR(root, 'l', lam < 0.01 ? lam.toExponential(1) : lam.toFixed(3));
-      setR(root, 'tr', f3(etr[S.li]));
-      setR(root, 'te', isFinite(ete[S.li]) ? f3(ete[S.li]) : '–');
-      setR(root, 'nz', String(w.filter((v) => Math.abs(v) > 1e-6).length));
+      const lam = Math.pow(10, logLambdaAt(settings.li));
+      setReadout(root, 'l', lam < 0.01 ? lam.toExponential(1) : lam.toFixed(3));
+      setReadout(root, 'tr', f3(etr[settings.li]));
+      setReadout(root, 'te', isFinite(ete[settings.li]) ? f3(ete[settings.li]) : '–');
+      setReadout(root, 'nz', String(w.filter((v) => Math.abs(v) > 1e-6).length));
       tp.out.textContent =
         'At x = ' +
         f2(tp.v[0]) +
@@ -662,47 +680,58 @@ export default {
         '. The true curve there is ' +
         f2(Fq(tp.v[0])) +
         '.';
-      setR(root, 'nm', f2(Math.sqrt(dot(w, w))));
-      setR(root, 'n1', f2(w.reduce((s, v) => s + Math.abs(v), 0)));
-      const bl = Math.pow(10, LL(bi));
-      setR(root, 'bl', bl < 0.01 ? bl.toExponential(1) : bl.toFixed(3));
+      setReadout(root, 'nm', f2(Math.sqrt(dot(w, w))));
+      setReadout(root, 'n1', f2(w.reduce((s, v) => s + Math.abs(v), 0)));
+      const bl = Math.pow(10, logLambdaAt(bi));
+      setReadout(root, 'bl', bl < 0.01 ? bl.toExponential(1) : bl.toFixed(3));
       root
         .querySelectorAll('#rg-kind button')
         .forEach((b) =>
-          b.setAttribute('aria-pressed', Math.abs(+b.dataset.a - S.a) < 0.01 ? 'true' : 'false'),
+          b.setAttribute(
+            'aria-pressed',
+            Math.abs(+b.dataset.a - settings.a) < 0.01 ? 'true' : 'false',
+          ),
         );
     };
     const ls = bind(
         root,
         'rg-l',
         (v) => {
-          S.li = v;
+          settings.li = v;
           draw();
         },
-        (v) => LL(v).toFixed(1),
+        (v) => logLambdaAt(v).toFixed(1),
       ),
       as = bind(root, 'rg-a', (v) => {
-        S.a = v;
+        settings.a = v;
         solveAll();
         draw();
       });
     const anim = sweeper(ls.el, 0, NL - 1, 10);
-    pb = playBtn($('#rg-play', root), anim);
-    grab(ls.el, pb);
+    playback = playBtn($('#rg-play', root), anim);
+    grab(ls.el, playback);
     $('#rg-kind', root).addEventListener('click', (e) => {
       const a = e.target.dataset && e.target.dataset.a;
       if (a == null) return;
-      S.a = +a;
-      as.set(S.a);
+      settings.a = +a;
+      as.set(settings.a);
       solveAll();
       draw();
     });
     let gd = false;
     const gm = (e) => {
-      if (!GV) return;
+      if (!geometryViewport) return;
       const r = cg.getBoundingClientRect();
-      TC2[0] = clamp((e.clientX - r.left - GV.cw / 2) / GV.sc, -2.4, 2.4);
-      TC2[1] = clamp(-(e.clientY - r.top - GV.h / 2) / GV.sc, -2.4, 2.4);
+      unpenalizedOptimum[0] = clamp(
+        (e.clientX - r.left - geometryViewport.cw / 2) / geometryViewport.sc,
+        -2.4,
+        2.4,
+      );
+      unpenalizedOptimum[1] = clamp(
+        -(e.clientY - r.top - geometryViewport.h / 2) / geometryViewport.sc,
+        -2.4,
+        2.4,
+      );
       draw();
     };
     cg.addEventListener('pointerdown', (e) => {
@@ -724,14 +753,14 @@ export default {
       draw();
     };
     bind(root, 'rg-s', (v) => {
-      S.noise = v;
+      settings.noise = v;
       re();
     });
     bind(
       root,
       'rg-n',
       (v) => {
-        S.n = v;
+        settings.n = v;
         re();
       },
       (v) => String(v),
@@ -740,6 +769,6 @@ export default {
       seed++;
       re();
     };
-    return { draw, stop: () => pb.stop(), auto: () => pb.start() };
+    return { draw, stop: () => playback.stop(), auto: () => playback.start() };
   },
 };

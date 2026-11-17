@@ -3,31 +3,31 @@ import {
   $,
   Anim,
   MONO,
-  RM,
+  prefersReducedMotion,
   SANS,
-  T,
+  readThemeColors,
   bind,
   clamp,
   f2,
   f3,
-  fit,
+  prepareCanvas,
   mix,
   playBtn,
   randnFrom,
   rng,
-  runCtl,
-  setR,
+  attachRunLimit,
+  setReadout,
 } from '../../../js/core/shared.js';
-import { UC, uCur, uLine } from '../../unsupervised/shared.js';
+import { UC, highlightLessonStep, drawSeriesChart } from '../../unsupervised/shared.js';
 import { pct } from '../../ensembles/shared.js';
 
 export default {
   init(root) {
-    const c = $('#at-c', root),
+    const mainCanvas = $('#at-c', root),
       cr = $('#at-r', root),
       live = $('#at-live', root),
       eq = $('#at-eq', root),
-      S = { a: 0, p: 0, j: 0, o: 0, tau: 1 },
+      settings = { a: 0, p: 0, j: 0, o: 0, tau: 1 },
       AN = ['cat', 'dog', 'horse', 'bird', 'fox'],
       PL = ['mat', 'sofa', 'rug', 'bed', 'floor'],
       JA = ['tired', 'hungry', 'sleepy', 'happy'],
@@ -45,19 +45,19 @@ export default {
       AC = [],
       conv = false,
       msg = '',
-      cu = 0,
-      fr = 0,
+      activeStepIndex = 0,
+      frameCount = 0,
       t0 = 0,
-      pb,
-      chk = () => false,
+      playback,
+      checkRunStop = () => false,
       run = 1,
-      sub = 99,
+      explanationStep = 99,
       seen = new Set();
-    const sent = (a, p, j, o) => {
+    const makeSentenceExample = (a, p, j, o) => {
       const w = o
         ? ['on', 'the', PL[p], 'sat', 'the', AN[a], 'because', 'it', 'was', ADJ[j]]
         : ['the', AN[a], 'sat', 'on', 'the', PL[p], 'because', 'it', 'was', ADJ[j]];
-      return { w, ix: w.map(wi), tg: j < 4 ? (o ? 5 : 1) : o ? 2 : 5, j };
+      return { w, ix: w.map(wi), antecedentIndex: j < 4 ? (o ? 5 : 1) : o ? 2 : 5, j };
     };
     const fill = (id, arr) => {
       $('#' + id, root).innerHTML = arr
@@ -81,16 +81,16 @@ export default {
             for (let o = 0; o < 2; o++) {
               const key = a + '-' + p + '-' + j + '-' + o;
               if (r() < 0.4) {
-                TRN.push(sent(a, p, j, o));
+                TRN.push(makeSentenceExample(a, p, j, o));
                 seen.add(key);
-              } else TST.push(sent(a, p, j, o));
+              } else TST.push(makeSentenceExample(a, p, j, o));
             }
       ep = 0;
       LL = [];
       AC = [];
       conv = false;
-      cu = 0;
-      sub = 99;
+      activeStepIndex = 0;
+      explanationStep = 99;
       eq.innerHTML = '';
       msg =
         'Random keys and questions. ' +
@@ -110,7 +110,7 @@ export default {
     const accOn = (D) =>
       D.filter((s) => {
         const al = att(s).al;
-        return al.indexOf(Math.max(...al)) === s.tg;
+        return al.indexOf(Math.max(...al)) === s.antecedentIndex;
       }).length / D.length;
     const pass = () => {
       let l = 0;
@@ -123,15 +123,15 @@ export default {
         const s = TRN[oi],
           { al } = att(s),
           q = Qt[s.j];
-        l -= Math.log(al[s.tg] + 1e-12);
+        l -= Math.log(al[s.antecedentIndex] + 1e-12);
         const dq = [0, 0];
         s.ix.forEach((w, pz) => {
-          const d = al[pz] - (pz === s.tg ? 1 : 0);
+          const d = al[pz] - (pz === s.antecedentIndex ? 1 : 0);
           dq[0] += d * Kt[w][0];
           dq[1] += d * Kt[w][1];
         });
         s.ix.forEach((w, pz) => {
-          const d = al[pz] - (pz === s.tg ? 1 : 0);
+          const d = al[pz] - (pz === s.antecedentIndex ? 1 : 0);
           Kt[w][0] -= 0.012 * d * q[0];
           Kt[w][1] -= 0.012 * d * q[1];
         });
@@ -147,7 +147,7 @@ export default {
         (ep > 60 && Math.abs(LL[ep - 1] - LL[ep - 31]) < 0.01 * LL[ep - 1])
       )
         conv = true;
-      cu = conv ? 4 : 1 + (ep % 3);
+      activeStepIndex = conv ? 4 : 1 + (ep % 3);
       msg =
         'Pass ' +
         ep +
@@ -162,17 +162,17 @@ export default {
         '.' +
         (conv ? ' Converged: training stops. Change the words above to test it.' : '');
     };
-    const cur = () => sent(S.a, S.p, S.j, S.o);
+    const cur = () => makeSentenceExample(settings.a, settings.p, settings.j, settings.o);
     const explain = () => {
       const s = cur(),
-        { sc, al } = att(s, S.tau),
+        { sc, al } = att(s, settings.tau),
         q = Qt[s.j],
         b = al.indexOf(Math.max(...al)),
         nf = (v) => (v < 0 ? '(−' + Math.abs(v).toFixed(2) + ')' : v.toFixed(2));
-      if (sub <= 10) {
-        const j = sub - 1,
+      if (explanationStep <= 10) {
+        const j = explanationStep - 1,
           k = Kt[s.ix[j]];
-        cu = 1;
+        activeStepIndex = 1;
         msg =
           'The question of “' +
           s.w[9] +
@@ -193,12 +193,12 @@ export default {
           '·' +
           nf(k[1]) +
           ') × ' +
-          f2(S.tau) +
+          f2(settings.tau) +
           ' = <b>' +
           f2(sc[j]) +
           '</b></div>';
-      } else if (sub === 11) {
-        cu = 2;
+      } else if (explanationStep === 11) {
+        activeStepIndex = 2;
         msg =
           'Softmax turns the ten scores into shares that add up to 1. “' +
           s.w[b] +
@@ -219,14 +219,14 @@ export default {
           f2(al[b]) +
           '</b></div>';
       } else {
-        cu = 4;
+        activeStepIndex = 4;
         msg =
           'So in this sentence “it” means “' +
           s.w[b] +
           '”' +
-          (b === s.tg
+          (b === s.antecedentIndex
             ? ', which is right.'
-            : ', which is wrong: it should be “' + s.w[s.tg] + '”.') +
+            : ', which is wrong: it should be “' + s.w[s.antecedentIndex] + '”.') +
           ' The layer was never given a rule; it placed the keys and questions so that the scores come out this way.';
         eq.innerHTML =
           '<div class="on">“it” takes ' +
@@ -237,96 +237,96 @@ export default {
       }
     };
     const draw = () => {
-      const t = T(),
-        col = UC(t),
+      const colors = readThemeColors(),
+        col = UC(colors),
         s = cur(),
-        { sc, al } = att(s, S.tau),
+        { sc, al } = att(s, settings.tau),
         n = 10,
-        u = RM ? 1 : clamp((fr - t0) / 22, 0, 1),
-        ex = sub <= 12,
-        ns = ex ? Math.min(sub, 10) : 10,
-        shares = !ex || sub > 10;
+        u = prefersReducedMotion ? 1 : clamp((frameCount - t0) / 22, 0, 1),
+        ex = explanationStep <= 12,
+        ns = ex ? Math.min(explanationStep, 10) : 10,
+        shares = !ex || explanationStep > 10;
       {
-        const { g, w, h } = fit(c),
+        const { g: ctx, w, h } = prepareCanvas(mainCanvas),
           yw = h * 0.4,
           bw = (w - 20) / n,
           X = (j) => 10 + j * bw + bw / 2,
           sm = Math.max(0.6, ...sc.map(Math.abs)),
           by = h - 30,
           bh = h * 0.26;
-        g.font = SANS;
+        ctx.font = SANS;
         if (shares)
           for (let j = 0; j < n; j++) {
             if (j === 7) continue;
-            const wt = al[j] * (sub === 11 ? u : 1);
-            g.strokeStyle = mix(t.gold, t.gold, 0, 0.2 + 0.8 * wt);
-            g.lineWidth = 0.5 + 13 * wt;
-            g.beginPath();
-            g.moveTo(X(7), yw - 16);
-            g.quadraticCurveTo(
+            const wt = al[j] * (explanationStep === 11 ? u : 1);
+            ctx.strokeStyle = mix(colors.gold, colors.gold, 0, 0.2 + 0.8 * wt);
+            ctx.lineWidth = 0.5 + 13 * wt;
+            ctx.beginPath();
+            ctx.moveTo(X(7), yw - 16);
+            ctx.quadraticCurveTo(
               (X(7) + X(j)) / 2,
               yw - 16 - Math.min(h * 0.32, Math.abs(X(j) - X(7)) * 0.45),
               X(j),
               yw - 16,
             );
-            g.stroke();
+            ctx.stroke();
           }
         for (let j = 0; j < n; j++) {
           const x = X(j),
             me = j === 7,
-            tgt = j === s.tg;
-          g.font = SANS;
-          const tw = Math.max(34, g.measureText(s.w[j]).width + 12);
-          g.fillStyle = me ? t.ink : t.bg;
-          g.strokeStyle = tgt ? t.accent : t.ink;
-          g.lineWidth = tgt ? 2.6 : 1.3;
-          g.beginPath();
-          g.rect(x - tw / 2, yw - 14, tw, 28);
-          g.fill();
-          g.stroke();
-          g.fillStyle = me ? t.bg : t.ink;
-          g.textAlign = 'center';
-          g.fillText(s.w[j], x, yw + 5);
-          g.font = MONO;
+            tgt = j === s.antecedentIndex;
+          ctx.font = SANS;
+          const tw = Math.max(34, ctx.measureText(s.w[j]).width + 12);
+          ctx.fillStyle = me ? colors.ink : colors.bg;
+          ctx.strokeStyle = tgt ? colors.accent : colors.ink;
+          ctx.lineWidth = tgt ? 2.6 : 1.3;
+          ctx.beginPath();
+          ctx.rect(x - tw / 2, yw - 14, tw, 28);
+          ctx.fill();
+          ctx.stroke();
+          ctx.fillStyle = me ? colors.bg : colors.ink;
+          ctx.textAlign = 'center';
+          ctx.fillText(s.w[j], x, yw + 5);
+          ctx.font = MONO;
           if (!shares) {
             if (j < ns) {
               const v = sc[j] * (j === ns - 1 ? u : 1),
                 hh = (Math.abs(v) / sm) * bh * 0.5;
-              g.fillStyle = v >= 0 ? t.accent : t.ok;
-              g.fillRect(
+              ctx.fillStyle = v >= 0 ? colors.accent : colors.ok;
+              ctx.fillRect(
                 x - bw * 0.28,
                 v >= 0 ? by - bh * 0.5 - hh : by - bh * 0.5,
                 bw * 0.56,
                 Math.max(1, hh),
               );
-              g.fillStyle = t.muted;
-              g.fillText(f2(sc[j]), x, by + 14);
+              ctx.fillStyle = colors.muted;
+              ctx.fillText(f2(sc[j]), x, by + 14);
             }
           } else {
-            const v = al[j] * (sub === 11 ? u : 1),
+            const v = al[j] * (explanationStep === 11 ? u : 1),
               hh = v * bh;
-            g.fillStyle = t.gold;
-            g.fillRect(x - bw * 0.28, by - hh, bw * 0.56, Math.max(1, hh));
-            g.fillStyle = t.muted;
-            g.fillText((100 * al[j]).toFixed(0) + '%', x, by + 14);
+            ctx.fillStyle = colors.gold;
+            ctx.fillRect(x - bw * 0.28, by - hh, bw * 0.56, Math.max(1, hh));
+            ctx.fillStyle = colors.muted;
+            ctx.fillText((100 * al[j]).toFixed(0) + '%', x, by + 14);
           }
         }
-        g.font = MONO;
-        g.fillStyle = t.muted;
-        g.textAlign = 'left';
-        g.fillText(
+        ctx.font = MONO;
+        ctx.fillStyle = colors.muted;
+        ctx.textAlign = 'left';
+        ctx.fillText(
           shares
             ? 'share of attention that “it” gives each word'
             : 'match score of each word’s key with the question',
           10,
           by - bh - 8,
         );
-        g.fillStyle = t.accent;
-        g.textAlign = 'right';
-        g.fillText('green frame: the correct answer', w - 10, yw + 34);
+        ctx.fillStyle = colors.accent;
+        ctx.textAlign = 'right';
+        ctx.fillText('green frame: the correct answer', w - 10, yw + 34);
       }
       {
-        const { g, w, h } = fit(cr),
+        const { g: ctx, w, h } = prepareCanvas(cr),
           h1 = h * 0.58,
           ox = w / 2,
           oy = h1 / 2 + 6;
@@ -340,78 +340,80 @@ export default {
         const sx = (w / 2 - 50) / m,
           sy = (h1 / 2 - 20) / m,
           P = (v) => [ox + v[0] * sx, oy - v[1] * sy];
-        g.strokeStyle = t.line;
-        g.lineWidth = 1;
-        g.beginPath();
-        g.moveTo(8, oy);
-        g.lineTo(w - 8, oy);
-        g.moveTo(ox, 8);
-        g.lineTo(ox, h1 - 4);
-        g.stroke();
+        ctx.strokeStyle = colors.line;
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(8, oy);
+        ctx.lineTo(w - 8, oy);
+        ctx.moveTo(ox, 8);
+        ctx.lineTo(ox, h1 - 4);
+        ctx.stroke();
         ADJ.forEach((a, j) => {
           const p = P(Qt[j]),
-            me = j === S.j;
-          g.strokeStyle = me ? t.gold : mix(j < 4 ? t.accent : t.cut, t.bg, 0, 0.55);
-          g.lineWidth = me ? 3.2 : 1.3;
-          g.beginPath();
-          g.moveTo(ox, oy);
-          g.lineTo(p[0], p[1]);
-          g.stroke();
-          g.font = MONO;
-          g.fillStyle = me ? t.cut : t.muted;
-          g.textAlign = 'center';
-          g.fillText(a + '?', p[0], p[1] + (p[1] < oy ? -5 : 12));
+            me = j === settings.j;
+          ctx.strokeStyle = me
+            ? colors.gold
+            : mix(j < 4 ? colors.accent : colors.cut, colors.bg, 0, 0.55);
+          ctx.lineWidth = me ? 3.2 : 1.3;
+          ctx.beginPath();
+          ctx.moveTo(ox, oy);
+          ctx.lineTo(p[0], p[1]);
+          ctx.stroke();
+          ctx.font = MONO;
+          ctx.fillStyle = me ? colors.cut : colors.muted;
+          ctx.textAlign = 'center';
+          ctx.fillText(a + '?', p[0], p[1] + (p[1] < oy ? -5 : 12));
         });
         WD.forEach((wd, i) => {
           if (i >= 16) return;
           const p = P(Kt[i]),
             inS = s.ix.includes(i);
-          g.fillStyle = i < 5 ? t.accent : i < 10 ? t.gold : t.muted;
-          g.beginPath();
-          g.arc(p[0], p[1], inS ? 5.5 : 3.5, 0, 7);
-          g.fill();
+          ctx.fillStyle = i < 5 ? colors.accent : i < 10 ? colors.gold : colors.muted;
+          ctx.beginPath();
+          ctx.arc(p[0], p[1], inS ? 5.5 : 3.5, 0, 7);
+          ctx.fill();
           if (inS) {
-            g.strokeStyle = t.ink;
-            g.lineWidth = 1.5;
-            g.stroke();
+            ctx.strokeStyle = colors.ink;
+            ctx.lineWidth = 1.5;
+            ctx.stroke();
           }
-          g.font = inS ? SANS : MONO;
-          g.fillStyle = inS ? t.ink : t.muted;
-          g.textAlign = 'left';
-          g.fillText(wd, p[0] + 7, p[1] + 4);
+          ctx.font = inS ? SANS : MONO;
+          ctx.fillStyle = inS ? colors.ink : colors.muted;
+          ctx.textAlign = 'left';
+          ctx.fillText(wd, p[0] + 7, p[1] + 4);
         });
-        g.font = MONO;
-        g.textAlign = 'left';
-        g.fillStyle = t.accent;
-        g.fillText('● animals', 8, 14);
-        g.fillStyle = t.cut;
-        g.fillText('● places', 84, 14);
-        g.fillStyle = t.muted;
-        g.fillText('● other words     lines: each adjective’s question', 150, 14);
-        const U = uLine(g, t, 0, h1, w, h - h1, LL, {
+        ctx.font = MONO;
+        ctx.textAlign = 'left';
+        ctx.fillStyle = colors.accent;
+        ctx.fillText('● animals', 8, 14);
+        ctx.fillStyle = colors.cut;
+        ctx.fillText('● places', 84, 14);
+        ctx.fillStyle = colors.muted;
+        ctx.fillText('● other words     lines: each adjective’s question', 150, 14);
+        const U = drawSeriesChart(ctx, colors, 0, h1, w, h - h1, LL, {
           title: 'training error (red) and accuracy on unseen sentences (green, 0 to 100%)',
           n: Math.max(40, LL.length),
-          col: t.ok,
+          col: colors.ok,
           ym: Math.max(2.4, LL[0] || 2.4),
         });
         if (AC.length) {
-          g.strokeStyle = t.accent;
-          g.lineWidth = 2.2;
-          g.beginPath();
+          ctx.strokeStyle = colors.accent;
+          ctx.lineWidth = 2.2;
+          ctx.beginPath();
           AC.forEach((v, i) => {
             const y = U.Y(v * Math.max(2.4, LL[0] || 2.4));
-            i ? g.lineTo(U.X(i), y) : g.moveTo(U.X(i), y);
+            i ? ctx.lineTo(U.X(i), y) : ctx.moveTo(U.X(i), y);
           });
-          g.stroke();
+          ctx.stroke();
         }
       }
       live.textContent = msg;
-      uCur(root, 'at', cu);
+      highlightLessonStep(root, 'at', activeStepIndex);
       const b = al.indexOf(Math.max(...al));
-      setR(root, 'ep', String(ep));
-      setR(root, 'L', ep ? f3(LL[ep - 1]) : '–');
-      setR(root, 'te', ep ? pct(AC[ep - 1]) : pct(accOn(TST)));
-      setR(
+      setReadout(root, 'ep', String(ep));
+      setReadout(root, 'L', ep ? f3(LL[ep - 1]) : '–');
+      setReadout(root, 'te', ep ? pct(AC[ep - 1]) : pct(accOn(TST)));
+      setReadout(
         root,
         'ans',
         '“' +
@@ -419,38 +421,40 @@ export default {
           '” (' +
           (100 * al[b]).toFixed(0) +
           '%)' +
-          (b === s.tg ? ', correct' : ', wrong'),
+          (b === s.antecedentIndex ? ', correct' : ', wrong'),
       );
-      setR(
+      setReadout(
         root,
         'seen',
-        seen.has(S.a + '-' + S.p + '-' + S.j + '-' + S.o) ? 'Yes' : 'No: never seen',
+        seen.has(settings.a + '-' + settings.p + '-' + settings.j + '-' + settings.o)
+          ? 'Yes'
+          : 'No: never seen',
       );
     };
     build();
-    if (RM) while (!conv) pass();
+    if (prefersReducedMotion) while (!conv) pass();
     const anim = Anim(() => {
-      fr++;
+      frameCount++;
       if (!conv) {
-        if (fr % (ep < 8 ? 18 : 5) === 0) {
+        if (frameCount % (ep < 8 ? 18 : 5) === 0) {
           pass();
-          t0 = fr;
+          t0 = frameCount;
           if (conv) {
-            sub = 1;
+            explanationStep = 1;
             explain();
           }
-          chk();
+          checkRunStop();
         }
         draw();
         return;
       }
-      if (sub <= 12) {
-        if (fr - t0 > (sub <= 10 ? 14 : 110)) {
-          sub++;
-          t0 = fr;
-          if (sub > 12) {
+      if (explanationStep <= 12) {
+        if (frameCount - t0 > (explanationStep <= 10 ? 14 : 110)) {
+          explanationStep++;
+          t0 = frameCount;
+          if (explanationStep > 12) {
             draw();
-            pb.stop();
+            playback.stop();
             return;
           }
           explain();
@@ -459,11 +463,11 @@ export default {
         return;
       }
       draw();
-      pb.stop();
+      playback.stop();
     });
-    pb = playBtn($('#at-play', root), anim);
-    chk = runCtl(pb, root, 'at', {
-      done: () => conv && sub > 12,
+    playback = playBtn($('#at-play', root), anim);
+    checkRunStop = attachRunLimit(playback, root, 'at', {
+      done: () => conv && explanationStep > 12,
       restart: () => {
         run++;
         build();
@@ -472,7 +476,7 @@ export default {
       what: 'passes',
     });
     $('#at-step', root).onclick = () => {
-      pb.stop();
+      playback.stop();
       if (conv) {
         run++;
         build();
@@ -480,31 +484,31 @@ export default {
       draw();
     };
     $('#at-reset', root).onclick = () => {
-      pb.stop();
+      playback.stop();
       run++;
       build();
       draw();
     };
     $('#at-exp', root).onclick = () => {
-      pb.stop();
+      playback.stop();
       if (!conv) {
         msg = 'Train first: the keys and questions are still random.';
         draw();
         return;
       }
-      sub = 1;
-      t0 = fr;
+      explanationStep = 1;
+      t0 = frameCount;
       explain();
-      const st = pb.start;
+      const st = playback.start;
       anim.start();
       $('#at-play', root).textContent = 'Pause';
       $('#at-play', root).classList.add('on');
     };
     const chg = () => {
-      sub = 99;
+      explanationStep = 99;
       eq.innerHTML = '';
       const s = cur(),
-        al = att(s, S.tau).al,
+        al = att(s, settings.tau).al,
         b = al.indexOf(Math.max(...al));
       if (conv)
         msg =
@@ -515,11 +519,11 @@ export default {
           '% of its attention to “' +
           s.w[b] +
           '”' +
-          (b === s.tg ? ', the right word.' : ', which is wrong.') +
-          (seen.has(S.a + '-' + S.p + '-' + S.j + '-' + S.o)
+          (b === s.antecedentIndex ? ', the right word.' : ', which is wrong.') +
+          (seen.has(settings.a + '-' + settings.p + '-' + settings.j + '-' + settings.o)
             ? ''
             : ' This exact sentence was never in the training set.');
-      if (!pb.on) draw();
+      if (!playback.on) draw();
     };
     [
       ['at-a', 'a'],
@@ -528,7 +532,7 @@ export default {
       ['at-o', 'o'],
     ].forEach(([id, k]) => {
       $('#' + id, root).onchange = (e) => {
-        S[k] = +e.target.value;
+        settings[k] = +e.target.value;
         chg();
       };
     });
@@ -536,19 +540,19 @@ export default {
       root,
       'at-tau',
       (v) => {
-        S.tau = v;
+        settings.tau = v;
         chg();
       },
       f2,
     );
     return {
       draw,
-      stop: () => pb.stop(),
+      stop: () => playback.stop(),
       auto: () => {
         run++;
         build();
         draw();
-        pb.start();
+        playback.start();
       },
     };
   },

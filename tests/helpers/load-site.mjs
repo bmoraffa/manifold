@@ -7,7 +7,7 @@ import { createLessonLoader } from '../../js/app/loader.js';
 import {
   $,
   Anim,
-  RM,
+  prefersReducedMotion,
   clamp,
   escapeHTML,
   f2,
@@ -17,7 +17,7 @@ import {
   playBtn,
   randnFrom,
   rng,
-  runCtl,
+  attachRunLimit,
 } from '../../js/core/shared.js';
 import { UC, uView, uFrame, uData, jacobi } from '../../lessons/unsupervised/shared.js';
 import { parseXY } from '../../lessons/regression/shared.js';
@@ -46,7 +46,7 @@ export async function renderSite() {
 }
 
 // A small VM isolates the original frame-callback probes and their fake scheduler.
-export function loadSite({ reducedMotion = RM, globals = {} } = {}) {
+export function loadSite({ reducedMotion = prefersReducedMotion, globals = {} } = {}) {
   const context = vm.createContext({
     $,
     clamp,
@@ -58,7 +58,7 @@ export function loadSite({ reducedMotion = RM, globals = {} } = {}) {
     playBtn,
     randnFrom,
     rng,
-    runCtl,
+    attachRunLimit,
     parseXY,
     parseXgbCSV,
     pct,
@@ -68,7 +68,7 @@ export function loadSite({ reducedMotion = RM, globals = {} } = {}) {
     uFrame,
     uData,
     jacobi,
-    RM: reducedMotion,
+    prefersReducedMotion: reducedMotion,
     Anim: (tick) => Anim(tick, globals),
     document: {},
     window: {},

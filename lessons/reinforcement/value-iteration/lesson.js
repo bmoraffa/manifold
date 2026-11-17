@@ -3,27 +3,27 @@ import {
   $,
   Anim,
   MONO,
-  RM,
-  T,
+  prefersReducedMotion,
+  readThemeColors,
   bind,
   eqShow,
   f2,
   f3,
-  fit,
+  prepareCanvas,
   playBtn,
-  runCtl,
-  setR,
+  attachRunLimit,
+  setReadout,
 } from '../../../js/core/shared.js';
-import { GWN, GWS, gwClick, gwDraw, gwMake, gwRoute, rlN } from '../shared.js';
-import { segBind, uCur, uLine } from '../../unsupervised/shared.js';
+import { ACTION_NAMES, ACTION_ARROWS, gwClick, gwDraw, gwMake, gwRoute, rlN } from '../shared.js';
+import { segBind, highlightLessonStep, drawSeriesChart } from '../../unsupervised/shared.js';
 
 export default {
   init(root) {
-    const c = $('#vi-c', root),
+    const mainCanvas = $('#vi-c', root),
       cr = $('#vi-r', root),
       live = $('#vi-live', root),
       eq = $('#vi-eq', root),
-      S = { m: 'vi', w: 'room', sl: 0.2, ga: 0.9, rs: -1 },
+      settings = { m: 'vi', w: 'room', sl: 0.2, ga: 0.9, rs: -1 },
       W = {
         room: ['...G', '.#.X', 'S...'],
         maze: ['S..#..', '.#...#', '.#.#..', '...#.X', '.#...G'],
@@ -33,26 +33,26 @@ export default {
       Vn,
       pol,
       order = [],
-      ci = 0,
+      sweepCellIndex = 0,
       sw = 0,
       DL = [],
-      PCH = [],
-      dcur = 0,
+      policyChangeHistory = [],
+      maxValueChange = 0,
       pch = 0,
       cur = -1,
       sel = -1,
       msg = '',
-      cu = 0,
-      fr = 0,
-      pb,
-      chk = () => false,
+      activeStepIndex = 0,
+      frameCount = 0,
+      playback,
+      checkRunStop = () => false,
       fin = false,
       P = null,
       evs = 0;
     const qa = (s, a, Vx) => {
       let v = 0;
       for (const [p, s2] of G.outcomes(s, a))
-        v += p * (G.rew(s2) + (G.term(s2) ? 0 : S.ga * Vx[s2]));
+        v += p * (G.rew(s2) + (G.term(s2) ? 0 : settings.ga * Vx[s2]));
       return v;
     };
     const bestA = (s, Vx) => {
@@ -68,24 +68,24 @@ export default {
       return [b, bv];
     };
     const build = () => {
-      G = gwMake(W[S.w], { slip: S.sl, rs: S.rs });
+      G = gwMake(W[settings.w], { slip: settings.sl, rs: settings.rs });
       V = new Float64Array(G.n);
       Vn = new Float64Array(G.n);
       pol = new Int8Array(G.n).fill(-1);
       order = G.states.filter((s) => !G.term(s));
-      if (S.m === 'pi') for (const s of order) pol[s] = 0;
-      ci = 0;
+      if (settings.m === 'pi') for (const s of order) pol[s] = 0;
+      sweepCellIndex = 0;
       sw = 0;
       DL = [];
-      PCH = [];
-      dcur = 0;
+      policyChangeHistory = [];
+      maxValueChange = 0;
       pch = 0;
       cur = -1;
       fin = false;
-      cu = 0;
+      activeStepIndex = 0;
       evs = 0;
       msg =
-        S.m === 'vi'
+        settings.m === 'vi'
           ? 'Every value is zero and there are no arrows yet. Press One step to recompute one square, or Run.'
           : 'Policy iteration starts from an arbitrary set of arrows: every square says “up”. Press One step for one round of evaluate and improve.';
       eqShow(eq, ['Nothing has been computed yet.'], 0);
@@ -102,16 +102,16 @@ export default {
           b = a;
         }
         L.push(
-          GWS[a] +
+          ACTION_ARROWS[a] +
             ' ' +
-            GWN[a].padEnd(5) +
+            ACTION_NAMES[a].padEnd(5) +
             ': ' +
             O.map(
               ([p, s2]) =>
                 (O.length > 1 ? f2(p) + ' × ' : '') +
                 '(' +
                 rlN(G.rew(s2)) +
-                (G.term(s2) ? '' : ' + ' + f2(S.ga) + ' × ' + rlN(Vx[s2])) +
+                (G.term(s2) ? '' : ' + ' + f2(settings.ga) + ' × ' + rlN(Vx[s2])) +
                 ')' +
                 (O.length > 1 ? '' : '   [lands in ' + G.name(s2) + ']'),
             ).join(' + ') +
@@ -123,7 +123,7 @@ export default {
     };
     const cell = () => {
       if (fin) return;
-      const s = order[ci],
+      const s = order[sweepCellIndex],
         r = lines(
           s,
           V,
@@ -141,13 +141,13 @@ export default {
         pch++;
         pol[s] = r.b;
       }
-      dcur = Math.max(dcur, d);
+      maxValueChange = Math.max(maxValueChange, d);
       cur = s;
       r.L.push(
         'best: ' +
-          GWS[r.b] +
+          ACTION_ARROWS[r.b] +
           ' ' +
-          GWN[r.b] +
+          ACTION_NAMES[r.b] +
           '.  New value of ' +
           G.name(s) +
           ' = <b>' +
@@ -157,31 +157,31 @@ export default {
           ')',
       );
       eqShow(eq, r.L, 0);
-      cu = 2;
+      activeStepIndex = 2;
       msg =
         'Square ' +
         G.name(s) +
         ': the best of its four moves is ' +
-        GWN[r.b] +
+        ACTION_NAMES[r.b] +
         ', worth ' +
         rlN(r.bv) +
         '. Its value changed by ' +
         rlN(d) +
         '.';
-      ci++;
-      if (ci >= order.length) endSweep();
+      sweepCellIndex++;
+      if (sweepCellIndex >= order.length) endSweep();
     };
     const endSweep = () => {
       for (const s of order) V[s] = Vn[s];
       sw++;
-      DL.push(dcur);
-      PCH.push(pch);
-      const d = dcur,
+      DL.push(maxValueChange);
+      policyChangeHistory.push(pch);
+      const d = maxValueChange,
         pc = pch;
-      dcur = 0;
+      maxValueChange = 0;
       pch = 0;
-      ci = 0;
-      cu = 3;
+      sweepCellIndex = 0;
+      activeStepIndex = 3;
       msg =
         'Sweep ' +
         sw +
@@ -200,16 +200,16 @@ export default {
     const sweep = () => {
       if (fin) return;
       while (true) {
-        const s = order[ci],
+        const s = order[sweepCellIndex],
           [b, bv] = bestA(s, V);
-        dcur = Math.max(dcur, Math.abs(bv - V[s]));
+        maxValueChange = Math.max(maxValueChange, Math.abs(bv - V[s]));
         Vn[s] = bv;
         if (pol[s] !== b) {
           pch++;
           pol[s] = b;
         }
-        ci++;
-        if (ci >= order.length) {
+        sweepCellIndex++;
+        if (sweepCellIndex >= order.length) {
           cur = -1;
           endSweep();
           break;
@@ -239,14 +239,14 @@ export default {
           old = pol[s];
         if (qa(s, b, V) > qa(s, old, V) + 1e-9) {
           pol[s] = b;
-          ch.push(G.name(s) + ' ' + GWS[old] + '→' + GWS[b]);
+          ch.push(G.name(s) + ' ' + ACTION_ARROWS[old] + '→' + ACTION_ARROWS[b]);
         }
       }
       sw++;
       DL.push(n);
-      PCH.push(ch.length);
+      policyChangeHistory.push(ch.length);
       cur = -1;
-      cu = 4;
+      activeStepIndex = 4;
       eqShow(
         eq,
         [
@@ -296,137 +296,151 @@ export default {
           rlN(V[sel]) +
           '). Each move is worth reward + γ × value of where it lands:',
       );
-      r.L.push('best: ' + GWS[r.b] + ' ' + GWN[r.b] + ', worth <b>' + rlN(r.bv) + '</b>');
+      r.L.push(
+        'best: ' +
+          ACTION_ARROWS[r.b] +
+          ' ' +
+          ACTION_NAMES[r.b] +
+          ', worth <b>' +
+          rlN(r.bv) +
+          '</b>',
+      );
       eqShow(eq, r.L, 0);
     };
     const draw = () => {
-      const t = T(),
+      const colors = readThemeColors(),
         D = new Float64Array(V);
-      if (S.m === 'vi') for (let i = 0; i < ci; i++) D[order[i]] = Vn[order[i]];
+      if (settings.m === 'vi') for (let i = 0; i < sweepCellIndex; i++) D[order[i]] = Vn[order[i]];
       {
-        const { g, w, h } = fit(c);
-        P = gwDraw(g, t, 6, 6, w - 12, h - 12, G, { V: D, pol, cur, sel });
+        const { g: ctx, w, h } = prepareCanvas(mainCanvas);
+        P = gwDraw(ctx, colors, 6, 6, w - 12, h - 12, G, { V: D, pol, cur, sel });
       }
       {
-        const { g, w, h } = fit(cr);
-        if (S.m === 'vi') {
-          uLine(g, t, 0, 0, w, h / 2, DL, {
+        const { g: ctx, w, h } = prepareCanvas(cr);
+        if (settings.m === 'vi') {
+          drawSeriesChart(ctx, colors, 0, 0, w, h / 2, DL, {
             title: 'largest change in any value, per sweep',
             n: Math.max(12, DL.length),
-            col: t.accent,
+            col: colors.accent,
             dots: DL.length < 50,
             ym: Math.max(1, ...DL),
           });
-          uLine(g, t, 0, h / 2, w, h / 2, PCH, {
+          drawSeriesChart(ctx, colors, 0, h / 2, w, h / 2, policyChangeHistory, {
             title: 'arrows that changed, per sweep',
-            n: Math.max(12, PCH.length),
-            col: t.ok,
-            dots: PCH.length < 50,
-            ym: Math.max(4, ...PCH),
+            n: Math.max(12, policyChangeHistory.length),
+            col: colors.ok,
+            dots: policyChangeHistory.length < 50,
+            ym: Math.max(4, ...policyChangeHistory),
           });
         } else {
-          uLine(g, t, 0, 0, w, h / 2, DL, {
+          drawSeriesChart(ctx, colors, 0, 0, w, h / 2, DL, {
             title: 'evaluation sweeps needed, per round',
             n: Math.max(6, DL.length),
-            col: t.accent,
+            col: colors.accent,
             dots: true,
             ym: Math.max(10, ...DL),
           });
-          uLine(g, t, 0, h / 2, w, h / 2, PCH, {
+          drawSeriesChart(ctx, colors, 0, h / 2, w, h / 2, policyChangeHistory, {
             title: 'arrows that changed, per round',
-            n: Math.max(6, PCH.length),
-            col: t.ok,
+            n: Math.max(6, policyChangeHistory.length),
+            col: colors.ok,
             dots: true,
-            ym: Math.max(4, ...PCH),
+            ym: Math.max(4, ...policyChangeHistory),
           });
         }
-        g.font = MONO;
-        g.fillStyle = t.muted;
-        g.textAlign = 'right';
-        g.fillText(S.m === 'vi' ? 'sweeps →' : 'rounds →', w - 12, h - 5);
+        ctx.font = MONO;
+        ctx.fillStyle = colors.muted;
+        ctx.textAlign = 'right';
+        ctx.fillText(settings.m === 'vi' ? 'sweeps →' : 'rounds →', w - 12, h - 5);
       }
       live.textContent = msg;
-      uCur(root, 'vi', cu);
+      highlightLessonStep(root, 'vi', activeStepIndex);
       let rt = '–';
       if (pol[G.start] >= 0) {
         const Qx = new Float64Array(G.n * 4);
         for (const s of order) if (pol[s] >= 0) Qx[s * 4 + pol[s]] = 1;
         const R = gwRoute(G, Qx, G.start);
         rt = R.ok
-          ? R.acts.map((a) => GWS[a]).join(' ') + ' (' + R.acts.length + ' steps)'
+          ? R.acts.map((a) => ACTION_ARROWS[a]).join(' ') + ' (' + R.acts.length + ' steps)'
           : R.loop
             ? 'goes round in a circle so far'
             : 'ends in the pit';
       }
-      setR(root, 'me', S.m === 'vi' ? 'Value iteration' : 'Policy iteration');
-      setR(
+      setReadout(root, 'me', settings.m === 'vi' ? 'Value iteration' : 'Policy iteration');
+      setReadout(
         root,
         'sw',
-        S.m === 'vi'
+        settings.m === 'vi'
           ? sw + (fin ? ' (converged)' : '')
           : sw + ' rounds, ' + evs + ' evaluation sweeps' + (fin ? ' (converged)' : ''),
       );
-      setR(root, 'dl', S.m === 'vi' && DL.length ? f3(DL[DL.length - 1]) : '–');
-      setR(root, 'vs', rlN(D[G.start]));
-      setR(root, 'rt', rt);
-      setR(root, 'pc', PCH.length ? String(PCH[PCH.length - 1]) : '–');
+      setReadout(root, 'dl', settings.m === 'vi' && DL.length ? f3(DL[DL.length - 1]) : '–');
+      setReadout(root, 'vs', rlN(D[G.start]));
+      setReadout(root, 'rt', rt);
+      setReadout(
+        root,
+        'pc',
+        policyChangeHistory.length
+          ? String(policyChangeHistory[policyChangeHistory.length - 1])
+          : '–',
+      );
     };
     build();
-    if (RM) {
-      while (!fin) S.m === 'vi' ? sweep() : round();
+    if (prefersReducedMotion) {
+      while (!fin) settings.m === 'vi' ? sweep() : round();
     }
     const anim = Anim(() => {
-      fr++;
+      frameCount++;
       if (fin) {
-        pb.stop();
+        playback.stop();
         return;
       }
-      if (S.m === 'vi') {
+      if (settings.m === 'vi') {
         if (sw < 2) {
-          if (fr % 9) return;
+          if (frameCount % 9) return;
           cell();
         } else {
-          if (fr % 10) return;
+          if (frameCount % 10) return;
           sweep();
         }
       } else {
-        if (fr % 70) return;
+        if (frameCount % 70) return;
         round();
       }
       draw();
-      chk();
+      checkRunStop();
     });
-    pb = playBtn($('#vi-play', root), anim);
-    chk = runCtl(pb, root, 'vi', {
+    playback = playBtn($('#vi-play', root), anim);
+    checkRunStop = attachRunLimit(playback, root, 'vi', {
       done: () => fin,
       restart: () => build(),
       count: () => sw,
       what: 'sweeps',
     });
     $('#vi-step', root).onclick = () => {
-      pb.stop();
+      playback.stop();
       if (fin) build();
-      else S.m === 'vi' ? cell() : round();
+      else settings.m === 'vi' ? cell() : round();
       draw();
     };
     $('#vi-reset', root).onclick = () => {
-      pb.stop();
+      playback.stop();
       build();
       draw();
     };
     const re = () => {
-      if (!pb) return;
-      pb.stop();
+      if (!playback) return;
+      playback.stop();
       build();
       draw();
-      pb.start();
+      playback.start();
     };
-    segBind(root, 'vi-m', S.m, (v) => {
-      S.m = v;
+    segBind(root, 'vi-m', settings.m, (v) => {
+      settings.m = v;
       re();
     });
-    segBind(root, 'vi-w', S.w, (v) => {
-      S.w = v;
+    segBind(root, 'vi-w', settings.w, (v) => {
+      settings.w = v;
       sel = -1;
       re();
     });
@@ -434,7 +448,7 @@ export default {
       root,
       'vi-sl',
       (v) => {
-        S.sl = +v;
+        settings.sl = +v;
         re();
       },
       f2,
@@ -443,7 +457,7 @@ export default {
       root,
       'vi-ga',
       (v) => {
-        S.ga = +v;
+        settings.ga = +v;
         re();
       },
       f2,
@@ -452,27 +466,27 @@ export default {
       root,
       'vi-rs',
       (v) => {
-        S.rs = +v;
+        settings.rs = +v;
         re();
       },
       f2,
     );
-    gwClick(c, (x, y) => {
+    gwClick(mainCanvas, (x, y) => {
       if (!P) return;
       const q = P.at(x, y);
       if (q < 0 || G.wall(q) || G.term(q)) return;
-      pb.stop();
+      playback.stop();
       sel = q;
       show();
       draw();
     });
     return {
       draw,
-      stop: () => pb.stop(),
+      stop: () => playback.stop(),
       auto: () => {
         build();
         draw();
-        pb.start();
+        playback.start();
       },
     };
   },

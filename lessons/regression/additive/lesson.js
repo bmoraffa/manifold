@@ -3,22 +3,22 @@ import {
   $,
   Anim,
   MONO,
-  T,
+  readThemeColors,
   bind,
   clamp,
   clipPlot,
   curve,
   f2,
   f3,
-  fit,
+  prepareCanvas,
   markTP,
   mix,
   playBtn,
   plot,
   randnFrom,
   rng,
-  runCtl,
-  setR,
+  attachRunLimit,
+  setReadout,
   testPoint,
 } from '../../../js/core/shared.js';
 import { dot, lsq, splineBasis } from '../shared.js';
@@ -28,37 +28,38 @@ export default {
     const c1 = $('#am-1', root),
       c2 = $('#am-2', root),
       cap = $('#am-cap', root),
-      S = { K: 4, noise: 0.3, r: 0, n: 160, f: 'a' };
+      settings = { K: 4, noise: 0.3, r: 0, n: 160, f: 'a' };
     const TF = {
         a: [(x) => Math.sin(3 * x), (x) => 2 * x * x - 2 / 3],
         b: [(x) => 2 * Math.abs(x) - 1, (x) => 2 * x * x * x],
         c: [(x) => 0, (x) => 0],
       },
-      gen2 = (a, b) => (S.f === 'c' ? 2.2 * a * b : TF[S.f][0](a) + TF[S.f][1](b));
+      gen2 = (a, b) =>
+        settings.f === 'c' ? 2.2 * a * b : TF[settings.f][0](a) + TF[settings.f][1](b);
     let seed = 6,
       pts = [],
       al = 0,
       B = [null, null],
       off = [0, 0],
       G = [new Array(61).fill(0), new Array(61).fill(0)],
-      Gp = [G[0].slice(), G[1].slice()],
-      u = 1,
+      previousCurveSamples = [G[0].slice(), G[1].slice()],
+      curveAnimationProgress = 1,
       turn = 0,
       wait = 0,
-      fr = 0,
-      lin = 0,
+      frameCount = 0,
+      linearTestMse = 0,
       delta = 1,
-      pb;
-    const fj = (j, x) => (B[j] ? dot(B[j], splineBasis('natural', x, S.K)) - off[j] : 0);
+      playback;
+    const fj = (j, x) => (B[j] ? dot(B[j], splineBasis('natural', x, settings.K)) - off[j] : 0);
     const gen = () => {
       const r = rng(seed),
         rn = randnFrom(r),
-        q = Math.sqrt(1 - S.r * S.r);
+        q = Math.sqrt(1 - settings.r * settings.r);
       pts = [];
-      for (let i = 0; i < S.n; i++) {
+      for (let i = 0; i < settings.n; i++) {
         const a = r() * 2 - 1,
-          b = clamp(S.r * a + q * (r() * 2 - 1), -1, 1);
-        pts.push({ x: [a, b], y: gen2(a, b) + S.noise * rn(), test: r() < 0.3 });
+          b = clamp(settings.r * a + q * (r() * 2 - 1), -1, 1);
+        pts.push({ x: [a, b], y: gen2(a, b) + settings.noise * rn(), test: r() < 0.3 });
       }
       const tr = pts.filter((p) => !p.test),
         te = pts.filter((p) => p.test);
@@ -68,7 +69,7 @@ export default {
         tr.map((p) => p.y),
         1e-9,
       );
-      lin = te.length
+      linearTestMse = te.length
         ? te.reduce((s, p) => s + (p.y - bl[0] - bl[1] * p.x[0] - bl[2] * p.x[1]) ** 2, 0) /
           te.length
         : NaN;
@@ -77,8 +78,8 @@ export default {
       B = [null, null];
       off = [0, 0];
       G = [new Array(61).fill(0), new Array(61).fill(0)];
-      Gp = [G[0].slice(), G[1].slice()];
-      u = 1;
+      previousCurveSamples = [G[0].slice(), G[1].slice()];
+      curveAnimationProgress = 1;
       turn = 0;
       wait = 0;
       delta = 1;
@@ -89,17 +90,17 @@ export default {
         tr = pts.filter((p) => !p.test),
         res = tr.map((p) => p.y - al - fj(o, p.x[o]));
       B[j] = lsq(
-        tr.map((p) => splineBasis('natural', p.x[j], S.K)),
+        tr.map((p) => splineBasis('natural', p.x[j], settings.K)),
         res,
         1e-8,
       );
       off[j] = 0;
       off[j] = tr.reduce((s, p) => s + fj(j, p.x[j]), 0) / tr.length;
-      Gp[j] = G[j].slice();
+      previousCurveSamples[j] = G[j].slice();
       G[j] = G[j].map((_, i) => fj(j, -1 + i / 30));
-      delta = Math.max(...G[j].map((v, i) => Math.abs(v - Gp[j][i])));
+      delta = Math.max(...G[j].map((v, i) => Math.abs(v - previousCurveSamples[j][i])));
       turn++;
-      u = 0;
+      curveAnimationProgress = 0;
     };
     gen();
     const tp = testPoint(
@@ -114,50 +115,56 @@ export default {
     );
     tp.on = () => draw();
     const draw = () => {
-      const t = T(),
-        e = u < 0.5 ? 2 * u * u : 1 - 2 * (1 - u) * (1 - u),
+      const colors = readThemeColors(),
+        e =
+          curveAnimationProgress < 0.5
+            ? 2 * curveAnimationProgress * curveAnimationProgress
+            : 1 - 2 * (1 - curveAnimationProgress) * (1 - curveAnimationProgress),
         act = turn ? (turn - 1) % 2 : -1;
       [c1, c2].forEach((c, j) => {
         const o = 1 - j,
-          { g, w, h } = fit(c),
+          { g: ctx, w, h } = prepareCanvas(c),
           YR = [-2.6, 2.6],
-          P = plot(g, w, h, [-1.05, 1.05], YR, t, {
+          P = plot(ctx, w, h, [-1.05, 1.05], YR, colors, {
             yticks: [-2, -1, 0, 1, 2],
             xstep: 0.5,
             xlabel: j ? 'x₂' : 'x₁',
           });
-        clipPlot(g, P);
-        g.fillStyle = mix(t.accent, t.accent, 0, 0.55);
+        clipPlot(ctx, P);
+        ctx.fillStyle = mix(colors.accent, colors.accent, 0, 0.55);
         for (const p of pts)
           if (!p.test) {
-            g.beginPath();
-            g.arc(P.X(p.x[j]), P.Y(p.y - al - fj(o, p.x[o])), 2.8, 0, 7);
-            g.fill();
+            ctx.beginPath();
+            ctx.arc(P.X(p.x[j]), P.Y(p.y - al - fj(o, p.x[o])), 2.8, 0, 7);
+            ctx.fill();
           }
-        if (S.f !== 'c') {
-          g.setLineDash([6, 5]);
-          curve(g, P, TF[S.f][j], -1, 1);
-          g.strokeStyle = t.muted;
-          g.lineWidth = 1.5;
-          g.stroke();
-          g.setLineDash([]);
+        if (settings.f !== 'c') {
+          ctx.setLineDash([6, 5]);
+          curve(ctx, P, TF[settings.f][j], -1, 1);
+          ctx.strokeStyle = colors.muted;
+          ctx.lineWidth = 1.5;
+          ctx.stroke();
+          ctx.setLineDash([]);
         }
-        g.beginPath();
+        ctx.beginPath();
         for (let i = 0; i <= 60; i++) {
-          const v = j === act ? Gp[j][i] + (G[j][i] - Gp[j][i]) * e : G[j][i],
+          const v =
+              j === act
+                ? previousCurveSamples[j][i] + (G[j][i] - previousCurveSamples[j][i]) * e
+                : G[j][i],
             x = P.X(-1 + i / 30),
             y = P.Y(clamp(v, -9, 9));
-          i ? g.lineTo(x, y) : g.moveTo(x, y);
+          i ? ctx.lineTo(x, y) : ctx.moveTo(x, y);
         }
-        g.strokeStyle = j === act ? t.gold : t.ok;
-        g.lineWidth = j === act ? 3.6 : 2.6;
-        g.stroke();
-        markTP(g, P.X(tp.v[j]), P.Y(clamp(fj(j, tp.v[j]), -9, 9)), t, false);
-        g.restore();
-        g.font = MONO;
-        g.textAlign = 'left';
-        g.fillStyle = j === act ? t.cut : t.muted;
-        g.fillText(j === act ? 'being updated' : 'held fixed', P.m.l + 8, P.m.t + 8);
+        ctx.strokeStyle = j === act ? colors.gold : colors.ok;
+        ctx.lineWidth = j === act ? 3.6 : 2.6;
+        ctx.stroke();
+        markTP(ctx, P.X(tp.v[j]), P.Y(clamp(fj(j, tp.v[j]), -9, 9)), colors, false);
+        ctx.restore();
+        ctx.font = MONO;
+        ctx.textAlign = 'left';
+        ctx.fillStyle = j === act ? colors.cut : colors.muted;
+        ctx.fillText(j === act ? 'being updated' : 'held fixed', P.m.l + 8, P.m.t + 8);
       });
       const tr = pts.filter((p) => !p.test),
         te = pts.filter((p) => p.test),
@@ -195,16 +202,16 @@ export default {
           f2(gen2(tp.v[0], tp.v[1])) +
           '.';
       }
-      setR(root, 'it', String(turn));
-      setR(root, 'tr', f3(er(tr)));
-      setR(root, 'te', f3(er(te)));
-      setR(root, 'lin', f3(lin));
-      setR(root, 's2', f3(S.noise * S.noise));
+      setReadout(root, 'it', String(turn));
+      setReadout(root, 'tr', f3(er(tr)));
+      setReadout(root, 'te', f3(er(te)));
+      setReadout(root, 'lin', f3(linearTestMse));
+      setReadout(root, 's2', f3(settings.noise * settings.noise));
     };
     const anim = Anim(() => {
-      fr++;
-      if (u < 1) {
-        u = Math.min(1, u + 0.03);
+      frameCount++;
+      if (curveAnimationProgress < 1) {
+        curveAnimationProgress = Math.min(1, curveAnimationProgress + 0.03);
         draw();
         return;
       }
@@ -216,20 +223,20 @@ export default {
         }
         return;
       }
-      if (fr % 50) return;
+      if (frameCount % 50) return;
       if ((turn >= 2 && delta < 0.004) || turn >= 30) {
         fin = true;
-        pb.stop();
+        playback.stop();
         return;
       }
       takeTurn();
       draw();
-      chk();
+      checkRunStop();
     });
     let fin = false,
-      chk = () => false;
-    pb = playBtn($('#am-play', root), anim);
-    chk = runCtl(pb, root, 'am', {
+      checkRunStop = () => false;
+    playback = playBtn($('#am-play', root), anim);
+    checkRunStop = attachRunLimit(playback, root, 'am', {
       done: () => fin,
       restart: () => {
         fin = false;
@@ -239,13 +246,13 @@ export default {
       what: 'turns',
     });
     $('#am-step', root).onclick = () => {
-      pb.stop();
+      playback.stop();
       takeTurn();
-      u = 1;
+      curveAnimationProgress = 1;
       draw();
     };
     $('#am-reset', root).onclick = () => {
-      pb.stop();
+      playback.stop();
       reset();
       draw();
     };
@@ -258,29 +265,29 @@ export default {
       root,
       'am-k',
       (v) => {
-        S.K = v;
+        settings.K = v;
         reset();
         draw();
       },
       (v) => String(v),
     );
     $('#am-f', root).onchange = (e) => {
-      S.f = e.target.value;
+      settings.f = e.target.value;
       re();
     };
     bind(root, 'am-s', (v) => {
-      S.noise = v;
+      settings.noise = v;
       re();
     });
     bind(root, 'am-r', (v) => {
-      S.r = v;
+      settings.r = v;
       re();
     });
     bind(
       root,
       'am-n',
       (v) => {
-        S.n = v;
+        settings.n = v;
         re();
       },
       (v) => String(v),
@@ -289,6 +296,6 @@ export default {
       seed++;
       re();
     };
-    return { draw, stop: () => pb.stop(), auto: () => pb.start() };
+    return { draw, stop: () => playback.stop(), auto: () => playback.start() };
   },
 };

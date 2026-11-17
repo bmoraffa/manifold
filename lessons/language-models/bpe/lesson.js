@@ -3,20 +3,20 @@ import {
   $,
   Anim,
   MONO,
-  RM,
-  T,
+  prefersReducedMotion,
+  readThemeColors,
   f2,
-  fit,
+  prepareCanvas,
   mix,
   playBtn,
-  runCtl,
-  setR,
+  attachRunLimit,
+  setReadout,
 } from '../../../js/core/shared.js';
-import { UC, uCur, uLine } from '../../unsupervised/shared.js';
+import { UC, highlightLessonStep, drawSeriesChart } from '../../unsupervised/shared.js';
 
 export default {
   init(root) {
-    const c = $('#bp-c', root),
+    const mainCanvas = $('#bp-c', root),
       cr = $('#bp-r', root),
       live = $('#bp-live', root),
       ta = $('#bp-text', root),
@@ -29,20 +29,20 @@ export default {
       base = [],
       merges = [],
       vocab = [],
-      NT = [],
-      VS = [],
+      tokenCountHistory = [],
+      vocabSizeHistory = [],
       pairs = [],
       nch = 0,
       msg = '',
-      cu = 0,
-      fr = 0,
-      pb,
-      chk = () => false,
+      activeStepIndex = 0,
+      frameCount = 0,
+      playback,
+      checkRunStop = () => false,
       fin = false,
       tv = 0,
       tvd = -1,
       flash = '';
-    const pre = (txt) => {
+    const pretokenize = (txt) => {
       const o = [];
       const re = /([a-zà-ÿ0-9']+)|([^\sa-zà-ÿ0-9'])/g;
       let m;
@@ -76,7 +76,7 @@ export default {
       return o;
     };
     const load = (txt) => {
-      const P = pre(txt);
+      const P = pretokenize(txt);
       if (P.length < 8)
         return 'That text is too short to learn from. Use at least a few sentences.';
       const M = new Map();
@@ -91,11 +91,11 @@ export default {
       vocab = base.slice();
       merges = [];
       nch = total();
-      NT = [nch];
-      VS = [vocab.length];
+      tokenCountHistory = [nch];
+      vocabSizeHistory = [vocab.length];
       pairs = count();
       fin = false;
-      cu = 0;
+      activeStepIndex = 0;
       flash = '';
       tv++;
       msg =
@@ -114,7 +114,7 @@ export default {
       const p = pairs[0];
       if (!p || p.n < 2) {
         fin = true;
-        cu = 4;
+        activeStepIndex = 4;
         msg =
           'No pair of neighbouring tokens occurs more than once any more, so merging further would only memorise single words. Finished with ' +
           merges.length +
@@ -128,10 +128,10 @@ export default {
       for (const w of words) w.sym = apply(w.sym, p.a, p.b);
       merges.push(p);
       vocab.push(p.a + p.b);
-      NT.push(total());
-      VS.push(vocab.length);
+      tokenCountHistory.push(total());
+      vocabSizeHistory.push(vocab.length);
       flash = p.a + p.b;
-      cu = 2;
+      activeStepIndex = 2;
       tv++;
       const ex = words
         .filter((w) => w.sym.includes(flash))
@@ -152,13 +152,13 @@ export default {
         '”. It appears in: ' +
         ex.join(', ') +
         '. The text went from ' +
-        NT[NT.length - 2] +
+        tokenCountHistory[tokenCountHistory.length - 2] +
         ' tokens to ' +
-        NT[NT.length - 1] +
+        tokenCountHistory[tokenCountHistory.length - 1] +
         '.';
     };
     const encode = (txt) =>
-      pre(txt).map((w) => {
+      pretokenize(txt).map((w) => {
         let s = [...w];
         for (const m of merges) s = apply(s, m.a, m.b);
         return s;
@@ -179,15 +179,15 @@ export default {
       );
     };
     const tryIt = () => {
-      const t = T(),
-        col = UC(t),
+      const colors = readThemeColors(),
+        col = UC(colors),
         v = $('#bp-try', root).value,
         E = encode(v),
         flat = E.flat(),
         ids = flat.map((k) => vocab.indexOf(k)),
         unk = ids.filter((i) => i < 0).length;
       $('#bp-tryout', root).innerHTML = flat.length
-        ? E.map((s) => s.map((k) => chip(k, t, col)).join('')).join(
+        ? E.map((s) => s.map((k) => chip(k, colors, col)).join('')).join(
             '<span style="padding:0 3px"></span>',
           )
         : '';
@@ -212,18 +212,18 @@ export default {
         : 'Type a sentence above.';
     };
     const draw = () => {
-      const t = T(),
-        col = UC(t);
+      const colors = readThemeColors(),
+        col = UC(colors);
       {
-        const { g, w, h } = fit(c),
+        const { g: ctx, w, h } = prepareCanvas(mainCanvas),
           P = pairs.slice(0, 12),
           mx = Math.max(1, ...P.map((p) => p.n)),
           rh = Math.min(30, (h - 34) / 12),
           x0 = 118;
-        g.font = MONO;
-        g.fillStyle = t.muted;
-        g.textAlign = 'left';
-        g.fillText(
+        ctx.font = MONO;
+        ctx.fillStyle = colors.muted;
+        ctx.textAlign = 'left';
+        ctx.fillText(
           fin
             ? 'the most frequent pairs that remain: none occurs twice'
             : 'pair of neighbouring tokens, and how many times it occurs',
@@ -234,50 +234,50 @@ export default {
           const y = 24 + i * rh,
             bw = ((w - x0 - 46) * p.n) / mx,
             win = i === 0 && !fin && p.n > 1;
-          g.fillStyle = win ? t.gold : mix(t.accent, t.accent, 0, 0.7);
-          g.fillRect(x0, y + 3, Math.max(1, bw), rh - 7);
-          g.fillStyle = win ? t.cut : t.ink;
-          g.textAlign = 'right';
-          g.font = '12px ' + MONO.split('px ')[1];
-          g.fillText(p.a + ' + ' + p.b, x0 - 8, y + rh / 2 + 4);
-          g.textAlign = 'left';
-          g.font = MONO;
-          g.fillStyle = t.muted;
-          g.fillText(String(p.n), x0 + bw + 6, y + rh / 2 + 4);
+          ctx.fillStyle = win ? colors.gold : mix(colors.accent, colors.accent, 0, 0.7);
+          ctx.fillRect(x0, y + 3, Math.max(1, bw), rh - 7);
+          ctx.fillStyle = win ? colors.cut : colors.ink;
+          ctx.textAlign = 'right';
+          ctx.font = '12px ' + MONO.split('px ')[1];
+          ctx.fillText(p.a + ' + ' + p.b, x0 - 8, y + rh / 2 + 4);
+          ctx.textAlign = 'left';
+          ctx.font = MONO;
+          ctx.fillStyle = colors.muted;
+          ctx.fillText(String(p.n), x0 + bw + 6, y + rh / 2 + 4);
         });
         if (!P.length) {
-          g.fillStyle = t.muted;
-          g.textAlign = 'center';
-          g.fillText('every word is a single token: there are no pairs left', w / 2, h / 2);
+          ctx.fillStyle = colors.muted;
+          ctx.textAlign = 'center';
+          ctx.fillText('every word is a single token: there are no pairs left', w / 2, h / 2);
         }
       }
       {
-        const { g, w, h } = fit(cr),
-          n = Math.max(12, NT.length);
-        uLine(g, t, 0, 0, w, h / 2, NT, {
+        const { g: ctx, w, h } = prepareCanvas(cr),
+          n = Math.max(12, tokenCountHistory.length);
+        drawSeriesChart(ctx, colors, 0, 0, w, h / 2, tokenCountHistory, {
           title: 'tokens needed to write the whole training text',
           n,
-          col: t.accent,
+          col: colors.accent,
           ym: nch,
-          dots: NT.length < 70,
+          dots: tokenCountHistory.length < 70,
         });
-        uLine(g, t, 0, h / 2, w, h / 2, VS, {
+        drawSeriesChart(ctx, colors, 0, h / 2, w, h / 2, vocabSizeHistory, {
           title: 'different tokens in the vocabulary',
           n,
-          col: t.ok,
-          ym: Math.max(base.length + 12, VS[VS.length - 1]),
-          dots: VS.length < 70,
+          col: colors.ok,
+          ym: Math.max(base.length + 12, vocabSizeHistory[vocabSizeHistory.length - 1]),
+          dots: vocabSizeHistory.length < 70,
         });
-        g.font = MONO;
-        g.fillStyle = t.muted;
-        g.textAlign = 'right';
-        g.fillText('merges →', w - 12, h - 5);
+        ctx.font = MONO;
+        ctx.fillStyle = colors.muted;
+        ctx.textAlign = 'right';
+        ctx.fillText('merges →', w - 12, h - 5);
       }
       if (tvd !== tv) {
         tvd = tv;
         const cur = new Map(words.map((w) => [w.w, w.sym]));
         chips.innerHTML = order
-          .map((w) => (cur.get(w) || [...w]).map((k) => chip(k, t, col)).join(''))
+          .map((w) => (cur.get(w) || [...w]).map((k) => chip(k, colors, col)).join(''))
           .join('<span style="padding:0 3px"></span>');
         const tb = $('#bp-tab', root);
         tb.innerHTML = !merges.length
@@ -311,14 +311,14 @@ export default {
         tryIt();
       }
       live.textContent = msg;
-      uCur(root, 'bp', cu);
-      const tot = NT[NT.length - 1];
-      setR(root, 'm', String(merges.length));
-      setR(root, 'v', String(vocab.length));
-      setR(root, 'n', tot + ' (from ' + nch + ')');
-      setR(root, 'cpt', f2(nch / tot));
-      setR(root, 'last', merges.length ? flash : '–');
-      setR(
+      highlightLessonStep(root, 'bp', activeStepIndex);
+      const tot = tokenCountHistory[tokenCountHistory.length - 1];
+      setReadout(root, 'm', String(merges.length));
+      setReadout(root, 'v', String(vocab.length));
+      setReadout(root, 'n', tot + ' (from ' + nch + ')');
+      setReadout(root, 'cpt', f2(nch / tot));
+      setReadout(root, 'last', merges.length ? flash : '–');
+      setReadout(
         root,
         'long',
         vocab.reduce((a, b) => (b.length > a.length ? b : a), ''),
@@ -327,14 +327,14 @@ export default {
     ta.value = DEF;
     load(DEF);
     const anim = Anim(() => {
-      fr++;
-      if (fr % (merges.length < 8 ? 40 : 14)) return;
+      frameCount++;
+      if (frameCount % (merges.length < 8 ? 40 : 14)) return;
       step();
       draw();
-      chk();
+      checkRunStop();
     });
-    pb = playBtn($('#bp-play', root), anim);
-    chk = runCtl(pb, root, 'bp', {
+    playback = playBtn($('#bp-play', root), anim);
+    checkRunStop = attachRunLimit(playback, root, 'bp', {
       done: () => fin,
       restart: () => {
         if (load(ta.value)) {
@@ -346,18 +346,18 @@ export default {
       what: 'merges',
     });
     $('#bp-step', root).onclick = () => {
-      pb.stop();
+      playback.stop();
       if (fin) load(ta.value);
       else step();
       draw();
     };
     $('#bp-reset', root).onclick = () => {
-      pb.stop();
+      playback.stop();
       load(ta.value);
       draw();
     };
     $('#bp-use', root).onclick = () => {
-      pb.stop();
+      playback.stop();
       const e = load(ta.value);
       if (e) {
         st.textContent = e;
@@ -367,16 +367,16 @@ export default {
       draw();
     };
     $('#bp-try', root).addEventListener('input', tryIt);
-    if (RM) {
+    if (prefersReducedMotion) {
       while (!fin) step();
     }
     return {
       draw,
-      stop: () => pb.stop(),
+      stop: () => playback.stop(),
       auto: () => {
         load(ta.value);
         draw();
-        pb.start();
+        playback.start();
       },
     };
   },

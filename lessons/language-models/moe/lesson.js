@@ -3,30 +3,30 @@ import {
   $,
   Anim,
   MONO,
-  RM,
-  T,
+  prefersReducedMotion,
+  readThemeColors,
   bind,
   f2,
   f3,
-  fit,
+  prepareCanvas,
   markTP,
   mix,
   playBtn,
   randnFrom,
   rng,
-  runCtl,
-  setR,
+  attachRunLimit,
+  setReadout,
   testPoint,
 } from '../../../js/core/shared.js';
-import { UC, segBind, uCur, uLine } from '../../unsupervised/shared.js';
+import { UC, segBind, highlightLessonStep, drawSeriesChart } from '../../unsupervised/shared.js';
 import { pct } from '../../ensembles/shared.js';
 
 export default {
   init(root) {
-    const c = $('#me-c', root),
+    const mainCanvas = $('#me-c', root),
       cr = $('#me-r', root),
       live = $('#me-live', root),
-      S = { K: 3, rt: 'soft', ds: 'three', seed: 1 },
+      settings = { K: 3, rt: 'soft', ds: 'three', seed: 1 },
       N = 160,
       MAXS = 4000;
     let P = [],
@@ -36,12 +36,12 @@ export default {
       ts = 0,
       LL = [],
       msg = '',
-      cu = 0,
-      fr = 0,
-      pb,
-      chk = () => false,
+      activeStepIndex = 0,
+      frameCount = 0,
+      playback,
+      checkRunStop = () => false,
       fin = false,
-      e1 = NaN,
+      singleLineMse = NaN,
       run = 1;
     const F = {
       three: (x) => (x < -1 ? x + 2.5 : x < 1 ? -1.2 * x + 0.3 : 0.4 * x - 1.3),
@@ -53,11 +53,11 @@ export default {
       wave: (x) => 1.3 * Math.sin(1.5 * x),
     };
     const gen = () => {
-      const r = rng(S.seed * 31 + 7),
+      const r = rng(settings.seed * 31 + 7),
         rn = randnFrom(r);
       P = Array.from({ length: N }, () => {
         const x = -3 + 6 * r();
-        return [x, F[S.ds](x) + 0.12 * rn()];
+        return [x, F[settings.ds](x) + 0.12 * rn()];
       });
       let sx = 0,
         sy = 0,
@@ -71,10 +71,10 @@ export default {
       }
       const a = (N * sxy - sx * sy) / (N * sxx - sx * sx),
         b = (sy - a * sx) / N;
-      e1 = P.reduce((s, p) => s + (a * p[0] + b - p[1]) ** 2, 0) / N;
+      singleLineMse = P.reduce((s, p) => s + (a * p[0] + b - p[1]) ** 2, 0) / N;
     };
-    const init0 = () => {
-      const K = S.K,
+    const resetExperts = () => {
+      const K = settings.K,
         rn = randnFrom(rng(run * 19 + K));
       th = new Float64Array(4 * K);
       for (let k = 0; k < K; k++) {
@@ -88,7 +88,7 @@ export default {
       ts = 0;
       LL = [];
       fin = false;
-      cu = 0;
+      activeStepIndex = 0;
       msg =
         K +
         ' expert' +
@@ -98,7 +98,7 @@ export default {
         '. Press Run.';
     };
     const gate = (x, g) => {
-      const K = S.K;
+      const K = settings.K;
       let mx = -1e30;
       for (let k = 0; k < K; k++) {
         g[k] = th[4 * k + 2] * x + th[4 * k + 3];
@@ -113,7 +113,7 @@ export default {
       return g;
     };
     const out = (x, hard) => {
-      const K = S.K,
+      const K = settings.K,
         g = gate(x, new Float64Array(K));
       if (hard) {
         let b = 0;
@@ -125,8 +125,8 @@ export default {
       return y;
     };
     const err = (hard) => P.reduce((s, p) => s + (out(p[0], hard) - p[1]) ** 2, 0) / N;
-    const load = () => {
-      const K = S.K,
+    const computeExpertLoad = () => {
+      const K = settings.K,
         L = new Float64Array(K),
         g = new Float64Array(K);
       for (const p of P) {
@@ -136,7 +136,7 @@ export default {
       return L;
     };
     const train = (n) => {
-      const K = S.K,
+      const K = settings.K,
         G = new Float64Array(4 * K),
         g = new Float64Array(K);
       for (let q = 0; q < n && !fin; q++) {
@@ -174,18 +174,18 @@ export default {
         )
           fin = true;
       }
-      const Ld = load(),
+      const Ld = computeExpertLoad(),
         top = Array.from(Ld)
           .map((v, k) => [v, k])
           .sort((a, b) => b[0] - a[0]);
-      cu = fin ? 5 : 1 + (Math.floor(ts / 40) % 4);
+      activeStepIndex = fin ? 5 : 1 + (Math.floor(ts / 40) % 4);
       msg =
         'Step ' +
         ts +
         ': the mixture’s error is ' +
         f3(LL[ts - 1]) +
         ' (one straight line alone: ' +
-        f3(e1) +
+        f3(singleLineMse) +
         '). ' +
         (K > 1
           ? 'Expert ' +
@@ -209,7 +209,7 @@ export default {
           ', top-expert-only error ' +
           f3(err(true)) +
           ', one line alone ' +
-          f3(e1) +
+          f3(singleLineMse) +
           '. ' +
           act +
           ' of ' +
@@ -221,22 +221,22 @@ export default {
     };
     const tp = testPoint(root, 'me', ['Your x'], [0.5], [[-3, 3]]);
     const draw = () => {
-      const t = T(),
-        col = UC(t),
-        K = S.K,
+      const colors = readThemeColors(),
+        col = UC(colors),
+        K = settings.K,
         g = new Float64Array(K),
-        hard = S.rt === 'hard';
+        hard = settings.rt === 'hard';
       {
-        const { g: G, w, h } = fit(c),
+        const { g: G, w, h } = prepareCanvas(mainCanvas),
           X = (x) => 30 + ((x + 3) / 6) * (w - 50),
           Y = (y) => h / 2 - (y * (h - 50)) / 4.6;
-        G.strokeStyle = t.line;
+        G.strokeStyle = colors.line;
         G.lineWidth = 1;
         G.beginPath();
         G.moveTo(X(-3), Y(0));
         G.lineTo(X(3), Y(0));
         G.stroke();
-        G.fillStyle = mix(t.ink, t.ink, 0, 0.4);
+        G.fillStyle = mix(colors.ink, colors.ink, 0, 0.4);
         for (const p of P) {
           G.beginPath();
           G.arc(X(p[0]), Y(p[1]), 2.6, 0, 7);
@@ -256,7 +256,7 @@ export default {
             G.stroke();
           }
         }
-        G.strokeStyle = t.ink;
+        G.strokeStyle = colors.ink;
         G.lineWidth = 2;
         G.setLineDash(hard ? [] : []);
         G.beginPath();
@@ -266,14 +266,14 @@ export default {
           i ? G.lineTo(X(x), Y(y)) : G.moveTo(X(x), Y(y));
         }
         G.stroke();
-        markTP(G, X(tp.v[0]), Y(out(tp.v[0], hard)), t);
+        markTP(G, X(tp.v[0]), Y(out(tp.v[0], hard)), colors);
         G.font = MONO;
         G.textAlign = 'left';
         for (let k = 0; k < K; k++) {
           G.fillStyle = col[k % 8];
           G.fillText('expert ' + (k + 1), 10 + k * 74, 14);
         }
-        G.fillStyle = t.muted;
+        G.fillStyle = colors.muted;
         G.fillText(
           'thick line: ' +
             (hard ? 'the top expert’s answer at each x' : 'all experts blended by their shares'),
@@ -282,13 +282,13 @@ export default {
         );
       }
       {
-        const { g: G, w, h } = fit(cr),
+        const { g: G, w, h } = prepareCanvas(cr),
           h1 = h * 0.34,
           h2 = h * 0.24,
           m = { l: 44, r: 12 },
           X = (x) => m.l + ((x + 3) / 6) * (w - m.l - m.r);
         G.font = MONO;
-        G.fillStyle = t.muted;
+        G.fillStyle = colors.muted;
         G.textAlign = 'left';
         G.fillText('the router’s shares at every input x: who is in charge where', 8, 13);
         const NS = 140,
@@ -308,28 +308,28 @@ export default {
             acc += g[k];
           }
         }
-        G.fillStyle = t.muted;
+        G.fillStyle = colors.muted;
         G.textAlign = 'left';
         G.fillText('x = −3', m.l, y0 + H + 12);
         G.textAlign = 'right';
         G.fillText('x = 3', w - m.r, y0 + H + 12);
         const tx = X(tp.v[0]);
-        G.strokeStyle = t.ink;
+        G.strokeStyle = colors.ink;
         G.lineWidth = 1.5;
         G.beginPath();
         G.moveTo(tx, y0 - 3);
         G.lineTo(tx, y0 + H + 3);
         G.stroke();
-        const Ld = load(),
+        const Ld = computeExpertLoad(),
           yb0 = h1 + 20,
           bh = Math.min(16, (h2 - 24) / K);
-        G.fillStyle = t.muted;
+        G.fillStyle = colors.muted;
         G.textAlign = 'left';
         G.fillText('share of the data each expert handles', 8, h1 + 13);
         for (let k = 0; k < K; k++) {
           G.fillStyle = col[k % 8];
           G.fillRect(m.l, yb0 + k * bh + 1, Math.max(1, (w - m.l - 70) * Ld[k]), bh - 3);
-          G.fillStyle = t.muted;
+          G.fillStyle = colors.muted;
           G.textAlign = 'right';
           G.fillText(String(k + 1), m.l - 6, yb0 + k * bh + bh - 4);
           G.textAlign = 'left';
@@ -339,35 +339,35 @@ export default {
             yb0 + k * bh + bh - 4,
           );
         }
-        const Lp = uLine(
+        const Lp = drawSeriesChart(
           G,
-          t,
+          colors,
           0,
           h1 + h2,
           w,
           h - h1 - h2,
-          LL.map((v) => Math.min(v, e1 * 1.25)),
+          LL.map((v) => Math.min(v, singleLineMse * 1.25)),
           {
             title: 'error of the mixture (mean squared)',
             n: Math.max(300, LL.length),
-            col: t.ok,
-            ym: e1 * 1.25,
+            col: colors.ok,
+            ym: singleLineMse * 1.25,
           },
         );
         G.setLineDash([5, 4]);
-        G.strokeStyle = t.gold;
+        G.strokeStyle = colors.gold;
         G.lineWidth = 1.3;
         G.beginPath();
-        G.moveTo(Lp.m.l, Lp.Y(e1));
-        G.lineTo(w - Lp.m.r, Lp.Y(e1));
+        G.moveTo(Lp.m.l, Lp.Y(singleLineMse));
+        G.lineTo(w - Lp.m.r, Lp.Y(singleLineMse));
         G.stroke();
         G.setLineDash([]);
-        G.fillStyle = t.cut;
+        G.fillStyle = colors.cut;
         G.textAlign = 'right';
-        G.fillText('one straight line alone', w - Lp.m.r, Lp.Y(e1) + 13);
+        G.fillText('one straight line alone', w - Lp.m.r, Lp.Y(singleLineMse) + 13);
       }
       live.textContent = msg;
-      uCur(root, 'me', cu);
+      highlightLessonStep(root, 'me', activeStepIndex);
       gate(tp.v[0], g);
       let b = 0;
       for (let k = 1; k < K; k++) if (g[k] > g[b]) b = k;
@@ -383,100 +383,100 @@ export default {
         '. All experts blended answer ' +
         f2(out(tp.v[0], false)) +
         '. The curve the data was drawn from is at ' +
-        f2(F[S.ds](tp.v[0])) +
+        f2(F[settings.ds](tp.v[0])) +
         '.';
-      const Ld = load();
-      setR(root, 'ts', String(ts) + (fin ? ' (stopped)' : ''));
-      setR(root, 'e', ts ? f3(err(false)) : '–');
-      setR(root, 'eh', ts ? f3(err(true)) : '–');
-      setR(root, 'e1', f3(e1));
-      setR(root, 'act', Array.from(Ld).filter((v) => v >= 0.05).length + ' of ' + K);
-      setR(root, 'fr', '1 of ' + K + ' (' + pct(1 / K) + ')');
+      const Ld = computeExpertLoad();
+      setReadout(root, 'ts', String(ts) + (fin ? ' (stopped)' : ''));
+      setReadout(root, 'e', ts ? f3(err(false)) : '–');
+      setReadout(root, 'eh', ts ? f3(err(true)) : '–');
+      setReadout(root, 'e1', f3(singleLineMse));
+      setReadout(root, 'act', Array.from(Ld).filter((v) => v >= 0.05).length + ' of ' + K);
+      setReadout(root, 'fr', '1 of ' + K + ' (' + pct(1 / K) + ')');
     };
     tp.on = () => draw();
     gen();
-    init0();
-    if (RM) {
+    resetExperts();
+    if (prefersReducedMotion) {
       while (!fin) train(50);
     }
     const anim = Anim(() => {
-      fr++;
+      frameCount++;
       if (fin) {
-        pb.stop();
+        playback.stop();
         return;
       }
-      train(Math.min(ts < 120 ? 1 : ts < 600 ? 4 : 12, chk.remaining()));
+      train(Math.min(ts < 120 ? 1 : ts < 600 ? 4 : 12, checkRunStop.remaining()));
       draw();
-      chk();
+      checkRunStop();
     });
-    pb = playBtn($('#me-play', root), anim);
-    chk = runCtl(pb, root, 'me', {
+    playback = playBtn($('#me-play', root), anim);
+    checkRunStop = attachRunLimit(playback, root, 'me', {
       done: () => fin,
       restart: () => {
         run++;
-        init0();
+        resetExperts();
       },
       count: () => ts,
       what: 'training steps',
     });
     $('#me-step', root).onclick = () => {
-      pb.stop();
+      playback.stop();
       if (fin) {
         run++;
-        init0();
+        resetExperts();
       } else train(20);
       draw();
     };
     $('#me-reset', root).onclick = () => {
-      pb.stop();
+      playback.stop();
       run++;
-      init0();
+      resetExperts();
       draw();
     };
     bind(
       root,
       'me-K',
       (v) => {
-        S.K = +v;
-        if (!pb) return;
-        pb.stop();
+        settings.K = +v;
+        if (!playback) return;
+        playback.stop();
         run++;
-        init0();
+        resetExperts();
         draw();
-        pb.start();
+        playback.start();
       },
       (v) => String(v),
     );
-    segBind(root, 'me-rt', S.rt, (v) => {
-      S.rt = v;
+    segBind(root, 'me-rt', settings.rt, (v) => {
+      settings.rt = v;
       draw();
     });
     $('#me-ds', root).onchange = (e) => {
-      S.ds = e.target.value;
-      pb.stop();
+      settings.ds = e.target.value;
+      playback.stop();
       gen();
       run++;
-      init0();
+      resetExperts();
       draw();
-      pb.start();
+      playback.start();
     };
     $('#me-new', root).onclick = () => {
-      pb.stop();
-      S.seed++;
+      playback.stop();
+      settings.seed++;
       gen();
       run++;
-      init0();
+      resetExperts();
       draw();
-      pb.start();
+      playback.start();
     };
     return {
       draw,
-      stop: () => pb.stop(),
+      stop: () => playback.stop(),
       auto: () => {
         run++;
-        init0();
+        resetExperts();
         draw();
-        pb.start();
+        playback.start();
       },
     };
   },

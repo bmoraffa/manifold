@@ -3,54 +3,62 @@ import {
   $,
   Anim,
   MONO,
-  T,
+  readThemeColors,
   bind,
   f2,
-  fit,
+  prepareCanvas,
   markTP,
   mix,
   playBtn,
   rng,
-  runCtl,
-  setR,
+  attachRunLimit,
+  setReadout,
   testPoint,
 } from '../../../js/core/shared.js';
-import { UC, d2, uCur, uDataBind, uFrame, uLine, uView } from '../shared.js';
+import {
+  UC,
+  d2,
+  highlightLessonStep,
+  uDataBind,
+  uFrame,
+  drawSeriesChart,
+  uView,
+} from '../shared.js';
 
 export default {
   init(root) {
     const c = $('#db-c', root),
       cr = $('#db-r', root),
       live = $('#db-live', root),
-      S = { eps: 0.3, m: 5, ds: 'moons', n: 220, seed: 2, bg: 14 };
+      settings = { eps: 0.3, m: 5, ds: 'moons', n: 220, seed: 2, bg: 14 };
     let P = [],
       lab = [],
-      typ = [],
+      pointTypes = [],
       inQ = [],
       queue = [],
       order = [],
       scan = 0,
       nc = 0,
-      curC = -1,
-      cur = -1,
+      activeClusterId = -1,
+      currentPointIndex = -1,
       nb = [],
       done = false,
       vis = 0,
       msg = '',
-      cu = 0,
+      activeStepIndex = 0,
       wait = 0,
-      fr = 0,
-      pb,
+      frameCount = 0,
+      playback,
       kd = [],
       run = 1;
     const nbr = (x, y) => {
-      const e2 = S.eps * S.eps,
+      const e2 = settings.eps * settings.eps,
         o = [];
       for (let j = 0; j < P.length; j++) if ((P[j].x - x) ** 2 + (P[j].y - y) ** 2 <= e2) o.push(j);
       return o;
     };
     const kdist = () => {
-      const k = Math.min(S.m, P.length) - 1;
+      const k = Math.min(settings.m, P.length) - 1;
       kd = P.map((p) => {
         const d = P.map((q) => d2(p, q)).sort((a, b) => a - b);
         return Math.sqrt(d[Math.max(0, k)]);
@@ -60,7 +68,7 @@ export default {
       const n = P.length,
         r = rng(60 + run * 3);
       lab = new Array(n).fill(-2);
-      typ = new Array(n).fill(0);
+      pointTypes = new Array(n).fill(0);
       inQ = new Array(n).fill(0);
       queue = [];
       order = P.map((_, i) => i);
@@ -70,12 +78,12 @@ export default {
       }
       scan = 0;
       nc = 0;
-      curC = -1;
-      cur = -1;
+      activeClusterId = -1;
+      currentPointIndex = -1;
       nb = [];
       done = false;
       vis = 0;
-      cu = -1;
+      activeStepIndex = -1;
       wait = 0;
       msg = 'No point has been visited yet. Press Run or One point.';
     };
@@ -88,26 +96,26 @@ export default {
       while (queue.length) {
         const q = queue.shift();
         if (lab[q] >= 0) continue;
-        cur = q;
+        currentPointIndex = q;
         nb = nbr(P[q].x, P[q].y);
-        cu = 3;
+        activeStepIndex = 3;
         if (lab[q] === -1) {
-          lab[q] = curC;
-          typ[q] = 2;
+          lab[q] = activeClusterId;
+          pointTypes[q] = 2;
           msg =
             'This point was marked as noise earlier, but it lies within ε of a core point of cluster ' +
-            (curC + 1) +
+            (activeClusterId + 1) +
             '. It becomes a border point of that cluster.' +
             (queue.length
               ? ''
-              : ' The queue is now empty: cluster ' + (curC + 1) + ' is complete.');
-          if (!queue.length) cu = 4;
+              : ' The queue is now empty: cluster ' + (activeClusterId + 1) + ' is complete.');
+          if (!queue.length) activeStepIndex = 4;
           return;
         }
-        lab[q] = curC;
+        lab[q] = activeClusterId;
         vis++;
-        if (nb.length >= S.m) {
-          typ[q] = 1;
+        if (nb.length >= settings.m) {
+          pointTypes[q] = 1;
           let add = 0;
           for (const j of nb)
             if ((lab[j] === -2 || lab[j] === -1) && !inQ[j]) {
@@ -117,11 +125,11 @@ export default {
             }
           msg =
             'Growing cluster ' +
-            (curC + 1) +
+            (activeClusterId + 1) +
             ': this point has ' +
             nb.length +
             ' points within ε, at least minPts = ' +
-            S.m +
+            settings.m +
             ', so it is a core point. ' +
             add +
             ' new neighbour' +
@@ -130,30 +138,30 @@ export default {
             queue.length +
             '.';
         } else {
-          typ[q] = 2;
+          pointTypes[q] = 2;
           msg =
             'Growing cluster ' +
-            (curC + 1) +
+            (activeClusterId + 1) +
             ': this point has only ' +
             nb.length +
             ' points within ε, fewer than minPts = ' +
-            S.m +
+            settings.m +
             '. It joins the cluster as a border point, and the cluster does not spread through it. ' +
             queue.length +
             ' left in the queue.';
         }
         if (!queue.length) {
-          msg += ' The queue is empty: cluster ' + (curC + 1) + ' is complete.';
-          cu = 4;
+          msg += ' The queue is empty: cluster ' + (activeClusterId + 1) + ' is complete.';
+          activeStepIndex = 4;
         }
         return;
       }
       while (scan < order.length && lab[order[scan]] !== -2) scan++;
       if (scan >= order.length) {
         done = true;
-        cur = -1;
+        currentPointIndex = -1;
         nb = [];
-        cu = 4;
+        activeStepIndex = 4;
         const no = lab.filter((v) => v === -1).length;
         msg =
           'Every point has been visited. DBSCAN found ' +
@@ -168,38 +176,38 @@ export default {
         return;
       }
       const p = order[scan];
-      cur = p;
+      currentPointIndex = p;
       nb = nbr(P[p].x, P[p].y);
       vis++;
-      if (nb.length < S.m) {
+      if (nb.length < settings.m) {
         lab[p] = -1;
-        typ[p] = 3;
-        cu = 1;
+        pointTypes[p] = 3;
+        activeStepIndex = 1;
         msg =
           'New point: only ' +
           nb.length +
           ' point' +
           (nb.length === 1 ? '' : 's') +
           ' within ε (itself included), fewer than minPts = ' +
-          S.m +
+          settings.m +
           '. Marked as noise for now. A cluster that grows this far may still claim it as a border point.';
       } else {
-        curC = nc++;
-        lab[p] = curC;
-        typ[p] = 1;
+        activeClusterId = nc++;
+        lab[p] = activeClusterId;
+        pointTypes[p] = 1;
         for (const j of nb)
           if ((lab[j] === -2 || lab[j] === -1) && !inQ[j]) {
             inQ[j] = 1;
             queue.push(j);
           }
-        cu = 2;
+        activeStepIndex = 2;
         msg =
           'New point: ' +
           nb.length +
           ' points within ε, at least minPts = ' +
-          S.m +
+          settings.m +
           ', so it is a core point. Cluster ' +
-          (curC + 1) +
+          (activeClusterId + 1) +
           ' starts here, and its ' +
           queue.length +
           ' unclaimed neighbours go into the queue.';
@@ -208,7 +216,7 @@ export default {
     const fin = () => {
       let k = 0;
       while (!done && k++ < 1e5) step();
-      cur = -1;
+      currentPointIndex = -1;
       nb = [];
     };
     const tp = testPoint(
@@ -222,18 +230,18 @@ export default {
       ],
     );
     const draw = () => {
-      const t = T(),
-        col = UC(t);
+      const colors = readThemeColors(),
+        col = UC(colors);
       {
         const V = uView(c),
           { g, w, h, X, Y, s } = V;
-        uFrame(V, t, 'x', 'y');
-        if (cur >= 0) {
+        uFrame(V, colors, 'x', 'y');
+        if (currentPointIndex >= 0) {
           g.beginPath();
-          g.arc(X(P[cur].x), Y(P[cur].y), S.eps * s, 0, 7);
-          g.fillStyle = mix(t.ink, t.ink, 0, 0.07);
+          g.arc(X(P[currentPointIndex].x), Y(P[currentPointIndex].y), settings.eps * s, 0, 7);
+          g.fillStyle = mix(colors.ink, colors.ink, 0, 0.07);
           g.fill();
-          g.strokeStyle = t.ink;
+          g.strokeStyle = colors.ink;
           g.lineWidth = 1.6;
           g.stroke();
         }
@@ -241,8 +249,8 @@ export default {
           const x = X(p.x),
             y = Y(p.y),
             k = lab[i];
-          if (typ[i] === 3 && k === -1) {
-            g.strokeStyle = t.muted;
+          if (pointTypes[i] === 3 && k === -1) {
+            g.strokeStyle = colors.muted;
             g.lineWidth = 1.6;
             g.beginPath();
             g.moveTo(x - 3.5, y - 3.5);
@@ -250,7 +258,7 @@ export default {
             g.moveTo(x + 3.5, y - 3.5);
             g.lineTo(x - 3.5, y + 3.5);
             g.stroke();
-          } else if (k >= 0 && typ[i] === 1) {
+          } else if (k >= 0 && pointTypes[i] === 1) {
             g.fillStyle = col[k % 8];
             g.beginPath();
             g.arc(x, y, 4.2, 0, 7);
@@ -258,77 +266,77 @@ export default {
           } else if (k >= 0) {
             g.strokeStyle = col[k % 8];
             g.lineWidth = 2;
-            g.fillStyle = t.bg;
+            g.fillStyle = colors.bg;
             g.beginPath();
             g.arc(x, y, 3.6, 0, 7);
             g.fill();
             g.stroke();
           } else {
-            g.fillStyle = mix(t.ink, t.ink, 0, 0.32);
+            g.fillStyle = mix(colors.ink, colors.ink, 0, 0.32);
             g.beginPath();
             g.arc(x, y, 2.8, 0, 7);
             g.fill();
           }
           if (inQ[i] && lab[i] < 0 && !done) {
-            g.strokeStyle = t.gold;
+            g.strokeStyle = colors.gold;
             g.lineWidth = 1.8;
             g.beginPath();
             g.arc(x, y, 6.5, 0, 7);
             g.stroke();
           }
         });
-        if (cur >= 0) {
-          g.strokeStyle = t.ink;
+        if (currentPointIndex >= 0) {
+          g.strokeStyle = colors.ink;
           g.lineWidth = 2.4;
           g.beginPath();
-          g.arc(X(P[cur].x), Y(P[cur].y), 7.5, 0, 7);
+          g.arc(X(P[currentPointIndex].x), Y(P[currentPointIndex].y), 7.5, 0, 7);
           g.stroke();
         }
         {
           const x = X(tp.v[0]),
             y = Y(tp.v[1]);
           g.setLineDash([4, 4]);
-          g.strokeStyle = t.muted;
+          g.strokeStyle = colors.muted;
           g.lineWidth = 1.2;
           g.beginPath();
-          g.arc(x, y, S.eps * s, 0, 7);
+          g.arc(x, y, settings.eps * s, 0, 7);
           g.stroke();
           g.setLineDash([]);
-          markTP(g, x, y, t);
+          markTP(g, x, y, colors);
         }
         g.font = MONO;
-        g.fillStyle = t.muted;
+        g.fillStyle = colors.muted;
         g.textAlign = 'left';
         g.fillText('gold ring = waiting in the queue', 8, h - 8);
       }
       {
-        const { g, w, h } = fit(cr),
+        const { g: ctx, w, h } = prepareCanvas(cr),
           ym = Math.max(1.3, kd.length ? kd[0] : 1) * 1.05,
-          L = uLine(g, t, 0, 0, w, h, kd, {
+          L = drawSeriesChart(ctx, colors, 0, 0, w, h, kd, {
             title:
               'distance to the ' +
-              S.m +
-              (S.m === 2 ? 'nd' : S.m === 3 ? 'rd' : 'th') +
+              settings.m +
+              (settings.m === 2 ? 'nd' : settings.m === 3 ? 'rd' : 'th') +
               ' nearest point (itself counted), largest first',
             ym,
-            col: t.accent,
+            col: colors.accent,
           }),
-          y = L.Y(S.eps);
-        g.setLineDash([7, 5]);
-        g.strokeStyle = t.gold;
-        g.lineWidth = 2;
-        g.beginPath();
-        g.moveTo(L.m.l, y);
-        g.lineTo(w - L.m.r, y);
-        g.stroke();
-        g.setLineDash([]);
-        const above = kd.filter((v) => v > S.eps).length;
-        g.font = MONO;
-        g.fillStyle = t.cut;
-        g.textAlign = 'right';
-        g.fillText(
+          y = L.Y(settings.eps);
+        ctx.setLineDash([7, 5]);
+        ctx.strokeStyle = colors.gold;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(L.m.l, y);
+        ctx.lineTo(w - L.m.r, y);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        const above = kd.filter((v) => v > settings.eps).length;
+        ctx.font = MONO;
+        ctx.fillStyle = colors.cut;
+        ctx.textAlign = 'right';
+        ctx.fillText(
           'ε = ' +
-            f2(S.eps) +
+            f2(settings.eps) +
             ': ' +
             above +
             ' of ' +
@@ -337,14 +345,14 @@ export default {
           w - L.m.r,
           y - 6,
         );
-        g.fillStyle = t.muted;
-        g.fillText('points, most isolated first →', w - L.m.r, h - 5);
+        ctx.fillStyle = colors.muted;
+        ctx.fillText('points, most isolated first →', w - L.m.r, h - 5);
       }
       live.textContent = msg;
-      uCur(root, 'db', cu);
+      highlightLessonStep(root, 'db', activeStepIndex);
       {
         const q = nbr(tp.v[0], tp.v[1]),
-          cores = q.filter((j) => typ[j] === 1),
+          cores = q.filter((j) => pointTypes[j] === 1),
           cnt = q.length + 1;
         let s =
           'Your point would have ' +
@@ -353,12 +361,12 @@ export default {
           (cnt === 1 ? '' : 's') +
           ' within ε, counting itself. ';
         if (!done) s += 'Run to the end to see which cluster claims it.';
-        else if (cnt >= S.m && cores.length)
+        else if (cnt >= settings.m && cores.length)
           s +=
             'That reaches minPts, so it would be a core point of cluster ' +
             (lab[cores[0]] + 1) +
             '.';
-        else if (cnt >= S.m)
+        else if (cnt >= settings.m)
           s +=
             'That reaches minPts, so it would be a core point and start a cluster of its own with its neighbours.';
         else if (cores.length)
@@ -369,21 +377,21 @@ export default {
         else s += 'That is below minPts and no core point is within reach: it would be noise.';
         tp.out.textContent = s;
       }
-      setR(root, 'v', vis + ' of ' + P.length);
-      setR(root, 'cl', String(nc));
-      setR(root, 'co', String(typ.filter((v) => v === 1).length));
-      setR(root, 'bo', String(typ.filter((v) => v === 2).length));
-      setR(root, 'no', String(lab.filter((v) => v === -1).length));
+      setReadout(root, 'v', vis + ' of ' + P.length);
+      setReadout(root, 'cl', String(nc));
+      setReadout(root, 'co', String(pointTypes.filter((v) => v === 1).length));
+      setReadout(root, 'bo', String(pointTypes.filter((v) => v === 2).length));
+      setReadout(root, 'no', String(lab.filter((v) => v === -1).length));
     };
     tp.on = () => draw();
     const redo = () => {
-      pb.stop();
+      playback.stop();
       kdist();
       reset();
       fin();
       draw();
     };
-    const gen = uDataBind(root, 'db', S, () => {
+    const gen = uDataBind(root, 'db', settings, () => {
       P = gen();
       redo();
     });
@@ -392,7 +400,7 @@ export default {
     reset();
     fin();
     const anim = Anim(() => {
-      fr++;
+      frameCount++;
       if (wait > 0) {
         wait--;
         if (!wait) {
@@ -402,13 +410,13 @@ export default {
         }
         return;
       }
-      if (fr % (vis < 12 ? 26 : 4)) return;
+      if (frameCount % (vis < 12 ? 26 : 4)) return;
       step();
       draw();
-      chk();
+      checkRunStop();
     });
-    pb = playBtn($('#db-play', root), anim);
-    const chk = runCtl(pb, root, 'db', {
+    playback = playBtn($('#db-play', root), anim);
+    const checkRunStop = attachRunLimit(playback, root, 'db', {
       done: () => done,
       restart: () => {
         run++;
@@ -416,31 +424,31 @@ export default {
       },
     });
     $('#db-step', root).onclick = () => {
-      pb.stop();
+      playback.stop();
       step();
       draw();
     };
     $('#db-reset', root).onclick = () => {
-      pb.stop();
+      playback.stop();
       run++;
       reset();
       draw();
     };
     $('#db-fin', root).onclick = () => {
-      pb.stop();
+      playback.stop();
       if (done) reset();
       fin();
       draw();
     };
     bind(root, 'db-eps', (v) => {
-      S.eps = v;
+      settings.eps = v;
       redo();
     });
     bind(
       root,
       'db-m',
       (v) => {
-        S.m = v;
+        settings.m = v;
         redo();
       },
       (v) => String(v),
@@ -449,7 +457,7 @@ export default {
       root,
       'db-bg',
       (v) => {
-        S.bg = v;
+        settings.bg = v;
         P = gen();
         redo();
       },
@@ -457,11 +465,11 @@ export default {
     );
     return {
       draw,
-      stop: () => pb.stop(),
+      stop: () => playback.stop(),
       auto: () => {
         reset();
         draw();
-        pb.start();
+        playback.start();
       },
     };
   },

@@ -1,5 +1,5 @@
 /* Manifold. © 2026 Bahman Moraffah. All rights reserved. */
-import { $, MONO, clamp, fit, mix } from '../../../js/core/shared.js';
+import { $, MONO, clamp, prepareCanvas, mix } from '../../../js/core/shared.js';
 import { clfLesson } from '../shared.js';
 import { pct } from '../../ensembles/shared.js';
 
@@ -16,16 +16,16 @@ export default clfLesson({
   setup(api) {
     const S = api.S;
     let root = null,
-      nsp = 0,
-      shown = 0,
+      totalSplits = 0,
+      revealedSplits = 0,
       wait = 0,
-      fr = 0,
+      frameCount = 0,
       bd = 1,
       fresh = true,
       phase = 'grow',
       pmsg = '',
       ph = [];
-    const op = (nd) => !!(nd.sp && nd.sp.ord < shown && !nd.cut);
+    const hasActiveSplit = (nd) => !!(nd.sp && nd.sp.ord < revealedSplits && !nd.cut);
     const gini = (n, n1) => (n ? 2 * (n1 / n) * (1 - n1 / n) : 0);
     const build = (T, D, ML) => {
       const mk = (P, dp, box) => ({
@@ -81,16 +81,16 @@ export default clfLesson({
     const accOf = (P) =>
       P.length
         ? P.filter((p) => {
-            const l = leaf(root, p.x, p.y, shown);
+            const l = leaf(root, p.x, p.y, revealedSplits);
             return (l.n1 / l.n >= 0.5 ? 1 : 0) === p.c;
           }).length / P.length
         : NaN;
     const prune = () => {
       if (!root) return false;
-      shown = nsp;
+      revealedSplits = totalSplits;
       let best = null;
       const info = (nd) => {
-        if (!op(nd)) return { L: 1, R: Math.min(nd.n1, nd.n - nd.n1) };
+        if (!hasActiveSplit(nd)) return { L: 1, R: Math.min(nd.n1, nd.n - nd.n1) };
         const a = info(nd.sp.L),
           b = info(nd.sp.R),
           L = a.L + b.L,
@@ -163,7 +163,7 @@ export default clfLesson({
         }
       };
       if (root) un(root);
-      shown = nsp;
+      revealedSplits = totalSplits;
       phase = 'grow';
       pmsg = '';
       ph = [];
@@ -176,14 +176,14 @@ export default clfLesson({
         if (!T.length) return;
         const b = build(T, S.depth, S.minleaf);
         root = b.rt;
-        nsp = b.n;
+        totalSplits = b.n;
         phase = 'grow';
         pmsg = '';
         ph = [];
         if (fresh) {
-          shown = nsp;
+          revealedSplits = totalSplits;
           fresh = false;
-        } else shown = Math.min(shown, nsp);
+        } else revealedSplits = Math.min(revealedSplits, totalSplits);
         let be = -1;
         bd = 1;
         for (let d = 1; d <= 7; d++) {
@@ -199,7 +199,7 @@ export default clfLesson({
         }
       },
       reset() {
-        shown = 0;
+        revealedSplits = 0;
         wait = 0;
         phase = 'grow';
         pmsg = '';
@@ -215,21 +215,21 @@ export default clfLesson({
       },
       p: (x, y) => {
         if (!root) return 0.5;
-        const l = leaf(root, x, y, shown);
+        const l = leaf(root, x, y, revealedSplits);
         return l.n ? clamp(l.n1 / l.n, 0.02, 0.98) * 0.999 + (l.n1 * 2 === l.n ? 1e-4 : 0) : 0.5;
       },
       stepOnce() {
         if (phase === 'prune') {
           if (!prune()) this.reset();
-        } else if (shown < nsp) shown++;
+        } else if (revealedSplits < totalSplits) revealedSplits++;
         else prune();
       },
       done: () => wait > 0,
       tick() {
-        fr++;
+        frameCount++;
         if (wait > 0) return false;
-        if (fr % 38) return false;
-        if (phase === 'grow' && shown < nsp) shown++;
+        if (frameCount % 38) return false;
+        if (phase === 'grow' && revealedSplits < totalSplits) revealedSplits++;
         else if (!prune()) {
           wait = 260;
         }
@@ -237,11 +237,11 @@ export default clfLesson({
       },
       overlay(g, X, Y, t) {
         const walk = (nd) => {
-          if (!op(nd)) return;
+          if (!hasActiveSplit(nd)) return;
           const b = nd.box,
             s = nd.sp;
           g.strokeStyle = t.ink;
-          g.lineWidth = s.ord === shown - 1 ? 3.4 : 1.4;
+          g.lineWidth = s.ord === revealedSplits - 1 ? 3.4 : 1.4;
           g.beginPath();
           if (s.f === 'x') {
             g.moveTo(X(s.thr), Y(b[2]));
@@ -257,12 +257,12 @@ export default clfLesson({
         if (root) walk(root);
       },
       right(t) {
-        const { g, w, h } = fit(api.cr);
+        const { g: ctx, w, h } = prepareCanvas(api.cr);
         if (!root) return;
         const leaves = [],
           lay = (nd, dp) => {
             nd._d = dp;
-            if (op(nd)) {
+            if (hasActiveSplit(nd)) {
               lay(nd.sp.L, dp + 1);
               lay(nd.sp.R, dp + 1);
               nd._x = (nd.sp.L._x + nd.sp.R._x) / 2;
@@ -277,7 +277,7 @@ export default clfLesson({
           col = (nd) => {
             all.push(nd);
             md = Math.max(md, nd._d);
-            if (op(nd)) {
+            if (hasActiveSplit(nd)) {
               col(nd.sp.L);
               col(nd.sp.R);
             }
@@ -286,60 +286,65 @@ export default clfLesson({
         const X = (v) => 56 + (leaves.length > 1 ? v / (leaves.length - 1) : 0.5) * (w - 112),
           Y = (d) => 26 + (md ? d / md : 0) * (h - 64),
           small = leaves.length > 14;
-        g.strokeStyle = t.muted;
-        g.lineWidth = 1.2;
+        ctx.strokeStyle = t.muted;
+        ctx.lineWidth = 1.2;
         for (const nd of all)
-          if (op(nd)) {
+          if (hasActiveSplit(nd)) {
             [nd.sp.L, nd.sp.R].forEach((ch) => {
-              g.beginPath();
-              g.moveTo(X(nd._x), Y(nd._d));
-              g.lineTo(X(ch._x), Y(ch._d));
-              g.stroke();
+              ctx.beginPath();
+              ctx.moveTo(X(nd._x), Y(nd._d));
+              ctx.lineTo(X(ch._x), Y(ch._d));
+              ctx.stroke();
             });
           }
-        g.textAlign = 'center';
+        ctx.textAlign = 'center';
         for (const nd of all) {
           const x = X(nd._x),
             y = Y(nd._d),
-            inner = op(nd);
+            inner = hasActiveSplit(nd);
           if (inner) {
             const tx = nd.sp.f + ' ≤ ' + nd.sp.thr.toFixed(1);
-            g.font = small ? '10px "JetBrains Mono",monospace' : MONO;
-            const tw = g.measureText(tx).width + 10;
-            g.fillStyle = t.bg;
-            g.strokeStyle = nd.sp.ord === shown - 1 ? t.ink : t.muted;
-            g.lineWidth = nd.sp.ord === shown - 1 ? 2.4 : 1;
-            g.beginPath();
-            g.rect(x - tw / 2, y - 10, tw, 20);
-            g.fill();
-            g.stroke();
-            g.fillStyle = t.ink;
-            g.fillText(tx, x, y + 4);
+            ctx.font = small ? '10px "JetBrains Mono",monospace' : MONO;
+            const tw = ctx.measureText(tx).width + 10;
+            ctx.fillStyle = t.bg;
+            ctx.strokeStyle = nd.sp.ord === revealedSplits - 1 ? t.ink : t.muted;
+            ctx.lineWidth = nd.sp.ord === revealedSplits - 1 ? 2.4 : 1;
+            ctx.beginPath();
+            ctx.rect(x - tw / 2, y - 10, tw, 20);
+            ctx.fill();
+            ctx.stroke();
+            ctx.fillStyle = t.ink;
+            ctx.fillText(tx, x, y + 4);
           } else {
             const pb2 = nd.n ? nd.n1 / nd.n : 0.5;
-            g.fillStyle = mix(pb2 >= 0.5 ? t.gold : t.accent, t.bg, 1 - Math.abs(pb2 - 0.5) * 2, 1);
-            g.strokeStyle = pb2 >= 0.5 ? t.gold : t.accent;
-            g.lineWidth = 2;
-            g.beginPath();
-            g.arc(x, y, small ? 6 : 10, 0, 7);
-            g.fill();
-            g.stroke();
+            ctx.fillStyle = mix(
+              pb2 >= 0.5 ? t.gold : t.accent,
+              t.bg,
+              1 - Math.abs(pb2 - 0.5) * 2,
+              1,
+            );
+            ctx.strokeStyle = pb2 >= 0.5 ? t.gold : t.accent;
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.arc(x, y, small ? 6 : 10, 0, 7);
+            ctx.fill();
+            ctx.stroke();
             if (!small) {
-              g.font = MONO;
-              g.fillStyle = t.muted;
-              g.fillText(nd.n - nd.n1 + ' A · ' + nd.n1 + ' B', x, y + 25);
+              ctx.font = MONO;
+              ctx.fillStyle = t.muted;
+              ctx.fillText(nd.n - nd.n1 + ' A · ' + nd.n1 + ' B', x, y + 25);
             }
           }
         }
-        g.font = MONO;
-        g.fillStyle = t.muted;
-        g.textAlign = 'left';
-        g.fillText('yes ↙   no ↘', 8, 12);
+        ctx.font = MONO;
+        ctx.fillStyle = t.muted;
+        ctx.textAlign = 'left';
+        ctx.fillText('yes ↙   no ↘', 8, 12);
       },
       status() {
         if (!root) return '';
         if (phase === 'prune' && pmsg) return pmsg;
-        if (!shown)
+        if (!revealedSplits)
           return (
             'All ' +
             root.n +
@@ -352,7 +357,7 @@ export default clfLesson({
         let f = null;
         const find = (nd) => {
           if (!nd.sp) return;
-          if (nd.sp.ord === shown - 1) f = nd;
+          if (nd.sp.ord === revealedSplits - 1) f = nd;
           find(nd.sp.L);
           find(nd.sp.R);
         };
@@ -361,9 +366,9 @@ export default clfLesson({
         const sp = f.sp;
         return (
           'Question ' +
-          shown +
+          revealedSplits +
           ' of ' +
-          nsp +
+          totalSplits +
           ': is ' +
           sp.f +
           ' ≤ ' +
@@ -381,22 +386,22 @@ export default clfLesson({
           ' A and ' +
           sp.R.n1 +
           ' B.' +
-          (shown >= nsp ? ' No allowed cut is left: the tree is finished.' : '')
+          (revealedSplits >= totalSplits ? ' No allowed cut is left: the tree is finished.' : '')
         );
       },
       cur() {
-        return phase === 'prune' ? 5 : !shown ? 0 : shown >= nsp ? 4 : 2;
+        return phase === 'prune' ? 5 : !revealedSplits ? 0 : revealedSplits >= totalSplits ? 4 : 2;
       },
       read(set) {
         let lv = 0;
         const cnt = (nd) => {
-          if (op(nd)) {
+          if (hasActiveSplit(nd)) {
             cnt(nd.sp.L);
             cnt(nd.sp.R);
           } else lv++;
         };
         if (root) cnt(root);
-        set('sp', shown + ' of ' + nsp);
+        set('sp', revealedSplits + ' of ' + totalSplits);
         set('lv', String(lv));
         set('bd', String(bd));
         let bq = null;

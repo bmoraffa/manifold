@@ -3,29 +3,29 @@ import {
   $,
   Anim,
   MONO,
-  T,
+  readThemeColors,
   bind,
   clamp,
   f2,
   f3,
-  fit,
+  prepareCanvas,
   markTP,
   mix,
   playBtn,
   randn,
   randnFrom,
   rng,
-  runCtl,
-  setR,
+  attachRunLimit,
+  setReadout,
   testPoint,
 } from '../../../js/core/shared.js';
 import {
   canvasXY,
   dotAt,
   segBind,
-  uCur,
+  highlightLessonStep,
   uFrame,
-  uLine,
+  drawSeriesChart,
   uView,
   xyUp,
 } from '../../unsupervised/shared.js';
@@ -36,7 +36,7 @@ export default {
     const c = $('#gp-c', root),
       cr = $('#gp-r', root),
       live = $('#gp-live', root),
-      S = { d: 'wave', k: 'rbf', l: 1, f: 1, n: 0.2, w: true },
+      settings = { d: 'wave', k: 'rbf', l: 1, f: 1, n: 0.2, w: true },
       G = 97,
       gx = Array.from({ length: G }, (_, i) => -4 + (8 * i) / (G - 1));
     let D = [],
@@ -45,23 +45,23 @@ export default {
       Lp = null,
       za = null,
       zb = null,
-      ph = 0,
+      sampleAnimationPhase = 0,
       ml = NaN,
-      fitT = NaN,
-      cxT = NaN,
+      dataFitTerm = NaN,
+      complexityTerm = NaN,
       hist = [],
       fin = false,
       msg = '',
-      cu = 0,
+      activeStepIndex = 0,
       V = null,
-      pb,
-      chk = () => false,
+      playback,
+      checkRunStop = () => false,
       lB,
       fB,
       nB,
       ad = null,
       it = 0;
-    const kern = (a, b, p = S) => {
+    const kern = (a, b, p = settings) => {
       const r = Math.abs(a - b),
         f2_ = p.f * p.f;
       return p.k === 'rbf'
@@ -73,20 +73,20 @@ export default {
             : f2_ * (1 + a * b);
     };
     const data = () => {
-      const r = rng(S.d === 'wave' ? 5 : S.d === 'gap' ? 9 : 13),
+      const r = rng(settings.d === 'wave' ? 5 : settings.d === 'gap' ? 9 : 13),
         rn = randnFrom(r);
       D = [];
-      if (S.d === 'wave')
+      if (settings.d === 'wave')
         for (let i = 0; i < 9; i++) {
           const x = -3.5 + (7 * (i + 0.5 * r())) / 9;
           D.push([x, 1.3 * Math.sin(1.3 * x) + 0.2 * rn()]);
         }
-      else if (S.d === 'gap')
+      else if (settings.d === 'gap')
         for (let i = 0; i < 12; i++) {
           const x = i < 6 ? -3.7 + 2.2 * r() : 1.5 + 2.2 * r();
           D.push([x, 1.2 * Math.sin(1.5 * x) + 0.4 * x * 0.3 + 0.15 * rn()]);
         }
-      else if (S.d === 'line')
+      else if (settings.d === 'line')
         for (let i = 0; i < 14; i++) {
           const x = -3.6 + 7.2 * r();
           D.push([x, 0.45 * x + 0.3 + 0.45 * rn()]);
@@ -116,7 +116,7 @@ export default {
       const C = gx.map((a, i) => gx.map((b, j) => kern(a, b) + (i === j ? 1e-6 : 0)));
       if (n) {
         const K = D.map((a, i) =>
-            D.map((b, j) => kern(a[0], b[0]) + (i === j ? S.n * S.n + 1e-8 : 0)),
+            D.map((b, j) => kern(a[0], b[0]) + (i === j ? settings.n * settings.n + 1e-8 : 0)),
           ),
           L = laChol(K),
           al = laBck(
@@ -149,7 +149,7 @@ export default {
         sd[i] = Math.sqrt(Math.max(0, C[i][i]));
       }
       Lp = laChol(C);
-      [ml, fitT, cxT] = score(S);
+      [ml, dataFitTerm, complexityTerm] = score(settings);
     };
     const newZ = () => {
       za = [0, 1, 2].map(() => Float64Array.from({ length: G }, randn));
@@ -160,7 +160,7 @@ export default {
       fin = false;
       it = 0;
       ad = null;
-      cu = D.length ? 3 : 1;
+      activeStepIndex = D.length ? 3 : 1;
       solve();
       msg = D.length
         ? 'With ' +
@@ -172,7 +172,7 @@ export default {
       const n = D.length;
       if (!n) return [0, Math.sqrt(kern(x, x))];
       const K = D.map((a, i) =>
-          D.map((b, j) => kern(a[0], b[0]) + (i === j ? S.n * S.n + 1e-8 : 0)),
+          D.map((b, j) => kern(a[0], b[0]) + (i === j ? settings.n * settings.n + 1e-8 : 0)),
         ),
         L = laChol(K),
         ks = D.map((d) => kern(x, d[0])),
@@ -199,8 +199,8 @@ export default {
         return;
       }
       if (!ad) ad = { m: [0, 0, 0], v: [0, 0, 0], t: 0 };
-      const P = (t) => ({ k: S.k, l: Math.exp(t[0]), f: Math.exp(t[1]), n: Math.exp(t[2]) });
-      let th = [Math.log(S.l), Math.log(S.f), Math.log(S.n)];
+      const P = (t) => ({ k: settings.k, l: Math.exp(t[0]), f: Math.exp(t[1]), n: Math.exp(t[2]) });
+      let th = [Math.log(settings.l), Math.log(settings.f), Math.log(settings.n)];
       if (it === 0) {
         let bs = score(P(th))[0] + 0.5;
         for (const l of [0.3, 0.6, 1.2, 2.4])
@@ -214,7 +214,12 @@ export default {
               }
             }
       }
-      const P0 = (t) => ({ k: S.k, l: Math.exp(t[0]), f: Math.exp(t[1]), n: Math.exp(t[2]) }),
+      const P0 = (t) => ({
+          k: settings.k,
+          l: Math.exp(t[0]),
+          f: Math.exp(t[1]),
+          n: Math.exp(t[2]),
+        }),
         s0 = score(P(th))[0],
         gr = th.map((_, i) => {
           const a = th.slice(),
@@ -230,17 +235,17 @@ export default {
         th[i] +=
           (0.06 * (ad.m[i] / (1 - 0.8 ** ad.t))) / (Math.sqrt(ad.v[i] / (1 - 0.99 ** ad.t)) + 1e-8);
       }
-      S.l = clamp(Math.exp(th[0]), 0.15, 3);
-      S.f = clamp(Math.exp(th[1]), 0.2, 3);
-      S.n = clamp(Math.exp(th[2]), 0.02, 1.5);
-      lB.set(S.l);
-      fB.set(S.f);
-      nB.set(S.n);
+      settings.l = clamp(Math.exp(th[0]), 0.15, 3);
+      settings.f = clamp(Math.exp(th[1]), 0.2, 3);
+      settings.n = clamp(Math.exp(th[2]), 0.02, 1.5);
+      lB.set(settings.l);
+      fB.set(settings.f);
+      nB.set(settings.n);
       solve();
       it++;
       if (!hist.length) hist.push(s0);
       hist.push(ml);
-      cu = 5;
+      activeStepIndex = 5;
       const gain = ml - hist[hist.length - 2];
       msg =
         'Fitting step ' +
@@ -251,11 +256,11 @@ export default {
         (gain >= 0 ? '+' : '') +
         f3(gain) +
         '). Length scale ' +
-        f2(S.l) +
+        f2(settings.l) +
         ', height ' +
-        f2(S.f) +
+        f2(settings.f) +
         ', noise ' +
-        f2(S.n) +
+        f2(settings.n) +
         '.';
       if (
         (it >= 12 &&
@@ -270,34 +275,34 @@ export default {
           ' steps: the score has stopped improving at ' +
           f2(ml) +
           '. Fitted settings: length scale ' +
-          f2(S.l) +
+          f2(settings.l) +
           ', height ' +
-          f2(S.f) +
+          f2(settings.f) +
           ', noise ' +
-          f2(S.n) +
+          f2(settings.n) +
           '. Move a slider to try to beat it.';
       }
     };
     const tp = testPoint(root, 'gp', ['Your x'], [1.5], [[-4, 4]]);
     const draw = () => {
-      const t = T();
+      const colors = readThemeColors();
       V = uView(c);
       const { g, w, h, X, Y } = V;
-      uFrame(V, t, 'x', 'y');
+      uFrame(V, colors, 'x', 'y');
       if (mu) {
-        g.fillStyle = mix(t.accent, t.accent, 0, 0.16);
+        g.fillStyle = mix(colors.accent, colors.accent, 0, 0.16);
         g.beginPath();
         for (let i = 0; i < G; i++) g.lineTo(X(gx[i]), Y(mu[i] + 1.96 * sd[i]));
         for (let i = G - 1; i >= 0; i--) g.lineTo(X(gx[i]), Y(mu[i] - 1.96 * sd[i]));
         g.fill();
-        const cs = [t.gold, t.ok, '#4a7fb5'];
+        const cs = [colors.gold, colors.ok, '#4a7fb5'];
         for (let s = 0; s < 3; s++) {
           g.strokeStyle = cs[s];
           g.lineWidth = 1.1;
           g.globalAlpha = 0.8;
           g.beginPath();
-          const ca = Math.cos(ph + s),
-            sa = Math.sin(ph + s);
+          const ca = Math.cos(sampleAnimationPhase + s),
+            sa = Math.sin(sampleAnimationPhase + s);
           for (let i = 0; i < G; i++) {
             let v = mu[i];
             const Li = Lp[i];
@@ -307,7 +312,7 @@ export default {
           g.stroke();
         }
         g.globalAlpha = 1;
-        g.strokeStyle = t.accent;
+        g.strokeStyle = colors.accent;
         g.lineWidth = 2.6;
         g.beginPath();
         for (let i = 0; i < G; i++) i ? g.lineTo(X(gx[i]), Y(mu[i])) : g.moveTo(X(gx[i]), Y(mu[i]));
@@ -315,16 +320,16 @@ export default {
       }
       for (const d of D) {
         g.lineWidth = 2;
-        dotAt(g, X(d[0]), Y(d[1]), 5, t.ink, t.bg);
+        dotAt(g, X(d[0]), Y(d[1]), 5, colors.ink, colors.bg);
       }
       const [pm, ps] = predict(tp.v[0]);
-      g.strokeStyle = t.ink;
+      g.strokeStyle = colors.ink;
       g.lineWidth = 1.5;
       g.beginPath();
       g.moveTo(X(tp.v[0]), Y(pm - 1.96 * ps));
       g.lineTo(X(tp.v[0]), Y(pm + 1.96 * ps));
       g.stroke();
-      markTP(g, X(tp.v[0]), Y(pm), t, false);
+      markTP(g, X(tp.v[0]), Y(pm), colors, false);
       tp.out.textContent =
         'At x = ' +
         f2(tp.v[0]) +
@@ -338,47 +343,47 @@ export default {
         f2(pm + 1.96 * ps) +
         ').';
       {
-        const { g, w, h } = fit(cr),
+        const { g: ctx, w, h } = prepareCanvas(cr),
           h1 = h * 0.5,
           ks = Array.from({ length: 60 }, (_, i) => kern(0, (4 * i) / 59));
-        const A = uLine(g, t, 0, 0, w, h1, ks, {
+        const A = drawSeriesChart(ctx, colors, 0, 0, w, h1, ks, {
           title: 'kernel: tie between two points, against their distance (0 to 4)',
           ym: Math.max(...ks) * 1.05,
           y1: Math.min(0, ...ks),
         });
-        g.strokeStyle = t.gold;
-        g.lineWidth = 2.2;
-        g.beginPath();
-        ks.forEach((v, i) => (i ? g.lineTo(A.X(i), A.Y(v)) : g.moveTo(A.X(i), A.Y(v))));
-        g.stroke();
+        ctx.strokeStyle = colors.gold;
+        ctx.lineWidth = 2.2;
+        ctx.beginPath();
+        ks.forEach((v, i) => (i ? ctx.lineTo(A.X(i), A.Y(v)) : ctx.moveTo(A.X(i), A.Y(v))));
+        ctx.stroke();
         if (hist.length > 1) {
           const lo = Math.min(...hist),
             hi = Math.max(...hist),
-            B = uLine(g, t, 0, h1, w, h - h1, hist, {
+            B = drawSeriesChart(ctx, colors, 0, h1, w, h - h1, hist, {
               title: 'score during fitting',
               n: Math.max(20, hist.length),
               y1: lo - 0.05 * (hi - lo + 1e-6),
               ym: hi + 0.05 * (hi - lo + 1e-6),
             });
-          g.strokeStyle = t.accent;
-          g.lineWidth = 2;
-          g.beginPath();
-          hist.forEach((v, i) => (i ? g.lineTo(B.X(i), B.Y(v)) : g.moveTo(B.X(i), B.Y(v))));
-          g.stroke();
+          ctx.strokeStyle = colors.accent;
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          hist.forEach((v, i) => (i ? ctx.lineTo(B.X(i), B.Y(v)) : ctx.moveTo(B.X(i), B.Y(v))));
+          ctx.stroke();
         } else {
-          g.font = MONO;
-          g.fillStyle = t.muted;
-          g.textAlign = 'left';
-          g.fillText('score during fitting: press Fit the settings', 8, h1 + 13);
+          ctx.font = MONO;
+          ctx.fillStyle = colors.muted;
+          ctx.textAlign = 'left';
+          ctx.fillText('score during fitting: press Fit the settings', 8, h1 + 13);
         }
       }
       live.textContent = msg;
-      uCur(root, 'gp', cu);
-      setR(root, 'n', D.length);
-      setR(root, 'ml', D.length ? f2(ml) : '–');
-      setR(root, 'fit', D.length ? f2(fitT) : '–');
-      setR(root, 'cx', D.length ? f2(cxT) : '–');
-      setR(root, 'set', f2(S.l) + ' / ' + f2(S.f) + ' / ' + f2(S.n));
+      highlightLessonStep(root, 'gp', activeStepIndex);
+      setReadout(root, 'n', D.length);
+      setReadout(root, 'ml', D.length ? f2(ml) : '–');
+      setReadout(root, 'fit', D.length ? f2(dataFitTerm) : '–');
+      setReadout(root, 'cx', D.length ? f2(complexityTerm) : '–');
+      setReadout(root, 'set', f2(settings.l) + ' / ' + f2(settings.f) + ' / ' + f2(settings.n));
     };
     tp.on = () => draw();
     data();
@@ -386,16 +391,16 @@ export default {
     reset();
     const anim = Anim(() => {
       if (fin) {
-        pb.stop();
+        playback.stop();
         return;
       }
-      ph += 0.02;
+      sampleAnimationPhase += 0.02;
       fitStep();
       draw();
-      chk();
+      checkRunStop();
     });
-    pb = playBtn($('#gp-play', root), anim);
-    chk = runCtl(pb, root, 'gp', {
+    playback = playBtn($('#gp-play', root), anim);
+    checkRunStop = attachRunLimit(playback, root, 'gp', {
       done: () => fin,
       restart: () => {
         hist = [];
@@ -407,12 +412,12 @@ export default {
       what: 'steps',
     });
     const wig = Anim(() => {
-      if (anim.on || !S.w) return;
-      ph += 0.02;
+      if (anim.on || !settings.w) return;
+      sampleAnimationPhase += 0.02;
       draw();
     });
     $('#gp-step', root).onclick = () => {
-      pb.stop();
+      playback.stop();
       if (fin) {
         hist = [];
         fin = false;
@@ -423,10 +428,10 @@ export default {
       draw();
     };
     $('#gp-reset', root).onclick = () => {
-      pb.stop();
-      S.l = 1;
-      S.f = 1;
-      S.n = 0.2;
+      playback.stop();
+      settings.l = 1;
+      settings.f = 1;
+      settings.n = 0.2;
       lB.set(1);
       fB.set(1);
       nB.set(0.2);
@@ -436,33 +441,33 @@ export default {
       draw();
     };
     const ch = () => {
-      pb.stop();
+      playback.stop();
       reset();
       draw();
     };
     lB = bind(root, 'gp-l', (v) => {
-      S.l = v;
+      settings.l = v;
       ch();
     });
     fB = bind(root, 'gp-f', (v) => {
-      S.f = v;
+      settings.f = v;
       ch();
     });
     nB = bind(root, 'gp-n', (v) => {
-      S.n = v;
+      settings.n = v;
       ch();
     });
-    segBind(root, 'gp-d', S.d, (v) => {
-      S.d = v;
+    segBind(root, 'gp-d', settings.d, (v) => {
+      settings.d = v;
       data();
       ch();
     });
-    segBind(root, 'gp-k', S.k, (v) => {
-      S.k = v;
+    segBind(root, 'gp-k', settings.k, (v) => {
+      settings.k = v;
       ch();
     });
     $('#gp-w', root).onchange = (e) => {
-      S.w = e.target.checked;
+      settings.w = e.target.checked;
     };
     xyUp(root, 'gp', (q) => {
       D = q.slice(0, 60);
@@ -480,7 +485,7 @@ export default {
     return {
       draw,
       stop: () => {
-        pb.stop();
+        playback.stop();
         wig.stop();
       },
       auto: () => {

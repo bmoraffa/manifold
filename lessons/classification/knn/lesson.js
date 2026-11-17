@@ -1,5 +1,5 @@
 /* Manifold. © 2026 Bahman Moraffah. All rights reserved. */
-import { $, MONO, clipPlot, fit, mix, plot } from '../../../js/core/shared.js';
+import { $, MONO, clipPlot, prepareCanvas, mix, plot } from '../../../js/core/shared.js';
 import { clfLesson } from '../shared.js';
 
 export default clfLesson({
@@ -13,10 +13,10 @@ export default clfLesson({
   nc: 44,
   setup(api) {
     const S = api.S;
-    let etr = [],
-      ete = [],
+    let trainErrorByK = [],
+      testErrorByK = [],
       dir = 1,
-      fr = 0,
+      frameCount = 0,
       ks;
     const dist = (p, x, y) =>
       S.man ? Math.abs(p.x - x) + Math.abs(p.y - y) : Math.hypot(p.x - x, p.y - y);
@@ -25,11 +25,11 @@ export default clfLesson({
       d.sort((a, b) => a[0] - b[0]);
       return d.slice(0, k);
     };
-    const fitc = () => {
+    const computeErrorCurves = () => {
       const T = api.train,
         KM = Math.min(41, T.length);
-      etr = [];
-      ete = [];
+      trainErrorByK = [];
+      testErrorByK = [];
       const run = (P, E) => {
         const cnt = new Array(KM + 1).fill(0);
         for (const p of P) {
@@ -43,8 +43,8 @@ export default clfLesson({
         }
         for (let k = 1; k <= KM; k++) E[k] = P.length ? cnt[k] / P.length : NaN;
       };
-      run(T, etr);
-      run(api.test, ete);
+      run(T, trainErrorByK);
+      run(api.test, testErrorByK);
     };
     ks = api.bind(
       'k',
@@ -54,17 +54,17 @@ export default clfLesson({
     );
     $('#knn-m', api.root).onchange = (e) => {
       S.man = e.target.value === 'm';
-      fitc();
+      computeErrorCurves();
       api.redraw();
     };
     return {
-      fit: fitc,
+      fit: computeErrorCurves,
       p: (x, y) => {
         const nb = near(x, y, S.k);
         return nb.reduce((s, q) => s + q[1].c, 0) / Math.max(1, nb.length);
       },
       tick() {
-        if (++fr % 26) return false;
+        if (++frameCount % 26) return false;
         let k = S.k + dir * 2;
         if (k > 41) {
           dir = -1;
@@ -107,55 +107,56 @@ export default clfLesson({
         g.fill();
       },
       right(t) {
-        const { g, w, h } = fit(api.cr),
-          KM = etr.length - 1;
+        const { g: ctx, w, h } = prepareCanvas(api.cr),
+          KM = trainErrorByK.length - 1;
         let ym = 0.1;
-        for (let k = 1; k <= KM; k++) ym = Math.max(ym, etr[k], ete[k] || 0);
-        const P = plot(g, w, h, [0, KM + 1], [0, ym * 1.15], t, { xstep: 5, xlabel: 'k' });
-        g.font = MONO;
-        g.fillStyle = t.muted;
-        g.textAlign = 'right';
+        for (let k = 1; k <= KM; k++) ym = Math.max(ym, trainErrorByK[k], testErrorByK[k] || 0);
+        const P = plot(ctx, w, h, [0, KM + 1], [0, ym * 1.15], t, { xstep: 5, xlabel: 'k' });
+        ctx.font = MONO;
+        ctx.fillStyle = t.muted;
+        ctx.textAlign = 'right';
         [0.1, 0.2, 0.3, 0.4, 0.5].forEach((v) => {
           if (v < ym * 1.15) {
-            g.strokeStyle = t.line;
-            g.beginPath();
-            g.moveTo(P.m.l, P.Y(v));
-            g.lineTo(w - P.m.r, P.Y(v));
-            g.stroke();
-            g.fillText(100 * v + '%', P.m.l - 4, P.Y(v) + 4);
+            ctx.strokeStyle = t.line;
+            ctx.beginPath();
+            ctx.moveTo(P.m.l, P.Y(v));
+            ctx.lineTo(w - P.m.r, P.Y(v));
+            ctx.stroke();
+            ctx.fillText(100 * v + '%', P.m.l - 4, P.Y(v) + 4);
           }
         });
-        clipPlot(g, P);
-        g.strokeStyle = mix(t.gold, t.gold, 0, 0.5);
-        g.lineWidth = 9;
-        g.beginPath();
-        g.moveTo(P.X(S.k), P.Y(0));
-        g.lineTo(P.X(S.k), P.Y(ym * 1.15));
-        g.stroke();
+        clipPlot(ctx, P);
+        ctx.strokeStyle = mix(t.gold, t.gold, 0, 0.5);
+        ctx.lineWidth = 9;
+        ctx.beginPath();
+        ctx.moveTo(P.X(S.k), P.Y(0));
+        ctx.lineTo(P.X(S.k), P.Y(ym * 1.15));
+        ctx.stroke();
         [
-          [etr, t.accent],
-          [ete, t.ok],
+          [trainErrorByK, t.accent],
+          [testErrorByK, t.ok],
         ].forEach(([E, cl]) => {
-          g.strokeStyle = cl;
-          g.lineWidth = 2.4;
-          g.beginPath();
+          ctx.strokeStyle = cl;
+          ctx.lineWidth = 2.4;
+          ctx.beginPath();
           for (let k = 1; k <= KM; k++)
-            k > 1 ? g.lineTo(P.X(k), P.Y(E[k])) : g.moveTo(P.X(k), P.Y(E[k]));
-          g.stroke();
+            k > 1 ? ctx.lineTo(P.X(k), P.Y(E[k])) : ctx.moveTo(P.X(k), P.Y(E[k]));
+          ctx.stroke();
         });
-        g.restore();
-        g.textAlign = 'left';
-        g.fillStyle = t.accent;
-        g.fillText('train error', P.m.l + 46, P.m.t + 8);
-        g.fillStyle = t.ok;
-        g.fillText('test error', P.m.l + 46, P.m.t + 23);
+        ctx.restore();
+        ctx.textAlign = 'left';
+        ctx.fillStyle = t.accent;
+        ctx.fillText('train error', P.m.l + 46, P.m.t + 8);
+        ctx.fillStyle = t.ok;
+        ctx.fillText('test error', P.m.l + 46, P.m.t + 23);
       },
       read(set) {
         const q = api.probe,
           nb = near(q[0], q[1], S.k),
           b = nb.reduce((s, n) => s + n[1].c, 0);
         let bk = 1;
-        for (let k = 2; k < ete.length; k++) if (ete[k] < ete[bk]) bk = k;
+        for (let k = 2; k < testErrorByK.length; k++)
+          if (testErrorByK[k] < testErrorByK[bk]) bk = k;
         set('k', String(S.k));
         set('vote', nb.length - b + ' for A, ' + b + ' for B');
         set('bk', String(bk));

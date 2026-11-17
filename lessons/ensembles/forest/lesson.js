@@ -3,5 +3,5 @@ import { bagLesson } from '../shared.js';
 
 export default bagLesson({
   id: 'forest',
-  rf: true,
+  randomForest: true,
 });

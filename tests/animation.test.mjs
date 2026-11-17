@@ -31,7 +31,7 @@ function run(limit = '1', initial = 20) {
     },
   });
   site.evaluate(
-    "var pb = playBtn(button, Anim(()=>{})); var check = runCtl(pb,root,'test',{count:counter,done:completed,restart:()=>{},what:'steps'});",
+    "var playback = playBtn(button, Anim(()=>{})); var check = attachRunLimit(playback,root,'test',{count:counter,done:completed,restart:()=>{},what:'steps'});",
   );
   return {
     site,
@@ -52,28 +52,28 @@ function run(limit = '1', initial = 20) {
 }
 test('playback state follows start, stop, and button clicks', () => {
   const { site, button } = run();
-  assert.equal(site.evaluate('pb.on'), false);
+  assert.equal(site.evaluate('playback.on'), false);
   button.click();
-  assert.equal(site.evaluate('pb.on'), true);
+  assert.equal(site.evaluate('playback.on'), true);
   button.click();
-  assert.equal(site.evaluate('pb.on'), false);
-  site.evaluate('pb.start()');
+  assert.equal(site.evaluate('playback.on'), false);
+  site.evaluate('playback.start()');
   assert.equal(button.textContent, 'Pause');
-  site.evaluate('pb.stop()');
+  site.evaluate('playback.stop()');
   assert.equal(button.textContent, 'Run');
 });
 test('run budgets are additional, resumable, and survive counter resets', () => {
   const r = run('5');
   assert.equal(r.site.evaluate('check.remaining()'), Infinity);
-  r.site.evaluate('pb.start()');
+  r.site.evaluate('playback.start()');
   r.add(4);
   assert.equal(r.site.evaluate('check.remaining()'), 1);
   r.add(1);
   assert.equal(r.site.evaluate('check()'), true);
-  assert.equal(r.site.evaluate('pb.on'), false);
+  assert.equal(r.site.evaluate('playback.on'), false);
   assert.match(r.note.textContent, /Stopped after 5/);
   assert.doesNotMatch(r.note.textContent, /converged/i);
-  r.site.evaluate('pb.start()');
+  r.site.evaluate('playback.start()');
   assert.equal(r.site.evaluate('check.remaining()'), 5);
   r.add(2);
   r.site.evaluate('check.rebase(0)');
@@ -83,7 +83,7 @@ test('run budgets are additional, resumable, and survive counter resets', () => 
   assert.equal(r.site.evaluate('check()'), true);
   assert.equal(r.note.textContent, '');
   r.max.value = '';
-  r.site.evaluate('pb.start()');
+  r.site.evaluate('playback.start()');
   assert.equal(r.site.evaluate('check.remaining()'), Infinity);
 });
 
@@ -94,32 +94,37 @@ function callbackRun(id, state, workers, count) {
   const lesson = r.site.lessons.find((l) => l.id === id);
   const callback = lesson.init.toString().match(/const anim = Anim\(([\s\S]*?\n {4,6}\})\);/)[1];
   r.site.evaluate(`${state}; var draw=()=>{}, say=()=>{}; ${workers};
-    var chk; var animation = Anim(${callback}); pb = playBtn(button, animation);
-    chk = runCtl(pb,root,'test',{done:()=>false,restart:()=>{},count:()=>${count},what:'tasks'}); pb.start();`);
+    var checkRunStop; var animation = Anim(${callback}); playback = playBtn(button, animation);
+    checkRunStop = attachRunLimit(playback,root,'test',{done:()=>false,restart:()=>{},count:()=>${count},what:'tasks'}); playback.start();`);
   return r;
 }
 test('Few-shot frames cap batches and resume with the same additional budget', () => {
   const r = callbackRun('few-shot', 'var ep=0,fin=false', 'var train=k=>{ep+=k;}', 'ep');
   r.frame();
   assert.equal(r.site.evaluate('ep'), 1);
-  assert.equal(r.site.evaluate('pb.on'), false);
+  assert.equal(r.site.evaluate('playback.on'), false);
   assert.match(r.note.textContent, /Stopped after 1 more task,/);
   r.max.value = '5';
-  r.site.evaluate('pb.start()');
+  r.site.evaluate('playback.start()');
   r.frame();
   r.frame();
   assert.equal(r.site.evaluate('ep'), 6);
-  assert.equal(r.site.evaluate('pb.on'), false);
+  assert.equal(r.site.evaluate('playback.on'), false);
 });
 test('t-SNE stops at the next counted boundary', () => {
-  const ts = callbackRun('tsne', 'var it=40,fr=0', 'var fin=()=>false,iter=()=>{it++;}', 'it');
+  const ts = callbackRun(
+    'tsne',
+    'var it=40,frameCount=0',
+    'var fin=()=>false,iter=()=>{it++;}',
+    'it',
+  );
   ts.frame();
   assert.equal(ts.site.evaluate('it'), 41);
 });
 test('fast Q-learning stops at the next episode boundary', () => {
   const q = callbackRun(
     'q-learning',
-    'var ep=20,fr=0,fin=false,S={sp:4},lastL=null,transitions=0',
+    'var ep=20,frameCount=0,fin=false,settings={sp:4},lastL=null,transitions=0',
     'var one=()=>{if(++transitions%6===0)ep++;}',
     'ep',
   );
@@ -129,15 +134,15 @@ test('fast Q-learning stops at the next episode boundary', () => {
 test('automatic neuron growth cannot renew the run budget', () => {
   const r = callbackRun(
     'universal',
-    'var ep=40,fr=3,conv=false,grow=true,S={H:1},LL=[],hb={set(){}},run=0,msg=""',
+    'var ep=40,frameCount=3,conv=false,grow=true,settings={H:1},LL=[],hb={set(){}},run=0,msg=""',
     'var train=k=>{ep+=k;conv=true;LL[ep-1]=1;},build=()=>{ep=0;conv=false;}',
     'ep',
   );
   r.max.value = '5';
   for (let i = 0; i < 12; i++) {
-    if (r.site.evaluate('pb.on')) r.frame();
+    if (r.site.evaluate('playback.on')) r.frame();
   }
-  assert.equal(r.site.evaluate('pb.on'), false);
+  assert.equal(r.site.evaluate('playback.on'), false);
   assert.match(r.note.textContent, /Stopped after 5/);
 });
 

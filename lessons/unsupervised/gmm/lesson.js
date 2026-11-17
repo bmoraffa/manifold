@@ -3,23 +3,23 @@ import {
   $,
   Anim,
   MONO,
-  RM,
+  prefersReducedMotion,
   SANS,
-  T,
+  readThemeColors,
   bind,
   clamp,
   ellPath,
   f2,
   f3,
-  fit,
+  prepareCanvas,
   hex,
   markTP,
   mix,
   playBtn,
   randnFrom,
   rng,
-  runCtl,
-  setR,
+  attachRunLimit,
+  setReadout,
   testPoint,
 } from '../../../js/core/shared.js';
 import { Orbit } from '../../regression/shared.js';
@@ -28,18 +28,18 @@ import {
   UKIND,
   kmSeed,
   segBind,
-  uCur,
+  highlightLessonStep,
   uData,
   uDataBind,
   uFrame,
-  uLine,
+  drawSeriesChart,
   uNum,
   uView,
 } from '../shared.js';
 
 export default {
   init(root) {
-    const c = $('#gm-c', root),
+    const mainCanvas = $('#gm-c', root),
       cr = $('#gm-r', root),
       live = $('#gm-live', root),
       cap = $('#gm-cap', root),
@@ -47,30 +47,30 @@ export default {
       vb = $('#gm-vb', root),
       tab = $('#gm-tab', root),
       dsel = $('#gm-ds', root),
-      S = { dim: '1', K: 2, cov: 'full', ds: 'h2', n: 240, seed: 2 };
+      settings = { dim: '1', K: 2, cov: 'full', ds: 'h2', n: 240, seed: 2 };
     let P = [],
       G = [],
-      prevG = null,
-      Rs = null,
+      previousComponents = null,
+      responsibilities = null,
       ph = 'E',
       it = 0,
-      LL = [],
+      logLikelihoodHistory = [],
       msg = '',
-      cu = 0,
+      activeStepIndex = 0,
       mv = 0,
-      fr = 0,
-      pb,
+      frameCount = 0,
+      playback,
       run = 1,
-      chk = () => false;
-    const one = () => S.dim === '1',
+      checkRunStop = () => false;
+    const one = () => settings.dim === '1',
       CAP = {
         1: 'Each dot under the axis is one measurement. Each coloured curve is one cluster and the black curve is their sum, which should follow the grey histogram. The band at the bottom shows, for every position, how the clusters would split a point that fell there.',
         2: 'Each ellipse is one cluster: the inner ring is one standard deviation, the outer ring two. A point’s colour is a blend of the cluster colours, in proportion to how the clusters share it.',
         3: 'The same fit as Two Dimensions, drawn as a landscape. Height is the mixture density, each hill is one cluster, and the dots on the floor are the data. Drag to rotate.',
       };
     const mk = () => {
-      if (!one()) return uData(S.ds, S.n, S.seed);
-      const r = rng(S.seed * 11 + 2),
+      if (!one()) return uData(settings.ds, settings.n, settings.seed);
+      const r = rng(settings.seed * 11 + 2),
         rn = randnFrom(r),
         spec = {
           h2: [
@@ -86,9 +86,9 @@ export default {
             [0.5, -0.6, 0.8],
             [0.5, 0.9, 0.8],
           ],
-        }[S.ds] || [[1, 0, 1]],
+        }[settings.ds] || [[1, 0, 1]],
         o = [];
-      for (let i = 0; i < S.n; i++) {
+      for (let i = 0; i < settings.n; i++) {
         let u = r(),
           k = 0;
         while (k < spec.length - 1 && (u -= spec[k][0]) > 0) k++;
@@ -120,21 +120,23 @@ export default {
         my = P.reduce((s, p) => s + p.y, 0) / n,
         vx = P.reduce((s, p) => s + (p.x - mx) ** 2, 0) / n,
         vy = P.reduce((s, p) => s + (p.y - my) ** 2, 0) / n,
-        v = one() ? Math.max(0.08, vx / (S.K * S.K)) : Math.max(0.12, (vx + vy) / 2 / S.K);
-      G = kmSeed(P, S.K, true, rng(300 + run * 5 + S.seed)).map((q) => ({
-        pi: 1 / S.K,
+        v = one()
+          ? Math.max(0.08, vx / (settings.K * settings.K))
+          : Math.max(0.12, (vx + vy) / 2 / settings.K);
+      G = kmSeed(P, settings.K, true, rng(300 + run * 5 + settings.seed)).map((q) => ({
+        pi: 1 / settings.K,
         mx: q.x,
         my: one() ? 0 : q.y,
         a: v,
         b: 0,
         d: one() ? 1 : v,
       }));
-      prevG = null;
-      Rs = null;
+      previousComponents = null;
+      responsibilities = null;
       ph = 'E';
       it = 0;
-      LL = [];
-      cu = 0;
+      logLikelihoodHistory = [];
+      activeStepIndex = 0;
       mv = 0;
       msg =
         'Start: ' +
@@ -153,21 +155,23 @@ export default {
         return;
       }
       if (ph === 'E') {
-        cu = 1;
+        activeStepIndex = 1;
         let ll = 0,
           sh = 0;
-        Rs = P.map((p) => {
+        responsibilities = P.map((p) => {
           const q = resp(p.x, p.y);
           ll += Math.log(q.s + 1e-300);
           if (Math.max(...q.r) < 0.9) sh++;
           return q.r;
         });
-        const prevL = LL.length ? LL[LL.length - 1] : null;
-        LL.push(ll);
+        const prevL = logLikelihoodHistory.length
+          ? logLikelihoodHistory[logLikelihoodHistory.length - 1]
+          : null;
+        logLikelihoodHistory.push(ll);
         const ex = resp(tp.v[0], one() ? 0 : tp.v[1]).r;
         if ((prevL !== null && Math.abs(ll - prevL) < 1e-4 * P.length) || it >= 300) {
           ph = 'done';
-          cu = 3;
+          activeStepIndex = 3;
           msg =
             (it >= 300
               ? 'Reached the limit of 300 rounds.'
@@ -200,15 +204,15 @@ export default {
         return;
       }
       if (ph === 'M') {
-        cu = 2;
-        prevG = G.map((q) => ({ ...q }));
+        activeStepIndex = 2;
+        previousComponents = G.map((q) => ({ ...q }));
         const n = P.length;
         G.forEach((q, k) => {
           let N = 0,
             sx = 0,
             sy = 0;
           P.forEach((p, i) => {
-            const r = Rs[i][k];
+            const r = responsibilities[i][k];
             N += r;
             sx += r * p.x;
             sy += r * p.y;
@@ -220,7 +224,7 @@ export default {
             b = 0,
             d = 0;
           P.forEach((p, i) => {
-            const r = Rs[i][k],
+            const r = responsibilities[i][k],
               dx = p.x - mx,
               dy = p.y - my;
             a += r * dx * dx;
@@ -234,15 +238,15 @@ export default {
             Object.assign(q, { pi: N / n, mx, my: 0, a, b: 0, d: 1 });
             return;
           }
-          if (S.cov === 'diag') b = 0;
-          if (S.cov === 'sph') {
+          if (settings.cov === 'diag') b = 0;
+          if (settings.cov === 'sph') {
             a = d = (a + d) / 2;
             b = 0;
           }
           Object.assign(q, { pi: N / n, mx, my, a, b, d });
         });
         it++;
-        mv = RM ? 0 : 18;
+        mv = prefersReducedMotion ? 0 : 18;
         ph = 'E';
         msg =
           'M-step: the shares stayed fixed, and each bell was refitted to the points it claims. Centres moved to ' +
@@ -263,16 +267,16 @@ export default {
       ],
     );
     const orb = Orbit(
-      c,
+      mainCanvas,
       () => {
-        if (S.dim === '3') draw();
+        if (settings.dim === '3') draw();
       },
       vb,
       { az: -0.55, el: 0.62, zoom: 1 },
     );
     const draw = () => {
-      const t = T(),
-        col = UC(t),
+      const colors = readThemeColors(),
+        col = UC(colors),
         rgb = col.map(hex),
         bl = (r) => {
           let R = 0,
@@ -286,21 +290,21 @@ export default {
           return [Math.round(R), Math.round(Gn), Math.round(B)];
         },
         css = (q, al = 1) => 'rgba(' + q[0] + ',' + q[1] + ',' + q[2] + ',' + al + ')';
-      const u = prevG && mv > 0 ? 1 - mv / 18 : 1,
+      const u = previousComponents && mv > 0 ? 1 - mv / 18 : 1,
         GG = G.map((q, k) => {
-          const o = prevG && prevG[k] ? prevG[k] : q,
+          const o = previousComponents && previousComponents[k] ? previousComponents[k] : q,
             L = (f) => o[f] + (q[f] - o[f]) * u;
           return { pi: L('pi'), mx: L('mx'), my: L('my'), a: L('a'), b: L('b'), d: L('d') };
         }),
         ty = one() ? 0 : tp.v[1];
-      cap.textContent = CAP[S.dim];
+      cap.textContent = CAP[settings.dim];
       fc.textContent = one()
         ? 'Histogram of the data, the bell of each cluster, and their sum'
-        : S.dim === '2'
+        : settings.dim === '2'
           ? 'The points and the cluster ellipses'
           : 'The mixture density as a landscape';
       if (one()) {
-        const { g, w, h } = fit(c),
+        const { g: ctx, w, h } = prepareCanvas(mainCanvas),
           X = (x) => w / 2 + (x * (w - 40)) / 8,
           base = h - 84,
           top = 34,
@@ -314,66 +318,68 @@ export default {
         for (let i = 0; i <= 200; i++) ym = Math.max(ym, mixf(-4 + i * 0.04));
         ym *= 1.12;
         const Y = (v) => base - (v / ym) * (base - top);
-        g.fillStyle = mix(t.ink, t.ink, 0, 0.11);
-        hd.forEach((v, i) => g.fillRect(X(-4 + i * bw) + 1, Y(v), X(bw) - X(0) - 2, base - Y(v)));
+        ctx.fillStyle = mix(colors.ink, colors.ink, 0, 0.11);
+        hd.forEach((v, i) => ctx.fillRect(X(-4 + i * bw) + 1, Y(v), X(bw) - X(0) - 2, base - Y(v)));
         GG.forEach((q, k) => {
           const f = (x) => q.pi * d1(q, x);
-          g.beginPath();
-          g.moveTo(X(-4), base);
+          ctx.beginPath();
+          ctx.moveTo(X(-4), base);
           for (let i = 0; i <= 240; i++) {
             const x = -4 + i / 30;
-            g.lineTo(X(x), Y(f(x)));
+            ctx.lineTo(X(x), Y(f(x)));
           }
-          g.lineTo(X(4), base);
-          g.closePath();
-          g.fillStyle = mix(col[k % 8], col[k % 8], 0, 0.2);
-          g.fill();
-          g.beginPath();
+          ctx.lineTo(X(4), base);
+          ctx.closePath();
+          ctx.fillStyle = mix(col[k % 8], col[k % 8], 0, 0.2);
+          ctx.fill();
+          ctx.beginPath();
           for (let i = 0; i <= 240; i++) {
             const x = -4 + i / 30;
-            i ? g.lineTo(X(x), Y(f(x))) : g.moveTo(X(x), Y(f(x)));
+            i ? ctx.lineTo(X(x), Y(f(x))) : ctx.moveTo(X(x), Y(f(x)));
           }
-          g.strokeStyle = col[k % 8];
-          g.lineWidth = 2.6;
-          g.stroke();
+          ctx.strokeStyle = col[k % 8];
+          ctx.lineWidth = 2.6;
+          ctx.stroke();
           const pk = Y(f(q.mx));
-          g.setLineDash([4, 4]);
-          g.lineWidth = 1.4;
-          g.beginPath();
-          g.moveTo(X(q.mx), base);
-          g.lineTo(X(q.mx), pk);
-          g.stroke();
-          g.setLineDash([]);
-          g.font = SANS;
-          g.fillStyle = col[k % 8];
-          g.textAlign = 'center';
-          g.fillText('cluster ' + (k + 1), clamp(X(q.mx), 50, w - 50), Math.max(14, pk - 20));
-          g.font = MONO;
-          g.fillText(
+          ctx.setLineDash([4, 4]);
+          ctx.lineWidth = 1.4;
+          ctx.beginPath();
+          ctx.moveTo(X(q.mx), base);
+          ctx.lineTo(X(q.mx), pk);
+          ctx.stroke();
+          ctx.setLineDash([]);
+          ctx.font = SANS;
+          ctx.fillStyle = col[k % 8];
+          ctx.textAlign = 'center';
+          ctx.fillText('cluster ' + (k + 1), clamp(X(q.mx), 50, w - 50), Math.max(14, pk - 20));
+          ctx.font = MONO;
+          ctx.fillText(
             'centre ' + f2(q.mx) + ', spread ' + f2(Math.sqrt(q.a)),
             clamp(X(q.mx), 80, w - 80),
             Math.max(27, pk - 7),
           );
         });
-        g.beginPath();
+        ctx.beginPath();
         for (let i = 0; i <= 240; i++) {
           const x = -4 + i / 30;
-          i ? g.lineTo(X(x), Y(mixf(x))) : g.moveTo(X(x), Y(mixf(x)));
+          i ? ctx.lineTo(X(x), Y(mixf(x))) : ctx.moveTo(X(x), Y(mixf(x)));
         }
-        g.strokeStyle = t.ink;
-        g.lineWidth = 1.8;
-        g.stroke();
-        g.strokeStyle = t.muted;
-        g.lineWidth = 1;
-        g.beginPath();
-        g.moveTo(X(-4), base);
-        g.lineTo(X(4), base);
-        g.stroke();
+        ctx.strokeStyle = colors.ink;
+        ctx.lineWidth = 1.8;
+        ctx.stroke();
+        ctx.strokeStyle = colors.muted;
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(X(-4), base);
+        ctx.lineTo(X(4), base);
+        ctx.stroke();
         P.forEach((p, i) => {
-          g.fillStyle = Rs ? css(bl(Rs[i])) : mix(t.ink, t.ink, 0, 0.4);
-          g.beginPath();
-          g.arc(X(p.x), base + 8 + (i % 4) * 4.5, 2.5, 0, 7);
-          g.fill();
+          ctx.fillStyle = responsibilities
+            ? css(bl(responsibilities[i]))
+            : mix(colors.ink, colors.ink, 0, 0.4);
+          ctx.beginPath();
+          ctx.arc(X(p.x), base + 8 + (i % 4) * 4.5, 2.5, 0, 7);
+          ctx.fill();
         });
         const by = base + 34,
           bh = 24;
@@ -381,33 +387,33 @@ export default {
           const r = respG(GG, ((px + 1.5 - w / 2) * 8) / (w - 40), 0).r;
           let y = by;
           r.forEach((v, k) => {
-            g.fillStyle = col[k % 8];
-            g.fillRect(px, y, 3.2, v * bh + 0.4);
+            ctx.fillStyle = col[k % 8];
+            ctx.fillRect(px, y, 3.2, v * bh + 0.4);
             y += v * bh;
           });
         }
-        g.font = MONO;
-        g.fillStyle = t.muted;
-        g.textAlign = 'center';
-        [-3, -2, -1, 0, 1, 2, 3].forEach((v) => g.fillText(String(v), X(v), by + bh + 14));
-        g.textAlign = 'left';
-        g.fillText('band: who owns a point at each position', X(-4), h - 4);
+        ctx.font = MONO;
+        ctx.fillStyle = colors.muted;
+        ctx.textAlign = 'center';
+        [-3, -2, -1, 0, 1, 2, 3].forEach((v) => ctx.fillText(String(v), X(v), by + bh + 14));
+        ctx.textAlign = 'left';
+        ctx.fillText('band: who owns a point at each position', X(-4), h - 4);
         const x = X(tp.v[0]);
-        g.strokeStyle = t.ink;
-        g.lineWidth = 1.5;
-        g.beginPath();
-        g.moveTo(x, top - 8);
-        g.lineTo(x, by + bh);
-        g.stroke();
-        markTP(g, x, top - 8, t);
-      } else if (S.dim === '2') {
-        const V = uView(c),
+        ctx.strokeStyle = colors.ink;
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.moveTo(x, top - 8);
+        ctx.lineTo(x, by + bh);
+        ctx.stroke();
+        markTP(ctx, x, top - 8, colors);
+      } else if (settings.dim === '2') {
+        const V = uView(mainCanvas),
           { g, w, h, X, Y } = V;
         uFrame(
           V,
-          t,
-          S.ds === 'shop' ? 'visits per month (standardised)' : 'x',
-          S.ds === 'shop' ? 'average basket (standardised)' : 'y',
+          colors,
+          settings.ds === 'shop' ? 'visits per month (standardised)' : 'x',
+          settings.ds === 'shop' ? 'average basket (standardised)' : 'y',
         );
         GG.forEach((q, k) => {
           ellPath(g, X, Y, q.mx, q.my, q.a, q.b, q.d, 2);
@@ -424,38 +430,40 @@ export default {
         P.forEach((p, i) => {
           g.beginPath();
           g.arc(X(p.x), Y(p.y), 3.4, 0, 7);
-          g.fillStyle = Rs ? css(bl(Rs[i])) : mix(t.ink, t.ink, 0, 0.42);
+          g.fillStyle = responsibilities
+            ? css(bl(responsibilities[i]))
+            : mix(colors.ink, colors.ink, 0, 0.42);
           g.fill();
         });
         GG.forEach((q, k) => {
-          if (prevG && prevG[k]) {
-            g.strokeStyle = t.ink;
+          if (previousComponents && previousComponents[k]) {
+            g.strokeStyle = colors.ink;
             g.lineWidth = 1.4;
             g.setLineDash([4, 4]);
             g.beginPath();
-            g.moveTo(X(prevG[k].mx), Y(prevG[k].my));
+            g.moveTo(X(previousComponents[k].mx), Y(previousComponents[k].my));
             g.lineTo(X(q.mx), Y(q.my));
             g.stroke();
             g.setLineDash([]);
           }
           g.fillStyle = col[k % 8];
-          g.strokeStyle = t.bg;
+          g.strokeStyle = colors.bg;
           g.lineWidth = 4;
           g.beginPath();
           g.rect(X(q.mx) - 6, Y(q.my) - 6, 12, 12);
           g.stroke();
           g.fill();
-          g.strokeStyle = t.ink;
+          g.strokeStyle = colors.ink;
           g.lineWidth = 1.4;
           g.strokeRect(X(q.mx) - 6, Y(q.my) - 6, 12, 12);
           g.font = SANS;
-          g.fillStyle = t.ink;
+          g.fillStyle = colors.ink;
           g.textAlign = 'left';
           g.fillText(String(k + 1), X(q.mx) + 10, Y(q.my) - 8);
         });
-        markTP(g, X(tp.v[0]), Y(tp.v[1]), t);
+        markTP(g, X(tp.v[0]), Y(tp.v[1]), colors);
       } else {
-        const { g, w, h } = fit(c),
+        const { g: ctx, w, h } = prepareCanvas(mainCanvas),
           pr = orb.cam(w, h, 9.6),
           nx = 44,
           ny = 33,
@@ -471,9 +479,9 @@ export default {
           }
         }
         const zs = 2.7 / zm;
-        g.strokeStyle = t.line;
-        g.lineWidth = 1;
-        g.beginPath();
+        ctx.strokeStyle = colors.line;
+        ctx.lineWidth = 1;
+        ctx.beginPath();
         [
           [-4, -3],
           [4, -3],
@@ -482,15 +490,17 @@ export default {
           [-4, -3],
         ].forEach((q, i) => {
           const p = pr(q[0], q[1], 0);
-          i ? g.lineTo(p[0], p[1]) : g.moveTo(p[0], p[1]);
+          i ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1]);
         });
-        g.stroke();
+        ctx.stroke();
         P.forEach((p, i) => {
           const q = pr(p.x, p.y, 0);
-          g.fillStyle = Rs ? css(bl(Rs[i]), 0.9) : mix(t.ink, t.ink, 0, 0.42);
-          g.beginPath();
-          g.arc(q[0], q[1], 2.2, 0, 7);
-          g.fill();
+          ctx.fillStyle = responsibilities
+            ? css(bl(responsibilities[i]), 0.9)
+            : mix(colors.ink, colors.ink, 0, 0.42);
+          ctx.beginPath();
+          ctx.arc(q[0], q[1], 2.2, 0, 7);
+          ctx.fill();
         });
         const Q = [];
         for (let i = 0; i < nx; i++)
@@ -516,65 +526,65 @@ export default {
             });
           }
         Q.sort((p, q) => q.dp - p.dp);
-        g.lineWidth = 0.5;
+        ctx.lineWidth = 0.5;
         for (const o of Q) {
-          g.beginPath();
-          g.moveTo(o.a[0], o.a[1]);
-          g.lineTo(o.b[0], o.b[1]);
-          g.lineTo(o.c[0], o.c[1]);
-          g.lineTo(o.d[0], o.d[1]);
-          g.closePath();
-          g.fillStyle = css(bl(o.r), 0.35 + 0.6 * Math.pow(o.z / zm, 0.6));
-          g.fill();
-          g.strokeStyle = mix(t.ink, t.ink, 0, 0.13);
-          g.stroke();
+          ctx.beginPath();
+          ctx.moveTo(o.a[0], o.a[1]);
+          ctx.lineTo(o.b[0], o.b[1]);
+          ctx.lineTo(o.c[0], o.c[1]);
+          ctx.lineTo(o.d[0], o.d[1]);
+          ctx.closePath();
+          ctx.fillStyle = css(bl(o.r), 0.35 + 0.6 * Math.pow(o.z / zm, 0.6));
+          ctx.fill();
+          ctx.strokeStyle = mix(colors.ink, colors.ink, 0, 0.13);
+          ctx.stroke();
         }
         GG.forEach((q, k) => {
           const p = pr(q.mx, q.my, zs * respG(GG, q.mx, q.my).s);
-          g.font = SANS;
-          g.fillStyle = t.ink;
-          g.textAlign = 'center';
-          g.fillText('cluster ' + (k + 1), p[0], p[1] - 8);
+          ctx.font = SANS;
+          ctx.fillStyle = colors.ink;
+          ctx.textAlign = 'center';
+          ctx.fillText('cluster ' + (k + 1), p[0], p[1] - 8);
         });
         const a = pr(tp.v[0], tp.v[1], 0),
           b = pr(tp.v[0], tp.v[1], zs * respG(GG, tp.v[0], tp.v[1]).s);
-        g.strokeStyle = t.ink;
-        g.lineWidth = 1.5;
-        g.beginPath();
-        g.moveTo(a[0], a[1]);
-        g.lineTo(b[0], b[1]);
-        g.stroke();
-        markTP(g, b[0], b[1], t);
+        ctx.strokeStyle = colors.ink;
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.moveTo(a[0], a[1]);
+        ctx.lineTo(b[0], b[1]);
+        ctx.stroke();
+        markTP(ctx, b[0], b[1], colors);
       }
       {
-        const { g, w, h } = fit(cr),
+        const { g: ctx, w, h } = prepareCanvas(cr),
           q = respG(GG, tp.v[0], ty),
           ha = h * 0.24,
           hb = h * 0.3;
-        g.font = MONO;
-        g.fillStyle = t.muted;
-        g.textAlign = 'left';
-        g.fillText('your point at ' + where(tp.v) + ' is shared like this', 8, 13);
+        ctx.font = MONO;
+        ctx.fillStyle = colors.muted;
+        ctx.textAlign = 'left';
+        ctx.fillText('your point at ' + where(tp.v) + ' is shared like this', 8, 13);
         let x = 10;
         const bwid = w - 20;
         q.r.forEach((v, k) => {
-          g.fillStyle = col[k % 8];
-          g.fillRect(x, 22, v * bwid, 30);
+          ctx.fillStyle = col[k % 8];
+          ctx.fillRect(x, 22, v * bwid, 30);
           if (v * bwid > 46) {
-            g.fillStyle = t.bg;
-            g.font = SANS;
-            g.textAlign = 'center';
-            g.fillText((100 * v).toFixed(0) + '%', x + (v * bwid) / 2, 42);
+            ctx.fillStyle = colors.bg;
+            ctx.font = SANS;
+            ctx.textAlign = 'center';
+            ctx.fillText((100 * v).toFixed(0) + '%', x + (v * bwid) / 2, 42);
           }
           x += v * bwid;
         });
-        g.strokeStyle = t.muted;
-        g.lineWidth = 1;
-        g.strokeRect(10, 22, bwid, 30);
-        g.font = MONO;
-        g.fillStyle = t.muted;
-        g.textAlign = 'left';
-        g.fillText(
+        ctx.strokeStyle = colors.muted;
+        ctx.lineWidth = 1;
+        ctx.strokeRect(10, 22, bwid, 30);
+        ctx.font = MONO;
+        ctx.fillStyle = colors.muted;
+        ctx.textAlign = 'left';
+        ctx.fillText(
           'weight π of each cluster = its share of all ' + P.length + ' points',
           8,
           ha + 13,
@@ -582,30 +592,30 @@ export default {
         const rh = Math.min(24, (hb - 22) / Math.max(1, GG.length));
         GG.forEach((z, k) => {
           const y = ha + 20 + k * rh;
-          g.fillStyle = t.ink;
-          g.textAlign = 'left';
-          g.fillText('cluster ' + (k + 1), 10, y + rh * 0.65);
-          g.fillStyle = mix(t.ink, t.ink, 0, 0.08);
-          g.fillRect(84, y + 2, w - 190, rh - 5);
-          g.fillStyle = col[k % 8];
-          g.fillRect(84, y + 2, (w - 190) * z.pi, rh - 5);
-          g.fillStyle = t.muted;
-          g.fillText(
+          ctx.fillStyle = colors.ink;
+          ctx.textAlign = 'left';
+          ctx.fillText('cluster ' + (k + 1), 10, y + rh * 0.65);
+          ctx.fillStyle = mix(colors.ink, colors.ink, 0, 0.08);
+          ctx.fillRect(84, y + 2, w - 190, rh - 5);
+          ctx.fillStyle = col[k % 8];
+          ctx.fillRect(84, y + 2, (w - 190) * z.pi, rh - 5);
+          ctx.fillStyle = colors.muted;
+          ctx.fillText(
             'π = ' + f2(z.pi) + ', ≈ ' + Math.round(z.pi * P.length) + ' pts',
             w - 100,
             y + rh * 0.65,
           );
         });
-        const lo = LL.length ? Math.min(...LL) : 0,
-          hi = LL.length ? Math.max(...LL) : 1,
+        const lo = logLikelihoodHistory.length ? Math.min(...logLikelihoodHistory) : 0,
+          hi = logLikelihoodHistory.length ? Math.max(...logLikelihoodHistory) : 1,
           pad = Math.max(1e-6, (hi - lo) * 0.08);
-        uLine(g, t, 0, ha + hb, w, h - ha - hb, LL, {
+        drawSeriesChart(ctx, colors, 0, ha + hb, w, h - ha - hb, logLikelihoodHistory, {
           title: 'log-likelihood after each E-step: it can only rise',
           dots: true,
-          n: Math.max(8, LL.length),
+          n: Math.max(8, logLikelihoodHistory.length),
           y1: lo - pad,
           ym: hi + pad,
-          col: t.gold,
+          col: colors.gold,
         });
       }
       if (!mv)
@@ -641,7 +651,7 @@ export default {
           ).join('') +
           '</tbody></table>';
       live.textContent = msg;
-      uCur(root, 'gm', cu);
+      highlightLessonStep(root, 'gm', activeStepIndex);
       {
         const q = resp(tp.v[0], ty),
           b = q.r.indexOf(Math.max(...q.r));
@@ -656,16 +666,22 @@ export default {
           f3(q.s) +
           '.';
       }
-      const L = LL.length;
-      setR(root, 'it', String(it));
-      setR(root, 'll', L ? uNum(LL[L - 1]) : '–');
-      setR(root, 'dl', L > 1 ? (LL[L - 1] - LL[L - 2]).toFixed(4) : '–');
-      setR(
+      const L = logLikelihoodHistory.length;
+      setReadout(root, 'it', String(it));
+      setReadout(root, 'll', L ? uNum(logLikelihoodHistory[L - 1]) : '–');
+      setReadout(
+        root,
+        'dl',
+        L > 1 ? (logLikelihoodHistory[L - 1] - logLikelihoodHistory[L - 2]).toFixed(4) : '–',
+      );
+      setReadout(
         root,
         'sh',
-        Rs ? Rs.filter((r) => Math.max(...r) < 0.9).length + ' of ' + P.length : '–',
+        responsibilities
+          ? responsibilities.filter((r) => Math.max(...r) < 0.9).length + ' of ' + P.length
+          : '–',
       );
-      setR(root, 'st', ph === 'done' ? 'Converged' : it ? 'Running' : 'Not started');
+      setReadout(root, 'st', ph === 'done' ? 'Converged' : it ? 'Running' : 'Not started');
     };
     tp.on = () => draw();
     const load = () => {
@@ -682,9 +698,9 @@ export default {
     const gen = uDataBind(
       root,
       'gm',
-      S,
+      settings,
       () => {
-        pb.stop();
+        playback.stop();
         load();
         run = 1;
         reset();
@@ -697,19 +713,19 @@ export default {
     reset();
     full();
     const anim = Anim(() => {
-      fr++;
+      frameCount++;
       if (mv > 0) {
         mv--;
         draw();
         return;
       }
-      if (fr % (it < 4 ? 44 : 14)) return;
+      if (frameCount % (it < 4 ? 44 : 14)) return;
       step();
       draw();
-      chk();
+      checkRunStop();
     });
-    pb = playBtn($('#gm-play', root), anim);
-    chk = runCtl(pb, root, 'gm', {
+    playback = playBtn($('#gm-play', root), anim);
+    checkRunStop = attachRunLimit(playback, root, 'gm', {
       done: () => ph === 'done',
       restart: () => {
         run++;
@@ -719,13 +735,13 @@ export default {
       what: 'rounds',
     });
     $('#gm-step', root).onclick = () => {
-      pb.stop();
+      playback.stop();
       mv = 0;
       step();
       draw();
     };
     $('#gm-reset', root).onclick = () => {
-      pb.stop();
+      playback.stop();
       run++;
       reset();
       draw();
@@ -734,8 +750,8 @@ export default {
       root,
       'gm-K',
       (v) => {
-        S.K = v;
-        pb.stop();
+        settings.K = v;
+        playback.stop();
         reset();
         full();
         draw();
@@ -743,8 +759,8 @@ export default {
       (v) => String(v),
     );
     $('#gm-cov', root).onchange = (e) => {
-      S.cov = e.target.value;
-      pb.stop();
+      settings.cov = e.target.value;
+      playback.stop();
       reset();
       full();
       draw();
@@ -752,23 +768,23 @@ export default {
     const lay = () => {
       $('#gm-covl', root).style.display = one() ? 'none' : '';
       $('#gm-tp1', root).closest('label').style.display = one() ? 'none' : '';
-      vb.style.display = S.dim === '3' ? '' : 'none';
-      c.style.cursor = S.dim === '3' ? 'grab' : '';
-      c.style.touchAction = S.dim === '3' ? 'none' : '';
+      vb.style.display = settings.dim === '3' ? '' : 'none';
+      mainCanvas.style.cursor = settings.dim === '3' ? 'grab' : '';
+      mainCanvas.style.touchAction = settings.dim === '3' ? 'none' : '';
     };
-    segBind(root, 'gm-dim', S.dim, (v) => {
+    segBind(root, 'gm-dim', settings.dim, (v) => {
       const was = one();
-      S.dim = v;
-      pb.stop();
+      settings.dim = v;
+      playback.stop();
       orb.spin(false);
       if (was !== one()) {
         const ks = one() ? ['h2', 'h3', 'hov'] : ['long', 'blobs', 'uneven', 'shop', 'moons'];
         dsel.innerHTML = ks
           .map((k) => '<option value="' + k + '">' + UKIND[k] + '</option>')
           .join('');
-        S.ds = ks[0];
-        S.K = one() ? 2 : 3;
-        kb.set(S.K);
+        settings.ds = ks[0];
+        settings.K = one() ? 2 : 3;
+        kb.set(settings.K);
         dsel.dispatchEvent(new Event('change'));
       }
       lay();
@@ -778,13 +794,13 @@ export default {
     return {
       draw,
       stop: () => {
-        pb.stop();
+        playback.stop();
         orb.spin(false);
       },
       auto: () => {
         reset();
         draw();
-        pb.start();
+        playback.start();
       },
     };
   },

@@ -2,57 +2,57 @@
 import {
   $,
   Anim,
-  RM,
-  T,
+  prefersReducedMotion,
+  readThemeColors,
   bind,
   f2,
-  fit,
+  prepareCanvas,
   mix,
   playBtn,
   randnFrom,
   rng,
-  runCtl,
-  setR,
+  attachRunLimit,
+  setReadout,
 } from '../../../js/core/shared.js';
 import { AD } from '../../../js/math/autodiff.js';
 import { pct } from '../../ensembles/shared.js';
 import { sig } from '../../classification/shared.js';
-import { uCur, uLine, uView } from '../../unsupervised/shared.js';
+import { highlightLessonStep, drawSeriesChart, uView } from '../../unsupervised/shared.js';
 
 export default {
   init(root) {
     const c = $('#ga-c', root),
       cr = $('#ga-r', root),
       live = $('#ga-live', root),
-      S = { ds: 'ring', dk: 1, lr: 2 },
+      settings = { ds: 'ring', dk: 1, lr: 2 },
       MAXS = 3000,
       B = 64,
       RN = randnFrom(Math.random);
     let G,
       D,
-      ts = 0,
-      tg = 0,
-      td = 0,
+      trainingRounds = 0,
+      generatorSteps = 0,
+      discriminatorSteps = 0,
       LD = [],
       LG = [],
       AR = [],
-      AF = [],
+      fakePassRateHistory = [],
       fake = [],
       real = [],
       done = false,
       msg = '',
-      cu = 0,
-      fr = 0,
-      pb,
-      chk = () => false,
+      activeStepIndex = 0,
+      frameCount = 0,
+      playback,
+      checkRunStop = () => false,
       run = 1;
     const samp = () => {
-      if (S.ds === 'ring') {
+      if (settings.ds === 'ring') {
         const k = Math.floor(Math.random() * 6),
           a = (k / 6) * 2 * Math.PI;
         return [1.3 * Math.cos(a) + 0.09 * RN(), 1.3 * Math.sin(a) + 0.09 * RN()];
       }
-      if (S.ds === 'moons') {
+      if (settings.ds === 'moons') {
         const a = Math.random() * Math.PI;
         return Math.random() < 0.5
           ? [Math.cos(a) * 1.1 - 0.5 + 0.07 * RN(), -0.3 + Math.sin(a) * 1.0 + 0.07 * RN()]
@@ -63,13 +63,13 @@ export default {
     const build = () => {
       G = AD.mlp([2, 32, 32, 2], randnFrom(rng(run * 3 + 1)), 'relu');
       D = AD.mlp([2, 32, 32, 1], randnFrom(rng(run * 3 + 2)), 'relu');
-      ts = tg = td = 0;
+      trainingRounds = generatorSteps = discriminatorSteps = 0;
       LD = [];
       LG = [];
       AR = [];
-      AF = [];
+      fakePassRateHistory = [];
       done = false;
-      cu = 0;
+      activeStepIndex = 0;
       real = Array.from({ length: 260 }, samp);
       view();
       msg =
@@ -93,7 +93,7 @@ export default {
       return o.v;
     };
     const modes = () => {
-      if (S.ds !== 'ring') return null;
+      if (settings.ds !== 'ring') return null;
       const h = new Set();
       fake.forEach((p) => {
         for (let k = 0; k < 6; k++) {
@@ -106,10 +106,10 @@ export default {
     const train = (k) => {
       const ones = new Float64Array(B).fill(1),
         zeros = new Float64Array(B),
-        lr = S.lr * 0.001;
+        lr = settings.lr * 0.001;
       for (let q = 0; q < k && !done; q++) {
         let ld = 0;
-        for (let d = 0; d < S.dk; d++) {
+        for (let d = 0; d < settings.dk; d++) {
           const z = Float64Array.from({ length: 2 * B }, () => RN()),
             rl = new Float64Array(2 * B);
           for (let i = 0; i < B; i++) {
@@ -125,32 +125,32 @@ export default {
           l = AD.bce(D.fwd(AD.input(fk.v, [B, 2])), zeros);
           ld += l.v[0];
           AD.backward(l);
-          AD.adam(D.ps, lr, ++td, 1);
+          AD.adam(D.ps, lr, ++discriminatorSteps, 1);
         }
         const z2 = Float64Array.from({ length: 2 * B }, () => RN()),
           l = AD.bce(D.fwd(G.fwd(AD.input(z2, [B, 2]))), ones);
         AD.backward(l);
-        AD.adam(G.ps, lr, ++tg, 1);
+        AD.adam(G.ps, lr, ++generatorSteps, 1);
         for (const p of D.ps) p.g.fill(0);
-        ts++;
+        trainingRounds++;
         LD.push(ld);
         LG.push(l.v[0]);
-        if (ts >= MAXS) done = true;
+        if (trainingRounds >= MAXS) done = true;
       }
       view();
       const a = dOn(real),
         b = dOn(fake);
       AR.push(a.filter((v) => v > 0).length / a.length);
-      AF.push(b.filter((v) => v > 0).length / b.length);
-      cu = done ? 4 : 1 + (ts % 3);
+      fakePassRateHistory.push(b.filter((v) => v > 0).length / b.length);
+      activeStepIndex = done ? 4 : 1 + (trainingRounds % 3);
       const m = modes();
       msg =
         'Step ' +
-        ts +
+        trainingRounds +
         ': the discriminator trained on 64 real and 64 fake points, then the generator trained to fool it. Right now the discriminator calls ' +
         pct(AR[AR.length - 1]) +
         ' of real points real and is fooled by ' +
-        pct(AF[AF.length - 1]) +
+        pct(fakePassRateHistory[fakePassRateHistory.length - 1]) +
         ' of the fakes.' +
         (m !== null ? ' The gold dots cover ' + m + ' of the 6 clusters.' : '') +
         (done
@@ -160,7 +160,7 @@ export default {
           : '');
     };
     const draw = () => {
-      const t = T();
+      const colors = readThemeColors();
       {
         const V = uView(c),
           { g, w, h, X, Y, s } = V,
@@ -175,8 +175,8 @@ export default {
         P.forEach((p, i) => {
           const pr2 = sig(dv[i]);
           g.fillStyle = mix(
-            pr2 >= 0.5 ? t.accent : t.ok,
-            t.bg,
+            pr2 >= 0.5 ? colors.accent : colors.ok,
+            colors.bg,
             0,
             0.05 + 0.3 * Math.abs(pr2 - 0.5) * 2,
           );
@@ -184,14 +184,14 @@ export default {
         });
         const X2 = (v) => X(v * 1.9),
           Y2 = (v) => Y(v * 1.9);
-        g.fillStyle = mix(t.ink, t.ink, 0, 0.75);
+        g.fillStyle = mix(colors.ink, colors.ink, 0, 0.75);
         real.forEach((p) => {
           g.beginPath();
           g.arc(X2(p[0]), Y2(p[1]), 2.6, 0, 7);
           g.fill();
         });
-        g.fillStyle = t.gold;
-        g.strokeStyle = t.bg;
+        g.fillStyle = colors.gold;
+        g.strokeStyle = colors.bg;
         g.lineWidth = 0.8;
         fake.forEach((p) => {
           g.beginPath();
@@ -201,12 +201,12 @@ export default {
         });
       }
       {
-        const { g, w, h } = fit(cr),
+        const { g: ctx, w, h } = prepareCanvas(cr),
           h1 = h * 0.5,
           ym = Math.max(2.5, ...LG.slice(-400), ...LD.slice(-400)),
-          U = uLine(
-            g,
-            t,
+          U = drawSeriesChart(
+            ctx,
+            colors,
             0,
             0,
             w,
@@ -215,74 +215,80 @@ export default {
             {
               title: 'losses: discriminator (green), generator (red)',
               n: Math.max(300, LD.length),
-              col: t.accent,
+              col: colors.accent,
               ym,
             },
           );
-        g.strokeStyle = t.ok;
-        g.lineWidth = 1.8;
-        g.beginPath();
+        ctx.strokeStyle = colors.ok;
+        ctx.lineWidth = 1.8;
+        ctx.beginPath();
         LG.forEach((v, i) =>
-          i ? g.lineTo(U.X(i), U.Y(Math.min(v, ym))) : g.moveTo(U.X(i), U.Y(Math.min(v, ym))),
+          i ? ctx.lineTo(U.X(i), U.Y(Math.min(v, ym))) : ctx.moveTo(U.X(i), U.Y(Math.min(v, ym))),
         );
-        g.stroke();
-        const U2 = uLine(g, t, 0, h1, w, h - h1, AR, {
+        ctx.stroke();
+        const U2 = drawSeriesChart(ctx, colors, 0, h1, w, h - h1, AR, {
           title: 'discriminator says “real” for: real points (green), fakes (gold)',
           n: Math.max(100, AR.length),
-          col: t.accent,
+          col: colors.accent,
           ym: 1,
         });
-        g.strokeStyle = t.gold;
-        g.lineWidth = 2;
-        g.beginPath();
-        AF.forEach((v, i) => (i ? g.lineTo(U2.X(i), U2.Y(v)) : g.moveTo(U2.X(i), U2.Y(v))));
-        g.stroke();
-        g.setLineDash([4, 4]);
-        g.strokeStyle = t.muted;
-        g.lineWidth = 1;
-        g.beginPath();
-        g.moveTo(U2.X(0), U2.Y(0.5));
-        g.lineTo(w - 12, U2.Y(0.5));
-        g.stroke();
-        g.setLineDash([]);
+        ctx.strokeStyle = colors.gold;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        fakePassRateHistory.forEach((v, i) =>
+          i ? ctx.lineTo(U2.X(i), U2.Y(v)) : ctx.moveTo(U2.X(i), U2.Y(v)),
+        );
+        ctx.stroke();
+        ctx.setLineDash([4, 4]);
+        ctx.strokeStyle = colors.muted;
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(U2.X(0), U2.Y(0.5));
+        ctx.lineTo(w - 12, U2.Y(0.5));
+        ctx.stroke();
+        ctx.setLineDash([]);
       }
       live.textContent = msg;
-      uCur(root, 'ga', cu);
+      highlightLessonStep(root, 'ga', activeStepIndex);
       const m = modes();
-      setR(root, 'step', ts + ' of ' + MAXS);
-      setR(root, 'ld', ts ? f2(LD[ts - 1]) : '–');
-      setR(root, 'lg', ts ? f2(LG[ts - 1]) : '–');
-      setR(root, 'dr', AR.length ? pct(AR[AR.length - 1]) : '–');
-      setR(root, 'df', AF.length ? pct(AF[AF.length - 1]) : '–');
-      setR(root, 'md', m === null ? '(only for the ring)' : m + ' of 6');
+      setReadout(root, 'step', trainingRounds + ' of ' + MAXS);
+      setReadout(root, 'ld', trainingRounds ? f2(LD[trainingRounds - 1]) : '–');
+      setReadout(root, 'lg', trainingRounds ? f2(LG[trainingRounds - 1]) : '–');
+      setReadout(root, 'dr', AR.length ? pct(AR[AR.length - 1]) : '–');
+      setReadout(
+        root,
+        'df',
+        fakePassRateHistory.length ? pct(fakePassRateHistory[fakePassRateHistory.length - 1]) : '–',
+      );
+      setReadout(root, 'md', m === null ? '(only for the ring)' : m + ' of 6');
     };
     build();
-    if (RM) train(MAXS);
+    if (prefersReducedMotion) train(MAXS);
     const redo = () => {
-      pb.stop();
+      playback.stop();
       run++;
       build();
       draw();
     };
     const anim = Anim(() => {
-      fr++;
-      if (ts < 40 && fr % 3) return;
-      train(Math.min(ts < 40 ? 1 : 4, chk.remaining()));
+      frameCount++;
+      if (trainingRounds < 40 && frameCount % 3) return;
+      train(Math.min(trainingRounds < 40 ? 1 : 4, checkRunStop.remaining()));
       draw();
-      chk();
+      checkRunStop();
     });
-    pb = playBtn($('#ga-play', root), anim);
-    chk = runCtl(pb, root, 'ga', {
+    playback = playBtn($('#ga-play', root), anim);
+    checkRunStop = attachRunLimit(playback, root, 'ga', {
       done: () => done,
       restart: () => {
         run++;
         build();
       },
-      count: () => ts,
+      count: () => trainingRounds,
       what: 'steps',
     });
     $('#ga-step', root).onclick = () => {
-      pb.stop();
+      playback.stop();
       if (done) {
         run++;
         build();
@@ -291,15 +297,15 @@ export default {
     };
     $('#ga-reset', root).onclick = redo;
     $('#ga-ds', root).onchange = (e) => {
-      S.ds = e.target.value;
+      settings.ds = e.target.value;
       redo();
-      pb.start();
+      playback.start();
     };
     bind(
       root,
       'ga-dk',
       (v) => {
-        S.dk = v;
+        settings.dk = v;
       },
       (v) => String(v),
     );
@@ -307,18 +313,18 @@ export default {
       root,
       'ga-lr',
       (v) => {
-        S.lr = v;
+        settings.lr = v;
       },
       f2,
     );
     return {
       draw,
-      stop: () => pb.stop(),
+      stop: () => playback.stop(),
       auto: () => {
         run++;
         build();
         draw();
-        pb.start();
+        playback.start();
       },
     };
   },

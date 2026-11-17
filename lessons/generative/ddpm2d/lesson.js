@@ -3,20 +3,20 @@ import {
   $,
   Anim,
   MONO,
-  RM,
-  T,
+  prefersReducedMotion,
+  readThemeColors,
   f3,
-  fit,
+  prepareCanvas,
   mix,
   playBtn,
   randnFrom,
   rng,
-  runCtl,
-  setR,
+  attachRunLimit,
+  setReadout,
 } from '../../../js/core/shared.js';
 import { AD } from '../../../js/math/autodiff.js';
 import { pct } from '../../ensembles/shared.js';
-import { uCur, uLine, uView } from '../../unsupervised/shared.js';
+import { highlightLessonStep, drawSeriesChart, uView } from '../../unsupervised/shared.js';
 
 export default {
   init(root) {
@@ -40,17 +40,17 @@ export default {
     let net,
       ts = 0,
       LL = [],
-      xs = null,
-      lv = Tn,
+      samplePositions = null,
+      reverseTimestep = Tn,
       phase = 'train',
       data = [],
       msg = '',
-      cu = 0,
-      fr = 0,
-      pb,
-      chk = () => false,
+      activeStepIndex = 0,
+      frameCount = 0,
+      playback,
+      checkRunStop = () => false,
       run = 1,
-      sm = [],
+      smoothedLossHistory = [],
       done = false;
     const samp = () => {
       const R = Math.random;
@@ -105,12 +105,12 @@ export default {
       net = AD.mlp([10, 64, 64, 2], randnFrom(rng(run * 7 + 4)), 'relu');
       ts = 0;
       LL = [];
-      sm = [];
+      smoothedLossHistory = [];
       phase = 'train';
-      xs = null;
-      lv = Tn;
+      samplePositions = null;
+      reverseTimestep = Tn;
       done = false;
-      cu = 0;
+      activeStepIndex = 0;
       data = Array.from({ length: 500 }, samp);
       msg =
         'A network with random weights. It cannot tell noise from data yet. Press Run to train it.';
@@ -141,21 +141,25 @@ export default {
         if (ts % 20 === 0) {
           let s = 0;
           for (let j = ts - 20; j < ts; j++) s += LL[j];
-          sm.push(s / 20);
+          smoothedLossHistory.push(s / 20);
         }
       }
-      cu = ts % 2 ? 0 : 1;
+      activeStepIndex = ts % 2 ? 0 : 1;
       msg =
         'Training step ' +
         ts +
         ' of ' +
         MAXS +
         ': 128 real points were given random amounts of noise, and the network guessed the noise in each. Average error over the last 20 steps: ' +
-        f3(sm.length ? sm[sm.length - 1] : LL[ts - 1]) +
+        f3(
+          smoothedLossHistory.length
+            ? smoothedLossHistory[smoothedLossHistory.length - 1]
+            : LL[ts - 1],
+        ) +
         '.';
       if (ts >= MAXS) {
         startGen();
-        cu = 3;
+        activeStepIndex = 3;
         msg =
           'Training is finished. Now generate: ' +
           M +
@@ -164,44 +168,48 @@ export default {
     };
     const startGen = () => {
       phase = 'gen';
-      xs = Float64Array.from({ length: 2 * M }, () => RN());
-      lv = Tn;
+      samplePositions = Float64Array.from({ length: 2 * M }, () => RN());
+      reverseTimestep = Tn;
       done = false;
     };
     const gstep = () => {
-      if (lv <= 0) return;
-      const k = lv - 1,
-        e = pred(xs, k),
+      if (reverseTimestep <= 0) return;
+      const k = reverseTimestep - 1,
+        e = pred(samplePositions, k),
         b = BE[k],
         c1 = b / Math.sqrt(1 - AB[k]),
         s1 = 1 / Math.sqrt(1 - b),
         s2 = k > 0 ? Math.sqrt(b) : 0;
-      for (let i = 0; i < 2 * M; i++) xs[i] = s1 * (xs[i] - c1 * e[i]) + s2 * RN();
-      lv--;
-      cu = 4;
+      for (let i = 0; i < 2 * M; i++)
+        samplePositions[i] = s1 * (samplePositions[i] - c1 * e[i]) + s2 * RN();
+      reverseTimestep--;
+      activeStepIndex = 4;
       msg =
         'Generating, noise level ' +
-        lv +
+        reverseTimestep +
         ' of ' +
         Tn +
         ': the network estimated the noise in each of the ' +
         M +
         ' points, a little of it was removed, and ' +
         (k > 0 ? 'a little fresh noise was added.' : 'no noise was added on this last step.') +
-        (lv <= 0
+        (reverseTimestep <= 0
           ? ' Finished: ' +
             pct(near()) +
             ' of the generated points lie on the shape. None of them is a copy of a training point.'
           : '');
-      if (lv <= 0) done = true;
+      if (reverseTimestep <= 0) done = true;
     };
     const near = () => {
-      if (!xs) return NaN;
+      if (!samplePositions) return NaN;
       let ok = 0;
       for (let i = 0; i < M; i++) {
         let b = 1e9;
         for (const q of data)
-          b = Math.min(b, (q[0] - xs[2 * i]) ** 2 + (q[1] - xs[2 * i + 1]) ** 2);
+          b = Math.min(
+            b,
+            (q[0] - samplePositions[2 * i]) ** 2 + (q[1] - samplePositions[2 * i + 1]) ** 2,
+          );
         if (b < 0.15 * 0.15) ok++;
       }
       return ok / M;
@@ -211,7 +219,7 @@ export default {
       else if (done) {
         if (ts < MAXS) {
           phase = 'train';
-          xs = null;
+          samplePositions = null;
           train(50);
         } else {
           startGen();
@@ -220,27 +228,30 @@ export default {
       } else gstep();
     };
     const draw = () => {
-      const t = T();
+      const colors = readThemeColors();
       {
         const V = uView(c),
           { g, w, h, X, Y } = V,
           sc = 1.75,
           X2 = (v) => X(v * sc),
           Y2 = (v) => Y(v * sc);
-        g.fillStyle = mix(t.ink, t.ink, 0, 0.28);
+        g.fillStyle = mix(colors.ink, colors.ink, 0, 0.28);
         data.forEach((p) => {
           g.beginPath();
           g.arc(X2(p[0]), Y2(p[1]), 2, 0, 7);
           g.fill();
         });
         if (ts > 0) {
-          const k = phase === 'gen' ? Math.max(0, lv - 1) : Math.floor((fr / 8) % Tn),
+          const k =
+              phase === 'gen'
+                ? Math.max(0, reverseTimestep - 1)
+                : Math.floor((frameCount / 8) % Tn),
             G = [];
           for (let a = 0; a < 10; a++)
             for (let b = 0; b < 14; b++)
               G.push(-2.1 + (4.2 * (b + 0.5)) / 14, 1.55 - (3.1 * (a + 0.5)) / 10);
           const e = pred(Float64Array.from(G), k);
-          g.strokeStyle = mix(t.accent, t.accent, 0, 0.6);
+          g.strokeStyle = mix(colors.accent, colors.accent, 0, 0.6);
           g.lineWidth = 1.2;
           for (let i = 0; i < G.length / 2; i++) {
             const x = X2(G[2 * i]),
@@ -255,21 +266,21 @@ export default {
             g.stroke();
             g.beginPath();
             g.arc(x + (dx / m) * L, y - (dy / m) * L, 1.6, 0, 7);
-            g.fillStyle = t.accent;
+            g.fillStyle = colors.accent;
             g.fill();
           }
           g.font = MONO;
-          g.fillStyle = t.muted;
+          g.fillStyle = colors.muted;
           g.textAlign = 'left';
           g.fillText('arrows shown for noise level ' + (k + 1), 8, h - 8);
         }
-        if (xs) {
-          g.fillStyle = t.gold;
-          g.strokeStyle = t.bg;
+        if (samplePositions) {
+          g.fillStyle = colors.gold;
+          g.strokeStyle = colors.bg;
           g.lineWidth = 0.7;
           for (let i = 0; i < M; i++) {
-            const x = X2(xs[2 * i]),
-              y = Y2(xs[2 * i + 1]);
+            const x = X2(samplePositions[2 * i]),
+              y = Y2(samplePositions[2 * i + 1]);
             if (x < -5 || y < -5 || x > w + 5 || y > h + 5) continue;
             g.beginPath();
             g.arc(x, y, 3, 0, 7);
@@ -279,14 +290,14 @@ export default {
         }
       }
       {
-        const { g, w, h } = fit(cr),
+        const { g: ctx, w, h } = prepareCanvas(cr),
           h1 = h * 0.42,
           LV = [0, 8, 20, 40],
           pw = (w - 20) / 4;
-        g.font = MONO;
-        g.fillStyle = t.muted;
-        g.textAlign = 'left';
-        g.fillText('the real data with more and more noise added: what training sees', 8, 13);
+        ctx.font = MONO;
+        ctx.fillStyle = colors.muted;
+        ctx.textAlign = 'left';
+        ctx.fillText('the real data with more and more noise added: what training sees', 8, 13);
         LV.forEach((k, q) => {
           const x0 = 10 + q * pw,
             cx = x0 + pw / 2,
@@ -295,66 +306,71 @@ export default {
             a = k ? AB[k - 1] : 1,
             r = rng(q * 7 + 3),
             rn = randnFrom(r);
-          g.strokeStyle = t.line;
-          g.lineWidth = 1;
-          g.strokeRect(x0 + 2, 20, pw - 4, h1 - 40);
-          g.fillStyle = mix(t.ink, t.ink, 0, 0.55);
+          ctx.strokeStyle = colors.line;
+          ctx.lineWidth = 1;
+          ctx.strokeRect(x0 + 2, 20, pw - 4, h1 - 40);
+          ctx.fillStyle = mix(colors.ink, colors.ink, 0, 0.55);
           for (let i = 0; i < 160; i++) {
             const p = data[i],
               x = Math.sqrt(a) * p[0] + Math.sqrt(1 - a) * rn(),
               y = Math.sqrt(a) * p[1] + Math.sqrt(1 - a) * rn();
             if (Math.abs(x) > 2.7 || Math.abs(y) > 2.6) continue;
-            g.beginPath();
-            g.arc(cx + x * s, cy - y * s, 1.5, 0, 7);
-            g.fill();
+            ctx.beginPath();
+            ctx.arc(cx + x * s, cy - y * s, 1.5, 0, 7);
+            ctx.fill();
           }
-          g.fillStyle = phase === 'gen' && Math.abs(lv - k) < 5 ? t.cut : t.muted;
-          g.textAlign = 'center';
-          g.fillText('level ' + k, cx, h1 - 6);
+          ctx.fillStyle =
+            phase === 'gen' && Math.abs(reverseTimestep - k) < 5 ? colors.cut : colors.muted;
+          ctx.textAlign = 'center';
+          ctx.fillText('level ' + k, cx, h1 - 6);
         });
-        uLine(g, t, 0, h1, w, h - h1, sm, {
+        drawSeriesChart(ctx, colors, 0, h1, w, h - h1, smoothedLossHistory, {
           title: 'error at guessing the noise (average of every 20 steps)',
           n: MAXS / 20,
-          col: t.ok,
-          ym: Math.max(1.05, sm[0] || 1.05),
+          col: colors.ok,
+          ym: Math.max(1.05, smoothedLossHistory[0] || 1.05),
         });
       }
       live.textContent = msg;
-      uCur(root, 'd2', cu);
-      setR(
+      highlightLessonStep(root, 'd2', activeStepIndex);
+      setReadout(
         root,
         'ph',
         phase === 'train' ? (ts ? 'Training' : 'Not started') : done ? 'Finished' : 'Generating',
       );
-      setR(root, 'ts', ts + ' of ' + MAXS);
-      setR(root, 'L', sm.length ? f3(sm[sm.length - 1]) : '–');
-      setR(root, 'lv', phase === 'gen' ? lv + ' of ' + Tn : '–');
-      setR(root, 'near', phase === 'gen' && done ? pct(near()) : '–');
+      setReadout(root, 'ts', ts + ' of ' + MAXS);
+      setReadout(
+        root,
+        'L',
+        smoothedLossHistory.length ? f3(smoothedLossHistory[smoothedLossHistory.length - 1]) : '–',
+      );
+      setReadout(root, 'lv', phase === 'gen' ? reverseTimestep + ' of ' + Tn : '–');
+      setReadout(root, 'near', phase === 'gen' && done ? pct(near()) : '–');
     };
     build();
-    if (RM) {
+    if (prefersReducedMotion) {
       train(MAXS);
       while (!done) gstep();
     }
     const anim = Anim(() => {
-      fr++;
+      frameCount++;
       if (phase === 'train') {
-        train(Math.min(ts < 60 ? 1 : 6, chk.remaining()));
+        train(Math.min(ts < 60 ? 1 : 6, checkRunStop.remaining()));
         draw();
-        chk();
+        checkRunStop();
         return;
       }
-      if (fr % (lv > Tn - 4 ? 26 : 9) === 0 && !done) gstep();
+      if (frameCount % (reverseTimestep > Tn - 4 ? 26 : 9) === 0 && !done) gstep();
       draw();
-      if (done) pb.stop();
+      if (done) playback.stop();
     });
-    pb = playBtn($('#d2-play', root), anim);
-    chk = runCtl(pb, root, 'd2', {
+    playback = playBtn($('#d2-play', root), anim);
+    checkRunStop = attachRunLimit(playback, root, 'd2', {
       done: () => phase === 'gen' && done,
       restart: () => {
         if (ts < MAXS) {
           phase = 'train';
-          xs = null;
+          samplePositions = null;
           done = false;
         } else startGen();
       },
@@ -362,23 +378,23 @@ export default {
       what: 'training steps',
     });
     $('#d2-step', root).onclick = () => {
-      pb.stop();
+      playback.stop();
       step();
       draw();
     };
     $('#d2-reset', root).onclick = () => {
-      pb.stop();
+      playback.stop();
       run++;
       build();
       draw();
     };
     $('#d2-ds', root).onchange = (e) => {
       S.ds = e.target.value;
-      pb.stop();
+      playback.stop();
       run++;
       build();
       draw();
-      pb.start();
+      playback.start();
     };
     $('#d2-gen', root).onclick = () => {
       if (!ts) {
@@ -386,22 +402,22 @@ export default {
         draw();
         return;
       }
-      pb.stop();
+      playback.stop();
       startGen();
       msg =
         'A fresh cloud of pure noise' +
         (ts < MAXS ? ', using the network as trained so far (' + ts + ' steps).' : '.');
       draw();
-      pb.start();
+      playback.start();
     };
     return {
       draw,
-      stop: () => pb.stop(),
+      stop: () => playback.stop(),
       auto: () => {
         run++;
         build();
         draw();
-        pb.start();
+        playback.start();
       },
     };
   },

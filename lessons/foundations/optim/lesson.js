@@ -4,5 +4,5 @@ import { gdLesson } from '../shared.js';
 export default gdLesson({
   id: 'optim',
   mode: 'opt',
-  surf: 'ravine',
+  surfaceId: 'ravine',
 });

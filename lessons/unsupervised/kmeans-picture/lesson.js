@@ -3,27 +3,27 @@ import {
   $,
   Anim,
   MONO,
-  T,
+  readThemeColors,
   bind,
-  fit,
+  prepareCanvas,
   markTP,
   playBtn,
   rng,
-  runCtl,
-  setR,
+  attachRunLimit,
+  setReadout,
 } from '../../../js/core/shared.js';
-import { uCur, uLine, uNum } from '../shared.js';
+import { highlightLessonStep, drawSeriesChart, uNum } from '../shared.js';
 
 export default {
   init(root) {
-    const co = $('#kp-o', root),
-      cq = $('#kp-q', root),
-      cc = $('#kp-c', root),
-      ce = $('#kp-e', root),
+    const originalCanvas = $('#kp-o', root),
+      quantizedCanvas = $('#kp-q', root),
+      colorSpaceCanvas = $('#kp-c', root),
+      errorCanvas = $('#kp-e', root),
       live = $('#kp-live', root),
       st = $('#kp-st', root),
       tpo = $('#kp-tpo', root),
-      S = { K: 6, az: 35 };
+      settings = { K: 6, az: 35 };
     let src = null,
       out = null,
       W = 0,
@@ -36,10 +36,10 @@ export default {
       it = 0,
       hist = [],
       msg = '',
-      cu = 0,
+      activeStepIndex = 0,
       wait = 0,
-      fr = 0,
-      pb,
+      frameCount = 0,
+      playback,
       run = 1,
       samp = [],
       uniq = 0,
@@ -190,14 +190,14 @@ export default {
       ph = 'seed';
       it = 0;
       hist = [];
-      cu = 0;
+      activeStepIndex = 0;
       wait = 0;
       lastCh = 0;
       msg =
         'The picture has been read as ' +
         N.toLocaleString('en-US') +
         ' points in colour space. Press Run or One step to pick ' +
-        S.K +
+        settings.K +
         ' starting colours.';
       if (out) out.getContext('2d').drawImage(src, 0, 0);
     };
@@ -209,12 +209,12 @@ export default {
         return;
       }
       if (ph === 'seed') {
-        const r = rng(40 + run * 11 + S.K),
+        const r = rng(40 + run * 11 + settings.K),
           f = Math.floor(r() * N);
         C = [[px[f * 3], px[f * 3 + 1], px[f * 3 + 2]]];
         const D = new Float64Array(N);
         for (let i = 0; i < N; i++) D[i] = dist(i, C[0]);
-        while (C.length < S.K) {
+        while (C.length < settings.K) {
           let tot = 0;
           for (let i = 0; i < N; i++) tot += D[i];
           if (tot <= 0) break;
@@ -230,7 +230,7 @@ export default {
         }
         A = null;
         ph = 'assign';
-        cu = 1;
+        activeStepIndex = 1;
         msg =
           'k-means++ picked ' +
           C.length +
@@ -238,7 +238,7 @@ export default {
         return;
       }
       if (ph === 'assign') {
-        cu = 2;
+        activeStepIndex = 2;
         if (!A) A = new Uint8Array(N).fill(255);
         let ch = 0,
           J = 0;
@@ -255,7 +255,7 @@ export default {
         paint();
         if ((ch === 0 && it > 0) || it >= 120) {
           ph = 'done';
-          cu = 4;
+          activeStepIndex = 4;
           msg =
             (ch === 0
               ? 'Converged: no pixel changed colour, so the centres will not move again. It took ' +
@@ -283,7 +283,7 @@ export default {
         return;
       }
       if (ph === 'move') {
-        cu = 3;
+        activeStepIndex = 3;
         const Sx = C.map(() => [0, 0, 0, 0]);
         for (let i = 0; i < N; i++) {
           const s = Sx[A[i]];
@@ -323,56 +323,56 @@ export default {
     };
     const draw = () => {
       if (!px) return;
-      const t = T(),
+      const colors = readThemeColors(),
         hx = (q) =>
           'rgb(' + Math.round(q[0]) + ',' + Math.round(q[1]) + ',' + Math.round(q[2]) + ')';
       {
-        const { g, w, h } = fit(co),
+        const { g: ctx, w, h } = prepareCanvas(originalCanvas),
           R = rect(w, h, 0.88);
-        g.imageSmoothingEnabled = false;
-        g.drawImage(src, R[0], R[1], R[2], R[3]);
+        ctx.imageSmoothingEnabled = false;
+        ctx.drawImage(src, R[0], R[1], R[2], R[3]);
         if (pick >= 0) {
           const x = R[0] + (((pick % W) + 0.5) * R[2]) / W,
             y = R[1] + ((Math.floor(pick / W) + 0.5) * R[3]) / H;
-          g.strokeStyle = '#fff';
-          g.lineWidth = 3;
-          g.beginPath();
-          g.arc(x, y, 8, 0, 7);
-          g.stroke();
-          g.strokeStyle = '#000';
-          g.lineWidth = 1.4;
-          g.stroke();
+          ctx.strokeStyle = '#fff';
+          ctx.lineWidth = 3;
+          ctx.beginPath();
+          ctx.arc(x, y, 8, 0, 7);
+          ctx.stroke();
+          ctx.strokeStyle = '#000';
+          ctx.lineWidth = 1.4;
+          ctx.stroke();
         }
-        g.font = MONO;
-        g.fillStyle = t.muted;
-        g.textAlign = 'left';
-        g.fillText(
+        ctx.font = MONO;
+        ctx.fillStyle = colors.muted;
+        ctx.textAlign = 'left';
+        ctx.fillText(
           W + ' × ' + H + ' pixels, ' + uniq.toLocaleString('en-US') + ' different colours',
           R[0],
           h * 0.88 + 16,
         );
       }
       {
-        const { g, w, h } = fit(cq),
+        const { g: ctx, w, h } = prepareCanvas(quantizedCanvas),
           R = rect(w, h, 0.88);
-        g.imageSmoothingEnabled = false;
-        g.drawImage(out, R[0], R[1], R[2], R[3]);
+        ctx.imageSmoothingEnabled = false;
+        ctx.drawImage(out, R[0], R[1], R[2], R[3]);
         const K = C.length,
           sw = Math.min(34, R[2] / Math.max(1, K));
         C.forEach((q, k) => {
-          g.fillStyle = hx(q);
-          g.fillRect(R[0] + k * sw, h * 0.88 + 5, sw - 2, h * 0.12 - 8);
+          ctx.fillStyle = hx(q);
+          ctx.fillRect(R[0] + k * sw, h * 0.88 + 5, sw - 2, h * 0.12 - 8);
         });
         if (!K) {
-          g.font = MONO;
-          g.fillStyle = t.muted;
-          g.textAlign = 'left';
-          g.fillText('no colours chosen yet', R[0], h * 0.88 + 16);
+          ctx.font = MONO;
+          ctx.fillStyle = colors.muted;
+          ctx.textAlign = 'left';
+          ctx.fillText('no colours chosen yet', R[0], h * 0.88 + 16);
         }
       }
       {
-        const { g, w, h } = fit(cc),
-          a = (S.az * Math.PI) / 180,
+        const { g: ctx, w, h } = prepareCanvas(colorSpaceCanvas),
+          a = (settings.az * Math.PI) / 180,
           ca = Math.cos(a),
           sa = Math.sin(a),
           sc = Math.min(w * 0.62, h) * 0.5,
@@ -384,8 +384,8 @@ export default {
               yr = x * sa + y * ca;
             return [w / 2 + sc * xr, h / 2 - sc * (z * 0.92 + yr * 0.36)];
           };
-        g.strokeStyle = t.line;
-        g.lineWidth = 1;
+        ctx.strokeStyle = colors.line;
+        ctx.lineWidth = 1;
         const cs = [0, 255];
         for (const i of cs)
           for (const j of cs) {
@@ -405,14 +405,14 @@ export default {
             ].forEach((e) => {
               const p = pr(...e[0]),
                 q = pr(...e[1]);
-              g.beginPath();
-              g.moveTo(p[0], p[1]);
-              g.lineTo(q[0], q[1]);
-              g.stroke();
+              ctx.beginPath();
+              ctx.moveTo(p[0], p[1]);
+              ctx.lineTo(q[0], q[1]);
+              ctx.stroke();
             });
           }
-        g.font = MONO;
-        g.textAlign = 'center';
+        ctx.font = MONO;
+        ctx.textAlign = 'center';
         [
           ['black', [0, 0, 0]],
           ['red', [255, 0, 0]],
@@ -421,48 +421,48 @@ export default {
           ['white', [255, 255, 255]],
         ].forEach((q) => {
           const p = pr(...q[1]);
-          g.fillStyle = t.muted;
-          g.fillText(q[0], p[0], p[1] + (q[1][1] ? -6 : 14));
+          ctx.fillStyle = colors.muted;
+          ctx.fillText(q[0], p[0], p[1] + (q[1][1] ? -6 : 14));
         });
         for (const i of samp) {
           const q = A && A[i] < C.length ? C[A[i]] : [px[i * 3], px[i * 3 + 1], px[i * 3 + 2]],
             p = pr(px[i * 3], px[i * 3 + 1], px[i * 3 + 2]);
-          g.fillStyle = hx(q);
-          g.fillRect(p[0] - 1.5, p[1] - 1.5, 3, 3);
+          ctx.fillStyle = hx(q);
+          ctx.fillRect(p[0] - 1.5, p[1] - 1.5, 3, 3);
         }
         C.forEach((q) => {
           const p = pr(...q);
-          g.fillStyle = hx(q);
-          g.strokeStyle = t.bg;
-          g.lineWidth = 5;
-          g.beginPath();
-          g.arc(p[0], p[1], 8, 0, 7);
-          g.stroke();
-          g.fill();
-          g.strokeStyle = t.ink;
-          g.lineWidth = 1.8;
-          g.stroke();
+          ctx.fillStyle = hx(q);
+          ctx.strokeStyle = colors.bg;
+          ctx.lineWidth = 5;
+          ctx.beginPath();
+          ctx.arc(p[0], p[1], 8, 0, 7);
+          ctx.stroke();
+          ctx.fill();
+          ctx.strokeStyle = colors.ink;
+          ctx.lineWidth = 1.8;
+          ctx.stroke();
         });
         if (pick >= 0) {
           const p = pr(px[pick * 3], px[pick * 3 + 1], px[pick * 3 + 2]);
-          markTP(g, p[0], p[1], t, false);
+          markTP(ctx, p[0], p[1], colors, false);
         }
       }
       {
-        const { g, w, h } = fit(ce);
-        const L = uLine(g, t, 0, 0, w, h, hist, {
+        const { g: ctx, w, h } = prepareCanvas(errorCanvas);
+        const L = drawSeriesChart(ctx, colors, 0, 0, w, h, hist, {
           title: 'average colour error after each assign and each move',
           dots: true,
           n: Math.max(8, hist.length),
-          col: t.ok,
+          col: colors.ok,
         });
-        g.font = MONO;
-        g.fillStyle = t.muted;
-        g.textAlign = 'right';
-        g.fillText('step', w - L.m.r, h - 5);
+        ctx.font = MONO;
+        ctx.fillStyle = colors.muted;
+        ctx.textAlign = 'right';
+        ctx.fillText('step', w - L.m.r, h - 5);
       }
       live.textContent = msg;
-      uCur(root, 'kp', cu);
+      highlightLessonStep(root, 'kp', activeStepIndex);
       if (pick >= 0) {
         const q = [px[pick * 3], px[pick * 3 + 1], px[pick * 3 + 2]];
         tpo.textContent =
@@ -484,21 +484,25 @@ export default {
               })()
             : ' Press One step to choose the palette.');
       }
-      const bb = Math.max(1, Math.ceil(Math.log2(Math.max(2, S.K))));
-      setR(root, 'n', N.toLocaleString('en-US'));
-      setR(root, 'uc', uniq.toLocaleString('en-US'));
-      setR(root, 'k', C.length ? String(C.length) : '–');
-      setR(root, 'bits', '24 → ' + bb + ' (' + ((100 * bb) / 24).toFixed(0) + '% of the size)');
-      setR(root, 'err', hist.length ? uNum(hist[hist.length - 1]) : '–');
-      setR(root, 'it', String(it));
+      const bb = Math.max(1, Math.ceil(Math.log2(Math.max(2, settings.K))));
+      setReadout(root, 'n', N.toLocaleString('en-US'));
+      setReadout(root, 'uc', uniq.toLocaleString('en-US'));
+      setReadout(root, 'k', C.length ? String(C.length) : '–');
+      setReadout(
+        root,
+        'bits',
+        '24 → ' + bb + ' (' + ((100 * bb) / 24).toFixed(0) + '% of the size)',
+      );
+      setReadout(root, 'err', hist.length ? uNum(hist[hist.length - 1]) : '–');
+      setReadout(root, 'it', String(it));
     };
     load(builtin());
     for (let i = 0; i < 260 && ph !== 'done'; i++) step();
     const anim = Anim(() => {
-      fr++;
+      frameCount++;
       if (spin) {
-        S.az = (S.az + 0.35) % 360;
-        azb.set(S.az);
+        settings.az = (settings.az + 0.35) % 360;
+        azb.set(settings.az);
       }
       if (wait > 0) {
         wait--;
@@ -509,26 +513,26 @@ export default {
         draw();
         return;
       }
-      if (fr % (it < 3 ? 34 : 9) === 0) {
+      if (frameCount % (it < 3 ? 34 : 9) === 0) {
         step();
         draw();
-        chk();
+        checkRunStop();
         return;
       }
       draw();
     });
-    pb = playBtn($('#kp-play', root), anim);
-    const ps = pb.stop,
-      pst = pb.start;
-    pb.stop = () => {
+    playback = playBtn($('#kp-play', root), anim);
+    const ps = playback.stop,
+      pst = playback.start;
+    playback.stop = () => {
       spin = false;
       ps();
     };
-    pb.start = () => {
+    playback.start = () => {
       spin = true;
       pst();
     };
-    const chk = runCtl(pb, root, 'kp', {
+    const checkRunStop = attachRunLimit(playback, root, 'kp', {
       done: () => ph === 'done',
       restart: () => {
         run++;
@@ -538,12 +542,12 @@ export default {
       what: 'rounds',
     });
     $('#kp-step', root).onclick = () => {
-      pb.stop();
+      playback.stop();
       step();
       draw();
     };
     $('#kp-reset', root).onclick = () => {
-      pb.stop();
+      playback.stop();
       run++;
       reset();
       draw();
@@ -552,8 +556,8 @@ export default {
       root,
       'kp-K',
       (v) => {
-        S.K = v;
-        pb.stop();
+        settings.K = v;
+        playback.stop();
         reset();
         for (let i = 0; i < 260 && ph !== 'done'; i++) step();
         draw();
@@ -564,13 +568,13 @@ export default {
       root,
       'kp-az',
       (v) => {
-        S.az = v;
+        settings.az = v;
         draw();
       },
       (v) => Math.round(v) + '°',
     );
     $('#kp-built', root).onclick = () => {
-      pb.stop();
+      playback.stop();
       st.textContent = '';
       load(builtin());
       draw();
@@ -591,7 +595,7 @@ export default {
           o.width = Math.max(8, Math.round(iw * s));
           o.height = Math.max(8, Math.round(ih * s));
           o.getContext('2d').drawImage(im, 0, 0, o.width, o.height);
-          pb.stop();
+          playback.stop();
           load(o);
           st.textContent =
             'Loaded ' +
@@ -619,8 +623,8 @@ export default {
         fr2.readAsDataURL(f);
       }
     };
-    co.addEventListener('click', (e) => {
-      const r = co.getBoundingClientRect(),
+    originalCanvas.addEventListener('click', (e) => {
+      const r = originalCanvas.getBoundingClientRect(),
         R = rect(r.width, r.height, 0.88),
         x = Math.floor(((e.clientX - r.left - R[0]) / R[2]) * W),
         y = Math.floor(((e.clientY - r.top - R[1]) / R[3]) * H);
@@ -630,11 +634,11 @@ export default {
     });
     return {
       draw,
-      stop: () => pb.stop(),
+      stop: () => playback.stop(),
       auto: () => {
         reset();
         draw();
-        pb.start();
+        playback.start();
       },
     };
   },

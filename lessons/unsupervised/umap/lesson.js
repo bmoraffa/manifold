@@ -3,35 +3,35 @@ import {
   $,
   Anim,
   MONO,
-  RM,
-  T,
+  prefersReducedMotion,
+  readThemeColors,
   bind,
   clamp,
   f2,
-  fit,
+  prepareCanvas,
   letterData,
   mix,
   playBtn,
   rng,
-  runCtl,
-  setR,
+  attachRunLimit,
+  setReadout,
 } from '../../../js/core/shared.js';
-import { UC, uCur, uLine } from '../shared.js';
+import { UC, highlightLessonStep, drawSeriesChart } from '../shared.js';
 import { pct } from '../../ensembles/shared.js';
 
 export default {
   init(root) {
-    const c = $('#um-c', root),
+    const mainCanvas = $('#um-c', root),
       cr = $('#um-r', root),
       live = $('#um-live', root),
-      S = { k: 15, md: 0.6, flip: 0.06, col: true, ed: true },
+      settings = { k: 15, md: 0.6, flip: 0.06, col: true, ed: true },
       NE = 300;
     let X = [],
       lab = [],
-      LT = [],
+      letterNames = [],
       N = 0,
       D = null,
-      nbH = [],
+      inputNeighbors = [],
       E = [],
       Y = null,
       ep = 0,
@@ -43,16 +43,16 @@ export default {
       scl = 1,
       hover = -1,
       msg = '',
-      cu = 2,
-      fr = 0,
-      pb,
-      chk = () => false,
-      PX = [];
+      activeStepIndex = 2,
+      frameCount = 0,
+      playback,
+      checkRunStop = () => false,
+      screenPositions = [];
     const gen = () => {
-      const d = letterData(seed, S.flip);
+      const d = letterData(seed, settings.flip);
       X = d.X;
       lab = d.lab;
-      LT = d.CH;
+      letterNames = d.CH;
       N = X.length;
       D = new Float64Array(N * N);
       for (let i = 0; i < N; i++)
@@ -64,14 +64,14 @@ export default {
     };
     const graph = () => {
       const W = new Float64Array(N * N),
-        tg = Math.log2(S.k);
-      nbH = [];
+        tg = Math.log2(settings.k);
+      inputNeighbors = [];
       for (let i = 0; i < N; i++) {
         const a = [];
         for (let j = 0; j < N; j++) if (j !== i) a.push([D[i * N + j], j]);
         a.sort((u, v) => u[0] - v[0]);
-        nbH.push(a.slice(0, 10).map((q) => q[1]));
-        const nb = a.slice(0, S.k),
+        inputNeighbors.push(a.slice(0, 10).map((q) => q[1]));
+        const nb = a.slice(0, settings.k),
           rho = nb[0][0];
         let lo = 0,
           hi = Infinity,
@@ -106,7 +106,7 @@ export default {
           let e = 0;
           for (let q = 1; q <= 60; q++) {
             const d = q * 0.05,
-              tgt = d <= S.md ? 1 : Math.exp(-(d - S.md)),
+              tgt = d <= settings.md ? 1 : Math.exp(-(d - settings.md)),
               v = 1 / (1 + a * Math.pow(d, 2 * b));
             e += (v - tgt) ** 2;
           }
@@ -123,7 +123,7 @@ export default {
         for (let j = 0; j < N; j++)
           if (j !== i) a.push([(Y[2 * i] - Y[2 * j]) ** 2 + (Y[2 * i + 1] - Y[2 * j + 1]) ** 2, j]);
         a.sort((u, v) => u[0] - v[0]);
-        const h = new Set(nbH[i]);
+        const h = new Set(inputNeighbors[i]);
         for (let k = 0; k < 10; k++) if (h.has(a[k][1])) s++;
       }
       return s / (N * 10);
@@ -136,7 +136,7 @@ export default {
       hist = [];
       kept = keep();
       scl = 5;
-      cu = 2;
+      activeStepIndex = 2;
       msg =
         'Steps 1 to 3 are done: the graph has ' +
         E.length +
@@ -182,7 +182,7 @@ export default {
     };
     const fin = () => ep >= NE;
     const say = () => {
-      cu = fin() ? 4 : 3;
+      activeStepIndex = fin() ? 4 : 3;
       msg =
         'Epoch ' +
         ep +
@@ -208,153 +208,154 @@ export default {
       say();
     };
     const draw = () => {
-      const t = T(),
-        col = UC(t);
+      const colors = readThemeColors(),
+        col = UC(colors);
       {
-        const { g, w, h } = fit(c);
+        const { g: ctx, w, h } = prepareCanvas(mainCanvas);
         let m = 1e-9;
         for (let k = 0; k < 2 * N; k++) m = Math.max(m, Math.abs(Y[k]));
-        scl += (m * 1.1 - scl) * (pb && pb.on ? 0.2 : 1);
+        scl += (m * 1.1 - scl) * (playback && playback.on ? 0.2 : 1);
         const s = (Math.min(w, h) / 2 / scl) * 0.94;
-        PX = [];
-        for (let i = 0; i < N; i++) PX.push([w / 2 + Y[2 * i] * s, h / 2 - Y[2 * i + 1] * s]);
-        if (S.ed) {
-          g.strokeStyle = mix(t.ink, t.ink, 0, 0.13);
-          g.lineWidth = 1;
-          g.beginPath();
+        screenPositions = [];
+        for (let i = 0; i < N; i++)
+          screenPositions.push([w / 2 + Y[2 * i] * s, h / 2 - Y[2 * i + 1] * s]);
+        if (settings.ed) {
+          ctx.strokeStyle = mix(colors.ink, colors.ink, 0, 0.13);
+          ctx.lineWidth = 1;
+          ctx.beginPath();
           for (const e of E) {
             if (e[2] < 0.5) continue;
-            g.moveTo(PX[e[0]][0], PX[e[0]][1]);
-            g.lineTo(PX[e[1]][0], PX[e[1]][1]);
+            ctx.moveTo(screenPositions[e[0]][0], screenPositions[e[0]][1]);
+            ctx.lineTo(screenPositions[e[1]][0], screenPositions[e[1]][1]);
           }
-          g.stroke();
+          ctx.stroke();
         }
         for (let i = 0; i < N; i++) {
-          const x = PX[i][0],
-            y = PX[i][1];
-          g.fillStyle = S.col ? col[lab[i] % 8] : mix(t.ink, t.ink, 0, 0.6);
-          g.beginPath();
-          g.arc(x, y, 3.4, 0, 7);
-          g.fill();
-          g.strokeStyle = t.bg;
-          g.lineWidth = 0.8;
-          g.stroke();
+          const x = screenPositions[i][0],
+            y = screenPositions[i][1];
+          ctx.fillStyle = settings.col ? col[lab[i] % 8] : mix(colors.ink, colors.ink, 0, 0.6);
+          ctx.beginPath();
+          ctx.arc(x, y, 3.4, 0, 7);
+          ctx.fill();
+          ctx.strokeStyle = colors.bg;
+          ctx.lineWidth = 0.8;
+          ctx.stroke();
           if (i === hover) {
-            g.strokeStyle = t.ink;
-            g.lineWidth = 1.8;
-            g.beginPath();
-            g.arc(x, y, 9, 0, 7);
-            g.stroke();
+            ctx.strokeStyle = colors.ink;
+            ctx.lineWidth = 1.8;
+            ctx.beginPath();
+            ctx.arc(x, y, 9, 0, 7);
+            ctx.stroke();
           }
         }
-        if (S.col)
-          LT.forEach((ch, k) => {
+        if (settings.col)
+          letterNames.forEach((ch, k) => {
             let mx = 0,
               my = 1e9,
               n = 0;
             for (let i = 0; i < N; i++)
               if (lab[i] === k) {
-                mx += PX[i][0];
-                my = Math.min(my, PX[i][1]);
+                mx += screenPositions[i][0];
+                my = Math.min(my, screenPositions[i][1]);
                 n++;
               }
             if (!n) return;
-            g.font = '600 17px "Hanken Grotesk",sans-serif';
-            g.fillStyle = col[k % 8];
-            g.textAlign = 'center';
-            g.fillText(ch, mx / n, Math.max(16, my - 9));
+            ctx.font = '600 17px "Hanken Grotesk",sans-serif';
+            ctx.fillStyle = col[k % 8];
+            ctx.textAlign = 'center';
+            ctx.fillText(ch, mx / n, Math.max(16, my - 9));
           });
         if (hover >= 0) {
           const cz = 8,
             x0 = 10,
             y0 = 10;
-          g.fillStyle = t.bg;
-          g.fillRect(x0 - 4, y0 - 4, 5 * cz + 8, 7 * cz + 8);
-          g.strokeStyle = t.muted;
-          g.lineWidth = 1;
-          g.strokeRect(x0 - 4, y0 - 4, 5 * cz + 8, 7 * cz + 8);
+          ctx.fillStyle = colors.bg;
+          ctx.fillRect(x0 - 4, y0 - 4, 5 * cz + 8, 7 * cz + 8);
+          ctx.strokeStyle = colors.muted;
+          ctx.lineWidth = 1;
+          ctx.strokeRect(x0 - 4, y0 - 4, 5 * cz + 8, 7 * cz + 8);
           for (let k = 0; k < 35; k++) {
-            g.fillStyle = mix(t.bg, t.ink, clamp(X[hover][k], 0, 1));
-            g.fillRect(x0 + (k % 5) * cz, y0 + Math.floor(k / 5) * cz, cz - 1, cz - 1);
+            ctx.fillStyle = mix(colors.bg, colors.ink, clamp(X[hover][k], 0, 1));
+            ctx.fillRect(x0 + (k % 5) * cz, y0 + Math.floor(k / 5) * cz, cz - 1, cz - 1);
           }
-          g.font = MONO;
-          g.fillStyle = t.muted;
-          g.textAlign = 'left';
-          g.fillText('the picture behind this point', x0 + 5 * cz + 12, y0 + 12);
+          ctx.font = MONO;
+          ctx.fillStyle = colors.muted;
+          ctx.textAlign = 'left';
+          ctx.fillText('the picture behind this point', x0 + 5 * cz + 12, y0 + 12);
         }
-        g.font = MONO;
-        g.fillStyle = t.muted;
-        g.textAlign = 'right';
-        g.fillText('epoch ' + ep + ' of ' + NE, w - 8, h - 8);
+        ctx.font = MONO;
+        ctx.fillStyle = colors.muted;
+        ctx.textAlign = 'right';
+        ctx.fillText('epoch ' + ep + ' of ' + NE, w - 8, h - 8);
       }
       {
-        const { g, w, h } = fit(cr),
+        const { g: ctx, w, h } = prepareCanvas(cr),
           h1 = h * 0.48,
           m = { l: 44, r: 12, t: 26, b: 22 },
           Xd = (d) => m.l + (d / 3) * (w - m.l - m.r),
           Yv = (v) => h1 - m.b - v * (h1 - m.t - m.b);
-        g.font = MONO;
-        g.fillStyle = t.muted;
-        g.textAlign = 'left';
-        g.fillText('similarity on the page against distance on the page', 8, 13);
-        g.strokeStyle = t.muted;
-        g.lineWidth = 1;
-        g.beginPath();
-        g.moveTo(m.l, h1 - m.b);
-        g.lineTo(w - m.r, h1 - m.b);
-        g.stroke();
-        g.textAlign = 'right';
-        g.fillText('1', m.l - 5, Yv(1) + 4);
-        g.fillText('0', m.l - 5, Yv(0) + 4);
-        g.textAlign = 'center';
-        [0, 1, 2, 3].forEach((d) => g.fillText(String(d), Xd(d), h1 - m.b + 14));
-        g.setLineDash([4, 4]);
-        g.strokeStyle = t.muted;
-        g.beginPath();
+        ctx.font = MONO;
+        ctx.fillStyle = colors.muted;
+        ctx.textAlign = 'left';
+        ctx.fillText('similarity on the page against distance on the page', 8, 13);
+        ctx.strokeStyle = colors.muted;
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(m.l, h1 - m.b);
+        ctx.lineTo(w - m.r, h1 - m.b);
+        ctx.stroke();
+        ctx.textAlign = 'right';
+        ctx.fillText('1', m.l - 5, Yv(1) + 4);
+        ctx.fillText('0', m.l - 5, Yv(0) + 4);
+        ctx.textAlign = 'center';
+        [0, 1, 2, 3].forEach((d) => ctx.fillText(String(d), Xd(d), h1 - m.b + 14));
+        ctx.setLineDash([4, 4]);
+        ctx.strokeStyle = colors.muted;
+        ctx.beginPath();
         for (let i = 0; i <= 120; i++) {
           const d = i / 40,
-            v = d <= S.md ? 1 : Math.exp(-(d - S.md));
-          i ? g.lineTo(Xd(d), Yv(v)) : g.moveTo(Xd(d), Yv(v));
+            v = d <= settings.md ? 1 : Math.exp(-(d - settings.md));
+          i ? ctx.lineTo(Xd(d), Yv(v)) : ctx.moveTo(Xd(d), Yv(v));
         }
-        g.stroke();
-        g.setLineDash([]);
-        g.strokeStyle = t.gold;
-        g.lineWidth = 2.6;
-        g.beginPath();
+        ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.strokeStyle = colors.gold;
+        ctx.lineWidth = 2.6;
+        ctx.beginPath();
         for (let i = 0; i <= 120; i++) {
           const d = i / 40,
             v = 1 / (1 + ab[0] * Math.pow(d, 2 * ab[1]));
-          i ? g.lineTo(Xd(d), Yv(v)) : g.moveTo(Xd(d), Yv(v));
+          i ? ctx.lineTo(Xd(d), Yv(v)) : ctx.moveTo(Xd(d), Yv(v));
         }
-        g.stroke();
-        g.strokeStyle = t.ok;
-        g.lineWidth = 1.4;
-        g.beginPath();
-        g.moveTo(Xd(S.md), Yv(0));
-        g.lineTo(Xd(S.md), Yv(1));
-        g.stroke();
-        g.fillStyle = t.ok;
-        g.textAlign = 'left';
-        g.fillText('min_dist = ' + f2(S.md), Xd(S.md) + 6, Yv(0.08));
-        g.fillStyle = t.cut;
-        g.textAlign = 'right';
-        g.fillText('gold: the curve used; dashed: the target it was fitted to', w - m.r, m.t + 2);
-        uLine(g, t, 0, h1, w, h - h1, hist, {
+        ctx.stroke();
+        ctx.strokeStyle = colors.ok;
+        ctx.lineWidth = 1.4;
+        ctx.beginPath();
+        ctx.moveTo(Xd(settings.md), Yv(0));
+        ctx.lineTo(Xd(settings.md), Yv(1));
+        ctx.stroke();
+        ctx.fillStyle = colors.ok;
+        ctx.textAlign = 'left';
+        ctx.fillText('min_dist = ' + f2(settings.md), Xd(settings.md) + 6, Yv(0.08));
+        ctx.fillStyle = colors.cut;
+        ctx.textAlign = 'right';
+        ctx.fillText('gold: the curve used; dashed: the target it was fitted to', w - m.r, m.t + 2);
+        drawSeriesChart(ctx, colors, 0, h1, w, h - h1, hist, {
           title: 'share of true neighbours kept, measured every 5 epochs',
           n: NE / 5,
           ym: 1,
-          col: t.accent,
+          col: colors.accent,
           dots: hist.length < 30,
         });
       }
       live.textContent = msg;
-      uCur(root, 'um', cu);
-      setR(root, 'ep', ep + ' of ' + NE);
-      setR(root, 'lr', f2(Math.max(0, 1 - ep / NE)));
-      setR(root, 'ed', String(E.length));
-      setR(root, 'nk', pct(kept));
-      setR(root, 'ab', f2(ab[0]) + ', ' + f2(ab[1]));
-      setR(
+      highlightLessonStep(root, 'um', activeStepIndex);
+      setReadout(root, 'ep', ep + ' of ' + NE);
+      setReadout(root, 'lr', f2(Math.max(0, 1 - ep / NE)));
+      setReadout(root, 'ed', String(E.length));
+      setReadout(root, 'nk', pct(kept));
+      setReadout(root, 'ab', f2(ab[0]) + ', ' + f2(ab[1]));
+      setReadout(
         root,
         'ph',
         ep === 0 ? 'Random start' : fin() ? 'Finished (step size is zero)' : 'Running',
@@ -369,17 +370,17 @@ export default {
     graph();
     fitAB();
     reset();
-    if (RM) all();
+    if (prefersReducedMotion) all();
     const anim = Anim(() => {
-      fr++;
-      if (fr % (ep < 10 ? 8 : 2)) return;
+      frameCount++;
+      if (frameCount % (ep < 10 ? 8 : 2)) return;
       epoch();
       say();
       draw();
-      chk();
+      checkRunStop();
     });
-    pb = playBtn($('#um-play', root), anim);
-    chk = runCtl(pb, root, 'um', {
+    playback = playBtn($('#um-play', root), anim);
+    checkRunStop = attachRunLimit(playback, root, 'um', {
       done: fin,
       restart: () => {
         run++;
@@ -389,12 +390,12 @@ export default {
       what: 'epochs',
     });
     $('#um-step', root).onclick = () => {
-      pb.stop();
+      playback.stop();
       step(10);
       draw();
     };
     $('#um-reset', root).onclick = () => {
-      pb.stop();
+      playback.stop();
       run++;
       reset();
       draw();
@@ -403,8 +404,8 @@ export default {
       root,
       'um-k',
       (v) => {
-        S.k = v;
-        pb.stop();
+        settings.k = v;
+        playback.stop();
         graph();
         reset();
         all();
@@ -413,24 +414,24 @@ export default {
       (v) => String(v),
     );
     bind(root, 'um-md', (v) => {
-      S.md = v;
-      pb.stop();
+      settings.md = v;
+      playback.stop();
       fitAB();
       reset();
       all();
       draw();
     });
     $('#um-col', root).onchange = (e) => {
-      S.col = e.target.checked;
+      settings.col = e.target.checked;
       draw();
     };
     $('#um-ed', root).onchange = (e) => {
-      S.ed = e.target.checked;
+      settings.ed = e.target.checked;
       draw();
     };
     bind(root, 'um-flip', (v) => {
-      S.flip = v;
-      pb.stop();
+      settings.flip = v;
+      playback.stop();
       gen();
       graph();
       reset();
@@ -439,20 +440,20 @@ export default {
     });
     $('#um-new', root).onclick = () => {
       seed++;
-      pb.stop();
+      playback.stop();
       gen();
       graph();
       reset();
       all();
       draw();
     };
-    c.addEventListener('pointermove', (e) => {
-      const r = c.getBoundingClientRect(),
+    mainCanvas.addEventListener('pointermove', (e) => {
+      const r = mainCanvas.getBoundingClientRect(),
         x = e.clientX - r.left,
         y = e.clientY - r.top;
       let b = -1,
         bd = 196;
-      PX.forEach((q, i) => {
+      screenPositions.forEach((q, i) => {
         const d = (q[0] - x) ** 2 + (q[1] - y) ** 2;
         if (d < bd) {
           bd = d;
@@ -461,22 +462,22 @@ export default {
       });
       if (b !== hover) {
         hover = b;
-        if (!pb.on) draw();
+        if (!playback.on) draw();
       }
     });
-    c.addEventListener('pointerleave', () => {
+    mainCanvas.addEventListener('pointerleave', () => {
       if (hover >= 0) {
         hover = -1;
-        if (!pb.on) draw();
+        if (!playback.on) draw();
       }
     });
     return {
       draw,
-      stop: () => pb.stop(),
+      stop: () => playback.stop(),
       auto: () => {
         reset();
         draw();
-        pb.start();
+        playback.start();
       },
     };
   },

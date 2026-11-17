@@ -4,29 +4,29 @@ import {
   Anim,
   MONO,
   SANS,
-  T,
+  readThemeColors,
   bind,
   clamp,
   f2,
-  fit,
+  prepareCanvas,
   mix,
   playBtn,
   randnFrom,
   rng,
-  runCtl,
-  setR,
+  attachRunLimit,
+  setReadout,
 } from '../../../js/core/shared.js';
-import { jacobi, uCur, uNum } from '../shared.js';
+import { jacobi, highlightLessonStep, uNum } from '../shared.js';
 
 export default {
   init(root) {
-    const chh = $('#pt-h', root),
-      cs = $('#pt-s', root),
-      cb = $('#pt-b', root),
-      cl = $('#pt-l', root),
+    const tableAndCorrelationCanvas = $('#pt-h', root),
+      screeCanvas = $('#pt-s', root),
+      biplotCanvas = $('#pt-b', root),
+      loadingsCanvas = $('#pt-l', root),
       live = $('#pt-live', root),
       st = $('#pt-st', root),
-      S = { ds: 'exam', std: true, k: 1 };
+      settings = { ds: 'exam', std: true, k: 1 };
     let names = [],
       X = [],
       n = 0,
@@ -40,10 +40,10 @@ export default {
       sc = [],
       ph = 0,
       msg = '',
-      cu = -1,
+      activeStepIndex = -1,
       wait = 0,
-      fr = 0,
-      pb,
+      frameCount = 0,
+      playback,
       custom = null;
     const sim = (kind) => {
       const r = rng(kind === 'exam' ? 21 : 34),
@@ -86,7 +86,7 @@ export default {
       };
     };
     const comp = () => {
-      const D = custom || sim(S.ds);
+      const D = custom || sim(settings.ds);
       names = D.names;
       X = D.X;
       n = X.length;
@@ -95,7 +95,7 @@ export default {
       sd = names.map(
         (_, j) => Math.sqrt(X.reduce((s, r) => s + (r[j] - mu[j]) ** 2, 0) / (n - 1)) || 1,
       );
-      Z = X.map((r) => r.map((v, j) => (v - mu[j]) / (S.std ? sd[j] : 1)));
+      Z = X.map((r) => r.map((v, j) => (v - mu[j]) / (settings.std ? sd[j] : 1)));
       Cm = names.map((_, j) =>
         names.map((_, k) => {
           let s = 0;
@@ -106,16 +106,16 @@ export default {
       E = jacobi(Cm);
       tot = E.val.reduce((a, b) => a + Math.max(0, b), 0) || 1;
       sc = Z.map((r) => [0, 1].map((k) => r.reduce((s, v, j) => s + v * E.vec[k][j], 0)));
-      S.k = clamp(S.k, 1, d);
+      settings.k = clamp(settings.k, 1, d);
       kb.el.max = d;
-      kb.set(S.k);
+      kb.set(settings.k);
     };
     const nrev = () => clamp(ph - 2, 0, d),
       end = () => 3 + d,
       cum = (k) => E.val.slice(0, k).reduce((a, b) => a + Math.max(0, b), 0) / tot;
     const reset = () => {
       ph = 0;
-      cu = -1;
+      activeStepIndex = -1;
       wait = 0;
       msg =
         'The table has ' +
@@ -135,10 +135,10 @@ export default {
         .join(', ');
     const say = () => {
       if (ph === 1) {
-        cu = 0;
+        activeStepIndex = 0;
         const hi = sd.indexOf(Math.max(...sd)),
           lo = sd.indexOf(Math.min(...sd));
-        msg = S.std
+        msg = settings.std
           ? 'Standardise: “' +
             names[hi] +
             '” had the largest standard deviation (' +
@@ -158,7 +158,7 @@ export default {
             names[lo] +
             '”, so it will dominate the first component.';
       } else if (ph === 2) {
-        cu = 1;
+        activeStepIndex = 1;
         let bj = 0,
           bk = 1,
           bv = -1;
@@ -172,7 +172,7 @@ export default {
             }
           }
         msg =
-          (S.std ? 'Correlation' : 'Covariance') +
+          (settings.std ? 'Correlation' : 'Covariance') +
           ' matrix: one number for each of the ' +
           (d * (d - 1)) / 2 +
           ' pairs of columns. The most strongly related pair is “' +
@@ -184,7 +184,7 @@ export default {
           '. Blocks of strong colour are groups of columns that move together.';
       } else if (ph < end()) {
         const k = ph - 2;
-        cu = k === d ? 3 : 2;
+        activeStepIndex = k === d ? 3 : 2;
         msg =
           'Component ' +
           k +
@@ -200,11 +200,11 @@ export default {
           (100 * cum(k)).toFixed(1) +
           '%.';
         if (k <= d) {
-          S.k = k;
+          settings.k = k;
           kb.set(k);
         }
       } else {
-        cu = 4;
+        activeStepIndex = 4;
         msg =
           'Project: every row is replaced by its scores on the first two components. Two numbers per row now keep ' +
           (100 * cum(2)).toFixed(1) +
@@ -226,47 +226,47 @@ export default {
       say();
     };
     const draw = () => {
-      const t = T(),
+      const colors = readThemeColors(),
         short = (s) => (s.length > 10 ? s.slice(0, 9) + '…' : s);
       {
-        const { g, w, h } = fit(chh);
+        const { g: ctx, w, h } = prepareCanvas(tableAndCorrelationCanvas);
         $('#pt-hcap', root).textContent =
           ph < 2
             ? ph === 0
               ? 'The first rows of the table, as given'
-              : S.std
+              : settings.std
                 ? 'The same rows after standardising'
                 : 'The same rows after centring'
-            : S.std
+            : settings.std
               ? 'Correlation matrix: green pairs rise together, red pairs trade off'
               : 'Covariance matrix: green pairs rise together, red pairs trade off';
-        g.font = MONO;
+        ctx.font = MONO;
         if (ph < 2) {
           const nc = Math.min(d, 7),
             cw = (w - 16) / nc,
             rows = Math.min(n, Math.floor((h - 40) / 20));
-          g.textAlign = 'right';
-          g.fillStyle = t.ink;
-          for (let j = 0; j < nc; j++) g.fillText(short(names[j]), 8 + (j + 1) * cw - 6, 18);
-          g.strokeStyle = t.line;
-          g.beginPath();
-          g.moveTo(8, 26);
-          g.lineTo(w - 8, 26);
-          g.stroke();
-          g.fillStyle = t.muted;
+          ctx.textAlign = 'right';
+          ctx.fillStyle = colors.ink;
+          for (let j = 0; j < nc; j++) ctx.fillText(short(names[j]), 8 + (j + 1) * cw - 6, 18);
+          ctx.strokeStyle = colors.line;
+          ctx.beginPath();
+          ctx.moveTo(8, 26);
+          ctx.lineTo(w - 8, 26);
+          ctx.stroke();
+          ctx.fillStyle = colors.muted;
           for (let i = 0; i < rows; i++)
             for (let j = 0; j < nc; j++) {
               const v = ph ? Z[i][j] : X[i][j];
-              g.fillStyle = ph ? (v >= 0 ? t.accent : t.ok) : t.muted;
-              g.fillText(
+              ctx.fillStyle = ph ? (v >= 0 ? colors.accent : colors.ok) : colors.muted;
+              ctx.fillText(
                 ph ? (v >= 0 ? '+' : '−') + Math.abs(v).toFixed(2) : uNum(v),
                 8 + (j + 1) * cw - 6,
                 44 + i * 20,
               );
             }
-          g.fillStyle = t.muted;
-          g.textAlign = 'left';
-          g.fillText(
+          ctx.fillStyle = colors.muted;
+          ctx.textAlign = 'left';
+          ctx.fillText(
             '… ' + (n - rows) + ' more rows' + (d > nc ? ', ' + (d - nc) + ' more columns' : ''),
             8,
             h - 6,
@@ -276,101 +276,102 @@ export default {
             tm = 20,
             cz = Math.min((w - lm - 8) / d, (h - tm - 8) / d);
           for (let j = 0; j < d; j++) {
-            g.fillStyle = t.muted;
-            g.textAlign = 'right';
-            g.fillText(short(names[j]), lm - 6, tm + (j + 0.5) * cz + 4);
-            g.textAlign = 'center';
-            g.fillText(names[j].slice(0, cz > 52 ? 7 : 3), lm + (j + 0.5) * cz, tm - 6);
+            ctx.fillStyle = colors.muted;
+            ctx.textAlign = 'right';
+            ctx.fillText(short(names[j]), lm - 6, tm + (j + 0.5) * cz + 4);
+            ctx.textAlign = 'center';
+            ctx.fillText(names[j].slice(0, cz > 52 ? 7 : 3), lm + (j + 0.5) * cz, tm - 6);
             for (let k = 0; k < d; k++) {
               const r = Cm[j][k] / Math.sqrt(Cm[j][j] * Cm[k][k] || 1),
-                cl2 = r >= 0 ? t.accent : t.ok;
-              g.fillStyle = mix(cl2, cl2, 0, Math.min(1, Math.abs(r)) * 0.9);
-              g.fillRect(lm + k * cz + 1, tm + j * cz + 1, cz - 2, cz - 2);
+                cl2 = r >= 0 ? colors.accent : colors.ok;
+              ctx.fillStyle = mix(cl2, cl2, 0, Math.min(1, Math.abs(r)) * 0.9);
+              ctx.fillRect(lm + k * cz + 1, tm + j * cz + 1, cz - 2, cz - 2);
               if (cz > 30) {
-                g.fillStyle = Math.abs(r) > 0.55 ? t.bg : t.ink;
-                g.fillText(r.toFixed(2), lm + (k + 0.5) * cz, tm + (j + 0.5) * cz + 4);
+                ctx.fillStyle = Math.abs(r) > 0.55 ? colors.bg : colors.ink;
+                ctx.fillText(r.toFixed(2), lm + (k + 0.5) * cz, tm + (j + 0.5) * cz + 4);
               }
             }
           }
         }
       }
       {
-        const { g, w, h } = fit(cs),
+        const { g: ctx, w, h } = prepareCanvas(screeCanvas),
           m = { l: 44, r: 14, t: 16, b: 26 },
           bw = (w - m.l - m.r) / d,
           Y = (v) => h - m.b - v * (h - m.t - m.b),
           nr = nrev();
-        g.font = MONO;
-        g.strokeStyle = t.muted;
-        g.lineWidth = 1;
-        g.beginPath();
-        g.moveTo(m.l, h - m.b);
-        g.lineTo(w - m.r, h - m.b);
-        g.stroke();
-        g.fillStyle = t.muted;
-        g.textAlign = 'right';
-        [0, 0.5, 1].forEach((v) => g.fillText(100 * v + '%', m.l - 5, Y(v) + 4));
-        g.setLineDash([3, 4]);
-        g.strokeStyle = t.line;
-        g.beginPath();
-        g.moveTo(m.l, Y(0.9));
-        g.lineTo(w - m.r, Y(0.9));
-        g.stroke();
-        g.setLineDash([]);
-        g.textAlign = 'right';
-        g.fillText('90%', w - m.r, Y(0.9) - 4);
+        ctx.font = MONO;
+        ctx.strokeStyle = colors.muted;
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(m.l, h - m.b);
+        ctx.lineTo(w - m.r, h - m.b);
+        ctx.stroke();
+        ctx.fillStyle = colors.muted;
+        ctx.textAlign = 'right';
+        [0, 0.5, 1].forEach((v) => ctx.fillText(100 * v + '%', m.l - 5, Y(v) + 4));
+        ctx.setLineDash([3, 4]);
+        ctx.strokeStyle = colors.line;
+        ctx.beginPath();
+        ctx.moveTo(m.l, Y(0.9));
+        ctx.lineTo(w - m.r, Y(0.9));
+        ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.textAlign = 'right';
+        ctx.fillText('90%', w - m.r, Y(0.9) - 4);
         for (let k = 0; k < d; k++) {
           const v = Math.max(0, E.val[k]) / tot,
             x = m.l + k * bw + bw * 0.18,
             bwid = bw * 0.64;
-          g.textAlign = 'center';
-          g.fillStyle = t.muted;
-          g.fillText(String(k + 1), x + bwid / 2, h - m.b + 15);
+          ctx.textAlign = 'center';
+          ctx.fillStyle = colors.muted;
+          ctx.fillText(String(k + 1), x + bwid / 2, h - m.b + 15);
           if (k < nr) {
-            g.fillStyle = k + 1 === S.k ? t.gold : mix(t.gold, t.gold, 0, 0.55);
-            g.fillRect(x, Y(v), bwid, Y(0) - Y(v));
+            ctx.fillStyle =
+              k + 1 === settings.k ? colors.gold : mix(colors.gold, colors.gold, 0, 0.55);
+            ctx.fillRect(x, Y(v), bwid, Y(0) - Y(v));
             const tall = Y(0) - Y(v) > 26;
-            g.fillStyle = tall ? t.bg : t.ink;
-            g.fillText((100 * v).toFixed(0) + '%', x + bwid / 2, tall ? Y(v) + 15 : Y(v) - 5);
+            ctx.fillStyle = tall ? colors.bg : colors.ink;
+            ctx.fillText((100 * v).toFixed(0) + '%', x + bwid / 2, tall ? Y(v) + 15 : Y(v) - 5);
           } else {
-            g.strokeStyle = t.line;
-            g.setLineDash([3, 3]);
-            g.strokeRect(x, Y(0.02), bwid, Y(0) - Y(0.02));
-            g.setLineDash([]);
+            ctx.strokeStyle = colors.line;
+            ctx.setLineDash([3, 3]);
+            ctx.strokeRect(x, Y(0.02), bwid, Y(0) - Y(0.02));
+            ctx.setLineDash([]);
           }
         }
         if (nr) {
-          g.strokeStyle = t.accent;
-          g.lineWidth = 2.2;
-          g.beginPath();
+          ctx.strokeStyle = colors.accent;
+          ctx.lineWidth = 2.2;
+          ctx.beginPath();
           for (let k = 0; k < nr; k++) {
             const x = m.l + (k + 0.5) * bw,
               y = Y(cum(k + 1));
-            k ? g.lineTo(x, y) : g.moveTo(x, y);
+            k ? ctx.lineTo(x, y) : ctx.moveTo(x, y);
           }
-          g.stroke();
-          g.fillStyle = t.accent;
+          ctx.stroke();
+          ctx.fillStyle = colors.accent;
           for (let k = 0; k < nr; k++) {
-            g.beginPath();
-            g.arc(m.l + (k + 0.5) * bw, Y(cum(k + 1)), 3.4, 0, 7);
-            g.fill();
+            ctx.beginPath();
+            ctx.arc(m.l + (k + 0.5) * bw, Y(cum(k + 1)), 3.4, 0, 7);
+            ctx.fill();
           }
         } else {
-          g.fillStyle = t.muted;
-          g.textAlign = 'center';
-          g.fillText('no components found yet', w / 2, h / 2);
+          ctx.fillStyle = colors.muted;
+          ctx.textAlign = 'center';
+          ctx.fillText('no components found yet', w / 2, h / 2);
         }
-        g.fillStyle = t.muted;
-        g.textAlign = 'right';
-        g.fillText('component', w - m.r, h - 3);
+        ctx.fillStyle = colors.muted;
+        ctx.textAlign = 'right';
+        ctx.fillText('component', w - m.r, h - 3);
       }
       {
-        const { g, w, h } = fit(cb);
-        g.font = MONO;
+        const { g: ctx, w, h } = prepareCanvas(biplotCanvas);
+        ctx.font = MONO;
         if (nrev() < 2) {
-          g.fillStyle = t.muted;
-          g.textAlign = 'center';
-          g.fillText('this picture needs the first two components', w / 2, h / 2);
+          ctx.fillStyle = colors.muted;
+          ctx.textAlign = 'center';
+          ctx.fillText('this picture needs the first two components', w / 2, h / 2);
         } else {
           let mx = 1e-9,
             my = 1e-9;
@@ -380,19 +381,19 @@ export default {
           }
           const X2 = (v) => w / 2 + (v / mx) * (w / 2 - 30),
             Y2 = (v) => h / 2 - (v / my) * (h / 2 - 26);
-          g.strokeStyle = t.line;
-          g.lineWidth = 1;
-          g.beginPath();
-          g.moveTo(8, h / 2);
-          g.lineTo(w - 8, h / 2);
-          g.moveTo(w / 2, 8);
-          g.lineTo(w / 2, h - 8);
-          g.stroke();
-          g.fillStyle = mix(t.accent, t.accent, 0, 0.55);
+          ctx.strokeStyle = colors.line;
+          ctx.lineWidth = 1;
+          ctx.beginPath();
+          ctx.moveTo(8, h / 2);
+          ctx.lineTo(w - 8, h / 2);
+          ctx.moveTo(w / 2, 8);
+          ctx.lineTo(w / 2, h - 8);
+          ctx.stroke();
+          ctx.fillStyle = mix(colors.accent, colors.accent, 0, 0.55);
           for (const q of sc) {
-            g.beginPath();
-            g.arc(X2(q[0]), Y2(q[1]), 2.6, 0, 7);
-            g.fill();
+            ctx.beginPath();
+            ctx.arc(X2(q[0]), Y2(q[1]), 2.6, 0, 7);
+            ctx.fill();
           }
           let lm = 1e-9;
           const put = [];
@@ -402,19 +403,19 @@ export default {
               ay = (E.vec[1][j] / lm) * 0.82,
               x = w / 2 + ax * (w / 2 - 30),
               y = h / 2 - ay * (h / 2 - 26);
-            g.strokeStyle = t.ok;
-            g.lineWidth = 2;
-            g.beginPath();
-            g.moveTo(w / 2, h / 2);
-            g.lineTo(x, y);
-            g.stroke();
-            g.fillStyle = t.ok;
-            g.beginPath();
-            g.arc(x, y, 3.5, 0, 7);
-            g.fill();
-            g.font = SANS;
-            g.fillStyle = t.ink;
-            g.textAlign = ax >= 0 ? 'left' : 'right';
+            ctx.strokeStyle = colors.ok;
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(w / 2, h / 2);
+            ctx.lineTo(x, y);
+            ctx.stroke();
+            ctx.fillStyle = colors.ok;
+            ctx.beginPath();
+            ctx.arc(x, y, 3.5, 0, 7);
+            ctx.fill();
+            ctx.font = SANS;
+            ctx.fillStyle = colors.ink;
+            ctx.textAlign = ax >= 0 ? 'left' : 'right';
             const lx = clamp(x + (ax >= 0 ? 7 : -7), 50, w - 50);
             let ly = clamp(y + (ay >= 0 ? -6 : 14), 14, h - 6);
             for (let q = 0; q < 8; q++) {
@@ -423,78 +424,78 @@ export default {
               else break;
             }
             put.push([lx, ly]);
-            g.fillText(short(names[j]), lx, ly);
+            ctx.fillText(short(names[j]), lx, ly);
           }
-          g.font = MONO;
-          g.fillStyle = t.muted;
-          g.textAlign = 'right';
-          g.fillText('component 1 →', w - 8, h / 2 - 6);
-          g.textAlign = 'left';
-          g.fillText('↑ component 2', w / 2 + 6, 14);
+          ctx.font = MONO;
+          ctx.fillStyle = colors.muted;
+          ctx.textAlign = 'right';
+          ctx.fillText('component 1 →', w - 8, h / 2 - 6);
+          ctx.textAlign = 'left';
+          ctx.fillText('↑ component 2', w / 2 + 6, 14);
         }
       }
       {
-        const { g, w, h } = fit(cl),
-          k = Math.min(S.k, Math.max(1, nrev()));
+        const { g: ctx, w, h } = prepareCanvas(loadingsCanvas),
+          k = Math.min(settings.k, Math.max(1, nrev()));
         $('#pt-lcap', root).textContent = 'Weights of component ' + k + ' on each column';
-        g.font = MONO;
+        ctx.font = MONO;
         if (!nrev()) {
-          g.fillStyle = t.muted;
-          g.textAlign = 'center';
-          g.fillText('no components found yet', w / 2, h / 2);
+          ctx.fillStyle = colors.muted;
+          ctx.textAlign = 'center';
+          ctx.fillText('no components found yet', w / 2, h / 2);
         } else {
           const lm = Math.min(110, w * 0.26),
             rh = Math.min(34, (h - 30) / d),
             x0 = lm + (w - lm - 50) / 2,
             sx = (w - lm - 50) / 2;
-          g.strokeStyle = t.muted;
-          g.lineWidth = 1;
-          g.beginPath();
-          g.moveTo(x0, 8);
-          g.lineTo(x0, 14 + d * rh);
-          g.stroke();
+          ctx.strokeStyle = colors.muted;
+          ctx.lineWidth = 1;
+          ctx.beginPath();
+          ctx.moveTo(x0, 8);
+          ctx.lineTo(x0, 14 + d * rh);
+          ctx.stroke();
           for (let j = 0; j < d; j++) {
             const v = E.vec[k - 1][j],
               y = 14 + j * rh;
-            g.fillStyle = t.ink;
-            g.textAlign = 'right';
-            g.fillText(names[j].slice(0, 14), lm - 8, y + rh / 2 + 4);
-            g.fillStyle = v >= 0 ? t.accent : t.ok;
-            g.fillRect(v >= 0 ? x0 : x0 + v * sx, y + rh * 0.2, Math.abs(v) * sx, rh * 0.6);
-            g.fillStyle = t.muted;
-            g.textAlign = v >= 0 ? 'left' : 'right';
-            g.fillText(
+            ctx.fillStyle = colors.ink;
+            ctx.textAlign = 'right';
+            ctx.fillText(names[j].slice(0, 14), lm - 8, y + rh / 2 + 4);
+            ctx.fillStyle = v >= 0 ? colors.accent : colors.ok;
+            ctx.fillRect(v >= 0 ? x0 : x0 + v * sx, y + rh * 0.2, Math.abs(v) * sx, rh * 0.6);
+            ctx.fillStyle = colors.muted;
+            ctx.textAlign = v >= 0 ? 'left' : 'right';
+            ctx.fillText(
               (v >= 0 ? '+' : '−') + Math.abs(v).toFixed(2),
               x0 + v * sx + (v >= 0 ? 5 : -5),
               y + rh / 2 + 4,
             );
           }
-          g.fillStyle = t.muted;
-          g.textAlign = 'center';
-          g.fillText(
-            'score = sum of weight × ' + (S.std ? 'standardised' : 'centred') + ' value',
+          ctx.fillStyle = colors.muted;
+          ctx.textAlign = 'center';
+          ctx.fillText(
+            'score = sum of weight × ' + (settings.std ? 'standardised' : 'centred') + ' value',
             w / 2,
             h - 6,
           );
         }
       }
       live.textContent = msg;
-      uCur(root, 'pt', cu);
+      highlightLessonStep(root, 'pt', activeStepIndex);
       const nr = nrev();
-      setR(root, 'n', String(n));
-      setR(root, 'd', String(d));
-      setR(root, 'p1', nr >= 1 ? (100 * cum(1)).toFixed(1) + '%' : '–');
-      setR(root, 'p2', nr >= 2 ? (100 * cum(2)).toFixed(1) + '%' : '–');
+      setReadout(root, 'n', String(n));
+      setReadout(root, 'd', String(d));
+      setReadout(root, 'p1', nr >= 1 ? (100 * cum(1)).toFixed(1) + '%' : '–');
+      setReadout(root, 'p2', nr >= 2 ? (100 * cum(2)).toFixed(1) + '%' : '–');
       let k90 = 1;
       while (k90 < d && cum(k90) < 0.9) k90++;
-      setR(root, 'k90', nr >= d ? k90 + ' of ' + d : '–');
+      setReadout(root, 'k90', nr >= d ? k90 + ' of ' + d : '–');
     };
     const kb = bind(
       root,
       'pt-k',
       (v) => {
-        S.k = clamp(v, 1, d || 1);
-        pb && pb.stop();
+        settings.k = clamp(v, 1, d || 1);
+        playback && playback.stop();
         draw();
       },
       (v) => String(v),
@@ -502,7 +503,7 @@ export default {
     comp();
     fin();
     const anim = Anim(() => {
-      fr++;
+      frameCount++;
       if (wait > 0) {
         wait--;
         if (!wait) {
@@ -511,35 +512,38 @@ export default {
         }
         return;
       }
-      if (fr % 64) return;
+      if (frameCount % 64) return;
       step();
       draw();
-      chk();
+      checkRunStop();
     });
-    pb = playBtn($('#pt-play', root), anim);
-    const chk = runCtl(pb, root, 'pt', { done: () => ph >= end(), restart: () => reset() });
+    playback = playBtn($('#pt-play', root), anim);
+    const checkRunStop = attachRunLimit(playback, root, 'pt', {
+      done: () => ph >= end(),
+      restart: () => reset(),
+    });
     $('#pt-step', root).onclick = () => {
-      pb.stop();
+      playback.stop();
       step();
       draw();
     };
     $('#pt-reset', root).onclick = () => {
-      pb.stop();
+      playback.stop();
       reset();
       draw();
     };
     $('#pt-std', root).onchange = (e) => {
-      S.std = e.target.checked;
-      pb.stop();
+      settings.std = e.target.checked;
+      playback.stop();
       comp();
       fin();
       draw();
     };
     $('#pt-ds', root).onchange = (e) => {
-      S.ds = e.target.value;
+      settings.ds = e.target.value;
       custom = null;
       st.textContent = '';
-      pb.stop();
+      playback.stop();
       comp();
       fin();
       draw();
@@ -560,7 +564,7 @@ export default {
           return;
         }
         custom = r;
-        pb.stop();
+        playback.stop();
         comp();
         fin();
         st.textContent =
@@ -584,11 +588,11 @@ export default {
     };
     return {
       draw,
-      stop: () => pb.stop(),
+      stop: () => playback.stop(),
       auto: () => {
         reset();
         draw();
-        pb.start();
+        playback.start();
       },
     };
   },

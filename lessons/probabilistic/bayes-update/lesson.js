@@ -3,32 +3,32 @@ import {
   $,
   Anim,
   MONO,
-  RM,
-  T,
+  prefersReducedMotion,
+  readThemeColors,
   bind,
   clamp,
   eqShow,
   f2,
   f3,
-  fit,
+  prepareCanvas,
   lgam,
   markTP,
   mix,
   playBtn,
-  runCtl,
-  setR,
+  attachRunLimit,
+  setReadout,
   testPoint,
 } from '../../../js/core/shared.js';
 import { pct } from '../../ensembles/shared.js';
-import { segBind, uCur, uLine } from '../../unsupervised/shared.js';
+import { segBind, highlightLessonStep, drawSeriesChart } from '../../unsupervised/shared.js';
 
 export default {
   init(root) {
-    const c = $('#by-c', root),
+    const mainCanvas = $('#by-c', root),
       cr = $('#by-r', root),
       live = $('#by-live', root),
       eq = $('#by-eq', root),
-      S = { p: 0.3, m: 0.5, n0: 2, pr: 'flat' },
+      settings = { p: 0.3, m: 0.5, n0: 2, pr: 'flat' },
       PR = { flat: [1, 1], mild: [5, 5], stub: [48, 12] },
       MAXN = 1000,
       NG = 400;
@@ -36,15 +36,15 @@ export default {
       b0 = 1,
       D = [],
       k = 0,
-      HM = [],
+      posteriorMeanHistory = [],
       HL = [],
       HU = [],
-      H3 = [[], [], []],
+      meanHistoryByPrior = [[], [], []],
       msg = '',
-      cu = 0,
-      fr = 0,
-      pb,
-      chk = () => false,
+      activeStepIndex = 0,
+      frameCount = 0,
+      playback,
+      checkRunStop = () => false,
       fin = false,
       bm,
       bn;
@@ -57,7 +57,7 @@ export default {
       }
       return o;
     };
-    const ci = (a, b) => {
+    const credibleInterval95 = (a, b) => {
       const d = pdf(a, b);
       let tot = 0;
       for (let i = 0; i <= NG; i++) tot += d[i];
@@ -82,21 +82,23 @@ export default {
       const n = D.length,
         a = a0 + k,
         b = b0 + n - k,
-        [lo, hi] = ci(a, b);
-      HM.push(a / (a + b));
+        [lo, hi] = credibleInterval95(a, b);
+      posteriorMeanHistory.push(a / (a + b));
       HL.push(lo);
       HU.push(hi);
-      Object.values(PR).forEach((q, i) => H3[i].push((q[0] + k) / (q[0] + q[1] + n)));
+      Object.values(PR).forEach((q, i) =>
+        meanHistoryByPrior[i].push((q[0] + k) / (q[0] + q[1] + n)),
+      );
     };
     const build = () => {
       D = [];
       k = 0;
-      HM = [];
+      posteriorMeanHistory = [];
       HL = [];
       HU = [];
-      H3 = [[], [], []];
+      meanHistoryByPrior = [[], [], []];
       fin = false;
-      cu = 0;
+      activeStepIndex = 0;
       push();
       msg =
         'The prior is Beta(' +
@@ -126,7 +128,7 @@ export default {
       push();
       const lo = HL[HL.length - 1],
         hi = HU[HU.length - 1];
-      cu = y ? 2 : 2;
+      activeStepIndex = y ? 2 : 2;
       eqShow(
         eq,
         [
@@ -184,7 +186,7 @@ export default {
         '.';
       if (hi - lo < 0.1 || D.length >= MAXN) {
         fin = true;
-        cu = 5;
+        activeStepIndex = 5;
         msg =
           (hi - lo < 0.1
             ? 'Stopped after ' +
@@ -198,20 +200,20 @@ export default {
           ' Best estimate ' +
           pct(a2 / (a2 + b2)) +
           '. The true share is ' +
-          pct(S.p) +
+          pct(settings.p) +
           ', which is ' +
-          (S.p >= lo && S.p <= hi ? 'inside' : 'outside') +
+          (settings.p >= lo && settings.p <= hi ? 'inside' : 'outside') +
           ' that range.';
       }
     };
     const tp = testPoint(root, 'by', ['A share to ask about'], [0.5], [[0, 1]]);
     const draw = () => {
-      const t = T(),
+      const colors = readThemeColors(),
         n = D.length,
         a = a0 + k,
         b = b0 + n - k;
       {
-        const { g, w, h } = fit(c),
+        const { g: ctx, w, h } = prepareCanvas(mainCanvas),
           m = { l: 14, r: 14, t: 40, b: 26 },
           X = (v) => m.l + v * (w - m.l - m.r),
           pr = pdf(a0, b0),
@@ -221,67 +223,68 @@ export default {
           Y = (v) => h - m.b - (Math.min(v, ym) / ym) * (h - m.t - m.b),
           lo = HL[HL.length - 1],
           hi = HU[HU.length - 1];
-        g.fillStyle = mix(t.accent, t.accent, 0, 0.55);
-        g.beginPath();
-        g.moveTo(X(lo), Y(0));
+        ctx.fillStyle = mix(colors.accent, colors.accent, 0, 0.55);
+        ctx.beginPath();
+        ctx.moveTo(X(lo), Y(0));
         for (let i = 0; i <= NG; i++) {
           const x = i / NG;
-          if (x >= lo && x <= hi) g.lineTo(X(x), Y(po[i]));
+          if (x >= lo && x <= hi) ctx.lineTo(X(x), Y(po[i]));
         }
-        g.lineTo(X(hi), Y(0));
-        g.closePath();
-        g.fill();
+        ctx.lineTo(X(hi), Y(0));
+        ctx.closePath();
+        ctx.fill();
         const line = (d, col, lw, dash) => {
-          g.strokeStyle = col;
-          g.lineWidth = lw;
-          g.setLineDash(dash || []);
-          g.beginPath();
-          for (let i = 0; i <= NG; i++) i ? g.lineTo(X(i / NG), Y(d[i])) : g.moveTo(X(0), Y(d[i]));
-          g.stroke();
-          g.setLineDash([]);
+          ctx.strokeStyle = col;
+          ctx.lineWidth = lw;
+          ctx.setLineDash(dash || []);
+          ctx.beginPath();
+          for (let i = 0; i <= NG; i++)
+            i ? ctx.lineTo(X(i / NG), Y(d[i])) : ctx.moveTo(X(0), Y(d[i]));
+          ctx.stroke();
+          ctx.setLineDash([]);
         };
-        if (lk) line(lk, t.ok, 1.3);
-        line(pr, t.muted, 1.8, [6, 5]);
-        line(po, t.accent, 2.6);
-        g.strokeStyle = t.muted;
-        g.lineWidth = 1;
-        g.beginPath();
-        g.moveTo(m.l, h - m.b);
-        g.lineTo(w - m.r, h - m.b);
-        g.stroke();
-        g.font = MONO;
-        g.fillStyle = t.muted;
-        g.textAlign = 'center';
-        for (const v of [0, 0.2, 0.4, 0.6, 0.8, 1]) g.fillText(100 * v + '%', X(v), h - 8);
-        g.setLineDash([4, 4]);
-        g.strokeStyle = t.gold;
-        g.lineWidth = 2;
-        g.beginPath();
-        g.moveTo(X(S.p), m.t - 6);
-        g.lineTo(X(S.p), h - m.b);
-        g.stroke();
-        g.setLineDash([]);
-        g.fillStyle = t.cut;
-        g.textAlign = S.p > 0.8 ? 'right' : 'left';
-        g.fillText('true share', X(S.p) + (S.p > 0.8 ? -5 : 5), m.t + 4);
-        markTP(g, X(tp.v[0]), h - m.b, t, false);
+        if (lk) line(lk, colors.ok, 1.3);
+        line(pr, colors.muted, 1.8, [6, 5]);
+        line(po, colors.accent, 2.6);
+        ctx.strokeStyle = colors.muted;
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(m.l, h - m.b);
+        ctx.lineTo(w - m.r, h - m.b);
+        ctx.stroke();
+        ctx.font = MONO;
+        ctx.fillStyle = colors.muted;
+        ctx.textAlign = 'center';
+        for (const v of [0, 0.2, 0.4, 0.6, 0.8, 1]) ctx.fillText(100 * v + '%', X(v), h - 8);
+        ctx.setLineDash([4, 4]);
+        ctx.strokeStyle = colors.gold;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(X(settings.p), m.t - 6);
+        ctx.lineTo(X(settings.p), h - m.b);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.fillStyle = colors.cut;
+        ctx.textAlign = settings.p > 0.8 ? 'right' : 'left';
+        ctx.fillText('true share', X(settings.p) + (settings.p > 0.8 ? -5 : 5), m.t + 4);
+        markTP(ctx, X(tp.v[0]), h - m.b, colors, false);
         const show = D.slice(-Math.floor((w - 28) / 9)),
           x0 = 14;
         show.forEach((y, i) => {
-          g.beginPath();
-          g.arc(x0 + i * 9 + 4, 14, 3.4, 0, 7);
+          ctx.beginPath();
+          ctx.arc(x0 + i * 9 + 4, 14, 3.4, 0, 7);
           if (y) {
-            g.fillStyle = t.accent;
-            g.fill();
+            ctx.fillStyle = colors.accent;
+            ctx.fill();
           } else {
-            g.strokeStyle = t.muted;
-            g.lineWidth = 1.2;
-            g.stroke();
+            ctx.strokeStyle = colors.muted;
+            ctx.lineWidth = 1.2;
+            ctx.stroke();
           }
         });
-        g.fillStyle = t.muted;
-        g.textAlign = 'left';
-        g.fillText(
+        ctx.fillStyle = colors.muted;
+        ctx.textAlign = 'left';
+        ctx.fillText(
           n
             ? 'answers, oldest to newest: filled = yes, open = no' +
                 (n > show.length ? ' (the last ' + show.length + ')' : '')
@@ -291,36 +294,36 @@ export default {
         );
       }
       {
-        const { g, w, h } = fit(cr),
-          nn = Math.max(30, HM.length),
-          A = uLine(g, t, 0, 0, w, h / 2, HM, {
+        const { g: ctx, w, h } = prepareCanvas(cr),
+          nn = Math.max(30, posteriorMeanHistory.length),
+          A = drawSeriesChart(ctx, colors, 0, 0, w, h / 2, posteriorMeanHistory, {
             title: 'this owner: best estimate and 95% range, by customers asked',
             n: nn,
             ym: 1,
-            col: t.accent,
+            col: colors.accent,
           });
-        g.fillStyle = mix(t.accent, t.accent, 0, 0.2);
-        g.beginPath();
-        HU.forEach((v, i) => (i ? g.lineTo(A.X(i), A.Y(v)) : g.moveTo(A.X(i), A.Y(v))));
-        for (let i = HL.length - 1; i >= 0; i--) g.lineTo(A.X(i), A.Y(HL[i]));
-        g.closePath();
-        g.fill();
+        ctx.fillStyle = mix(colors.accent, colors.accent, 0, 0.2);
+        ctx.beginPath();
+        HU.forEach((v, i) => (i ? ctx.lineTo(A.X(i), A.Y(v)) : ctx.moveTo(A.X(i), A.Y(v))));
+        for (let i = HL.length - 1; i >= 0; i--) ctx.lineTo(A.X(i), A.Y(HL[i]));
+        ctx.closePath();
+        ctx.fill();
         const tl = (L, y0) => {
-          g.setLineDash([4, 4]);
-          g.strokeStyle = t.gold;
-          g.lineWidth = 1.4;
-          g.beginPath();
-          g.moveTo(L.m.l, L.Y(S.p));
-          g.lineTo(w - L.m.r, L.Y(S.p));
-          g.stroke();
-          g.setLineDash([]);
+          ctx.setLineDash([4, 4]);
+          ctx.strokeStyle = colors.gold;
+          ctx.lineWidth = 1.4;
+          ctx.beginPath();
+          ctx.moveTo(L.m.l, L.Y(settings.p));
+          ctx.lineTo(w - L.m.r, L.Y(settings.p));
+          ctx.stroke();
+          ctx.setLineDash([]);
         };
         tl(A);
-        const col = [t.accent, t.ok, t.cut],
+        const col = [colors.accent, colors.ok, colors.cut],
           nm = ['no opinion', 'mild hunch', 'stubborn'];
         let B = null;
-        H3.forEach((d, i) => {
-          B = uLine(g, t, 0, h / 2, w, h / 2, d, {
+        meanHistoryByPrior.forEach((d, i) => {
+          B = drawSeriesChart(ctx, colors, 0, h / 2, w, h / 2, d, {
             title: i ? '' : 'three owners, same answers: their best estimates',
             n: nn,
             ym: 1,
@@ -328,17 +331,17 @@ export default {
           });
         });
         tl(B);
-        g.font = MONO;
-        H3.forEach((d, i) => {
-          g.fillStyle = col[i];
-          g.textAlign = 'right';
-          g.fillText(nm[i], w - 14, h / 2 + 38 + i * 13);
+        ctx.font = MONO;
+        meanHistoryByPrior.forEach((d, i) => {
+          ctx.fillStyle = col[i];
+          ctx.textAlign = 'right';
+          ctx.fillText(nm[i], w - 14, h / 2 + 38 + i * 13);
         });
-        g.fillStyle = t.muted;
-        g.fillText('customers asked →', w - 12, h - 5);
+        ctx.fillStyle = colors.muted;
+        ctx.fillText('customers asked →', w - 12, h - 5);
       }
       live.textContent = msg;
-      uCur(root, 'by', cu);
+      highlightLessonStep(root, 'by', activeStepIndex);
       const po = pdf(a, b);
       let tot = 0,
         ab = 0;
@@ -354,61 +357,61 @@ export default {
         '. The probability that the next customer says yes is ' +
         pct(a / (a + b)) +
         '.';
-      setR(root, 'n', n + (fin ? ' (stopped)' : ''));
-      setR(root, 'k', String(k));
-      setR(root, 'mean', pct(a / (a + b)));
-      setR(root, 'ci', pct(HL[HL.length - 1]) + ' and ' + pct(HU[HU.length - 1]));
-      setR(root, 'fr', n ? pct(k / n) : '–');
-      setR(root, 'pb', 'Beta(' + f2(a) + ', ' + f2(b) + ')');
+      setReadout(root, 'n', n + (fin ? ' (stopped)' : ''));
+      setReadout(root, 'k', String(k));
+      setReadout(root, 'mean', pct(a / (a + b)));
+      setReadout(root, 'ci', pct(HL[HL.length - 1]) + ' and ' + pct(HU[HU.length - 1]));
+      setReadout(root, 'fr', n ? pct(k / n) : '–');
+      setReadout(root, 'pb', 'Beta(' + f2(a) + ', ' + f2(b) + ')');
     };
     tp.on = () => draw();
     build();
-    if (RM) {
-      while (!fin) add(Math.random() < S.p ? 1 : 0);
+    if (prefersReducedMotion) {
+      while (!fin) add(Math.random() < settings.p ? 1 : 0);
     }
     const anim = Anim(() => {
-      fr++;
+      frameCount++;
       if (fin) {
-        pb.stop();
+        playback.stop();
         return;
       }
-      if (fr % (D.length < 12 ? 26 : D.length < 60 ? 7 : 2)) return;
-      add(Math.random() < S.p ? 1 : 0);
+      if (frameCount % (D.length < 12 ? 26 : D.length < 60 ? 7 : 2)) return;
+      add(Math.random() < settings.p ? 1 : 0);
       draw();
-      chk();
+      checkRunStop();
     });
-    pb = playBtn($('#by-play', root), anim);
-    chk = runCtl(pb, root, 'by', {
+    playback = playBtn($('#by-play', root), anim);
+    checkRunStop = attachRunLimit(playback, root, 'by', {
       done: () => fin,
       restart: () => build(),
       count: () => D.length,
       what: 'customers',
     });
     $('#by-step', root).onclick = () => {
-      pb.stop();
+      playback.stop();
       if (fin) build();
-      else add(Math.random() < S.p ? 1 : 0);
+      else add(Math.random() < settings.p ? 1 : 0);
       draw();
     };
     $('#by-reset', root).onclick = () => {
-      pb.stop();
+      playback.stop();
       build();
       draw();
     };
     $('#by-yes', root).onclick = () => {
-      pb.stop();
+      playback.stop();
       add(1);
       draw();
     };
     $('#by-no', root).onclick = () => {
-      pb.stop();
+      playback.stop();
       add(0);
       draw();
     };
     const setP = () => {
-      a0 = S.m * S.n0;
-      b0 = (1 - S.m) * S.n0;
-      if (pb) pb.stop();
+      a0 = settings.m * settings.n0;
+      b0 = (1 - settings.m) * settings.n0;
+      if (playback) playback.stop();
       build();
       draw();
     };
@@ -416,7 +419,7 @@ export default {
       root,
       'by-m',
       (v) => {
-        S.m = +v;
+        settings.m = +v;
         setP();
       },
       f2,
@@ -425,7 +428,7 @@ export default {
       root,
       'by-n',
       (v) => {
-        S.n0 = +v;
+        settings.n0 = +v;
         setP();
       },
       (v) => String(v),
@@ -434,35 +437,35 @@ export default {
       root,
       'by-p',
       (v) => {
-        S.p = +v;
-        if (pb) {
-          pb.stop();
+        settings.p = +v;
+        if (playback) {
+          playback.stop();
           build();
           draw();
         }
       },
       f2,
     );
-    segBind(root, 'by-pr', S.pr, (v) => {
+    segBind(root, 'by-pr', settings.pr, (v) => {
       const q = PR[v];
-      S.m = q[0] / (q[0] + q[1]);
-      S.n0 = q[0] + q[1];
-      bm.set(S.m);
-      bn.set(S.n0);
+      settings.m = q[0] / (q[0] + q[1]);
+      settings.n0 = q[0] + q[1];
+      bm.set(settings.m);
+      bn.set(settings.n0);
       a0 = q[0];
       b0 = q[1];
-      pb.stop();
+      playback.stop();
       build();
       draw();
-      pb.start();
+      playback.start();
     });
     return {
       draw,
-      stop: () => pb.stop(),
+      stop: () => playback.stop(),
       auto: () => {
         build();
         draw();
-        pb.start();
+        playback.start();
       },
     };
   },

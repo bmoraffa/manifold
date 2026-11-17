@@ -1,23 +1,33 @@
 /* Manifold. © 2026 Bahman Moraffah. All rights reserved. */
-import { $, Anim, RM, SITE, T, fit, mix, randnFrom, rng } from '../core/shared.js';
+import {
+  $,
+  Anim,
+  prefersReducedMotion,
+  SITE,
+  readThemeColors,
+  prepareCanvas,
+  mix,
+  randnFrom,
+  rng,
+} from '../core/shared.js';
 
 export function createHero() {
-  const c = $('#hero-c'),
-    GN = 36,
-    N = GN * GN;
-  let P = null,
-    TG = null,
-    si = 0,
-    fr = 0,
+  const canvas = $('#hero-c'),
+    gridSize = 36,
+    particleCount = gridSize * gridSize;
+  let particles = null,
+    targetsByScene = null,
+    sceneIndex = 0,
+    frameInScene = 0,
     mouse = null,
     az = 0.6,
     balls = [],
-    lineA = 0;
+    gridOpacity = 0;
   const land = (x, y) =>
     0.3 * Math.sin(2.6 * x + 0.5) * Math.cos(2.2 * y) +
     0.2 * (x * x + y * y) -
     0.14 * Math.exp(-((x - 0.45) ** 2 + (y + 0.35) ** 2) / 0.08);
-  const SC = [
+  const sceneSequence = [
     ['noise', 80],
     ['name', 340],
     ['gauss', 170],
@@ -46,18 +56,20 @@ export function createHero() {
     }
     g.fillText(SITE, 550, 145);
     const d = g.getImageData(0, 0, 1100, 280).data,
-      px = [];
+      letterPixels = [];
     for (let y = 0; y < 280; y += 3)
       for (let x = 0; x < 1100; x += 3)
-        if (d[(y * 1100 + x) * 4 + 3] > 128) px.push([(x - 550) / 520, -(y - 140) / 520]);
+        if (d[(y * 1100 + x) * 4 + 3] > 128) letterPixels.push([(x - 550) / 520, -(y - 140) / 520]);
     const mk = (fn) => {
       const a = [];
-      for (let i = 0; i < N; i++) a.push(fn(i));
+      for (let i = 0; i < particleCount; i++) a.push(fn(i));
       return a;
     };
-    TG = {
+    targetsByScene = {
       name: mk(() => {
-        const p = px.length ? px[Math.floor(r() * px.length)] : [0, 0];
+        const p = letterPixels.length
+          ? letterPixels[Math.floor(r() * letterPixels.length)]
+          : [0, 0];
         return [p[0] + 0.005 * (r() - 0.5), p[1] + 0.005 * (r() - 0.5), 0];
       }),
       noise: mk(() => [r() * 2.4 - 1.2, r() * 1.5 - 0.75, 0]),
@@ -90,7 +102,7 @@ export function createHero() {
         return [rad * Math.cos(a) + 0.018 * rn(), rad * Math.sin(a) + 0.018 * rn(), k];
       }),
     };
-    if (!P) P = TG.noise.map((p) => ({ x: p[0], y: p[1], c: 0 }));
+    if (!particles) particles = targetsByScene.noise.map((p) => ({ x: p[0], y: p[1], c: 0 }));
   }
   const proj = (x, y, z) => {
     const ca = Math.cos(az),
@@ -108,46 +120,46 @@ export function createHero() {
     age: 0,
   });
   function draw() {
-    if (!TG) build();
-    const t = T(),
-      { g, w, h } = fit(c),
+    if (!targetsByScene) build();
+    const colors = readThemeColors(),
+      { g: ctx, w, h } = prepareCanvas(canvas),
       s = Math.min(w / 2.5, h / 1.6),
       X = (x) => w / 2 + x * s,
       Y = (y) => h / 2 - y * s,
-      kind = SC[si][0],
-      isL = kind === 'land';
-    if (isL) {
+      kind = sceneSequence[sceneIndex][0],
+      showsLandscape = kind === 'land';
+    if (showsLandscape) {
       az += 0.0028;
-      lineA = Math.min(1, lineA + 0.02);
-    } else lineA = Math.max(0, lineA - 0.05);
-    const ease = isL ? 0.16 : kind === 'noise' ? 0.03 : 0.055,
-      cols = [t.ink, t.gold, t.accent];
-    for (let i = 0; i < N; i++) {
-      const p = P[i];
+      gridOpacity = Math.min(1, gridOpacity + 0.02);
+    } else gridOpacity = Math.max(0, gridOpacity - 0.05);
+    const ease = showsLandscape ? 0.16 : kind === 'noise' ? 0.03 : 0.055,
+      cols = [colors.ink, colors.gold, colors.accent];
+    for (let i = 0; i < particleCount; i++) {
+      const p = particles[i];
       let tx,
         ty,
         cl = 0;
-      if (isL) {
-        const a = i % GN,
-          b = (i - a) / GN,
-          x = -1 + (2 * a) / (GN - 1),
-          y = -1 + (2 * b) / (GN - 1),
+      if (showsLandscape) {
+        const a = i % gridSize,
+          b = (i - a) / gridSize,
+          x = -1 + (2 * a) / (gridSize - 1),
+          y = -1 + (2 * b) / (gridSize - 1),
           q = proj(x, y, land(x, y));
         tx = q[0];
         ty = q[1];
       } else {
-        const q = TG[kind][i];
+        const q = targetsByScene[kind][i];
         tx = q[0];
         ty = q[1];
         cl = q[2];
       }
-      if (RM) {
+      if (prefersReducedMotion) {
         p.x = tx;
         p.y = ty;
       } else {
         p.x += (tx - p.x) * ease;
         p.y += (ty - p.y) * ease;
-        if (mouse && !isL) {
+        if (mouse && !showsLandscape) {
           const dx = p.x - mouse[0],
             dy = p.y - mouse[1],
             d = Math.hypot(dx, dy);
@@ -160,42 +172,42 @@ export function createHero() {
       }
       p.c = cl;
     }
-    if (lineA > 0) {
-      g.strokeStyle = mix(t.ink, t.ink, 0, 0.2 * lineA);
-      g.lineWidth = 1;
-      g.beginPath();
-      for (let b = 0; b < GN; b++)
-        for (let a = 0; a < GN; a++) {
-          const i = b * GN + a,
-            p = P[i];
-          if (a < GN - 1) {
-            const q = P[i + 1];
-            g.moveTo(X(p.x), Y(p.y));
-            g.lineTo(X(q.x), Y(q.y));
+    if (gridOpacity > 0) {
+      ctx.strokeStyle = mix(colors.ink, colors.ink, 0, 0.2 * gridOpacity);
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      for (let b = 0; b < gridSize; b++)
+        for (let a = 0; a < gridSize; a++) {
+          const i = b * gridSize + a,
+            p = particles[i];
+          if (a < gridSize - 1) {
+            const q = particles[i + 1];
+            ctx.moveTo(X(p.x), Y(p.y));
+            ctx.lineTo(X(q.x), Y(q.y));
           }
-          if (b < GN - 1) {
-            const q = P[i + GN];
-            g.moveTo(X(p.x), Y(p.y));
-            g.lineTo(X(q.x), Y(q.y));
+          if (b < gridSize - 1) {
+            const q = particles[i + gridSize];
+            ctx.moveTo(X(p.x), Y(p.y));
+            ctx.lineTo(X(q.x), Y(q.y));
           }
         }
-      g.stroke();
+      ctx.stroke();
     }
-    const rad = isL ? 1.3 : 2.1;
+    const rad = showsLandscape ? 1.3 : 2.1;
     for (let k = 0; k < 3; k++) {
-      g.fillStyle = cols[k];
-      g.beginPath();
-      for (let i = 0; i < N; i++) {
-        const p = P[i];
+      ctx.fillStyle = cols[k];
+      ctx.beginPath();
+      for (let i = 0; i < particleCount; i++) {
+        const p = particles[i];
         if (p.c !== k) continue;
         const x = X(p.x),
           y = Y(p.y);
-        g.moveTo(x + rad, y);
-        g.arc(x, y, rad, 0, 7);
+        ctx.moveTo(x + rad, y);
+        ctx.arc(x, y, rad, 0, 7);
       }
-      g.fill();
+      ctx.fill();
     }
-    if (isL && !RM) {
+    if (showsLandscape && !prefersReducedMotion) {
       while (balls.length < 7) balls.push(newBall());
       const e = 1e-3;
       for (const b of balls) {
@@ -208,65 +220,65 @@ export function createHero() {
         b.age++;
         b.tr.push([b.x, b.y]);
         if (b.tr.length > 70) b.tr.shift();
-        g.strokeStyle = mix(t.gold, t.gold, 0, 0.75 * lineA);
-        g.lineWidth = 1.6;
-        g.beginPath();
+        ctx.strokeStyle = mix(colors.gold, colors.gold, 0, 0.75 * gridOpacity);
+        ctx.lineWidth = 1.6;
+        ctx.beginPath();
         b.tr.forEach((q, j) => {
           const p = proj(q[0], q[1], land(q[0], q[1]));
-          j ? g.lineTo(X(p[0]), Y(p[1])) : g.moveTo(X(p[0]), Y(p[1]));
+          j ? ctx.lineTo(X(p[0]), Y(p[1])) : ctx.moveTo(X(p[0]), Y(p[1]));
         });
-        g.stroke();
+        ctx.stroke();
         const p = proj(b.x, b.y, land(b.x, b.y));
-        g.fillStyle = mix(t.gold, t.gold, 0, lineA);
-        g.beginPath();
-        g.arc(X(p[0]), Y(p[1]), 5.5, 0, 7);
-        g.fill();
+        ctx.fillStyle = mix(colors.gold, colors.gold, 0, gridOpacity);
+        ctx.beginPath();
+        ctx.arc(X(p[0]), Y(p[1]), 5.5, 0, 7);
+        ctx.fill();
         if (b.age > 230 || Math.abs(b.x) > 1 || Math.abs(b.y) > 1) Object.assign(b, newBall());
       }
-    } else if (!isL) balls = [];
+    } else if (!showsLandscape) balls = [];
   }
   const anim = Anim(() => {
-    if (++fr >= SC[si][1]) {
-      fr = 0;
-      si = (si + 1) % SC.length;
+    if (++frameInScene >= sceneSequence[sceneIndex][1]) {
+      frameInScene = 0;
+      sceneIndex = (sceneIndex + 1) % sceneSequence.length;
     }
     draw();
   });
-  const toU = (e) => {
-    const r = c.getBoundingClientRect(),
+  const pointerToSceneCoordinates = (e) => {
+    const r = canvas.getBoundingClientRect(),
       s = Math.min(r.width / 2.5, r.height / 1.6);
     return [(e.clientX - r.left - r.width / 2) / s, -(e.clientY - r.top - r.height / 2) / s];
   };
-  c.addEventListener('pointermove', (e) => {
-    mouse = toU(e);
+  canvas.addEventListener('pointermove', (e) => {
+    mouse = pointerToSceneCoordinates(e);
   });
-  c.addEventListener('pointerleave', () => {
+  canvas.addEventListener('pointerleave', () => {
     mouse = null;
   });
-  c.addEventListener('click', () => {
-    if (SC[si][0] === 'land') {
+  canvas.addEventListener('click', () => {
+    if (sceneSequence[sceneIndex][0] === 'land') {
       balls.push(newBall(), newBall());
     } else {
-      fr = 0;
-      si = (si + 1) % SC.length;
+      frameInScene = 0;
+      sceneIndex = (sceneIndex + 1) % sceneSequence.length;
     }
   });
   return {
     draw,
     rebuild() {
-      TG = null;
-      if (RM) {
-        si = 1;
-        P = null;
+      targetsByScene = null;
+      if (prefersReducedMotion) {
+        sceneIndex = 1;
+        particles = null;
         build();
-        P = TG.name.map((p) => ({ x: p[0], y: p[1], c: 0 }));
+        particles = targetsByScene.name.map((p) => ({ x: p[0], y: p[1], c: 0 }));
       }
     },
     start() {
-      if (RM) {
-        si = 1;
-        if (!TG) build();
-        P = TG.name.map((p) => ({ x: p[0], y: p[1], c: 0 }));
+      if (prefersReducedMotion) {
+        sceneIndex = 1;
+        if (!targetsByScene) build();
+        particles = targetsByScene.name.map((p) => ({ x: p[0], y: p[1], c: 0 }));
         draw();
       } else anim.start();
     },

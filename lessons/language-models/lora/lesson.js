@@ -3,27 +3,32 @@ import {
   $,
   Anim,
   MONO,
-  RM,
-  T,
+  prefersReducedMotion,
+  readThemeColors,
   bind,
-  fit,
+  prepareCanvas,
   mix,
   playBtn,
   randnFrom,
   rng,
-  runCtl,
-  setR,
+  attachRunLimit,
+  setReadout,
 } from '../../../js/core/shared.js';
 import { AD } from '../../../js/math/autodiff.js';
-import { jacobi, segBind, uCur, uLine } from '../../unsupervised/shared.js';
+import {
+  jacobi,
+  segBind,
+  highlightLessonStep,
+  drawSeriesChart,
+} from '../../unsupervised/shared.js';
 import { pct } from '../../ensembles/shared.js';
 
 export default {
   init(root) {
-    const c = $('#lo-c', root),
+    const mainCanvas = $('#lo-c', root),
       cr = $('#lo-r', root),
       live = $('#lo-live', root),
-      S = { m: 'full', r: 2, task: 'spiral' },
+      settings = { m: 'full', r: 2, task: 'spiral' },
       H = 32,
       PRE = 500,
       MAXA = 1200,
@@ -38,16 +43,16 @@ export default {
       ts = 0,
       as = 0,
       phase = 'pre',
-      DA,
-      DB,
+      sourceData,
+      targetData,
       msg = '',
-      cu = 0,
-      fr = 0,
-      pb,
-      chk = () => false,
+      activeStepIndex = 0,
+      frameCount = 0,
+      playback,
+      checkRunStop = () => false,
       run = 1,
       ACN = [],
-      ACO = [],
+      sourceAccuracyHistory = [],
       PL = [],
       accPre = NaN,
       best = 0,
@@ -120,7 +125,7 @@ export default {
         stripes: 'tell diagonal stripes apart',
         ring: 'tell a central blob from the ring around it',
       },
-      mkB = (n) => TB[S.task](n);
+      mkB = (n) => TB[settings.task](n);
     const fwd = (X, n, lora) => {
       let h = AD.input(X, [n, 2]);
       for (let l = 0; l < 3; l++) {
@@ -131,7 +136,7 @@ export default {
       }
       return h;
     };
-    const useL = () => phase !== 'pre' && S.m === 'lora';
+    const useL = () => phase !== 'pre' && settings.m === 'lora';
     const predict = (P, n) => {
       const o = fwd(P, n, useL());
       AD.clear();
@@ -171,19 +176,19 @@ export default {
         AD.param([H, 2], Math.sqrt(1 / H), rn),
       ];
       b = [AD.param([H], 0, rn), AD.param([H], 0, rn), AD.param([2], 0, rn)];
-      DA = mkA(300);
-      DB = mkB(400);
+      sourceData = mkA(300);
+      targetData = mkB(400);
       ts = 0;
       as = 0;
       phase = 'pre';
       PL = [];
       ACN = [];
-      ACO = [];
+      sourceAccuracyHistory = [];
       accPre = NaN;
       fin = false;
       dW = null;
       SV = [];
-      cu = 0;
+      activeStepIndex = 0;
       lastG = -99;
       ps = W.concat(b);
       ntr = 1218;
@@ -193,38 +198,39 @@ export default {
     const startAdapt = () => {
       W = cp(W0);
       b = cp(b0);
-      const rn = randnFrom(rng(run * 7 + S.r));
+      const rn = randnFrom(rng(run * 7 + settings.r));
       A = [
-        [2, S.r],
-        [H, S.r],
-        [H, S.r],
+        [2, settings.r],
+        [H, settings.r],
+        [H, settings.r],
       ].map((s) => AD.param(s, 1 / Math.sqrt(s[0]), rn));
       Bm = [
-        [S.r, H],
-        [S.r, H],
-        [S.r, 2],
+        [settings.r, H],
+        [settings.r, H],
+        [settings.r, 2],
       ].map((s) => AD.param(s, 0, rn));
-      ps = S.m === 'full' ? W.concat(b) : S.m === 'lora' ? A.concat(Bm) : [W[2], b[2]];
-      ntr = S.m === 'full' ? 1218 : S.m === 'lora' ? 132 * S.r : 66;
+      ps =
+        settings.m === 'full' ? W.concat(b) : settings.m === 'lora' ? A.concat(Bm) : [W[2], b[2]];
+      ntr = settings.m === 'full' ? 1218 : settings.m === 'lora' ? 132 * settings.r : 66;
       phase = 'adapt';
       as = 0;
-      ACN = [acc(DB)];
-      ACO = [acc(DA)];
+      ACN = [acc(targetData)];
+      sourceAccuracyHistory = [acc(sourceData)];
       best = 0;
       bestAt = 0;
       fin = false;
-      cu = 1;
+      activeStepIndex = 1;
       lastG = -99;
       delta();
       msg =
         'Pretraining is finished: ' +
         pct(accPre) +
         ' on the old task. A copy of those weights is kept. Now the new task: ' +
-        TBN[S.task] +
+        TBN[settings.task] +
         '. ' +
-        (S.m === 'full'
+        (settings.m === 'full'
           ? 'All 1,218 weights are free to change.'
-          : S.m === 'lora'
+          : settings.m === 'lora'
             ? 'The 1,218 weights are frozen. Only two thin matrices per layer are trained: ' +
               ntr +
               ' numbers.'
@@ -233,10 +239,10 @@ export default {
     const delta = () => {
       dW = new Float64Array(H * H);
       if (phase === 'pre') return;
-      if (S.m === 'lora') {
+      if (settings.m === 'lora') {
         const a = A[1].v,
           bb = Bm[1].v,
-          r = S.r;
+          r = settings.r;
         for (let i = 0; i < H; i++)
           for (let j = 0; j < H; j++) {
             let s = 0;
@@ -276,12 +282,12 @@ export default {
     const train = (k) => {
       if (phase === 'pre') {
         for (let q = 0; q < k && ts < PRE; q++) {
-          PL.push(step1(DA, false));
+          PL.push(step1(sourceData, false));
           AD.adam(ps, 0.01, ++ts, 1);
         }
-        cu = 0;
-        const a = acc(DA);
-        ACO = [a];
+        activeStepIndex = 0;
+        const a = acc(sourceData);
+        sourceAccuracyHistory = [a];
         msg =
           'Pretraining step ' +
           ts +
@@ -300,13 +306,13 @@ export default {
       }
       if (fin) return;
       for (let q = 0; q < k && as < MAXA && !fin; q++) {
-        step1(DB, S.m === 'lora');
+        step1(targetData, settings.m === 'lora');
         zero();
-        AD.adam(ps, S.m === 'lora' ? 0.01 : 0.005, ++as, 1);
+        AD.adam(ps, settings.m === 'lora' ? 0.01 : 0.005, ++as, 1);
         if (as % 5 === 0) {
-          const a = acc(DB);
+          const a = acc(targetData);
           ACN.push(a);
-          ACO.push(acc(DA));
+          sourceAccuracyHistory.push(acc(sourceData));
           if (a > best + 0.004) {
             best = a;
             bestAt = as;
@@ -315,9 +321,9 @@ export default {
         }
       }
       delta();
-      cu = fin ? 4 : 3;
+      activeStepIndex = fin ? 4 : 3;
       const an = ACN[ACN.length - 1],
-        ao = ACO[ACO.length - 1];
+        ao = sourceAccuracyHistory[sourceAccuracyHistory.length - 1];
       msg =
         'Adaptation step ' +
         as +
@@ -346,14 +352,14 @@ export default {
           ' to ' +
           pct(ao) +
           '. ' +
-          (S.m === 'full'
+          (settings.m === 'full'
             ? 'The original weights have been overwritten: getting the old skill back needs the saved copy, a whole second network.'
-            : S.m === 'lora'
+            : settings.m === 'lora'
               ? 'The original weights were never touched: take the correction away and the old accuracy of ' +
-                pct(accWith(DA, W0, b0)) +
+                pct(accWith(sourceData, W0, b0)) +
                 ' is back.'
               : 'Only the last layer changed, so restoring the old skill needs just the 66 old numbers.') +
-          (isFinite(e2) && S.m !== 'last'
+          (isFinite(e2) && settings.m !== 'last'
             ? ' The two strongest directions hold ' +
               pct(e2) +
               ' of the change to the middle matrix.'
@@ -420,40 +426,55 @@ export default {
       }
     };
     const draw = () => {
-      const t = T();
+      const colors = readThemeColors();
       if (Math.abs((phase === 'pre' ? ts : as) - lastG) >= 3 || fin) {
-        gridA = gridFor(DA);
-        gridB = phase === 'pre' ? null : gridFor(DB);
+        gridA = gridFor(sourceData);
+        gridB = phase === 'pre' ? null : gridFor(targetData);
         lastG = phase === 'pre' ? ts : as;
       }
       {
-        const { g, w, h } = fit(c);
-        panel(g, t, 0, 0, w, h - 4, phase === 'pre' ? DA : DB, phase === 'pre' ? gridA : gridB, '');
-        g.font = MONO;
-        g.fillStyle = t.ink;
-        g.textAlign = 'left';
-        g.fillText(
-          phase === 'pre' ? 'OLD TASK: which moon? (pretraining)' : 'NEW TASK: ' + TBN[S.task],
+        const { g: ctx, w, h } = prepareCanvas(mainCanvas);
+        panel(
+          ctx,
+          colors,
+          0,
+          0,
+          w,
+          h - 4,
+          phase === 'pre' ? sourceData : targetData,
+          phase === 'pre' ? gridA : gridB,
+          '',
+        );
+        ctx.font = MONO;
+        ctx.fillStyle = colors.ink;
+        ctx.textAlign = 'left';
+        ctx.fillText(
+          phase === 'pre'
+            ? 'OLD TASK: which moon? (pretraining)'
+            : 'NEW TASK: ' + TBN[settings.task],
           8,
           14,
         );
       }
       {
-        const { g, w, h } = fit(cr),
+        const { g: ctx, w, h } = prepareCanvas(cr),
           h1 = h * 0.46,
           pw = (w - 16) / 3,
           ph2 = h1 - 34;
-        g.font = MONO;
+        ctx.font = MONO;
         panel(
-          g,
-          t,
+          ctx,
+          colors,
           4,
           16,
           pw - 8,
           ph2,
-          DA,
+          sourceData,
           gridA,
-          'old task: ' + (ACO.length ? (100 * ACO[ACO.length - 1]).toFixed(0) + '%' : '–'),
+          'old task: ' +
+            (sourceAccuracyHistory.length
+              ? (100 * sourceAccuracyHistory[sourceAccuracyHistory.length - 1]).toFixed(0) + '%'
+              : '–'),
         );
         {
           const x0 = 8 + pw,
@@ -461,24 +482,24 @@ export default {
             ox = x0 + (pw - s * H) / 2,
             oy = 16 + (ph2 - s * H) / 2,
             mx = dW ? Math.max(1e-9, ...Array.from(dW).map(Math.abs)) : 1;
-          g.strokeStyle = t.line;
-          g.lineWidth = 1;
-          g.strokeRect(ox - 0.5, oy - 0.5, s * H + 1, s * H + 1);
+          ctx.strokeStyle = colors.line;
+          ctx.lineWidth = 1;
+          ctx.strokeRect(ox - 0.5, oy - 0.5, s * H + 1, s * H + 1);
           if (dW && phase !== 'pre')
             for (let i = 0; i < H; i++)
               for (let j = 0; j < H; j++) {
                 const v = dW[i * H + j] / mx;
                 if (Math.abs(v) < 0.04) continue;
-                const col = v > 0 ? t.accent : t.cut;
-                g.fillStyle = mix(col, col, 0, Math.min(1, Math.abs(v) * 1.2));
-                g.fillRect(ox + j * s, oy + i * s, s, s);
+                const col = v > 0 ? colors.accent : colors.cut;
+                ctx.fillStyle = mix(col, col, 0, Math.min(1, Math.abs(v) * 1.2));
+                ctx.fillRect(ox + j * s, oy + i * s, s, s);
               }
-          g.fillStyle = t.muted;
-          g.textAlign = 'left';
-          g.fillText(
+          ctx.fillStyle = colors.muted;
+          ctx.textAlign = 'left';
+          ctx.fillText(
             phase === 'pre'
               ? 'change to W: none yet'
-              : S.m === 'last'
+              : settings.m === 'last'
                 ? 'middle W: unchanged'
                 : 'change to middle W',
             x0 + 2,
@@ -490,57 +511,61 @@ export default {
             n = 12,
             bw = (pw - 16) / n,
             mx = Math.max(1e-9, ...SV);
-          g.strokeStyle = t.muted;
-          g.lineWidth = 1;
-          g.beginPath();
-          g.moveTo(x0, 16 + ph2);
-          g.lineTo(x0 + pw - 12, 16 + ph2);
-          g.stroke();
+          ctx.strokeStyle = colors.muted;
+          ctx.lineWidth = 1;
+          ctx.beginPath();
+          ctx.moveTo(x0, 16 + ph2);
+          ctx.lineTo(x0 + pw - 12, 16 + ph2);
+          ctx.stroke();
           if (phase !== 'pre')
             SV.slice(0, n).forEach((v, i) => {
               const bh = (v / mx) * (ph2 - 6);
-              g.fillStyle =
-                i < (S.m === 'lora' ? S.r : 2) ? t.gold : mix(t.accent, t.accent, 0, 0.7);
-              g.fillRect(x0 + i * bw + 1, 16 + ph2 - bh, bw - 2, bh);
+              ctx.fillStyle =
+                i < (settings.m === 'lora' ? settings.r : 2)
+                  ? colors.gold
+                  : mix(colors.accent, colors.accent, 0, 0.7);
+              ctx.fillRect(x0 + i * bw + 1, 16 + ph2 - bh, bw - 2, bh);
             });
-          g.fillStyle = t.muted;
-          g.textAlign = 'left';
-          g.fillText('its directions', x0, 16 + ph2 + 13);
+          ctx.fillStyle = colors.muted;
+          ctx.textAlign = 'left';
+          ctx.fillText('its directions', x0, 16 + ph2 + 13);
         }
         const n = MAXA / 5 + 1,
-          L1 = uLine(g, t, 0, h1, w, h - h1, phase === 'pre' ? [] : ACN, {
+          L1 = drawSeriesChart(ctx, colors, 0, h1, w, h - h1, phase === 'pre' ? [] : ACN, {
             title: 'accuracy while adapting',
             n,
             ym: 1,
             y1: 0,
-            col: t.accent,
+            col: colors.accent,
           });
         if (phase !== 'pre') {
-          g.strokeStyle = t.cut;
-          g.lineWidth = 2;
-          g.beginPath();
-          ACO.forEach((v, i) => (i ? g.lineTo(L1.X(i), L1.Y(v)) : g.moveTo(L1.X(i), L1.Y(v))));
-          g.stroke();
+          ctx.strokeStyle = colors.cut;
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          sourceAccuracyHistory.forEach((v, i) =>
+            i ? ctx.lineTo(L1.X(i), L1.Y(v)) : ctx.moveTo(L1.X(i), L1.Y(v)),
+          );
+          ctx.stroke();
           const k = ACN.length - 1,
             lx = Math.max(L1.X(k), L1.m.l + 70);
-          g.textAlign = 'right';
-          g.fillStyle = t.accent;
-          g.fillText('new task', lx, L1.Y(ACN[k]) + (ACN[k] > 0.8 ? 16 : -8));
-          g.fillStyle = t.cut;
-          g.fillText('old task', lx, L1.Y(ACO[k]) - 9);
+          ctx.textAlign = 'right';
+          ctx.fillStyle = colors.accent;
+          ctx.fillText('new task', lx, L1.Y(ACN[k]) + (ACN[k] > 0.8 ? 16 : -8));
+          ctx.fillStyle = colors.cut;
+          ctx.fillText('old task', lx, L1.Y(sourceAccuracyHistory[k]) - 9);
         } else {
-          g.fillStyle = t.muted;
-          g.textAlign = 'center';
-          g.fillText('the curves start when the new task begins', w / 2, h1 + (h - h1) / 2);
+          ctx.fillStyle = colors.muted;
+          ctx.textAlign = 'center';
+          ctx.fillText('the curves start when the new task begins', w / 2, h1 + (h - h1) / 2);
         }
       }
       live.textContent = msg;
-      uCur(root, 'lo', cu);
+      highlightLessonStep(root, 'lo', activeStepIndex);
       const e2 =
-        SV.length && phase !== 'pre' && S.m !== 'last'
+        SV.length && phase !== 'pre' && settings.m !== 'last'
           ? (SV[0] ** 2 + SV[1] ** 2) / (SV.reduce((s, v) => s + v * v, 0) || 1)
           : NaN;
-      setR(
+      setReadout(
         root,
         'ph',
         phase === 'pre'
@@ -551,26 +576,32 @@ export default {
             ? 'Finished'
             : 'Adapting to the new task',
       );
-      setR(root, 'st', phase === 'pre' ? '–' : String(as));
-      setR(root, 'tp', ntr + ' of 1218 (' + pct(ntr / 1218) + ')');
-      setR(root, 'an', ACN.length ? pct(ACN[ACN.length - 1]) : '–');
-      setR(root, 'ao', phase !== 'pre' && ACO.length ? pct(ACO[ACO.length - 1]) : '–');
-      setR(root, 'au', isFinite(accPre) ? pct(accPre) : '–');
-      setR(root, 'sv', isFinite(e2) ? pct(e2) : '–');
+      setReadout(root, 'st', phase === 'pre' ? '–' : String(as));
+      setReadout(root, 'tp', ntr + ' of 1218 (' + pct(ntr / 1218) + ')');
+      setReadout(root, 'an', ACN.length ? pct(ACN[ACN.length - 1]) : '–');
+      setReadout(
+        root,
+        'ao',
+        phase !== 'pre' && sourceAccuracyHistory.length
+          ? pct(sourceAccuracyHistory[sourceAccuracyHistory.length - 1])
+          : '–',
+      );
+      setReadout(root, 'au', isFinite(accPre) ? pct(accPre) : '–');
+      setReadout(root, 'sv', isFinite(e2) ? pct(e2) : '–');
     };
     build();
-    if (RM) {
+    if (prefersReducedMotion) {
       train(PRE);
       while (!fin) train(20);
     }
     const anim = Anim(() => {
-      fr++;
-      train(phase === 'pre' ? 5 : Math.min(as < 40 ? 1 : 4, chk.remaining()));
+      frameCount++;
+      train(phase === 'pre' ? 5 : Math.min(as < 40 ? 1 : 4, checkRunStop.remaining()));
       draw();
-      chk();
+      checkRunStop();
     });
-    pb = playBtn($('#lo-play', root), anim);
-    chk = runCtl(pb, root, 'lo', {
+    playback = playBtn($('#lo-play', root), anim);
+    checkRunStop = attachRunLimit(playback, root, 'lo', {
       done: () => phase === 'adapt' && fin,
       restart: () => startAdapt(),
       count: () => as,
@@ -581,50 +612,50 @@ export default {
         draw();
         return;
       }
-      pb.stop();
+      playback.stop();
       startAdapt();
       draw();
-      pb.start();
+      playback.start();
     };
     $('#lo-step', root).onclick = () => {
-      pb.stop();
+      playback.stop();
       if (phase === 'adapt' && fin) startAdapt();
       else train(25);
       draw();
     };
     $('#lo-reset', root).onclick = () => {
-      pb.stop();
+      playback.stop();
       run++;
       build();
       draw();
     };
-    segBind(root, 'lo-m', S.m, (v) => {
-      S.m = v;
+    segBind(root, 'lo-m', settings.m, (v) => {
+      settings.m = v;
       redo();
     });
     $('#lo-task', root).onchange = (e) => {
-      S.task = e.target.value;
-      DB = mkB(400);
+      settings.task = e.target.value;
+      targetData = mkB(400);
       redo();
     };
     bind(
       root,
       'lo-rank',
       (v) => {
-        S.r = +v;
-        if (S.m === 'lora') redo();
-        else if (pb) draw();
+        settings.r = +v;
+        if (settings.m === 'lora') redo();
+        else if (playback) draw();
       },
       (v) => String(v),
     );
     return {
       draw,
-      stop: () => pb.stop(),
+      stop: () => playback.stop(),
       auto: () => {
         run++;
         build();
         draw();
-        pb.start();
+        playback.start();
       },
     };
   },

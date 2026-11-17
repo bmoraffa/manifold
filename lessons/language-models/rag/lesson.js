@@ -3,26 +3,26 @@ import {
   $,
   Anim,
   MONO,
-  RM,
-  T,
+  prefersReducedMotion,
+  readThemeColors,
   bind,
   f2,
-  fit,
+  prepareCanvas,
   markTP,
   mix,
   playBtn,
-  setR,
+  setReadout,
 } from '../../../js/core/shared.js';
-import { jacobi, segBind, uCur } from '../../unsupervised/shared.js';
+import { jacobi, segBind, highlightLessonStep } from '../../unsupervised/shared.js';
 
 export default {
   init(root) {
-    const c = $('#rg-c', root),
+    const mainCanvas = $('#rg-c', root),
       cr = $('#rg-r', root),
       live = $('#rg-live', root),
       inp = $('#rg-in', root),
       st = $('#rg-st', root),
-      S = { k: 2, mode: 'on' },
+      settings = { k: 2, mode: 'on' },
       TH = 0.12,
       BASE = [
         'The library is open from 8 am to 10 pm on weekdays and from 10 am to 6 pm on weekends.',
@@ -56,19 +56,19 @@ export default {
     let docs = BASE.slice(),
       voc = [],
       idf = [],
-      DV = [],
-      PC = [],
+      documentVectors = [],
+      documentPlotCoords = [],
       ax = null,
       mean = null,
       q = '',
       qv = null,
       qxy = [0, 0],
       sims = [],
-      rank = [],
+      rankedDocIndices = [],
       ph = 0,
       msg = '',
-      fr = 0,
-      pb,
+      frameCount = 0,
+      playback,
       qtop = [],
       flyU = 1;
     const stem = (w) => {
@@ -102,13 +102,13 @@ export default {
       voc = [...new Set(T2.flat())];
       const N = docs.length;
       idf = voc.map((w) => Math.log((N + 1) / (T2.filter((t) => t.includes(w)).length + 1)));
-      DV = docs.map(vec).map((v) => {
+      documentVectors = docs.map(vec).map((v) => {
         const n = nrm(v) || 1;
         return v.map((x) => x / n);
       });
       mean = new Float64Array(voc.length);
-      DV.forEach((v) => v.forEach((x, i) => (mean[i] += x / N)));
-      const Xc = DV.map((v) => v.map((x, i) => x - mean[i])),
+      documentVectors.forEach((v) => v.forEach((x, i) => (mean[i] += x / N)));
+      const Xc = documentVectors.map((v) => v.map((x, i) => x - mean[i])),
         G = Xc.map((a) =>
           Xc.map((b) => {
             let s = 0;
@@ -125,7 +125,7 @@ export default {
         });
         return u;
       });
-      PC = Xc.map((x) =>
+      documentPlotCoords = Xc.map((x) =>
         ax.map((u) => {
           let s = 0;
           for (let d = 0; d < u.length; d++) s += x[d] * u[d];
@@ -145,8 +145,8 @@ export default {
             return s;
           })
         : [0, 0];
-      sims = DV.map((d) => cosv(qv, d));
-      rank = sims.map((s, i) => i).sort((a, b) => sims[b] - sims[a]);
+      sims = documentVectors.map((d) => cosv(qv, d));
+      rankedDocIndices = sims.map((s, i) => i).sort((a, b) => sims[b] - sims[a]);
       qtop = [...new Set(toks(q))]
         .map((w) => [w, voc.indexOf(w)])
         .map(([w, i]) => [w, i < 0 ? 0 : idf[i]])
@@ -164,7 +164,7 @@ export default {
       let best = '',
         bs = -1,
         bd = -1;
-      for (const i of rank.slice(0, S.k))
+      for (const i of rankedDocIndices.slice(0, settings.k))
         for (const s of docs[i].match(/[^.!?]+(?:[.!?](?=\s|$)|$)/g) || [docs[i]]) {
           const sc = cosv(qv, vec(s)) + 0.15 * sims[i] + (kind && kind.test(s) ? 0.25 : 0);
           if (sc > bs) {
@@ -176,11 +176,11 @@ export default {
       return { best, bd };
     };
     const prompt = () =>
-      S.mode === 'off'
+      settings.mode === 'off'
         ? 'Question: ' + q + '\n\nAnswer:'
         : 'Answer the question using only the passages below. If the answer is not in them, say that you do not know.\n\n' +
-          rank
-            .slice(0, S.k)
+          rankedDocIndices
+            .slice(0, settings.k)
             .map((i, j) => 'Passage ' + (j + 1) + ': ' + docs[i])
             .join('\n') +
           '\n\nQuestion: ' +
@@ -188,7 +188,7 @@ export default {
           '\n\nAnswer:';
     const MSG = () => {
       const known = qtop.filter((x) => x[1] > 0),
-        b = rank[0];
+        b = rankedDocIndices[0];
       return [
         'The collection holds ' +
           docs.length +
@@ -222,32 +222,32 @@ export default {
           '”. ' +
           (sims[b] < TH
             ? 'That is a very weak match.'
-            : 'The next best scores ' + f2(sims[rank[1]]) + '.'),
+            : 'The next best scores ' + f2(sims[rankedDocIndices[1]]) + '.'),
         'The ' +
-          S.k +
+          settings.k +
           ' closest passage' +
-          (S.k > 1 ? 's are' : ' is') +
+          (settings.k > 1 ? 's are' : ' is') +
           ' kept: number' +
-          (S.k > 1 ? 's ' : ' ') +
-          rank
-            .slice(0, S.k)
+          (settings.k > 1 ? 's ' : ' ') +
+          rankedDocIndices
+            .slice(0, settings.k)
             .map((i) => i + 1)
             .join(', ') +
           ' in the collection. The other ' +
-          (docs.length - S.k) +
+          (docs.length - settings.k) +
           ' are never shown to the model.',
-        S.mode === 'off'
+        settings.mode === 'off'
           ? 'Without retrieval the prompt is only the question, ' +
             prompt().split(/\s+/).length +
             ' words. The model has nothing to read.'
           : 'The prompt has been written: an instruction, the ' +
-            S.k +
+            settings.k +
             ' retrieved passage' +
-            (S.k > 1 ? 's' : '') +
+            (settings.k > 1 ? 's' : '') +
             ', then the question. It is ' +
             prompt().split(/\s+/).length +
             ' words long. This text is everything the model will see.',
-        S.mode === 'off'
+        settings.mode === 'off'
           ? 'The model answered from memory alone, and this handbook was never in its memory.'
           : sims[b] < TH
             ? 'The best match was below ' +
@@ -266,15 +266,15 @@ export default {
         return;
       }
       el.style.opacity = 1;
-      if (S.mode === 'off') {
+      if (settings.mode === 'off') {
         el.innerHTML =
           '<b>No passages were supplied.</b> A model that has never read this handbook cannot know the answer. A careful one says so. A careless one produces a fluent guess, and nothing in the guess would tell you it was invented.';
         return;
       }
-      if (!sims.length || sims[rank[0]] < TH) {
+      if (!sims.length || sims[rankedDocIndices[0]] < TH) {
         el.innerHTML =
           '<b>I do not know.</b> Nothing in the collection is close enough to this question (best similarity ' +
-          f2(sims[rank[0]] || 0) +
+          f2(sims[rankedDocIndices[0]] || 0) +
           ').';
         return;
       }
@@ -289,12 +289,14 @@ export default {
         '. Copied by a simple reader that stands in for the language model.</span>';
     };
     const draw = () => {
-      const t = T(),
-        top = new Set(ph >= 3 && S.mode === 'on' ? rank.slice(0, S.k) : []);
+      const colors = readThemeColors(),
+        top = new Set(
+          ph >= 3 && settings.mode === 'on' ? rankedDocIndices.slice(0, settings.k) : [],
+        );
       {
-        const { g, w, h } = fit(c),
-          xs = PC.map((p) => p[0]).concat(ph >= 1 ? [qxy[0]] : []),
-          ys = PC.map((p) => p[1]).concat(ph >= 1 ? [qxy[1]] : []),
+        const { g: ctx, w, h } = prepareCanvas(mainCanvas),
+          xs = documentPlotCoords.map((p) => p[0]).concat(ph >= 1 ? [qxy[0]] : []),
+          ys = documentPlotCoords.map((p) => p[1]).concat(ph >= 1 ? [qxy[1]] : []),
           x0 = Math.min(...xs),
           x1 = Math.max(...xs),
           y0 = Math.min(...ys),
@@ -303,28 +305,33 @@ export default {
           Y = (v) => h - 34 - ((v - y0) / (y1 - y0 || 1)) * (h - 70);
         const qx = X(qxy[0]),
           qy = Y(qxy[1]);
-        if (ph >= 3 && S.mode === 'on')
-          rank.slice(0, S.k).forEach((i) => {
-            g.strokeStyle = t.gold;
-            g.lineWidth = 1 + 5 * sims[i];
-            g.beginPath();
-            g.moveTo(qx, qy);
-            g.lineTo(qx + (X(PC[i][0]) - qx) * flyU, qy + (Y(PC[i][1]) - qy) * flyU);
-            g.stroke();
+        if (ph >= 3 && settings.mode === 'on')
+          rankedDocIndices.slice(0, settings.k).forEach((i) => {
+            ctx.strokeStyle = colors.gold;
+            ctx.lineWidth = 1 + 5 * sims[i];
+            ctx.beginPath();
+            ctx.moveTo(qx, qy);
+            ctx.lineTo(
+              qx + (X(documentPlotCoords[i][0]) - qx) * flyU,
+              qy + (Y(documentPlotCoords[i][1]) - qy) * flyU,
+            );
+            ctx.stroke();
           });
-        PC.forEach((p, i) => {
+        documentPlotCoords.forEach((p, i) => {
           const hot = top.has(i),
             s = ph >= 2 ? sims[i] : 0;
-          g.beginPath();
-          g.arc(X(p[0]), Y(p[1]), hot ? 8 : 5 + 6 * s, 0, 7);
-          g.fillStyle = hot ? t.gold : mix(t.accent, t.accent, 0, 0.35 + 0.6 * Math.min(1, s * 2));
-          g.fill();
-          g.strokeStyle = t.bg;
-          g.lineWidth = 1.5;
-          g.stroke();
-          g.font = MONO;
-          g.fillStyle = hot ? t.cut : t.muted;
-          g.textAlign = 'left';
+          ctx.beginPath();
+          ctx.arc(X(p[0]), Y(p[1]), hot ? 8 : 5 + 6 * s, 0, 7);
+          ctx.fillStyle = hot
+            ? colors.gold
+            : mix(colors.accent, colors.accent, 0, 0.35 + 0.6 * Math.min(1, s * 2));
+          ctx.fill();
+          ctx.strokeStyle = colors.bg;
+          ctx.lineWidth = 1.5;
+          ctx.stroke();
+          ctx.font = MONO;
+          ctx.fillStyle = hot ? colors.cut : colors.muted;
+          ctx.textAlign = 'left';
           const lab =
             i +
             1 +
@@ -333,51 +340,51 @@ export default {
               .sort((a, b) => idf[voc.indexOf(b)] - idf[voc.indexOf(a)])
               .slice(0, 2)
               .join(' ');
-          g.fillText(lab, X(p[0]) + 10, Y(p[1]) + 4);
+          ctx.fillText(lab, X(p[0]) + 10, Y(p[1]) + 4);
         });
-        if (ph >= 1) markTP(g, qx, qy, t, false);
-        g.font = MONO;
-        g.fillStyle = t.muted;
-        g.textAlign = 'left';
-        g.fillText('each label: passage number and its two most distinctive words', 8, h - 8);
+        if (ph >= 1) markTP(ctx, qx, qy, colors, false);
+        ctx.font = MONO;
+        ctx.fillStyle = colors.muted;
+        ctx.textAlign = 'left';
+        ctx.fillText('each label: passage number and its two most distinctive words', 8, h - 8);
       }
       {
-        const { g, w, h } = fit(cr),
+        const { g: ctx, w, h } = prepareCanvas(cr),
           n = docs.length,
           rh = Math.min(24, (h - 30) / n),
           x0 = 88,
           W = w - x0 - 50;
-        g.font = MONO;
-        g.fillStyle = t.muted;
-        g.textAlign = 'left';
-        g.fillText(
+        ctx.font = MONO;
+        ctx.fillStyle = colors.muted;
+        ctx.textAlign = 'left';
+        ctx.fillText(
           ph >= 2 ? 'cosine similarity to the question, best first' : 'the scores appear at step 3',
           8,
           13,
         );
         if (ph >= 2) {
-          rank.forEach((i, r) => {
+          rankedDocIndices.forEach((i, r) => {
             const y = 22 + r * rh,
               hot = top.has(i);
-            g.fillStyle = hot ? t.gold : mix(t.accent, t.accent, 0, 0.6);
-            g.fillRect(x0, y + 3, Math.max(1, W * sims[i]), rh - 6);
-            g.fillStyle = hot ? t.cut : t.muted;
-            g.textAlign = 'right';
-            g.fillText('passage ' + (i + 1), x0 - 6, y + rh / 2 + 4);
-            g.textAlign = 'left';
-            g.fillText(f2(sims[i]), x0 + W * sims[i] + 6, y + rh / 2 + 4);
+            ctx.fillStyle = hot ? colors.gold : mix(colors.accent, colors.accent, 0, 0.6);
+            ctx.fillRect(x0, y + 3, Math.max(1, W * sims[i]), rh - 6);
+            ctx.fillStyle = hot ? colors.cut : colors.muted;
+            ctx.textAlign = 'right';
+            ctx.fillText('passage ' + (i + 1), x0 - 6, y + rh / 2 + 4);
+            ctx.textAlign = 'left';
+            ctx.fillText(f2(sims[i]), x0 + W * sims[i] + 6, y + rh / 2 + 4);
           });
-          g.setLineDash([4, 4]);
-          g.strokeStyle = t.cut;
-          g.lineWidth = 1;
-          g.beginPath();
-          g.moveTo(x0 + W * TH, 20);
-          g.lineTo(x0 + W * TH, 22 + n * rh);
-          g.stroke();
-          g.setLineDash([]);
-          g.fillStyle = t.cut;
-          g.textAlign = 'left';
-          g.fillText('below this line: too weak to trust', x0 + W * TH + 5, 22 + n * rh + 12);
+          ctx.setLineDash([4, 4]);
+          ctx.strokeStyle = colors.cut;
+          ctx.lineWidth = 1;
+          ctx.beginPath();
+          ctx.moveTo(x0 + W * TH, 20);
+          ctx.lineTo(x0 + W * TH, 22 + n * rh);
+          ctx.stroke();
+          ctx.setLineDash([]);
+          ctx.fillStyle = colors.cut;
+          ctx.textAlign = 'left';
+          ctx.fillText('below this line: too weak to trust', x0 + W * TH + 5, 22 + n * rh + 12);
         }
       }
       const pe = $('#rg-prompt', root);
@@ -385,10 +392,10 @@ export default {
       pe.style.opacity = ph >= 4 ? 1 : 0.4;
       answer();
       live.textContent = MSG();
-      uCur(root, 'rg', ph);
-      setR(root, 'nd', String(docs.length));
-      setR(root, 'nv', String(voc.length));
-      setR(
+      highlightLessonStep(root, 'rg', ph);
+      setReadout(root, 'nd', String(docs.length));
+      setReadout(root, 'nv', String(voc.length));
+      setReadout(
         root,
         'qw',
         ph >= 1
@@ -398,13 +405,13 @@ export default {
               .join(', ') || 'none'
           : '–',
       );
-      setR(root, 'best', ph >= 2 ? f2(sims[rank[0]]) : '–');
-      setR(root, 'sent', ph >= 3 ? (S.mode === 'on' ? String(S.k) : '0') : '–');
-      setR(root, 'pl', ph >= 4 ? String(prompt().split(/\s+/).length) : '–');
+      setReadout(root, 'best', ph >= 2 ? f2(sims[rankedDocIndices[0]]) : '–');
+      setReadout(root, 'sent', ph >= 3 ? (settings.mode === 'on' ? String(settings.k) : '0') : '–');
+      setReadout(root, 'pl', ph >= 4 ? String(prompt().split(/\s+/).length) : '–');
     };
     const go2 = (p) => {
       ph = p;
-      if (p === 3) flyU = RM ? 1 : 0;
+      if (p === 3) flyU = prefersReducedMotion ? 1 : 0;
     };
     $('#rg-q', root).innerHTML = QS.map(
       (s, i) => '<button class="btn" type="button" data-v="' + i + '">' + s + '</button>',
@@ -412,26 +419,26 @@ export default {
     inp.value = QS[0];
     index();
     ask();
-    if (RM) ph = 5;
+    if (prefersReducedMotion) ph = 5;
     const anim = Anim(() => {
-      fr++;
+      frameCount++;
       if (flyU < 1) {
         flyU = Math.min(1, flyU + 0.06);
         draw();
         return;
       }
-      if (fr % 70) return;
+      if (frameCount % 70) return;
       if (ph >= 5) {
-        pb.stop();
+        playback.stop();
         return;
       }
       go2(ph + 1);
       draw();
-      if (ph >= 5) pb.stop();
+      if (ph >= 5) playback.stop();
     });
-    pb = playBtn($('#rg-play', root), anim);
-    const st0 = pb.start;
-    pb.start = () => {
+    playback = playBtn($('#rg-play', root), anim);
+    const st0 = playback.start;
+    playback.start = () => {
       if (ph >= 5) {
         ph = 0;
         draw();
@@ -439,21 +446,21 @@ export default {
       st0();
     };
     const again = () => {
-      pb.stop();
+      playback.stop();
       ask();
       ph = 0;
       flyU = 1;
       draw();
-      pb.start();
+      playback.start();
     };
     $('#rg-step', root).onclick = () => {
-      pb.stop();
+      playback.stop();
       go2(ph >= 5 ? 0 : ph + 1);
       flyU = 1;
       draw();
     };
     $('#rg-reset', root).onclick = () => {
-      pb.stop();
+      playback.stop();
       ask();
       ph = 0;
       draw();
@@ -473,7 +480,7 @@ export default {
       root,
       'rg-k',
       (v) => {
-        S.k = Math.min(+v, docs.length);
+        settings.k = Math.min(+v, docs.length);
         if (ph >= 3) {
           flyU = 1;
           draw();
@@ -481,8 +488,8 @@ export default {
       },
       (v) => String(v),
     );
-    segBind(root, 'rg-mode', S.mode, (v) => {
-      S.mode = v;
+    segBind(root, 'rg-mode', settings.mode, (v) => {
+      settings.mode = v;
       draw();
     });
     $('#rg-addb', root).onclick = () => {
@@ -511,12 +518,12 @@ export default {
     };
     return {
       draw,
-      stop: () => pb.stop(),
+      stop: () => playback.stop(),
       auto: () => {
         ask();
         ph = 0;
         draw();
-        pb.start();
+        playback.start();
       },
     };
   },

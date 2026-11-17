@@ -3,19 +3,19 @@ import {
   $,
   Anim,
   MONO,
-  RM,
-  T,
+  prefersReducedMotion,
+  readThemeColors,
   bind,
   f2,
-  fit,
+  prepareCanvas,
   mix,
   playBtn,
   randnFrom,
   rng,
-  runCtl,
-  setR,
+  attachRunLimit,
+  setReadout,
 } from '../../../js/core/shared.js';
-import { dotAt, segBind, uCur, uFrame, uLine, uView } from '../shared.js';
+import { dotAt, segBind, highlightLessonStep, uFrame, drawSeriesChart, uView } from '../shared.js';
 import { g2Note } from '../../generative/shared.js';
 import { pct } from '../../ensembles/shared.js';
 
@@ -24,7 +24,7 @@ export default {
     const c = $('#ic-c', root),
       cr = $('#ic-r', root),
       live = $('#ic-live', root),
-      S = { d: 'wave', a: 0.6, b: 0.45 },
+      settings = { d: 'wave', a: 0.6, b: 0.45 },
       N = 500;
     let Sr = [],
       X = [],
@@ -34,18 +34,18 @@ export default {
       it = 0,
       fin = false,
       hist = [],
-      Jc = [],
+      contrastByAngle = [],
       seed = 1,
       msg = '',
-      cu = 0,
-      pb,
-      chk = () => false,
+      activeStepIndex = 0,
+      playback,
+      checkRunStop = () => false,
       ad = null,
-      mw = 0,
-      mm = 0,
+      whitenedMatch = 0,
+      mixedMatch = 0,
       anim = null;
     const gen = () => {
-      const r = rng(seed * 23 + S.d.length),
+      const r = rng(seed * 23 + settings.d.length),
         rn = randnFrom(r);
       Sr = [[], []];
       let burst = 0;
@@ -54,10 +54,10 @@ export default {
         f1 = 0.09 + 0.04 * r(),
         f2_ = 0.026 + 0.012 * r();
       for (let t = 0; t < N; t++) {
-        if (S.d === 'wave') {
+        if (settings.d === 'wave') {
           Sr[0].push(Math.sin(t * f1 + p1));
           Sr[1].push(2 * ((t * f2_ + p2) % 1) - 1);
-        } else if (S.d === 'talk') {
+        } else if (settings.d === 'talk') {
           if (r() < 0.04) burst = 1 + 3 * r();
           burst *= 0.94;
           Sr[0].push(burst * Math.sin(t * 0.9) * (0.6 + 0.4 * rn()));
@@ -105,7 +105,10 @@ export default {
       return kurt(Y[0]) ** 2 + kurt(Y[1]) ** 2;
     };
     const mix_ = () => {
-      X = [Sr[0].map((v, i) => v + S.a * Sr[1][i]), Sr[1].map((v, i) => v + S.b * Sr[0][i])];
+      X = [
+        Sr[0].map((v, i) => v + settings.a * Sr[1][i]),
+        Sr[1].map((v, i) => v + settings.b * Sr[0][i]),
+      ];
       X = X.map((s) => {
         const m = s.reduce((a, v) => a + v, 0) / N;
         return s.map((v) => v - m);
@@ -128,9 +131,9 @@ export default {
       const z1 = X[0].map((v, i) => (e1[0] * v + e1[1] * X[1][i]) / Math.sqrt(l1)),
         z2 = X[0].map((v, i) => (e2[0] * v + e2[1] * X[1][i]) / Math.sqrt(l2));
       Zw = [z1, z2];
-      mw = match(Zw);
-      mm = match(X);
-      Jc = Array.from({ length: 91 }, (_, k) => J((k * Math.PI) / 180));
+      whitenedMatch = match(Zw);
+      mixedMatch = match(X);
+      contrastByAngle = Array.from({ length: 91 }, (_, k) => J((k * Math.PI) / 180));
     };
     const reset = () => {
       th = 0;
@@ -139,7 +142,7 @@ export default {
       fin = false;
       hist = [];
       ad = null;
-      cu = 0;
+      activeStepIndex = 0;
       msg =
         'Two microphones, each a blend of both sources. The cloud is slanted because the recordings are correlated. Press Run or One step.';
     };
@@ -147,11 +150,11 @@ export default {
       if (fin) return;
       if (u < 1) {
         u = Math.min(1, u + (anim && anim.on ? 0.03 : 1));
-        cu = 1;
+        activeStepIndex = 1;
         msg =
           u >= 1
             ? 'Whitened: the cloud is round and the two signals are uncorrelated. They match the sources ' +
-              pct(mw) +
+              pct(whitenedMatch) +
               ', which is not yet a separation. Now the turning begins.'
             : 'Whitening: rotating and rescaling the cloud until it is round.';
         return;
@@ -165,7 +168,7 @@ export default {
       th += d;
       it++;
       hist.push(Math.abs(d));
-      cu = 4;
+      activeStepIndex = 4;
       const Y = rot(th);
       msg =
         'Step ' +
@@ -179,9 +182,9 @@ export default {
         '.';
       if ((it >= 8 && Math.max(...hist.slice(-4)) < 1e-4) || it >= 400) {
         fin = true;
-        cu = 5;
+        activeStepIndex = 5;
         const m = match(Y),
-          flat = Math.max(...Jc) < 0.3;
+          flat = Math.max(...contrastByAngle) < 0.3;
         msg =
           'Stopped after ' +
           it +
@@ -195,28 +198,33 @@ export default {
             : 'The recovered signals match the true sources ' +
               pct(m) +
               ', against ' +
-              pct(mw) +
+              pct(whitenedMatch) +
               ' after whitening alone and ' +
-              pct(mm) +
+              pct(mixedMatch) +
               ' for the raw microphones.');
       }
     };
     const draw = () => {
-      const t = T(),
+      const colors = readThemeColors(),
         s = u * u * (3 - 2 * u),
         Y = rot(th);
       {
         const V = uView(c),
           { g, w, h, X: PX, Y: PY } = V;
-        uFrame(V, t, s < 0.5 ? 'microphone 1' : 'output 1', s < 0.5 ? 'microphone 2' : 'output 2');
+        uFrame(
+          V,
+          colors,
+          s < 0.5 ? 'microphone 1' : 'output 1',
+          s < 0.5 ? 'microphone 2' : 'output 2',
+        );
         const k = 1.15;
         for (let i = 0; i < N; i++) {
           const x = X[0][i] * (1 - s) + Y[0][i] * s,
             y = X[1][i] * (1 - s) + Y[1][i] * s;
-          dotAt(g, PX(x * k), PY(y * k), 2, mix(t.accent, t.accent, 0, 0.55));
+          dotAt(g, PX(x * k), PY(y * k), 2, mix(colors.accent, colors.accent, 0, 0.55));
         }
         if (u >= 1) {
-          g.strokeStyle = mix(t.muted, t.muted, 0, 0.7);
+          g.strokeStyle = mix(colors.muted, colors.muted, 0, 0.7);
           g.lineWidth = 1;
           g.setLineDash([4, 4]);
           for (const a of [-th, -th + Math.PI / 2]) {
@@ -226,7 +234,7 @@ export default {
             g.stroke();
           }
           g.setLineDash([]);
-          g.strokeStyle = t.gold;
+          g.strokeStyle = colors.gold;
           g.lineWidth = 2.5;
           for (const a of [0, Math.PI / 2]) {
             g.beginPath();
@@ -237,7 +245,7 @@ export default {
         }
         g2Note(
           g,
-          t,
+          colors,
           h,
           u < 1
             ? 'the slanted cloud of raw recordings'
@@ -247,105 +255,107 @@ export default {
         );
       }
       {
-        const { g, w, h } = fit(cr),
+        const { g: ctx, w, h } = prepareCanvas(cr),
           h1 = h * 0.74,
           rows = [
-            [Sr[0], 'true source 1', t.muted],
-            [Sr[1], 'true source 2', t.muted],
-            [X[0], 'microphone 1', t.cut],
-            [X[1], 'microphone 2', t.cut],
+            [Sr[0], 'true source 1', colors.muted],
+            [Sr[1], 'true source 2', colors.muted],
+            [X[0], 'microphone 1', colors.cut],
+            [X[1], 'microphone 2', colors.cut],
             [
               u < 1 ? X[0].map((v, i) => v * (1 - s) + Zw[0][i] * s) : Y[0],
               'recovered 1',
-              t.accent,
+              colors.accent,
             ],
             [
               u < 1 ? X[1].map((v, i) => v * (1 - s) + Zw[1][i] * s) : Y[1],
               'recovered 2',
-              t.accent,
+              colors.accent,
             ],
           ],
           rh = h1 / 6,
           M = 220;
-        g.font = MONO;
+        ctx.font = MONO;
         rows.forEach(([y, nm, col], r) => {
           const mx = Math.max(...y.slice(0, M).map(Math.abs)) || 1;
-          g.strokeStyle = col;
-          g.lineWidth = 1.3;
-          g.beginPath();
+          ctx.strokeStyle = col;
+          ctx.lineWidth = 1.3;
+          ctx.beginPath();
           for (let i = 0; i < M; i++) {
             const px = 98 + ((w - 106) * i) / (M - 1),
               py = r * rh + rh / 2 - (y[i] / mx) * (rh / 2 - 3);
-            i ? g.lineTo(px, py) : g.moveTo(px, py);
+            i ? ctx.lineTo(px, py) : ctx.moveTo(px, py);
           }
-          g.stroke();
-          g.fillStyle = t.muted;
-          g.textAlign = 'left';
-          g.fillText(nm, 4, r * rh + rh / 2 + 4);
+          ctx.stroke();
+          ctx.fillStyle = colors.muted;
+          ctx.textAlign = 'left';
+          ctx.fillText(nm, 4, r * rh + rh / 2 + 4);
         });
-        const jm = Math.max(...Jc, 1e-6),
-          A = uLine(g, t, 0, h1, w, h - h1, Jc, {
+        const jm = Math.max(...contrastByAngle, 1e-6),
+          A = drawSeriesChart(ctx, colors, 0, h1, w, h - h1, contrastByAngle, {
             title: 'how un-Gaussian the outputs are, at turning angles 0° to 90°',
             n: 91,
             ym: Math.max(jm * 1.1, 0.3),
             y1: 0,
           });
-        g.strokeStyle = t.gold;
-        g.lineWidth = 2;
-        g.beginPath();
-        Jc.forEach((v, i) => (i ? g.lineTo(A.X(i), A.Y(v)) : g.moveTo(A.X(i), A.Y(v))));
-        g.stroke();
+        ctx.strokeStyle = colors.gold;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        contrastByAngle.forEach((v, i) =>
+          i ? ctx.lineTo(A.X(i), A.Y(v)) : ctx.moveTo(A.X(i), A.Y(v)),
+        );
+        ctx.stroke();
         const ad_ = ((((th * 180) / Math.PI) % 90) + 90) % 90;
-        dotAt(g, A.X(ad_), A.Y(J(th)), 5, t.accent, t.bg);
+        dotAt(ctx, A.X(ad_), A.Y(J(th)), 5, colors.accent, colors.bg);
       }
       live.textContent = msg;
-      uCur(root, 'ic', cu);
-      setR(root, 'it', it + (fin ? ' (stopped)' : ''));
-      setR(root, 'ang', ((th * 180) / Math.PI).toFixed(1) + '°');
-      setR(root, 'kur', u >= 1 ? f2(kurt(Y[0])) + ' and ' + f2(kurt(Y[1])) : '–');
-      setR(root, 'm', u >= 1 ? pct(match(Y)) : '–');
-      setR(root, 'mw', pct(mw));
-      setR(root, 'mm', pct(mm));
+      highlightLessonStep(root, 'ic', activeStepIndex);
+      setReadout(root, 'it', it + (fin ? ' (stopped)' : ''));
+      setReadout(root, 'ang', ((th * 180) / Math.PI).toFixed(1) + '°');
+      setReadout(root, 'kur', u >= 1 ? f2(kurt(Y[0])) + ' and ' + f2(kurt(Y[1])) : '–');
+      setReadout(root, 'm', u >= 1 ? pct(match(Y)) : '–');
+      setReadout(root, 'mw', pct(whitenedMatch));
+      setReadout(root, 'mm', pct(mixedMatch));
     };
     gen();
     mix_();
     reset();
-    if (RM) {
+    if (prefersReducedMotion) {
       while (!fin) step();
     }
-    let fr = 0;
+    let frameCount = 0;
     anim = Anim(() => {
       if (fin) {
-        pb.stop();
+        playback.stop();
         return;
       }
-      if (u >= 1 && ++fr % 4) return;
+      if (u >= 1 && ++frameCount % 4) return;
       step();
       draw();
-      chk();
+      checkRunStop();
     });
-    pb = playBtn($('#ic-play', root), anim);
-    chk = runCtl(pb, root, 'ic', {
+    playback = playBtn($('#ic-play', root), anim);
+    checkRunStop = attachRunLimit(playback, root, 'ic', {
       done: () => fin,
       restart: reset,
       count: () => it,
       what: 'steps',
     });
     const go = () => {
-      pb.stop();
+      playback.stop();
       mix_();
       reset();
       draw();
-      pb.start();
+      playback.start();
     };
     $('#ic-step', root).onclick = () => {
-      pb.stop();
+      playback.stop();
       if (fin) reset();
       else step();
       draw();
     };
     $('#ic-reset', root).onclick = () => {
-      pb.stop();
+      playback.stop();
       reset();
       draw();
     };
@@ -355,31 +365,31 @@ export default {
       go();
     };
     bind(root, 'ic-a', (v) => {
-      S.a = v;
-      pb.stop();
+      settings.a = v;
+      playback.stop();
       mix_();
       reset();
       draw();
     });
     bind(root, 'ic-b', (v) => {
-      S.b = v;
-      pb.stop();
+      settings.b = v;
+      playback.stop();
       mix_();
       reset();
       draw();
     });
-    segBind(root, 'ic-d', S.d, (v) => {
-      S.d = v;
+    segBind(root, 'ic-d', settings.d, (v) => {
+      settings.d = v;
       gen();
       go();
     });
     return {
       draw,
-      stop: () => pb.stop(),
+      stop: () => playback.stop(),
       auto: () => {
         reset();
         draw();
-        pb.start();
+        playback.start();
       },
     };
   },

@@ -1,7 +1,7 @@
 /* Manifold. © 2026 Bahman Moraffah. All rights reserved. */
 export default {
   id: 'probabilistic',
-  t: 'Probabilistic methods',
+  title: 'Probabilistic methods',
   lessons: [
     {
       id: 'bayes-update',

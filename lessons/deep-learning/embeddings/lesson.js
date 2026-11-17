@@ -3,28 +3,28 @@ import {
   $,
   Anim,
   MONO,
-  RM,
+  prefersReducedMotion,
   SANS,
-  T,
+  readThemeColors,
   bind,
   f2,
   f3,
-  fit,
+  prepareCanvas,
   mix,
   playBtn,
   rng,
-  runCtl,
-  setR,
+  attachRunLimit,
+  setReadout,
 } from '../../../js/core/shared.js';
-import { UC, uCur, uLine } from '../../unsupervised/shared.js';
+import { UC, highlightLessonStep, drawSeriesChart } from '../../unsupervised/shared.js';
 import { sig } from '../../classification/shared.js';
 
 export default {
   init(root) {
-    const c = $('#we-c', root),
+    const mainCanvas = $('#we-c', root),
       cr = $('#we-r', root),
       live = $('#we-live', root),
-      S = { col: true, neg: 2 },
+      settings = { col: true, neg: 2 },
       GR = [
         ['king', 'queen', 'prince', 'princess'],
         ['cat', 'dog', 'horse', 'bird'],
@@ -39,20 +39,20 @@ export default {
       ];
     let W = [],
       G = [],
-      PR = [],
+      positivePairs = [],
       U,
       Vc,
       ep = 0,
       LL = [],
       conv = false,
       msg = '',
-      cu = 0,
-      fr = 0,
-      pb,
-      chk = () => false,
+      activeStepIndex = 0,
+      frameCount = 0,
+      playback,
+      checkRunStop = () => false,
       run = 1,
       sel = 1,
-      cur = null,
+      lastTrainingExample = null,
       PX = [];
     GR.forEach((g, k) => {
       g.forEach((w) => {
@@ -67,8 +67,8 @@ export default {
     GR.forEach((g, k) =>
       g.forEach((w) =>
         CX[k].forEach((x) => {
-          PR.push([W.indexOf(w), W.indexOf(x)]);
-          PR.push([W.indexOf(x), W.indexOf(w)]);
+          positivePairs.push([W.indexOf(w), W.indexOf(x)]);
+          positivePairs.push([W.indexOf(x), W.indexOf(w)]);
         }),
       ),
     );
@@ -80,8 +80,8 @@ export default {
       ep = 0;
       LL = [];
       conv = false;
-      cu = 0;
-      cur = null;
+      activeStepIndex = 0;
+      lastTrainingExample = null;
       msg =
         'Every word has a random position. The model knows nothing about any of them. Press Train or One pass.';
     };
@@ -99,10 +99,10 @@ export default {
       return -Math.log((y ? p : 1 - p) + 1e-9);
     };
     const one = () => {
-      const pr = PR[Math.floor(Math.random() * PR.length)];
+      const pr = positivePairs[Math.floor(Math.random() * positivePairs.length)];
       let l = upd(pr[0], pr[1], 1),
         ng = -1;
-      for (let k = 0; k < S.neg; k++) {
+      for (let k = 0; k < settings.neg; k++) {
         let nw;
         do {
           nw = Math.floor(Math.random() * N);
@@ -110,7 +110,7 @@ export default {
         l += upd(pr[0], nw, 0);
         ng = nw;
       }
-      cur = [pr[0], pr[1], ng];
+      lastTrainingExample = [pr[0], pr[1], ng];
       return l;
     };
     const cosv = (a, b) =>
@@ -119,7 +119,7 @@ export default {
         W.map((_, i) => i)
           .filter((i) => i !== a)
           .sort((i, j) => cosv(a, j) - cosv(a, i));
-    const dnear = (a) => {
+    const nearestByEuclideanDistance = (a) => {
       let b = -1,
         bd = 1e9;
       for (let i = 0; i < N; i++) {
@@ -134,25 +134,25 @@ export default {
     };
     const pass = () => {
       let l = 0;
-      for (let i = 0; i < PR.length; i++) l += one();
+      for (let i = 0; i < positivePairs.length; i++) l += one();
       ep++;
-      LL.push(l / PR.length);
+      LL.push(l / positivePairs.length);
       if ((ep > 60 && Math.abs(LL[ep - 1] - LL[ep - 41]) < 0.01 * LL[ep - 1]) || ep >= 600)
         conv = true;
-      cu = conv ? 4 : 2 + (ep % 2);
+      activeStepIndex = conv ? 4 : 2 + (ep % 2);
       msg =
         'Pass ' +
         ep +
         ': all ' +
-        PR.length +
+        positivePairs.length +
         ' pairs from the text were pulled together once, each with ' +
-        S.neg +
+        settings.neg +
         ' random pair' +
-        (S.neg === 1 ? '' : 's') +
+        (settings.neg === 1 ? '' : 's') +
         ' pushed apart. Last pair pulled: “' +
-        W[cur[0]] +
+        W[lastTrainingExample[0]] +
         '” and “' +
-        W[cur[1]] +
+        W[lastTrainingExample[1]] +
         '”. Error ' +
         f3(LL[ep - 1]) +
         '.' +
@@ -163,10 +163,10 @@ export default {
           : '');
     };
     const draw = () => {
-      const t = T(),
-        col = UC(t);
+      const colors = readThemeColors(),
+        col = UC(colors);
       {
-        const { g, w, h } = fit(c);
+        const { g, w, h } = prepareCanvas(mainCanvas);
         let m = 1e-9;
         U.forEach((u) => {
           m = Math.max(m, Math.abs(u[0]), Math.abs(u[1]));
@@ -174,19 +174,19 @@ export default {
         const X = (v) => w / 2 + (v / m) * (w / 2 - 46),
           Y = (v) => h / 2 - (v / m) * (h / 2 - 22);
         PX = U.map((u) => [X(u[0]), Y(u[1])]);
-        if (cur && pb && pb.on) {
+        if (lastTrainingExample && playback && playback.on) {
           g.lineWidth = 2.2;
-          g.strokeStyle = t.gold;
+          g.strokeStyle = colors.gold;
           g.beginPath();
-          g.moveTo(...PX[cur[0]]);
-          g.lineTo(...PX[cur[1]]);
+          g.moveTo(...PX[lastTrainingExample[0]]);
+          g.lineTo(...PX[lastTrainingExample[1]]);
           g.stroke();
-          if (cur[2] >= 0) {
-            g.strokeStyle = t.ok;
+          if (lastTrainingExample[2] >= 0) {
+            g.strokeStyle = colors.ok;
             g.setLineDash([5, 4]);
             g.beginPath();
-            g.moveTo(...PX[cur[0]]);
-            g.lineTo(...PX[cur[2]]);
+            g.moveTo(...PX[lastTrainingExample[0]]);
+            g.lineTo(...PX[lastTrainingExample[2]]);
             g.stroke();
             g.setLineDash([]);
           }
@@ -196,59 +196,59 @@ export default {
           g.font =
             (i === sel ? '700 15px' : ctx ? '500 12px' : '600 13px') +
             ' "Hanken Grotesk",sans-serif';
-          g.fillStyle = S.col ? col[G[i] % 8] : t.ink;
+          g.fillStyle = settings.col ? col[G[i] % 8] : colors.ink;
           g.globalAlpha = ctx && i !== sel ? 0.7 : 1;
           g.textAlign = 'center';
           g.fillText(wd, PX[i][0], PX[i][1] + 4);
           g.globalAlpha = 1;
           if (i === sel) {
             const tw = g.measureText(wd).width;
-            g.strokeStyle = t.ink;
+            g.strokeStyle = colors.ink;
             g.lineWidth = 1.5;
             g.strokeRect(PX[i][0] - tw / 2 - 5, PX[i][1] - 11, tw + 10, 21);
           }
         });
       }
       {
-        const { g, w, h } = fit(cr),
+        const { g, w, h } = prepareCanvas(cr),
           h1 = h * 0.56,
           nb = near(sel).slice(0, 9),
           rh = (h1 - 26) / 9;
         g.font = MONO;
-        g.fillStyle = t.muted;
+        g.fillStyle = colors.muted;
         g.textAlign = 'left';
         g.fillText('words most similar to “' + W[sel] + '” (cosine similarity)', 8, 13);
         nb.forEach((i, k) => {
           const y = 22 + k * rh,
             v = cosv(sel, i);
           g.font = SANS;
-          g.fillStyle = S.col ? col[G[i] % 8] : t.ink;
+          g.fillStyle = settings.col ? col[G[i] % 8] : colors.ink;
           g.textAlign = 'right';
           g.fillText(W[i], 88, y + rh * 0.7);
-          g.fillStyle = mix(t.ink, t.ink, 0, 0.08);
+          g.fillStyle = mix(colors.ink, colors.ink, 0, 0.08);
           g.fillRect(96, y + 3, w - 150, rh - 6);
-          g.fillStyle = G[i] === G[sel] ? t.gold : t.muted;
+          g.fillStyle = G[i] === G[sel] ? colors.gold : colors.muted;
           g.fillRect(96, y + 3, (w - 150) * Math.max(0, v), rh - 6);
           g.font = MONO;
-          g.fillStyle = t.muted;
+          g.fillStyle = colors.muted;
           g.textAlign = 'left';
           g.fillText(f2(v), w - 48, y + rh * 0.7);
         });
-        uLine(g, t, 0, h1, w, h - h1, LL, {
+        drawSeriesChart(g, colors, 0, h1, w, h - h1, LL, {
           title: 'error, by pass over the text',
           n: Math.max(60, LL.length),
-          col: t.ok,
+          col: colors.ok,
           ym: Math.max(1.5, LL[0] || 1.5),
         });
       }
       live.textContent = msg;
-      uCur(root, 'we', cu);
+      highlightLessonStep(root, 'we', activeStepIndex);
       let ok = 0;
-      for (let i = 0; i < N; i++) if (G[dnear(i)] === G[i]) ok++;
-      setR(root, 'ep', String(ep));
-      setR(root, 'L', ep ? f3(LL[ep - 1]) : '–');
-      setR(root, 'sel', '“' + W[sel] + '”');
-      setR(
+      for (let i = 0; i < N; i++) if (G[nearestByEuclideanDistance(i)] === G[i]) ok++;
+      setReadout(root, 'ep', String(ep));
+      setReadout(root, 'L', ep ? f3(LL[ep - 1]) : '–');
+      setReadout(root, 'sel', '“' + W[sel] + '”');
+      setReadout(
         root,
         'nn',
         near(sel)
@@ -256,19 +256,19 @@ export default {
           .map((i) => W[i])
           .join(', '),
       );
-      setR(root, 'grp', ok + ' of ' + N);
+      setReadout(root, 'grp', ok + ' of ' + N);
     };
     build();
-    if (RM) while (!conv) pass();
+    if (prefersReducedMotion) while (!conv) pass();
     const anim = Anim(() => {
-      fr++;
-      if (fr % (ep < 6 ? 14 : 5) === 0) pass();
-      else if (fr % 2 === 0) one();
+      frameCount++;
+      if (frameCount % (ep < 6 ? 14 : 5) === 0) pass();
+      else if (frameCount % 2 === 0) one();
       draw();
-      chk();
+      checkRunStop();
     });
-    pb = playBtn($('#we-play', root), anim);
-    chk = runCtl(pb, root, 'we', {
+    playback = playBtn($('#we-play', root), anim);
+    checkRunStop = attachRunLimit(playback, root, 'we', {
       done: () => conv,
       restart: () => {
         run++;
@@ -278,7 +278,7 @@ export default {
       what: 'passes',
     });
     $('#we-step', root).onclick = () => {
-      pb.stop();
+      playback.stop();
       if (conv) {
         run++;
         build();
@@ -286,29 +286,29 @@ export default {
       draw();
     };
     $('#we-reset', root).onclick = () => {
-      pb.stop();
+      playback.stop();
       run++;
       build();
       draw();
     };
     $('#we-col', root).onchange = (e) => {
-      S.col = e.target.checked;
+      settings.col = e.target.checked;
       draw();
     };
     bind(
       root,
       'we-neg',
       (v) => {
-        S.neg = v;
-        pb.stop();
+        settings.neg = v;
+        playback.stop();
         run++;
         build();
         draw();
       },
       (v) => String(v),
     );
-    c.addEventListener('click', (e) => {
-      const r = c.getBoundingClientRect(),
+    mainCanvas.addEventListener('click', (e) => {
+      const r = mainCanvas.getBoundingClientRect(),
         x = e.clientX - r.left,
         y = e.clientY - r.top;
       let b = -1,
@@ -322,17 +322,17 @@ export default {
       });
       if (b >= 0) {
         sel = b;
-        if (!pb.on) draw();
+        if (!playback.on) draw();
       }
     });
     return {
       draw,
-      stop: () => pb.stop(),
+      stop: () => playback.stop(),
       auto: () => {
         run++;
         build();
         draw();
-        pb.start();
+        playback.start();
       },
     };
   },

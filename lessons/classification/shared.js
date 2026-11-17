@@ -3,18 +3,18 @@ import {
   $,
   Anim,
   MONO,
-  T,
+  readThemeColors,
   bind,
   clamp,
   f2,
-  fit,
+  prepareCanvas,
   hex,
   markTP,
   playBtn,
   randnFrom,
   rng,
-  runCtl,
-  setR,
+  attachRunLimit,
+  setReadout,
   testPoint,
 } from '../../js/core/shared.js';
 import { renderFamily } from '../../js/app/lesson-view.js';
@@ -118,11 +118,11 @@ function clfLesson(o) {
         S = { ds: o.ds[0], nz: 0.3, n: o.n || 120, addc: 0, seed: o.seed || 1, ...(o.S || {}) };
       let pts = [],
         probe = [0.6, 0.4],
-        PV = null,
+        plotSize = null,
         pb,
         draw,
-        M,
-        FO = null;
+        model,
+        decisionFieldCanvas = null;
       const gen = () => {
         pts = mkData(S.ds, S.n, S.nz, S.seed, S);
       };
@@ -149,13 +149,13 @@ function clfLesson(o) {
           noteEl.textContent = s;
         },
         refit: () => {
-          M.fit && M.fit();
+          model.fit && model.fit();
           draw();
         },
         regen: () => {
           gen();
-          M.reset && M.reset();
-          M.fit && M.fit();
+          model.reset && model.reset();
+          model.fit && model.fit();
           draw();
         },
         bind: (sfx, key, fm, cb) =>
@@ -182,38 +182,39 @@ function clfLesson(o) {
       tp.on = () => draw();
       const liveEl = $('#' + id + '-live', root),
         stepEls = [...root.querySelectorAll('#' + id + '-steps li')];
-      M = o.setup(api);
-      M.reset && M.reset();
-      M.fit && M.fit();
+      model = o.setup(api);
+      model.reset && model.reset();
+      model.fit && model.fit();
       const cls = (v) => (Array.isArray(v) ? v.indexOf(Math.max(...v)) : v >= 0.5 ? 1 : 0),
         acc = (P) =>
           P.length
-            ? ((100 * P.filter((p) => cls(M.p(p.x, p.y)) === p.c).length) / P.length).toFixed(1) +
-              '%'
+            ? ((100 * P.filter((p) => cls(model.p(p.x, p.y)) === p.c).length) / P.length).toFixed(
+                1,
+              ) + '%'
             : '–';
       api.cls = cls;
       draw = () => {
-        const t = T(),
-          { g, w, h } = fit(c),
+        const colors = readThemeColors(),
+          { g: ctx, w, h } = prepareCanvas(c),
           R = 3,
           X = (v) => w / 2 + (v * w) / (2 * R),
           Y = (v) => h / 2 - (v * h) / (2 * R),
           NC = o.nc || 50,
           cw = w / NC,
           ch = h / NC,
-          cc = [t.accent, t.gold, t.ok],
+          cc = [colors.accent, colors.gold, colors.ok],
           V = [];
-        PV = { w, h };
-        if (!FO) {
-          FO = document.createElement('canvas');
-          FO.width = FO.height = NC;
+        plotSize = { w, h };
+        if (!decisionFieldCanvas) {
+          decisionFieldCanvas = document.createElement('canvas');
+          decisionFieldCanvas.width = decisionFieldCanvas.height = NC;
         }
-        const fg = FO.getContext('2d'),
+        const fg = decisionFieldCanvas.getContext('2d'),
           im = fg.createImageData(NC, NC),
           rgb = cc.map(hex);
         for (let i = 0; i < NC; i++)
           for (let j = 0; j < NC; j++) {
-            const v = M.p(-R + (2 * R * (i + 0.5)) / NC, -R + (2 * R * (j + 0.5)) / NC);
+            const v = model.p(-R + (2 * R * (i + 0.5)) / NC, -R + (2 * R * (j + 0.5)) / NC);
             let k, al;
             if (Array.isArray(v)) {
               k = cls(v);
@@ -230,12 +231,12 @@ function clfLesson(o) {
             im.data[q + 3] = Math.round(255 * al);
           }
         fg.putImageData(im, 0, 0);
-        g.imageSmoothingEnabled = true;
-        g.drawImage(FO, 0, 0, w, h);
+        ctx.imageSmoothingEnabled = true;
+        ctx.drawImage(decisionFieldCanvas, 0, 0, w, h);
         if (V.length) {
-          g.strokeStyle = t.ink;
-          g.lineWidth = 2.2;
-          g.beginPath();
+          ctx.strokeStyle = colors.ink;
+          ctx.lineWidth = 2.2;
+          ctx.beginPath();
           const px = (i) => (i + 0.5) * cw,
             py = (j) => h - (j + 0.5) * ch,
             L = 0.5;
@@ -258,47 +259,47 @@ function clfLesson(o) {
               E(c2, d, px(i + 1), py(j + 1), px(i), py(j + 1));
               E(d, a, px(i), py(j + 1), px(i), py(j));
               if (ps.length >= 4) {
-                g.moveTo(ps[0], ps[1]);
-                g.lineTo(ps[2], ps[3]);
+                ctx.moveTo(ps[0], ps[1]);
+                ctx.lineTo(ps[2], ps[3]);
                 if (ps.length === 8) {
-                  g.moveTo(ps[4], ps[5]);
-                  g.lineTo(ps[6], ps[7]);
+                  ctx.moveTo(ps[4], ps[5]);
+                  ctx.lineTo(ps[6], ps[7]);
                 }
               }
             }
-          g.stroke();
+          ctx.stroke();
         }
-        M.overlay && M.overlay(g, X, Y, t, w, h);
+        model.overlay && model.overlay(ctx, X, Y, colors, w, h);
         for (const p of pts) {
           if (p.test) {
-            g.strokeStyle = cc[p.c];
-            g.lineWidth = 2;
-            g.beginPath();
-            g.arc(X(p.x), Y(p.y), 4, 0, 7);
-            g.stroke();
+            ctx.strokeStyle = cc[p.c];
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.arc(X(p.x), Y(p.y), 4, 0, 7);
+            ctx.stroke();
           } else {
-            g.fillStyle = cc[p.c];
-            g.strokeStyle = t.bg;
-            g.lineWidth = 1.3;
-            g.beginPath();
-            g.arc(X(p.x), Y(p.y), 4.6, 0, 7);
-            g.fill();
-            g.stroke();
+            ctx.fillStyle = cc[p.c];
+            ctx.strokeStyle = colors.bg;
+            ctx.lineWidth = 1.3;
+            ctx.beginPath();
+            ctx.arc(X(p.x), Y(p.y), 4.6, 0, 7);
+            ctx.fill();
+            ctx.stroke();
           }
         }
-        g.font = MONO;
-        g.textAlign = 'left';
+        ctx.font = MONO;
+        ctx.textAlign = 'left';
         let lx = 8;
         names.forEach((n, i) => {
-          g.fillStyle = i === 1 ? t.cut : cc[i];
-          g.fillText('● class ' + n, lx, h - 8);
+          ctx.fillStyle = i === 1 ? colors.cut : cc[i];
+          ctx.fillText('● class ' + n, lx, h - 8);
           lx += 74;
         });
-        g.fillStyle = t.muted;
-        g.fillText('○ test', lx, h - 8);
-        markTP(g, X(tp.v[0]), Y(tp.v[1]), t);
+        ctx.fillStyle = colors.muted;
+        ctx.fillText('○ test', lx, h - 8);
+        markTP(ctx, X(tp.v[0]), Y(tp.v[1]), colors);
         {
-          const v = M.p(tp.v[0], tp.v[1]),
+          const v = model.p(tp.v[0], tp.v[1]),
             k = cls(v);
           tp.out.textContent =
             'At (' +
@@ -316,13 +317,13 @@ function clfLesson(o) {
                 ? ''
                 : 'Probability of class B: ' + (100 * v).toFixed(1) + '%.');
         }
-        liveEl.textContent = M.status ? M.status() : o.still || '';
-        const cu = M.cur ? M.cur() : -1;
+        liveEl.textContent = model.status ? model.status() : o.still || '';
+        const cu = model.cur ? model.cur() : -1;
         stepEls.forEach((e, i) => e.setAttribute('aria-current', i === cu ? 'true' : 'false'));
-        M.right && M.right(t);
-        setR(root, 'tr', acc(api.train));
-        setR(root, 'te', acc(api.test));
-        M.read && M.read((k, v) => setR(root, k, v));
+        model.right && model.right(colors);
+        setReadout(root, 'tr', acc(api.train));
+        setReadout(root, 'te', acc(api.test));
+        model.read && model.read((k, v) => setReadout(root, k, v));
         root
           .querySelectorAll('#' + id + '-add button')
           .forEach((b) =>
@@ -331,32 +332,32 @@ function clfLesson(o) {
       };
       let chk = () => false;
       const anim = Anim(() => {
-        if (M.tick(chk.remaining()) !== false) draw();
+        if (model.tick(chk.remaining()) !== false) draw();
         if (chk()) draw();
       });
       pb = playBtn($('#' + id + '-play', root), anim);
       api.pause = () => pb.stop();
-      chk = runCtl(pb, root, id, {
-        done: () => !!(M.done && M.done()),
+      chk = attachRunLimit(pb, root, id, {
+        done: () => !!(model.done && model.done()),
         restart: () => {
           api.note('');
-          M.reset && M.reset();
-          M.fit && M.fit();
+          model.reset && model.reset();
+          model.fit && model.fit();
         },
-        count: M.count,
+        count: model.count,
         what: o.maxWhat,
       });
       const sb = $('#' + id + '-step', root);
       if (sb)
         sb.onclick = () => {
           pb.stop();
-          M.stepOnce();
+          model.stepOnce();
           draw();
         };
       $('#' + id + '-reset', root).onclick = () => {
         api.note('');
-        M.reset && M.reset();
-        M.fit && M.fit();
+        model.reset && model.reset();
+        model.fit && model.fit();
         draw();
       };
       $('#' + id + '-ds', root).onchange = (e) => {
@@ -394,14 +395,14 @@ function clfLesson(o) {
       const at = (e) => {
         const r = c.getBoundingClientRect();
         return [
-          clamp((e.clientX - r.left - PV.w / 2) / (PV.w / 6), -2.95, 2.95),
-          clamp(-(e.clientY - r.top - PV.h / 2) / (PV.h / 6), -2.95, 2.95),
+          clamp((e.clientX - r.left - plotSize.w / 2) / (plotSize.w / 6), -2.95, 2.95),
+          clamp(-(e.clientY - r.top - plotSize.h / 2) / (plotSize.h / 6), -2.95, 2.95),
           e.clientX - r.left,
           e.clientY - r.top,
         ];
       };
       c.addEventListener('pointerdown', (e) => {
-        if (!PV) return;
+        if (!plotSize) return;
         const a = at(e);
         if (S.addc < 0) {
           tp.set([a[0], a[1]]);
@@ -414,8 +415,8 @@ function clfLesson(o) {
           bd = 14;
         pts.forEach((p, i) => {
           const d = Math.hypot(
-            PV.w / 2 + (p.x * PV.w) / 6 - a[2],
-            PV.h / 2 - (p.y * PV.h) / 6 - a[3],
+            plotSize.w / 2 + (p.x * plotSize.w) / 6 - a[2],
+            plotSize.h / 2 - (p.y * plotSize.h) / 6 - a[3],
           );
           if (d < bd) {
             bd = d;
@@ -428,11 +429,11 @@ function clfLesson(o) {
         }
         drag = bi;
         c.setPointerCapture(e.pointerId);
-        M.fit && M.fit();
+        model.fit && model.fit();
         draw();
       });
       c.addEventListener('pointermove', (e) => {
-        if (!PV) return;
+        if (!plotSize) return;
         const a = at(e);
         if (dragT) {
           tp.set([a[0], a[1]]);
@@ -440,7 +441,7 @@ function clfLesson(o) {
         } else if (drag >= 0) {
           pts[drag].x = a[0];
           pts[drag].y = a[1];
-          M.fit && M.fit();
+          model.fit && model.fit();
           draw();
         } else if (o.probe) {
           probe = [a[0], a[1]];
@@ -457,16 +458,16 @@ function clfLesson(o) {
         draw,
         stop() {
           pb.stop();
-          M.stop && M.stop();
+          model.stop && model.stop();
         },
         auto() {
-          if (o.fromZero && M.reset) {
-            M.reset();
+          if (o.fromZero && model.reset) {
+            model.reset();
             api.note('');
             draw();
           }
           pb.start();
-          M.start && M.start();
+          model.start && model.start();
         },
       };
     },

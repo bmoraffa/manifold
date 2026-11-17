@@ -1,5 +1,5 @@
 /* Manifold. © 2026 Bahman Moraffah. All rights reserved. */
-import { MONO, clamp, clipPlot, f2, fit, mix, plot } from '../../../js/core/shared.js';
+import { MONO, clamp, clipPlot, f2, prepareCanvas, mix, plot } from '../../../js/core/shared.js';
 import { clfLesson, lineAt, sig } from '../shared.js';
 
 export default clfLesson({
@@ -13,16 +13,16 @@ export default clfLesson({
   setup(api) {
     const S = api.S;
     let w,
-      t0,
-      wait = 0;
+      iterationCount,
+      trainingFinished = 0;
     const C = () => Math.pow(10, S.C),
       f = (p) => w[0] + w[1] * p.x + w[2] * p.y,
       reset = () => {
         w = [0, 0.01, 0.01];
-        t0 = 0;
-        wait = 0;
+        iterationCount = 0;
+        trainingFinished = 0;
       };
-    const it = () => {
+    const gradientStep = () => {
       const T = api.train,
         g = [0, w[1], w[2]],
         c = C();
@@ -34,8 +34,8 @@ export default clfLesson({
           g[2] -= c * y * p.y;
         }
       }
-      const lr = 0.25 / (1 + c * T.length) / (1 + 0.003 * t0);
-      t0++;
+      const lr = 0.25 / (1 + c * T.length) / (1 + 0.003 * iterationCount);
+      iterationCount++;
       for (let j = 0; j < 3; j++) w[j] -= lr * g[j];
     };
     api.bind(
@@ -50,10 +50,10 @@ export default clfLesson({
     return {
       reset,
       fit() {
-        for (let k = 0; k < 400; k++) it();
+        for (let k = 0; k < 400; k++) gradientStep();
       },
       stepOnce() {
-        for (let k = 0; k < 12; k++) it();
+        for (let k = 0; k < 12; k++) gradientStep();
       },
       status() {
         const T = api.train;
@@ -61,7 +61,7 @@ export default clfLesson({
         for (const p of T) if ((p.c ? 1 : -1) * f(p) < 1) sv++;
         return (
           'Iteration ' +
-          t0 +
+          iterationCount +
           ': ' +
           sv +
           ' of ' +
@@ -75,21 +75,23 @@ export default clfLesson({
           '·x + ' +
           f2(w[2]) +
           '·y = 0.' +
-          (wait > 0 ? ' The pull and the shrink are in balance: training is finished.' : '')
+          (trainingFinished > 0
+            ? ' The pull and the shrink are in balance: training is finished.'
+            : '')
         );
       },
       cur() {
-        return wait > 0 ? 4 : 2;
+        return trainingFinished > 0 ? 4 : 2;
       },
       p: (x, y) => sig(2.2 * (w[0] + w[1] * x + w[2] * y)),
-      done: () => wait > 0,
+      done: () => trainingFinished > 0,
       tick(budget = Infinity) {
-        if (wait > 0) return false;
-        for (let k = 0; k < Math.min(12, budget); k++) it();
-        if (t0 > 2600) wait = 200;
+        if (trainingFinished > 0) return false;
+        for (let k = 0; k < Math.min(12, budget); k++) gradientStep();
+        if (iterationCount > 2600) trainingFinished = 200;
         return true;
       },
-      count: () => t0,
+      count: () => iterationCount,
       overlay(g, X, Y, t) {
         g.setLineDash([6, 5]);
         g.strokeStyle = t.ink;
@@ -108,45 +110,45 @@ export default clfLesson({
         }
       },
       right(t) {
-        const { g, w: cw, h } = fit(api.cr),
-          P = plot(g, cw, h, [-3, 5], [0, 4], t, {
+        const { g: ctx, w: cw, h } = prepareCanvas(api.cr),
+          P = plot(ctx, cw, h, [-3, 5], [0, 4], t, {
             yticks: [1, 2, 3],
             xlabel: 'y · f(x): distance on the correct side',
           });
-        clipPlot(g, P);
-        g.fillStyle = mix(t.ok, t.ok, 0, 0.08);
-        g.fillRect(P.X(-3), P.Y(4), P.X(1) - P.X(-3), P.Y(0) - P.Y(4));
-        g.strokeStyle = t.ink;
-        g.lineWidth = 2.6;
-        g.beginPath();
-        g.moveTo(P.X(-3), P.Y(4));
-        g.lineTo(P.X(1), P.Y(0));
-        g.lineTo(P.X(5), P.Y(0));
-        g.stroke();
-        g.setLineDash([4, 4]);
-        g.strokeStyle = t.muted;
-        g.lineWidth = 1;
+        clipPlot(ctx, P);
+        ctx.fillStyle = mix(t.ok, t.ok, 0, 0.08);
+        ctx.fillRect(P.X(-3), P.Y(4), P.X(1) - P.X(-3), P.Y(0) - P.Y(4));
+        ctx.strokeStyle = t.ink;
+        ctx.lineWidth = 2.6;
+        ctx.beginPath();
+        ctx.moveTo(P.X(-3), P.Y(4));
+        ctx.lineTo(P.X(1), P.Y(0));
+        ctx.lineTo(P.X(5), P.Y(0));
+        ctx.stroke();
+        ctx.setLineDash([4, 4]);
+        ctx.strokeStyle = t.muted;
+        ctx.lineWidth = 1;
         [0, 1].forEach((v) => {
-          g.beginPath();
-          g.moveTo(P.X(v), P.Y(0));
-          g.lineTo(P.X(v), P.Y(4));
-          g.stroke();
+          ctx.beginPath();
+          ctx.moveTo(P.X(v), P.Y(0));
+          ctx.lineTo(P.X(v), P.Y(4));
+          ctx.stroke();
         });
-        g.setLineDash([]);
+        ctx.setLineDash([]);
         for (const p of api.train) {
           const m = clamp((p.c ? 1 : -1) * f(p), -2.95, 4.95);
-          g.fillStyle = p.c ? t.gold : t.accent;
-          g.beginPath();
-          g.arc(P.X(m), P.Y(Math.max(0, 1 - m)), 4, 0, 7);
-          g.fill();
+          ctx.fillStyle = p.c ? t.gold : t.accent;
+          ctx.beginPath();
+          ctx.arc(P.X(m), P.Y(Math.max(0, 1 - m)), 4, 0, 7);
+          ctx.fill();
         }
-        g.restore();
-        g.font = MONO;
-        g.fillStyle = t.muted;
-        g.textAlign = 'center';
-        g.fillText('wrong side', P.X(-1.5), P.m.t + 8);
-        g.fillText('in the street', P.X(0.5), P.m.t + 22);
-        g.fillText('safe: costs nothing', P.X(3), P.m.t + 8);
+        ctx.restore();
+        ctx.font = MONO;
+        ctx.fillStyle = t.muted;
+        ctx.textAlign = 'center';
+        ctx.fillText('wrong side', P.X(-1.5), P.m.t + 8);
+        ctx.fillText('in the street', P.X(0.5), P.m.t + 22);
+        ctx.fillText('safe: costs nothing', P.X(3), P.m.t + 8);
       },
       read(set) {
         const T = api.train;

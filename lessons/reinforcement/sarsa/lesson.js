@@ -3,40 +3,40 @@ import {
   $,
   Anim,
   MONO,
-  RM,
-  T,
+  prefersReducedMotion,
+  readThemeColors,
   bind,
   eqShow,
   f2,
-  fit,
+  prepareCanvas,
   playBtn,
-  runCtl,
-  setR,
+  attachRunLimit,
+  setReadout,
 } from '../../../js/core/shared.js';
-import { GWS, gwDraw, gwMake, gwMax, gwRoute, rlN } from '../shared.js';
-import { uCur, uLine } from '../../unsupervised/shared.js';
+import { ACTION_ARROWS, gwDraw, gwMake, gwMax, gwRoute, rlN } from '../shared.js';
+import { highlightLessonStep, drawSeriesChart } from '../../unsupervised/shared.js';
 
 export default {
   init(root) {
-    const c = $('#sa-c', root),
+    const mainCanvas = $('#sa-c', root),
       cr = $('#sa-r', root),
       live = $('#sa-live', root),
       eq = $('#sa-eq', root),
-      S = { eps: 0.1, al: 0.5, sp: 2 },
+      settings = { eps: 0.1, al: 0.5, sp: 2 },
       ROWS = ['..........', '..........', '..........', 'SXXXXXXXXG'],
       MAXE = 500,
       CAP = 400;
     let G,
-      A = [],
+      agents = [],
       ep = 0,
       msg = '',
-      cu = 0,
-      fr = 0,
-      pb,
-      chk = () => false,
+      activeStepIndex = 0,
+      frameCount = 0,
+      playback,
+      checkRunStop = () => false,
       fin = false;
     const pick = (Q, s) => {
-      if (Math.random() < S.eps) return { a: Math.floor(Math.random() * 4), ex: true };
+      if (Math.random() < settings.eps) return { a: Math.floor(Math.random() * 4), ex: true };
       const row = [0, 1, 2, 3].map((a) => Q[s * 4 + a]),
         mx = Math.max(...row),
         ties = [0, 1, 2, 3].filter((k) => row[k] >= mx - 1e-12);
@@ -56,15 +56,15 @@ export default {
         done: false,
         last: null,
       };
-      o.nx = pick(o.Q, o.s);
+      o.nextActionChoice = pick(o.Q, o.s);
       return o;
     };
     const build = () => {
       G = gwMake(ROWS, { rp: -100, rg: -1, back: true });
-      A = [mk(false), mk(true)];
+      agents = [mk(false), mk(true)];
       ep = 0;
       fin = false;
-      cu = 0;
+      activeStepIndex = 0;
       msg = 'Two tables of zeros, two robots in the bottom-left corner. Press Run.';
       eqShow(
         eq,
@@ -72,11 +72,11 @@ export default {
         0,
       );
     };
-    const stepA = (o) => {
+    const stepAgent = (o) => {
       if (o.done) return;
       const s = o.s,
-        a = o.nx.a,
-        ex = o.nx.ex,
+        a = o.nextActionChoice.a,
+        ex = o.nextActionChoice.ex,
         r = G.step(s, a),
         s2 = r.s2,
         old = o.Q[s * 4 + a];
@@ -88,7 +88,7 @@ export default {
         tv = o.Q[s2 * 4 + nxt.a];
       } else tv = gwMax(o.Q, s2);
       const tg = r.r - 0 + tv,
-        nw = old + S.al * (tg - old);
+        nw = old + settings.al * (tg - old);
       o.Q[s * 4 + a] = nw;
       o.R += r.r;
       o.n++;
@@ -112,13 +112,13 @@ export default {
       };
       o.s = s2;
       if (!o.sarsa && !r.done) nxt = pick(o.Q, s2);
-      o.nx = nxt;
+      o.nextActionChoice = nxt;
       if (r.done || o.n >= CAP) {
         o.done = true;
       }
     };
     const endEp = () => {
-      for (const o of A) {
+      for (const o of agents) {
         o.RET.push(o.R);
         o.FALL.push(o.falls);
         o.R = 0;
@@ -126,28 +126,28 @@ export default {
         o.s = G.start;
         o.trail = [G.start];
         o.done = false;
-        o.nx = pick(o.Q, o.s);
+        o.nextActionChoice = pick(o.Q, o.s);
       }
       ep++;
       if (ep >= MAXE) {
         fin = true;
-        cu = 5;
-        const rq = gwRoute(G, A[0].Q, G.start),
-          rs = gwRoute(G, A[1].Q, G.start),
+        activeStepIndex = 5;
+        const rq = gwRoute(G, agents[0].Q, G.start),
+          rs = gwRoute(G, agents[1].Q, G.start),
           av = (o) => o.RET.slice(-50).reduce((x, y) => x + y, 0) / 50;
         msg =
           'Finished: 500 episodes each. Q-learning recommends a route of ' +
           (rq.ok ? rq.acts.length + ' steps' : 'no complete route') +
           ' and averaged ' +
-          f2(av(A[0])) +
+          f2(av(agents[0])) +
           ' per episode over the last 50. SARSA recommends ' +
           (rs.ok ? rs.acts.length + ' steps' : 'no complete route') +
           ' and averaged ' +
-          f2(av(A[1])) +
+          f2(av(agents[1])) +
           '. Falls: ' +
-          A[0].falls +
+          agents[0].falls +
           ' and ' +
-          A[1].falls +
+          agents[1].falls +
           '.';
       }
     };
@@ -163,7 +163,7 @@ export default {
           ' it ' +
           (l.ex ? 'explored' : 'took its best move') +
           ', ' +
-          GWS[l.a] +
+          ACTION_ARROWS[l.a] +
           '. ' +
           (l.fell
             ? 'It stepped off the cliff: reward −100, back to the start.'
@@ -172,7 +172,7 @@ export default {
           ? '   the goal ends the episode: target = ' + rlN(l.r)
           : o.sarsa
             ? '   its next move will be ' +
-              GWS[l.nxt.a] +
+              ACTION_ARROWS[l.nxt.a] +
               (l.nxt.ex ? ' (a random, exploring move)' : ' (its best move)') +
               ', worth ' +
               rlN(l.tv) +
@@ -195,11 +195,11 @@ export default {
         '   Q(' +
           G.name(l.s) +
           ', ' +
-          GWS[l.a] +
+          ACTION_ARROWS[l.a] +
           ') = ' +
           rlN(l.old) +
           ' + ' +
-          f2(S.al) +
+          f2(settings.al) +
           ' × (' +
           rlN(l.tg) +
           ' − ' +
@@ -211,42 +211,42 @@ export default {
     };
     const stepBoth = (quiet) => {
       if (fin) return;
-      for (const o of A) stepA(o);
+      for (const o of agents) stepAgent(o);
       if (!quiet) {
-        eqShow(eq, line(A[0]).concat(line(A[1])), 0);
-        const d = A[1].last && A[1].last.nxt && A[1].last.nxt.ex;
-        cu = d ? 3 : 4;
+        eqShow(eq, line(agents[0]).concat(line(agents[1])), 0);
+        const d = agents[1].last && agents[1].last.nxt && agents[1].last.nxt.ex;
+        activeStepIndex = d ? 3 : 4;
         msg =
           'Episode ' +
           (ep + 1) +
           '. ' +
-          (A.some((o) => o.last && o.last.fell) ? 'A robot fell off the cliff. ' : '') +
+          (agents.some((o) => o.last && o.last.fell) ? 'A robot fell off the cliff. ' : '') +
           (d
             ? 'SARSA’s next move is an exploring one, so its target uses the value of that random move. Q-learning would have used the best move here.'
             : 'Each robot moved one square and updated one entry of its table.');
       }
-      if (A.every((o) => o.done)) endEp();
+      if (agents.every((o) => o.done)) endEp();
     };
     const draw = () => {
-      const t = T();
+      const colors = readThemeColors();
       {
-        const { g, w, h } = fit(c),
+        const { g: ctx, w, h } = prepareCanvas(mainCanvas),
           hh = (h - 34) / 2;
-        g.font = MONO;
-        A.forEach((o, i) => {
+        ctx.font = MONO;
+        agents.forEach((o, i) => {
           const y0 = 16 + i * (hh + 18),
             R = gwRoute(G, o.Q, G.start);
-          g.font = MONO;
-          g.fillStyle = t.ink;
-          g.textAlign = 'left';
-          g.fillText(
+          ctx.font = MONO;
+          ctx.fillStyle = colors.ink;
+          ctx.textAlign = 'left';
+          ctx.fillText(
             (i ? 'SARSA' : 'Q-LEARNING') +
               ': ' +
               (R.ok ? 'recommended route, ' + R.acts.length + ' steps' : 'no complete route yet'),
             6,
             y0 - 4,
           );
-          gwDraw(g, t, 4, y0, w - 8, hh, G, {
+          gwDraw(ctx, colors, 4, y0, w - 8, hh, G, {
             Q: o.Q,
             agent: o.s,
             trail: R.ok ? R.path : null,
@@ -254,55 +254,57 @@ export default {
             nonum: true,
             xname: 'cliff',
             vm: 30,
-            acol: i ? t.ok : t.accent,
+            acol: i ? colors.ok : colors.accent,
           });
         });
       }
       {
-        const { g, w, h } = fit(cr),
+        const { g: ctx, w, h } = prepareCanvas(cr),
           sm = (o) =>
             o.RET.map((_, i) => {
               const a = o.RET.slice(Math.max(0, i - 19), i + 1);
               return Math.max(-120, a.reduce((x, y) => x + y, 0) / a.length);
             }),
           n = MAXE,
-          L = uLine(g, t, 0, 0, w, h * 0.56, sm(A[0]), {
+          L = drawSeriesChart(ctx, colors, 0, 0, w, h * 0.56, sm(agents[0]), {
             title: 'reward per episode while learning (average of the last 20)',
             n,
             y1: -120,
             ym: 0,
-            col: t.accent,
+            col: colors.accent,
           }),
-          s1 = sm(A[1]);
-        g.strokeStyle = t.ok;
-        g.lineWidth = 2.2;
-        g.beginPath();
-        s1.forEach((v, i) => (i ? g.lineTo(L.X(i), L.Y(v)) : g.moveTo(L.X(i), L.Y(v))));
-        g.stroke();
-        g.font = MONO;
-        g.textAlign = 'right';
-        g.fillStyle = t.accent;
-        g.fillText('Q-learning', w - 14, h * 0.56 - 40);
-        g.fillStyle = t.ok;
-        g.fillText('SARSA', w - 14, h * 0.56 - 26);
-        const fm = Math.max(10, A[0].falls, A[1].falls),
-          L2 = uLine(g, t, 0, h * 0.56, w, h * 0.44, A[0].FALL, {
+          s1 = sm(agents[1]);
+        ctx.strokeStyle = colors.ok;
+        ctx.lineWidth = 2.2;
+        ctx.beginPath();
+        s1.forEach((v, i) => (i ? ctx.lineTo(L.X(i), L.Y(v)) : ctx.moveTo(L.X(i), L.Y(v))));
+        ctx.stroke();
+        ctx.font = MONO;
+        ctx.textAlign = 'right';
+        ctx.fillStyle = colors.accent;
+        ctx.fillText('Q-learning', w - 14, h * 0.56 - 40);
+        ctx.fillStyle = colors.ok;
+        ctx.fillText('SARSA', w - 14, h * 0.56 - 26);
+        const fm = Math.max(10, agents[0].falls, agents[1].falls),
+          L2 = drawSeriesChart(ctx, colors, 0, h * 0.56, w, h * 0.44, agents[0].FALL, {
             title: 'falls off the cliff so far',
             n: n + 1,
             ym: fm,
-            col: t.accent,
+            col: colors.accent,
           });
-        g.strokeStyle = t.ok;
-        g.lineWidth = 2.2;
-        g.beginPath();
-        A[1].FALL.forEach((v, i) => (i ? g.lineTo(L2.X(i), L2.Y(v)) : g.moveTo(L2.X(i), L2.Y(v))));
-        g.stroke();
-        g.fillStyle = t.muted;
-        g.textAlign = 'right';
-        g.fillText('episodes →', w - 12, h - 5);
+        ctx.strokeStyle = colors.ok;
+        ctx.lineWidth = 2.2;
+        ctx.beginPath();
+        agents[1].FALL.forEach((v, i) =>
+          i ? ctx.lineTo(L2.X(i), L2.Y(v)) : ctx.moveTo(L2.X(i), L2.Y(v)),
+        );
+        ctx.stroke();
+        ctx.fillStyle = colors.muted;
+        ctx.textAlign = 'right';
+        ctx.fillText('episodes →', w - 12, h - 5);
       }
       live.textContent = msg;
-      uCur(root, 'sa', cu);
+      highlightLessonStep(root, 'sa', activeStepIndex);
       const av = (o) =>
           o.RET.length
             ? f2(o.RET.slice(-50).reduce((x, y) => x + y, 0) / Math.min(50, o.RET.length))
@@ -313,57 +315,58 @@ export default {
           const edge = R.path.filter((q) => Math.floor(q / G.C) === 2).length;
           return R.acts.length + ' steps, ' + edge + ' of them along the cliff edge';
         };
-      setR(root, 'ep', ep + (fin ? ' (stopped)' : ''));
-      setR(root, 'rq', av(A[0]));
-      setR(root, 'rs', av(A[1]));
-      setR(root, 'pq', rt(A[0]));
-      setR(root, 'ps', rt(A[1]));
-      setR(root, 'fq', A[0].falls + ' / ' + A[1].falls);
+      setReadout(root, 'ep', ep + (fin ? ' (stopped)' : ''));
+      setReadout(root, 'rq', av(agents[0]));
+      setReadout(root, 'rs', av(agents[1]));
+      setReadout(root, 'pq', rt(agents[0]));
+      setReadout(root, 'ps', rt(agents[1]));
+      setReadout(root, 'fq', agents[0].falls + ' / ' + agents[1].falls);
     };
     build();
-    if (RM) {
+    if (prefersReducedMotion) {
       while (!fin) stepBoth(true);
     }
     const anim = Anim(() => {
-      fr++;
+      frameCount++;
       if (fin) {
-        pb.stop();
+        playback.stop();
         return;
       }
-      if (S.sp === 1) {
-        if (fr % 20) return;
+      if (settings.sp === 1) {
+        if (frameCount % 20) return;
         stepBoth(false);
-      } else if (S.sp === 2) {
+      } else if (settings.sp === 2) {
         if (ep < 1) {
-          for (let i = 0; i < 3 && ep < 1 && chk.remaining() > 0; i++) stepBoth(false);
+          for (let i = 0; i < 3 && ep < 1 && checkRunStop.remaining() > 0; i++) stepBoth(false);
         } else {
           const e0 = ep;
           let k = 0;
-          while (ep === e0 && !fin && k++ < 2 * CAP && chk.remaining() > 0) stepBoth(true);
+          while (ep === e0 && !fin && k++ < 2 * CAP && checkRunStop.remaining() > 0) stepBoth(true);
         }
       } else {
         const e0 = ep;
         let k = 0;
-        while (ep < e0 + 5 && !fin && k++ < 12 * CAP && chk.remaining() > 0) stepBoth(true);
+        while (ep < e0 + 5 && !fin && k++ < 12 * CAP && checkRunStop.remaining() > 0)
+          stepBoth(true);
       }
       draw();
-      chk();
+      checkRunStop();
     });
-    pb = playBtn($('#sa-play', root), anim);
-    chk = runCtl(pb, root, 'sa', {
+    playback = playBtn($('#sa-play', root), anim);
+    checkRunStop = attachRunLimit(playback, root, 'sa', {
       done: () => fin,
       restart: () => build(),
       count: () => ep,
       what: 'episodes',
     });
     $('#sa-step', root).onclick = () => {
-      pb.stop();
+      playback.stop();
       if (fin) build();
       else stepBoth(false);
       draw();
     };
     $('#sa-reset', root).onclick = () => {
-      pb.stop();
+      playback.stop();
       build();
       draw();
     };
@@ -371,7 +374,7 @@ export default {
       root,
       'sa-ep2',
       (v) => {
-        S.eps = +v;
+        settings.eps = +v;
       },
       f2,
     );
@@ -379,7 +382,7 @@ export default {
       root,
       'sa-al',
       (v) => {
-        S.al = +v;
+        settings.al = +v;
       },
       f2,
     );
@@ -387,17 +390,17 @@ export default {
       root,
       'sa-sp',
       (v) => {
-        S.sp = +v;
+        settings.sp = +v;
       },
       (v) => ['', 'one step at a time', 'one episode per frame', 'five episodes per frame'][+v],
     );
     return {
       draw,
-      stop: () => pb.stop(),
+      stop: () => playback.stop(),
       auto: () => {
         build();
         draw();
-        pb.start();
+        playback.start();
       },
     };
   },

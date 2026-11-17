@@ -3,33 +3,33 @@ import {
   $,
   Anim,
   MONO,
-  RM,
-  T,
+  prefersReducedMotion,
+  readThemeColors,
   bind,
   clamp,
   clipPlot,
   f2,
-  fit,
+  prepareCanvas,
   markTP,
   mix,
   playBtn,
   plot,
-  runCtl,
-  setR,
+  attachRunLimit,
+  setReadout,
   testPoint,
 } from '../../../js/core/shared.js';
 import { ACT, NNet, sci } from '../shared.js';
-import { UC, uCur, uLine } from '../../unsupervised/shared.js';
+import { UC, highlightLessonStep, drawSeriesChart } from '../../unsupervised/shared.js';
 
 export default {
   init(root) {
-    const c = $('#ua-c', root),
+    const mainCanvas = $('#ua-c', root),
       cr = $('#ua-r', root),
       live = $('#ua-live', root),
       st = $('#ua-st', root),
-      S = { H: 5, act: 'tanh', tg: 'wave' },
+      settings = { H: 5, act: 'tanh', tg: 'wave' },
       NP = 100,
-      TG = {
+      targetFunctions = {
         wave: (x) => 0.8 * Math.sin(4.2 * x) + 0.3 * x,
         hill: (x) => 1.3 * Math.exp(-7 * x * x) - 0.5,
         step: (x) => (x < -0.5 ? -0.8 : x < 0 ? -0.1 : x < 0.5 ? 0.7 : 0.1),
@@ -38,47 +38,48 @@ export default {
             Math.min(9, Math.floor((x + 1) * 5))
           ],
       };
-    let Tg = new Float64Array(NP),
+    let targetSamples = new Float64Array(NP),
       net,
       ep = 0,
       LL = [],
       conv = false,
       msg = '',
-      cu = 0,
-      fr = 0,
-      pb,
-      chk = () => false,
+      activeStepIndex = 0,
+      frameCount = 0,
+      playback,
+      checkRunStop = () => false,
       run = 1,
       grow = false,
-      best = {},
+      bestLossByWidth = {},
       painting = false,
       lastI = -1;
     const xi = (i) => -1 + (2 * i) / (NP - 1),
       setT = () => {
-        if (S.tg !== 'own') for (let i = 0; i < NP; i++) Tg[i] = TG[S.tg](xi(i));
+        if (settings.tg !== 'own')
+          for (let i = 0; i < NP; i++) targetSamples[i] = targetFunctions[settings.tg](xi(i));
       };
     const build = () => {
-      net = NNet([1, S.H, 1], {
-        act: S.act,
+      net = NNet([1, settings.H, 1], {
+        act: settings.act,
         out: 'lin',
-        seed: run * 31 + S.H * 7,
-        scale: S.act === 'relu' ? 1.2 : 2.2,
+        seed: run * 31 + settings.H * 7,
+        scale: settings.act === 'relu' ? 1.2 : 2.2,
       });
-      for (let j = 0; j < S.H; j++) net.B[0][j] = (Math.random() - 0.5) * 3;
+      for (let j = 0; j < settings.H; j++) net.B[0][j] = (Math.random() - 0.5) * 3;
       ep = 0;
       LL = [];
       conv = false;
-      cu = 0;
+      activeStepIndex = 0;
       msg =
-        S.H +
+        settings.H +
         ' neuron' +
-        (S.H === 1 ? '' : 's') +
+        (settings.H === 1 ? '' : 's') +
         ' with random settings: the pieces are scattered and their sum looks nothing like the target. Press Train.';
     };
     const X = Array.from({ length: NP }, (_, i) => [xi(i) * 3]);
     const train = (k) => {
       for (let q = 0; q < k && !conv; q++) {
-        const l = 2 * net.train(X, Tg, 0.02).loss;
+        const l = 2 * net.train(X, targetSamples, 0.02).loss;
         ep++;
         LL.push(l);
         if (
@@ -88,15 +89,18 @@ export default {
           conv = true;
       }
       const l = LL[ep - 1];
-      best[S.H] = Math.min(best[S.H] == null ? 1e9 : best[S.H], l);
-      cu = conv ? 4 : 3;
+      bestLossByWidth[settings.H] = Math.min(
+        bestLossByWidth[settings.H] == null ? 1e9 : bestLossByWidth[settings.H],
+        l,
+      );
+      activeStepIndex = conv ? 4 : 3;
       msg =
         'Step ' +
         ep +
         ': the ' +
-        S.H +
+        settings.H +
         ' piece' +
-        (S.H === 1 ? '' : 's') +
+        (settings.H === 1 ? '' : 's') +
         ' shifted a little. Mean squared error ' +
         sci(l) +
         '.' +
@@ -104,9 +108,9 @@ export default {
           ? (ep >= 6000
               ? ' Reached the limit of 6000 steps.'
               : ' Converged: the error has stopped falling with ' +
-                S.H +
+                settings.H +
                 ' neuron' +
-                (S.H === 1 ? '' : 's') +
+                (settings.H === 1 ? '' : 's') +
                 '.') +
             (l > 0.004
               ? ' The fit is still rough: there are not enough pieces for this curve.'
@@ -114,58 +118,60 @@ export default {
           : '');
     };
     const draw = () => {
-      const t = T(),
-        col = UC(t);
+      const colors = readThemeColors(),
+        col = UC(colors);
       {
-        const { g, w, h } = fit(c),
-          P = plot(g, w, h, [-1, 1], [-1.6, 1.6], t, {
+        const { g: ctx, w, h } = prepareCanvas(mainCanvas),
+          P = plot(ctx, w, h, [-1, 1], [-1.6, 1.6], colors, {
             xstep: 0.5,
             yticks: [-1, 0, 1],
             xlabel: 'x',
           });
-        clipPlot(g, P);
-        const f = ACT[S.act][0];
-        for (let j = 0; j < S.H; j++) {
-          g.strokeStyle = mix(col[j % 8], col[j % 8], 0, 0.75);
-          g.lineWidth = 1.3;
-          g.beginPath();
+        clipPlot(ctx, P);
+        const f = ACT[settings.act][0];
+        for (let j = 0; j < settings.H; j++) {
+          ctx.strokeStyle = mix(col[j % 8], col[j % 8], 0, 0.75);
+          ctx.lineWidth = 1.3;
+          ctx.beginPath();
           for (let i = 0; i < NP; i++) {
             const v = net.W[1][0][j] * f(net.W[0][j][0] * xi(i) * 3 + net.B[0][j]);
-            i ? g.lineTo(P.X(xi(i)), P.Y(v)) : g.moveTo(P.X(xi(i)), P.Y(v));
+            i ? ctx.lineTo(P.X(xi(i)), P.Y(v)) : ctx.moveTo(P.X(xi(i)), P.Y(v));
           }
-          g.stroke();
+          ctx.stroke();
         }
-        g.setLineDash([7, 5]);
-        g.strokeStyle = t.ink;
-        g.lineWidth = 2;
-        g.beginPath();
+        ctx.setLineDash([7, 5]);
+        ctx.strokeStyle = colors.ink;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
         for (let i = 0; i < NP; i++)
-          i ? g.lineTo(P.X(xi(i)), P.Y(Tg[i])) : g.moveTo(P.X(xi(i)), P.Y(Tg[i]));
-        g.stroke();
-        g.setLineDash([]);
-        g.strokeStyle = t.gold;
-        g.lineWidth = 3.4;
-        g.beginPath();
+          i
+            ? ctx.lineTo(P.X(xi(i)), P.Y(targetSamples[i]))
+            : ctx.moveTo(P.X(xi(i)), P.Y(targetSamples[i]));
+        ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.strokeStyle = colors.gold;
+        ctx.lineWidth = 3.4;
+        ctx.beginPath();
         for (let i = 0; i < NP; i++) {
-          const v = net.p(X[i]);
-          i ? g.lineTo(P.X(xi(i)), P.Y(v)) : g.moveTo(P.X(xi(i)), P.Y(v));
+          const v = net.predictScalar(X[i]);
+          i ? ctx.lineTo(P.X(xi(i)), P.Y(v)) : ctx.moveTo(P.X(xi(i)), P.Y(v));
         }
-        g.stroke();
+        ctx.stroke();
         {
           const x = tp.v[0],
-            v = net.p([x * 3]);
-          markTP(g, P.X(x), P.Y(v), t);
+            v = net.predictScalar([x * 3]);
+          markTP(ctx, P.X(x), P.Y(v), colors);
         }
-        g.restore();
-        c._P = P;
+        ctx.restore();
+        mainCanvas._P = P;
       }
       {
-        const { g, w, h } = fit(cr),
+        const { g: ctx, w, h } = prepareCanvas(cr),
           h1 = h * 0.5;
         const lo = LL.length ? Math.min(...LL) : 0;
-        uLine(
-          g,
-          t,
+        drawSeriesChart(
+          ctx,
+          colors,
           0,
           0,
           w,
@@ -176,56 +182,56 @@ export default {
             n: Math.max(100, LL.length),
             y1: Math.min(-3, Math.floor(Math.log10(lo + 1e-9))),
             ym: 0.5,
-            col: t.ok,
+            col: colors.ok,
           },
         );
         const m = { l: 44, r: 12, t: 22, b: 22 },
           bw = (w - m.l - m.r) / 24,
           Y = (v) =>
             h - m.b - ((clamp(Math.log10(v + 1e-9), -4, 0) + 4) / 4) * (h - h1 - m.t - m.b);
-        g.font = MONO;
-        g.fillStyle = t.muted;
-        g.textAlign = 'left';
-        g.fillText('best error reached with each number of neurons', 8, h1 + 13);
-        g.textAlign = 'right';
-        g.fillText('1', m.l - 5, Y(1) + 4);
-        g.fillText('10^-4', m.l - 5, Y(1e-4) + 4);
-        g.strokeStyle = t.muted;
-        g.lineWidth = 1;
-        g.beginPath();
-        g.moveTo(m.l, h - m.b);
-        g.lineTo(w - m.r, h - m.b);
-        g.stroke();
+        ctx.font = MONO;
+        ctx.fillStyle = colors.muted;
+        ctx.textAlign = 'left';
+        ctx.fillText('best error reached with each number of neurons', 8, h1 + 13);
+        ctx.textAlign = 'right';
+        ctx.fillText('1', m.l - 5, Y(1) + 4);
+        ctx.fillText('10^-4', m.l - 5, Y(1e-4) + 4);
+        ctx.strokeStyle = colors.muted;
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(m.l, h - m.b);
+        ctx.lineTo(w - m.r, h - m.b);
+        ctx.stroke();
         for (let k = 1; k <= 24; k++) {
           const x = m.l + (k - 1) * bw + bw * 0.15;
-          if (best[k] != null) {
-            g.fillStyle = k === S.H ? t.gold : t.accent;
-            g.fillRect(x, Y(best[k]), bw * 0.7, h - m.b - Y(best[k]));
+          if (bestLossByWidth[k] != null) {
+            ctx.fillStyle = k === settings.H ? colors.gold : colors.accent;
+            ctx.fillRect(x, Y(bestLossByWidth[k]), bw * 0.7, h - m.b - Y(bestLossByWidth[k]));
           }
           if (k % 2 === 1) {
-            g.fillStyle = t.muted;
-            g.textAlign = 'center';
-            g.fillText(String(k), x + bw * 0.35, h - m.b + 14);
+            ctx.fillStyle = colors.muted;
+            ctx.textAlign = 'center';
+            ctx.fillText(String(k), x + bw * 0.35, h - m.b + 14);
           }
         }
       }
       live.textContent = msg;
-      uCur(root, 'ua', cu);
+      highlightLessonStep(root, 'ua', activeStepIndex);
       const x = tp.v[0],
         gi = Math.round(((x + 1) / 2) * (NP - 1));
       tp.out.textContent =
         'At x = ' +
         f2(x) +
         ' the network outputs ' +
-        f2(net.p([x * 3])) +
+        f2(net.predictScalar([x * 3])) +
         ' and the target is ' +
-        f2(Tg[gi]) +
+        f2(targetSamples[gi]) +
         '.';
-      setR(root, 'H', String(S.H));
-      setR(root, 'np', String(3 * S.H + 1));
-      setR(root, 'ep', String(ep));
-      setR(root, 'L', LL.length ? sci(LL[ep - 1]) : '–');
-      setR(
+      setReadout(root, 'H', String(settings.H));
+      setReadout(root, 'np', String(3 * settings.H + 1));
+      setReadout(root, 'ep', String(ep));
+      setReadout(root, 'L', LL.length ? sci(LL[ep - 1]) : '–');
+      setReadout(
         root,
         'st',
         grow ? 'Adding neurons' : conv ? 'Converged' : ep ? 'Training' : 'Not started',
@@ -235,29 +241,29 @@ export default {
     tp.on = () => draw();
     setT();
     build();
-    if (RM) train(6000);
+    if (prefersReducedMotion) train(6000);
     const anim = Anim(() => {
-      fr++;
-      if (ep < 40 && fr % 4) return;
-      train(Math.min(ep < 40 ? 2 : ep < 400 ? 4 : 10, chk.remaining()));
+      frameCount++;
+      if (ep < 40 && frameCount % 4) return;
+      train(Math.min(ep < 40 ? 2 : ep < 400 ? 4 : 10, checkRunStop.remaining()));
       if (conv && grow) {
-        if (S.H < 12 && LL[ep - 1] > 3e-4) {
-          S.H++;
-          hb.set(S.H);
+        if (settings.H < 12 && LL[ep - 1] > 3e-4) {
+          settings.H++;
+          hb.set(settings.H);
           run++;
-          chk.rebase(0);
+          checkRunStop.rebase(0);
           build();
-          msg = 'Added a neuron: now ' + S.H + '. Training again from a fresh random start.';
+          msg = 'Added a neuron: now ' + settings.H + '. Training again from a fresh random start.';
         } else {
           grow = false;
-          msg += ' Stopped adding neurons at ' + S.H + '.';
+          msg += ' Stopped adding neurons at ' + settings.H + '.';
         }
       }
       draw();
-      chk();
+      checkRunStop();
     });
-    pb = playBtn($('#ua-play', root), anim);
-    chk = runCtl(pb, root, 'ua', {
+    playback = playBtn($('#ua-play', root), anim);
+    checkRunStop = attachRunLimit(playback, root, 'ua', {
       done: () => conv && !grow,
       restart: () => {
         run++;
@@ -267,14 +273,14 @@ export default {
       what: 'steps',
     });
     const redo = () => {
-      pb.stop();
+      playback.stop();
       grow = false;
       run++;
       build();
       draw();
     };
     $('#ua-step', root).onclick = () => {
-      pb.stop();
+      playback.stop();
       grow = false;
       if (conv) {
         run++;
@@ -284,41 +290,41 @@ export default {
     };
     $('#ua-reset', root).onclick = redo;
     $('#ua-grow', root).onclick = () => {
-      pb.stop();
-      best = {};
-      S.H = 1;
+      playback.stop();
+      bestLossByWidth = {};
+      settings.H = 1;
       hb.set(1);
       run++;
       build();
       grow = true;
-      pb.start();
+      playback.start();
     };
     const hb = bind(
       root,
       'ua-H',
       (v) => {
-        S.H = v;
+        settings.H = v;
         redo();
       },
       (v) => String(v),
     );
     $('#ua-act', root).onchange = (e) => {
-      S.act = e.target.value;
-      best = {};
+      settings.act = e.target.value;
+      bestLossByWidth = {};
       redo();
     };
     $('#ua-tg', root).onchange = (e) => {
-      S.tg = e.target.value;
-      best = {};
-      if (S.tg === 'own') st.textContent = 'Drag across the left picture to draw the curve.';
+      settings.tg = e.target.value;
+      bestLossByWidth = {};
+      if (settings.tg === 'own') st.textContent = 'Drag across the left picture to draw the curve.';
       else st.textContent = '';
       setT();
       redo();
     };
     const paint = (e) => {
-      const P = c._P;
+      const P = mainCanvas._P;
       if (!P) return;
-      const r = c.getBoundingClientRect(),
+      const r = mainCanvas.getBoundingClientRect(),
         x = clamp(((e.clientX - r.left - P.m.l) / (P.w - P.m.l - P.m.r)) * 2 - 1, -1, 1),
         y = clamp(
           -((e.clientY - r.top - (P.h - P.m.b)) / (P.h - P.m.t - P.m.b)) * 3.2 - 1.6,
@@ -329,35 +335,36 @@ export default {
       if (lastI >= 0 && lastI !== i) {
         const a = Math.min(i, lastI),
           b = Math.max(i, lastI),
-          ya = Tg[lastI];
+          ya = targetSamples[lastI];
         for (let q = a; q <= b; q++)
-          Tg[q] = ya + (y - ya) * (i === lastI ? 1 : Math.abs(q - lastI) / Math.abs(i - lastI));
-      } else Tg[i] = y;
+          targetSamples[q] =
+            ya + (y - ya) * (i === lastI ? 1 : Math.abs(q - lastI) / Math.abs(i - lastI));
+      } else targetSamples[i] = y;
       lastI = i;
     };
-    c.style.touchAction = 'none';
-    c.addEventListener('pointerdown', (e) => {
-      pb.stop();
+    mainCanvas.style.touchAction = 'none';
+    mainCanvas.addEventListener('pointerdown', (e) => {
+      playback.stop();
       grow = false;
       painting = true;
       lastI = -1;
-      S.tg = 'own';
+      settings.tg = 'own';
       $('#ua-tg', root).value = 'own';
       st.textContent = 'Your own curve. Press Train, or Add Neurons One at a Time.';
-      c.setPointerCapture(e.pointerId);
+      mainCanvas.setPointerCapture(e.pointerId);
       paint(e);
       draw();
     });
-    c.addEventListener('pointermove', (e) => {
+    mainCanvas.addEventListener('pointermove', (e) => {
       if (!painting) return;
       paint(e);
       draw();
     });
     ['pointerup', 'pointercancel'].forEach((n) =>
-      c.addEventListener(n, () => {
+      mainCanvas.addEventListener(n, () => {
         if (painting) {
           painting = false;
-          best = {};
+          bestLossByWidth = {};
           run++;
           build();
           draw();
@@ -367,14 +374,14 @@ export default {
     return {
       draw,
       stop: () => {
-        pb.stop();
+        playback.stop();
         grow = false;
       },
       auto: () => {
         run++;
         build();
         draw();
-        pb.start();
+        playback.start();
       },
     };
   },

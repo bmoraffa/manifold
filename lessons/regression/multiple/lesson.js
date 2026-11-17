@@ -4,60 +4,66 @@ import {
   Anim,
   MONO,
   SANS,
-  T,
+  readThemeColors,
   bind,
   clamp,
   f2,
   f3,
-  fit,
+  prepareCanvas,
   markTP,
   mix,
   playBtn,
   ramp,
   randnFrom,
   rng,
-  setR,
+  setReadout,
   testPoint,
 } from '../../../js/core/shared.js';
-import { Orbit, dot, fpval, lsq, pfmt } from '../shared.js';
+import { Orbit, dot, fTestPValue, lsq, formatPValue } from '../shared.js';
 
 export default {
   init(root) {
-    const c = $('#mr-c', root),
-      ce = $('#mr-e', root),
-      S = { b: [0.5, 1.2, -0.8], noise: 0.8, r: 0, n: 60, res: true };
+    const mainCanvas = $('#mr-c', root),
+      coefficientCanvas = $('#mr-e', root),
+      settings = { b: [0.5, 1.2, -0.8], noise: 0.8, r: 0, n: 60, res: true };
     let seed = 5,
       X = [],
       y = [],
       beta = [0, 0, 0],
       ym = 0,
-      u = 0,
+      fitAnimationProgress = 0,
       wait = 0,
-      sim = [],
-      pb,
+      simulatedSlopePairs = [],
+      playback,
       draw;
-    const orb = Orbit(c, () => draw(), $('.viewbar', root));
+    const orb = Orbit(mainCanvas, () => draw(), $('.viewbar', root));
     const gen = () => {
       const r = rng(seed),
         rn = randnFrom(r),
-        q = Math.sqrt(1 - S.r * S.r);
+        q = Math.sqrt(1 - settings.r * settings.r);
       X = [];
       y = [];
-      for (let i = 0; i < S.n; i++) {
+      for (let i = 0; i < settings.n; i++) {
         const a = clamp(rn(), -2.4, 2.4),
-          b = clamp(S.r * a + q * rn(), -2.4, 2.4);
+          b = clamp(settings.r * a + q * rn(), -2.4, 2.4);
         X.push([1, a, b]);
-        y.push(S.b[0] + S.b[1] * a + S.b[2] * b + S.noise * rn());
+        y.push(settings.b[0] + settings.b[1] * a + settings.b[2] * b + settings.noise * rn());
       }
       beta = lsq(X, y, 1e-9);
       ym = y.reduce((s, v) => s + v, 0) / y.length;
       const r2 = rng(77),
         rn2 = randnFrom(r2);
-      sim = [];
+      simulatedSlopePairs = [];
       for (let k = 0; k < 200; k++) {
-        const yy = X.map((row) => S.b[0] + S.b[1] * row[1] + S.b[2] * row[2] + S.noise * rn2());
+        const yy = X.map(
+          (row) =>
+            settings.b[0] +
+            settings.b[1] * row[1] +
+            settings.b[2] * row[2] +
+            settings.noise * rn2(),
+        );
         const bb = lsq(X, yy, 1e-9);
-        sim.push([bb[1], bb[2]]);
+        simulatedSlopePairs.push([bb[1], bb[2]]);
       }
     };
     gen();
@@ -73,26 +79,29 @@ export default {
     );
     tp.on = () => draw();
     draw = () => {
-      const t = T(),
-        e = u < 0.5 ? 2 * u * u : 1 - 2 * (1 - u) * (1 - u),
+      const colors = readThemeColors(),
+        e =
+          fitAnimationProgress < 0.5
+            ? 2 * fitAnimationProgress * fitAnimationProgress
+            : 1 - 2 * (1 - fitAnimationProgress) * (1 - fitAnimationProgress),
         cb = [ym + (beta[0] - ym) * e, beta[1] * e, beta[2] * e],
         ZS = 0.42;
       {
-        const { g, w, h } = fit(c),
+        const { g: ctx, w, h } = prepareCanvas(mainCanvas),
           pr = orb.cam(w, h, 5.6),
           R = 2.5,
           pl = (a, b) => clamp((cb[0] + cb[1] * a + cb[2] * b) * ZS, -3.2, 3.2),
           path = (ps) => {
-            g.beginPath();
-            ps.forEach((p, i) => (i ? g.lineTo(p[0], p[1]) : g.moveTo(p[0], p[1])));
+            ctx.beginPath();
+            ps.forEach((p, i) => (i ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1])));
           };
-        g.strokeStyle = t.line;
-        g.lineWidth = 1;
+        ctx.strokeStyle = colors.line;
+        ctx.lineWidth = 1;
         for (let k = -2; k <= 2; k++) {
           path([pr(k * 1.25, -R, -2), pr(k * 1.25, R, -2)]);
-          g.stroke();
+          ctx.stroke();
           path([pr(-R, k * 1.25, -2), pr(R, k * 1.25, -2)]);
-          g.stroke();
+          ctx.stroke();
         }
         const N = 10,
           Q = [];
@@ -113,12 +122,12 @@ export default {
         Q.sort((a, b) => b.d - a.d);
         for (const o of Q) {
           path(o.ps);
-          g.closePath();
-          g.fillStyle = ramp(t, clamp(0.5 + o.z / 5, 0, 1), 0.42);
-          g.fill();
-          g.strokeStyle = mix(t.ink, t.ink, 0, 0.14);
-          g.lineWidth = 0.7;
-          g.stroke();
+          ctx.closePath();
+          ctx.fillStyle = ramp(colors, clamp(0.5 + o.z / 5, 0, 1), 0.42);
+          ctx.fill();
+          ctx.strokeStyle = mix(colors.ink, colors.ink, 0, 0.14);
+          ctx.lineWidth = 0.7;
+          ctx.stroke();
         }
         const D = X.map((row, i) => {
           const z = clamp(y[i] * ZS, -3.4, 3.4),
@@ -128,99 +137,99 @@ export default {
         });
         D.sort((a, b) => b.p[2] - a.p[2]);
         for (const o of D) {
-          if (S.res) {
-            g.strokeStyle = mix(t.ok, t.ok, 0, 0.7);
-            g.lineWidth = 1.2;
+          if (settings.res) {
+            ctx.strokeStyle = mix(colors.ok, colors.ok, 0, 0.7);
+            ctx.lineWidth = 1.2;
             path([o.p, o.q]);
-            g.stroke();
+            ctx.stroke();
           }
-          g.fillStyle = o.up ? t.accent : mix(t.accent, t.bg, 0.45);
-          g.beginPath();
-          g.arc(o.p[0], o.p[1], 3.8, 0, 7);
-          g.fill();
+          ctx.fillStyle = o.up ? colors.accent : mix(colors.accent, colors.bg, 0.45);
+          ctx.beginPath();
+          ctx.arc(o.p[0], o.p[1], 3.8, 0, 7);
+          ctx.fill();
         }
         {
           const q0 = pr(tp.v[0], tp.v[1], -2),
             q1 = pr(tp.v[0], tp.v[1], pl(tp.v[0], tp.v[1]));
-          g.strokeStyle = t.ink;
-          g.lineWidth = 1.6;
-          g.setLineDash([3, 3]);
+          ctx.strokeStyle = colors.ink;
+          ctx.lineWidth = 1.6;
+          ctx.setLineDash([3, 3]);
           path([q0, q1]);
-          g.stroke();
-          g.setLineDash([]);
-          markTP(g, q1[0], q1[1], t);
+          ctx.stroke();
+          ctx.setLineDash([]);
+          markTP(ctx, q1[0], q1[1], colors);
         }
-        g.font = SANS;
-        g.fillStyle = t.ink;
-        g.textAlign = 'center';
+        ctx.font = SANS;
+        ctx.fillStyle = colors.ink;
+        ctx.textAlign = 'center';
         let a = pr(0, -R * 1.18, -2);
-        g.fillText('x₁', a[0], a[1]);
+        ctx.fillText('x₁', a[0], a[1]);
         a = pr(-R * 1.18, 0, -2);
-        g.fillText('x₂', a[0], a[1]);
+        ctx.fillText('x₂', a[0], a[1]);
         a = pr(-R, -R, 2.4);
-        g.fillText('y', a[0], a[1]);
+        ctx.fillText('y', a[0], a[1]);
       }
       {
-        const { g, w, h } = fit(ce),
+        const { g: ctx, w, h } = prepareCanvas(coefficientCanvas),
           m = { l: 40, r: 10, t: 10, b: 30 },
           LR = [-3, 3],
           Xf = (v) => m.l + ((v - LR[0]) / 6) * (w - m.l - m.r),
           Yf = (v) => h - m.b - ((v - LR[0]) / 6) * (h - m.t - m.b);
-        g.strokeStyle = t.line;
-        g.lineWidth = 1;
-        g.font = MONO;
-        g.fillStyle = t.muted;
+        ctx.strokeStyle = colors.line;
+        ctx.lineWidth = 1;
+        ctx.font = MONO;
+        ctx.fillStyle = colors.muted;
         for (let v = -3; v <= 3; v++) {
-          g.beginPath();
-          g.moveTo(Xf(v), m.t);
-          g.lineTo(Xf(v), h - m.b);
-          g.moveTo(m.l, Yf(v));
-          g.lineTo(w - m.r, Yf(v));
-          g.stroke();
-          g.textAlign = 'center';
-          g.fillText(String(v), Xf(v), h - m.b + 14);
-          g.textAlign = 'right';
-          g.fillText(String(v), m.l - 6, Yf(v) + 4);
+          ctx.beginPath();
+          ctx.moveTo(Xf(v), m.t);
+          ctx.lineTo(Xf(v), h - m.b);
+          ctx.moveTo(m.l, Yf(v));
+          ctx.lineTo(w - m.r, Yf(v));
+          ctx.stroke();
+          ctx.textAlign = 'center';
+          ctx.fillText(String(v), Xf(v), h - m.b + 14);
+          ctx.textAlign = 'right';
+          ctx.fillText(String(v), m.l - 6, Yf(v) + 4);
         }
-        g.textAlign = 'center';
-        g.fillText('estimated slope for x₁', w / 2 + m.l / 2, h - 3);
-        g.save();
-        g.translate(11, h / 2);
-        g.rotate(-Math.PI / 2);
-        g.fillText('estimated slope for x₂', 0, 0);
-        g.restore();
-        g.save();
-        g.beginPath();
-        g.rect(m.l, m.t, w - m.l - m.r, h - m.t - m.b);
-        g.clip();
-        g.fillStyle = mix(t.accent, t.accent, 0, 0.55);
-        for (const s of sim) {
-          g.beginPath();
-          g.arc(Xf(s[0]), Yf(s[1]), 2.4, 0, 7);
-          g.fill();
+        ctx.textAlign = 'center';
+        ctx.fillText('estimated slope for x₁', w / 2 + m.l / 2, h - 3);
+        ctx.save();
+        ctx.translate(11, h / 2);
+        ctx.rotate(-Math.PI / 2);
+        ctx.fillText('estimated slope for x₂', 0, 0);
+        ctx.restore();
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(m.l, m.t, w - m.l - m.r, h - m.t - m.b);
+        ctx.clip();
+        ctx.fillStyle = mix(colors.accent, colors.accent, 0, 0.55);
+        for (const s of simulatedSlopePairs) {
+          ctx.beginPath();
+          ctx.arc(Xf(s[0]), Yf(s[1]), 2.4, 0, 7);
+          ctx.fill();
         }
-        const tx = Xf(S.b[1]),
-          ty = Yf(S.b[2]);
-        g.strokeStyle = t.ink;
-        g.lineWidth = 2;
-        g.beginPath();
-        g.moveTo(tx - 8, ty);
-        g.lineTo(tx + 8, ty);
-        g.moveTo(tx, ty - 8);
-        g.lineTo(tx, ty + 8);
-        g.stroke();
-        g.fillStyle = t.gold;
-        g.strokeStyle = t.bg;
-        g.beginPath();
-        g.arc(Xf(beta[1]), Yf(beta[2]), 7, 0, 7);
-        g.fill();
-        g.stroke();
-        g.restore();
-        g.textAlign = 'left';
-        g.fillStyle = t.ink;
-        g.fillText('+ truth', m.l + 8, m.t + 12);
-        g.fillStyle = t.cut;
-        g.fillText('● this sample', m.l + 8, m.t + 27);
+        const tx = Xf(settings.b[1]),
+          ty = Yf(settings.b[2]);
+        ctx.strokeStyle = colors.ink;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(tx - 8, ty);
+        ctx.lineTo(tx + 8, ty);
+        ctx.moveTo(tx, ty - 8);
+        ctx.lineTo(tx, ty + 8);
+        ctx.stroke();
+        ctx.fillStyle = colors.gold;
+        ctx.strokeStyle = colors.bg;
+        ctx.beginPath();
+        ctx.arc(Xf(beta[1]), Yf(beta[2]), 7, 0, 7);
+        ctx.fill();
+        ctx.stroke();
+        ctx.restore();
+        ctx.textAlign = 'left';
+        ctx.fillStyle = colors.ink;
+        ctx.fillText('+ truth', m.l + 8, m.t + 12);
+        ctx.fillStyle = colors.cut;
+        ctx.fillText('● this sample', m.l + 8, m.t + 27);
       }
       const n = y.length,
         p = 2;
@@ -263,27 +272,27 @@ export default {
         ') = ' +
         f2(dot(beta, [1, tp.v[0], tp.v[1]])) +
         '.';
-      setR(root, 'b', f2(beta[0]) + ', ' + f2(beta[1]) + ', ' + f2(beta[2]));
-      setR(root, 'r2', f3(r2));
-      setR(root, 'ar2', f3(1 - ((1 - r2) * (n - 1)) / (n - p - 1)));
-      setR(root, 'f', isFinite(F) ? F.toFixed(1) : '∞');
-      setR(root, 'p', isFinite(F) ? pfmt(fpval(F, p, n - p - 1)) : '< 0.0001');
-      setR(root, 'vif', (1 / (1 - rr * rr)).toFixed(2));
+      setReadout(root, 'b', f2(beta[0]) + ', ' + f2(beta[1]) + ', ' + f2(beta[2]));
+      setReadout(root, 'r2', f3(r2));
+      setReadout(root, 'ar2', f3(1 - ((1 - r2) * (n - 1)) / (n - p - 1)));
+      setReadout(root, 'f', isFinite(F) ? F.toFixed(1) : '∞');
+      setReadout(root, 'p', isFinite(F) ? formatPValue(fTestPValue(F, p, n - p - 1)) : '< 0.0001');
+      setReadout(root, 'vif', (1 / (1 - rr * rr)).toFixed(2));
     };
     const anim = Anim(() => {
       if (wait > 0) {
         wait--;
-        if (!wait) u = 0;
+        if (!wait) fitAnimationProgress = 0;
         return;
       }
-      u = Math.min(1, u + 0.012);
-      if (u >= 1) wait = 200;
+      fitAnimationProgress = Math.min(1, fitAnimationProgress + 0.012);
+      if (fitAnimationProgress >= 1) wait = 200;
       draw();
     });
-    pb = playBtn($('#mr-play', root), anim);
+    playback = playBtn($('#mr-play', root), anim);
     $('#mr-play', root).addEventListener('click', () => {
-      if (anim.on && u >= 1) {
-        u = 0;
+      if (anim.on && fitAnimationProgress >= 1) {
+        fitAnimationProgress = 0;
         wait = 0;
       }
     });
@@ -292,49 +301,49 @@ export default {
       draw();
     };
     bind(root, 'mr-b1', (v) => {
-      S.b[1] = v;
+      settings.b[1] = v;
       re();
     });
     bind(root, 'mr-b2', (v) => {
-      S.b[2] = v;
+      settings.b[2] = v;
       re();
     });
     bind(root, 'mr-s', (v) => {
-      S.noise = v;
+      settings.noise = v;
       re();
     });
     bind(root, 'mr-r', (v) => {
-      S.r = v;
+      settings.r = v;
       re();
     });
     bind(
       root,
       'mr-n',
       (v) => {
-        S.n = v;
+        settings.n = v;
         re();
       },
       (v) => String(v),
     );
     $('#mr-new', root).onclick = () => {
       seed++;
-      u = 0;
+      fitAnimationProgress = 0;
       wait = 0;
       re();
-      pb.start();
+      playback.start();
     };
     $('#mr-res', root).onchange = (e) => {
-      S.res = e.target.checked;
+      settings.res = e.target.checked;
       draw();
     };
     return {
       draw,
       stop() {
-        pb.stop();
+        playback.stop();
         orb.spin(false);
       },
       auto() {
-        pb.start();
+        playback.start();
         orb.spin(true);
       },
     };

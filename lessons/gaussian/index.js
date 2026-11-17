@@ -1,7 +1,7 @@
 /* Manifold. © 2026 Bahman Moraffah. All rights reserved. */
 export default {
   id: 'gaussian',
-  t: 'The Gaussian',
+  title: 'The Gaussian',
   lessons: [
     {
       id: 'galton',

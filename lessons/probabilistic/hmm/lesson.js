@@ -3,50 +3,50 @@ import {
   $,
   Anim,
   MONO,
-  RM,
-  T,
+  prefersReducedMotion,
+  readThemeColors,
   bind,
   eqShow,
   f2,
   f3,
-  fit,
+  prepareCanvas,
   mix,
   playBtn,
-  runCtl,
-  setR,
+  attachRunLimit,
+  setReadout,
 } from '../../../js/core/shared.js';
 import { gwClick } from '../../reinforcement/shared.js';
 import { pct } from '../../ensembles/shared.js';
-import { segBind, uCur, uLine } from '../../unsupervised/shared.js';
+import { segBind, highlightLessonStep, drawSeriesChart } from '../../unsupervised/shared.js';
 
 export default {
   init(root) {
-    const c = $('#hm-c', root),
+    const mainCanvas = $('#hm-c', root),
       cr = $('#hm-r', root),
       live = $('#hm-live', root),
       eq = $('#hm-eq', root),
-      S = { v: 'fwd', st: 0.8, em: 1, show: false },
+      settings = { v: 'fwd', st: 0.8, em: 1, show: false },
       TT = 14,
       ON = ['walk', 'shop', 'clean'],
       SN = ['sunny', 'rainy'];
     let Z = [],
       X = [],
       AL = [],
-      PRD = [],
-      DE = [],
+      predictedStateProbs = [],
+      viterbiScores = [],
       BP = [],
-      SM = [],
+      smoothedStateProbs = [],
       VP = [],
       t = 0,
       ll = 0,
       msg = '',
-      cu = 0,
-      fr = 0,
-      pb,
+      activeStepIndex = 0,
+      frameCount = 0,
+      playback,
       fin = false,
       P = null;
     const Bm = () => {
-        const e = S.em,
+        const e = settings.em,
           u = 1 / 3;
         return [
           [u + e * (0.6 - u), u + e * (0.3 - u), u + e * (0.1 - u)],
@@ -54,8 +54,8 @@ export default {
         ];
       },
       A = () => [
-        [S.st, 1 - S.st],
-        [1 - S.st, S.st],
+        [settings.st, 1 - settings.st],
+        [1 - settings.st, settings.st],
       ];
     const gen = () => {
       const a = A(),
@@ -102,15 +102,15 @@ export default {
     };
     const reset = () => {
       AL = [];
-      PRD = [];
-      DE = [];
+      predictedStateProbs = [];
+      viterbiScores = [];
       BP = [];
       VP = [];
       t = 0;
       ll = 0;
       fin = false;
-      cu = 0;
-      SM = smooth();
+      activeStepIndex = 0;
+      smoothedStateProbs = smooth();
       msg =
         'Fourteen evenings of reports are in the top row. Nothing has been worked out yet. Press One day or Run.';
       eqShow(eq, ['No days processed yet.'], 0);
@@ -133,10 +133,10 @@ export default {
           pr = t ? [p[0] * a[0][0] + p[1] * a[1][0], p[0] * a[0][1] + p[1] * a[1][1]] : [0.5, 0.5],
           u = [pr[0] * b[0][x], pr[1] * b[1][x]],
           s = u[0] + u[1];
-        PRD.push(pr);
+        predictedStateProbs.push(pr);
         AL.push([u[0] / s, u[1] / s]);
         ll += Math.log(s);
-        if (S.v === 'fwd') {
+        if (settings.v === 'fwd') {
           L.push(
             t
               ? 'predict: P(sunny today) = ' +
@@ -178,7 +178,7 @@ export default {
               f3(u[1] / s) +
               '</b>',
           );
-          cu = t ? 2 : 0;
+          activeStepIndex = t ? 2 : 0;
           msg =
             'Day ' +
             d +
@@ -195,7 +195,7 @@ export default {
         }
       }
       {
-        const p = t ? DE[t - 1] : null,
+        const p = t ? viterbiScores[t - 1] : null,
           de = [0, 0],
           bp = [0, 0];
         for (let j = 0; j < 2; j++) {
@@ -210,9 +210,9 @@ export default {
           }
         }
         const s = de[0] + de[1];
-        DE.push([de[0] / s, de[1] / s]);
+        viterbiScores.push([de[0] / s, de[1] / s]);
         BP.push(bp);
-        if (S.v === 'vit') {
+        if (settings.v === 'vit') {
           if (t)
             for (let j = 0; j < 2; j++)
               L.push(
@@ -244,7 +244,7 @@ export default {
                 f2(b[1][x]),
             );
           L.push('scores, rescaled:  sunny ' + f3(de[0] / s) + '   rainy ' + f3(de[1] / s));
-          cu = 4;
+          activeStepIndex = 4;
           msg =
             'Day ' +
             d +
@@ -256,15 +256,15 @@ export default {
       t++;
       if (t >= TT) {
         fin = true;
-        let j = DE[TT - 1][0] >= DE[TT - 1][1] ? 0 : 1;
+        let j = viterbiScores[TT - 1][0] >= viterbiScores[TT - 1][1] ? 0 : 1;
         VP = new Array(TT);
         for (let i = TT - 1; i >= 0; i--) {
           VP[i] = j;
           j = BP[i][j];
         }
         const ok = acc();
-        cu = S.v === 'vit' ? 5 : 3;
-        if (S.v === 'vit')
+        activeStepIndex = settings.v === 'vit' ? 5 : 3;
+        if (settings.v === 'vit')
           L.push(
             'Last day reached. The better ending is ' +
               SN[VP[TT - 1]] +
@@ -272,7 +272,7 @@ export default {
           );
         msg +=
           ' The fortnight is finished. ' +
-          (S.v === 'vit'
+          (settings.v === 'vit'
             ? 'The single best story gets ' + ok[2] + ' of ' + TT + ' days right.'
             : 'Judging each day as it came, the model gets ' +
               ok[0] +
@@ -291,15 +291,15 @@ export default {
         v = 0;
       for (let i = 0; i < TT; i++) {
         if (AL[i] && (AL[i][1] > 0.5 ? 1 : 0) === Z[i]) f++;
-        if ((SM[i][1] > 0.5 ? 1 : 0) === Z[i]) s++;
+        if ((smoothedStateProbs[i][1] > 0.5 ? 1 : 0) === Z[i]) s++;
         if (VP.length && VP[i] === Z[i]) v++;
       }
       return [f, s, v];
     };
     const draw = () => {
-      const tt = T();
+      const tt = readThemeColors();
       {
-        const { g, w, h } = fit(c),
+        const { g: ctx, w, h } = prepareCanvas(mainCanvas),
           m = 58,
           cw = (w - m - 10) / TT,
           yo = 34,
@@ -307,85 +307,85 @@ export default {
           R = Math.min(cw * 0.4, 26),
           fam = MONO.split('px ')[1];
         P = { m, cw, yo };
-        g.font = MONO;
-        g.textAlign = 'right';
-        g.fillStyle = tt.muted;
-        g.fillText('she did', m - 8, yo + 4);
-        g.fillText('sunny', m - 8, ys[0] + 4);
-        g.fillText('rainy', m - 8, ys[1] + 4);
-        if (S.show) g.fillText('truth', m - 8, h * 0.86 + 4);
+        ctx.font = MONO;
+        ctx.textAlign = 'right';
+        ctx.fillStyle = tt.muted;
+        ctx.fillText('she did', m - 8, yo + 4);
+        ctx.fillText('sunny', m - 8, ys[0] + 4);
+        ctx.fillText('rainy', m - 8, ys[1] + 4);
+        if (settings.show) ctx.fillText('truth', m - 8, h * 0.86 + 4);
         for (let i = 0; i < TT; i++) {
           const cx = m + (i + 0.5) * cw;
           if (i === t - 1) {
-            g.fillStyle = mix(tt.gold, tt.gold, 0, 0.18);
-            g.fillRect(cx - cw / 2, 8, cw, h - 30);
+            ctx.fillStyle = mix(tt.gold, tt.gold, 0, 0.18);
+            ctx.fillRect(cx - cw / 2, 8, cw, h - 30);
           }
-          g.textAlign = 'center';
-          g.fillStyle = tt.ink;
-          g.font = '600 ' + Math.max(9, Math.min(12, cw * 0.26)) + 'px ' + fam;
-          g.fillText(ON[X[i]], cx, yo + 4);
-          g.strokeStyle = tt.line;
-          g.lineWidth = 1;
-          g.strokeRect(cx - cw / 2 + 2, yo - 14, cw - 4, 26);
-          g.font = MONO;
-          g.fillStyle = tt.muted;
-          g.fillText(String(i + 1), cx, h - 8);
+          ctx.textAlign = 'center';
+          ctx.fillStyle = tt.ink;
+          ctx.font = '600 ' + Math.max(9, Math.min(12, cw * 0.26)) + 'px ' + fam;
+          ctx.fillText(ON[X[i]], cx, yo + 4);
+          ctx.strokeStyle = tt.line;
+          ctx.lineWidth = 1;
+          ctx.strokeRect(cx - cw / 2 + 2, yo - 14, cw - 4, 26);
+          ctx.font = MONO;
+          ctx.fillStyle = tt.muted;
+          ctx.fillText(String(i + 1), cx, h - 8);
           for (let j = 0; j < 2; j++) {
-            const pr = i < t ? (S.v === 'fwd' ? AL[i][j] : DE[i][j]) : 0;
-            g.beginPath();
-            g.arc(cx, ys[j], R, 0, 7);
-            g.strokeStyle = tt.muted;
-            g.lineWidth = 1;
-            g.stroke();
+            const pr = i < t ? (settings.v === 'fwd' ? AL[i][j] : viterbiScores[i][j]) : 0;
+            ctx.beginPath();
+            ctx.arc(cx, ys[j], R, 0, 7);
+            ctx.strokeStyle = tt.muted;
+            ctx.lineWidth = 1;
+            ctx.stroke();
             if (i < t) {
-              g.beginPath();
-              g.arc(cx, ys[j], R * Math.sqrt(pr), 0, 7);
-              g.fillStyle = j ? mix(tt.accent, tt.accent, 0, 0.85) : mix(tt.cut, tt.cut, 0, 0.85);
-              g.fill();
+              ctx.beginPath();
+              ctx.arc(cx, ys[j], R * Math.sqrt(pr), 0, 7);
+              ctx.fillStyle = j ? mix(tt.accent, tt.accent, 0, 0.85) : mix(tt.cut, tt.cut, 0, 0.85);
+              ctx.fill();
               if (R > 15) {
-                g.fillStyle = tt.ink;
-                g.fillText((100 * pr).toFixed(0), cx, ys[j] + R + 12);
+                ctx.fillStyle = tt.ink;
+                ctx.fillText((100 * pr).toFixed(0), cx, ys[j] + R + 12);
               }
             }
           }
-          if (S.v === 'vit' && i < t && i > 0)
+          if (settings.v === 'vit' && i < t && i > 0)
             for (let j = 0; j < 2; j++) {
               const cx0 = m + (i - 0.5) * cw;
-              g.strokeStyle = mix(tt.ink, tt.ink, 0, 0.35);
-              g.lineWidth = 1;
-              g.beginPath();
-              g.moveTo(cx0 + R, ys[BP[i][j]]);
-              g.lineTo(cx - R, ys[j]);
-              g.stroke();
+              ctx.strokeStyle = mix(tt.ink, tt.ink, 0, 0.35);
+              ctx.lineWidth = 1;
+              ctx.beginPath();
+              ctx.moveTo(cx0 + R, ys[BP[i][j]]);
+              ctx.lineTo(cx - R, ys[j]);
+              ctx.stroke();
             }
-          if (S.show) {
-            g.fillStyle = Z[i] ? tt.accent : tt.cut;
-            g.fillRect(cx - cw / 2 + 3, h * 0.86 - 9, cw - 6, 18);
-            g.fillStyle = tt.bg;
-            g.fillText(Z[i] ? 'rain' : 'sun', cx, h * 0.86 + 4);
+          if (settings.show) {
+            ctx.fillStyle = Z[i] ? tt.accent : tt.cut;
+            ctx.fillRect(cx - cw / 2 + 3, h * 0.86 - 9, cw - 6, 18);
+            ctx.fillStyle = tt.bg;
+            ctx.fillText(Z[i] ? 'rain' : 'sun', cx, h * 0.86 + 4);
           }
         }
-        const path = S.v === 'vit' ? (fin ? VP : []) : AL.map((p) => (p[1] > 0.5 ? 1 : 0));
+        const path = settings.v === 'vit' ? (fin ? VP : []) : AL.map((p) => (p[1] > 0.5 ? 1 : 0));
         if (path.length) {
-          g.strokeStyle = tt.gold;
-          g.lineWidth = 3;
-          g.lineJoin = 'round';
-          g.beginPath();
+          ctx.strokeStyle = tt.gold;
+          ctx.lineWidth = 3;
+          ctx.lineJoin = 'round';
+          ctx.beginPath();
           path.forEach((j, i) => {
             const cx = m + (i + 0.5) * cw;
-            i ? g.lineTo(cx, ys[j]) : g.moveTo(cx, ys[j]);
+            i ? ctx.lineTo(cx, ys[j]) : ctx.moveTo(cx, ys[j]);
           });
-          g.stroke();
+          ctx.stroke();
         }
-        g.textAlign = 'left';
-        g.fillStyle = tt.muted;
-        g.fillText('day', 8, h - 8);
+        ctx.textAlign = 'left';
+        ctx.fillStyle = tt.muted;
+        ctx.fillText('day', 8, h - 8);
       }
       {
-        const { g, w, h } = fit(cr),
+        const { g: ctx, w, h } = prepareCanvas(cr),
           h1 = h * 0.5,
-          L = uLine(
-            g,
+          L = drawSeriesChart(
+            ctx,
             tt,
             0,
             0,
@@ -401,17 +401,19 @@ export default {
             },
           );
         if (fin) {
-          g.strokeStyle = tt.ok;
-          g.lineWidth = 2.2;
-          g.beginPath();
-          SM.forEach((p, i) => (i ? g.lineTo(L.X(i), L.Y(p[1])) : g.moveTo(L.X(i), L.Y(p[1]))));
-          g.stroke();
+          ctx.strokeStyle = tt.ok;
+          ctx.lineWidth = 2.2;
+          ctx.beginPath();
+          smoothedStateProbs.forEach((p, i) =>
+            i ? ctx.lineTo(L.X(i), L.Y(p[1])) : ctx.moveTo(L.X(i), L.Y(p[1])),
+          );
+          ctx.stroke();
         }
-        if (S.show)
+        if (settings.show)
           Z.forEach((z, i) => {
             if (z) {
-              g.fillStyle = mix(tt.accent, tt.accent, 0, 0.14);
-              g.fillRect(
+              ctx.fillStyle = mix(tt.accent, tt.accent, 0, 0.14);
+              ctx.fillRect(
                 L.X(i) - (w - L.m.l - L.m.r) / (TT - 1) / 2,
                 L.Y(1),
                 (w - L.m.l - L.m.r) / (TT - 1),
@@ -419,115 +421,117 @@ export default {
               );
             }
           });
-        g.font = MONO;
-        g.textAlign = 'right';
-        g.fillStyle = tt.ok;
-        g.fillText(fin ? 'with hindsight' : '(hindsight: at the end)', w - 12, 13);
-        g.fillStyle = tt.accent;
-        g.fillText('on the day', w - 12 - (fin ? 104 : 160), 13);
+        ctx.font = MONO;
+        ctx.textAlign = 'right';
+        ctx.fillStyle = tt.ok;
+        ctx.fillText(fin ? 'with hindsight' : '(hindsight: at the end)', w - 12, 13);
+        ctx.fillStyle = tt.accent;
+        ctx.fillText('on the day', w - 12 - (fin ? 104 : 160), 13);
         const a = A(),
           b = Bm(),
           y0 = h1 + 18,
           fam = MONO.split('px ')[1];
-        g.textAlign = 'left';
-        g.fillStyle = tt.muted;
-        g.fillText('how the weather changes overnight', 8, y0);
-        g.fillText('what she does in each weather', w / 2 + 4, y0);
-        g.font = '12px ' + fam;
-        g.fillStyle = tt.ink;
+        ctx.textAlign = 'left';
+        ctx.fillStyle = tt.muted;
+        ctx.fillText('how the weather changes overnight', 8, y0);
+        ctx.fillText('what she does in each weather', w / 2 + 4, y0);
+        ctx.font = '12px ' + fam;
+        ctx.fillStyle = tt.ink;
         [
           ['', '→ sunny', '→ rainy'],
           ['sunny', f2(a[0][0]), f2(a[0][1])],
           ['rainy', f2(a[1][0]), f2(a[1][1])],
         ].forEach((r, i) =>
-          r.forEach((v, j) => g.fillText(v, 12 + j * ((w / 2 - 20) / 3), y0 + 22 + i * 20)),
+          r.forEach((v, j) => ctx.fillText(v, 12 + j * ((w / 2 - 20) / 3), y0 + 22 + i * 20)),
         );
         [
           ['', 'walk', 'shop', 'clean'],
           ['sunny', ...b[0].map(f2)],
           ['rainy', ...b[1].map(f2)],
         ].forEach((r, i) =>
-          r.forEach((v, j) => g.fillText(v, w / 2 + 8 + j * ((w / 2 - 20) / 4), y0 + 22 + i * 20)),
+          r.forEach((v, j) =>
+            ctx.fillText(v, w / 2 + 8 + j * ((w / 2 - 20) / 4), y0 + 22 + i * 20),
+          ),
         );
       }
       live.textContent = msg;
-      uCur(root, 'hm', cu);
+      highlightLessonStep(root, 'hm', activeStepIndex);
       const ok = acc(),
-        cur = t ? (S.v === 'fwd' ? AL[t - 1] : DE[t - 1]) : null;
-      setR(root, 'd', t + ' of ' + TT);
-      setR(root, 'b', cur ? pct(cur[0]) + ' / ' + pct(cur[1]) : '–');
-      setR(
+        cur = t ? (settings.v === 'fwd' ? AL[t - 1] : viterbiScores[t - 1]) : null;
+      setReadout(root, 'd', t + ' of ' + TT);
+      setReadout(root, 'b', cur ? pct(cur[0]) + ' / ' + pct(cur[1]) : '–');
+      setReadout(
         root,
         'af',
-        fin && S.show ? ok[0] + ' of ' + TT : fin ? 'press Show the True Weather' : '–',
+        fin && settings.show ? ok[0] + ' of ' + TT : fin ? 'press Show the True Weather' : '–',
       );
-      setR(
+      setReadout(
         root,
         'as',
-        fin && S.show ? ok[1] + ' of ' + TT : fin ? 'press Show the True Weather' : '–',
+        fin && settings.show ? ok[1] + ' of ' + TT : fin ? 'press Show the True Weather' : '–',
       );
-      setR(
+      setReadout(
         root,
         'av',
-        fin && S.show ? ok[2] + ' of ' + TT : fin ? 'press Show the True Weather' : '–',
+        fin && settings.show ? ok[2] + ' of ' + TT : fin ? 'press Show the True Weather' : '–',
       );
-      setR(root, 'lk', t ? Math.exp(ll).toExponential(2) : '–');
+      setReadout(root, 'lk', t ? Math.exp(ll).toExponential(2) : '–');
     };
     gen();
     reset();
-    if (RM) {
+    if (prefersReducedMotion) {
       while (!fin) step();
     }
     const anim = Anim(() => {
-      fr++;
+      frameCount++;
       if (fin) {
-        pb.stop();
+        playback.stop();
         return;
       }
-      if (fr % 46) return;
+      if (frameCount % 46) return;
       step();
       draw();
-      if (fin) pb.stop();
+      if (fin) playback.stop();
     });
-    pb = playBtn($('#hm-play', root), anim);
-    runCtl(pb, root, 'hm', { done: () => fin, restart: () => reset() });
+    playback = playBtn($('#hm-play', root), anim);
+    attachRunLimit(playback, root, 'hm', { done: () => fin, restart: () => reset() });
     $('#hm-step', root).onclick = () => {
-      pb.stop();
+      playback.stop();
       if (fin) reset();
       else step();
       draw();
     };
     $('#hm-reset', root).onclick = () => {
-      pb.stop();
+      playback.stop();
       reset();
       draw();
     };
     $('#hm-new', root).onclick = () => {
-      pb.stop();
+      playback.stop();
       gen();
       reset();
       draw();
-      pb.start();
+      playback.start();
     };
     $('#hm-tr', root).onclick = (e) => {
-      S.show = !S.show;
-      e.target.textContent = S.show ? 'Hide the True Weather' : 'Show the True Weather';
+      settings.show = !settings.show;
+      e.target.textContent = settings.show ? 'Hide the True Weather' : 'Show the True Weather';
       draw();
     };
-    segBind(root, 'hm-v', S.v, (v) => {
-      S.v = v;
-      pb.stop();
+    segBind(root, 'hm-v', settings.v, (v) => {
+      settings.v = v;
+      playback.stop();
       reset();
       draw();
-      pb.start();
+      playback.start();
     });
     bind(
       root,
       'hm-st',
       (v) => {
-        S.st = +v;
-        if (pb) {
-          pb.stop();
+        settings.st = +v;
+        if (playback) {
+          playback.stop();
           reset();
           draw();
         }
@@ -538,20 +542,20 @@ export default {
       root,
       'hm-em',
       (v) => {
-        S.em = +v;
-        if (pb) {
-          pb.stop();
+        settings.em = +v;
+        if (playback) {
+          playback.stop();
           reset();
           draw();
         }
       },
       f2,
     );
-    gwClick(c, (px, py) => {
+    gwClick(mainCanvas, (px, py) => {
       if (!P || py > P.yo + 16 || py < P.yo - 18) return;
       const i = Math.floor((px - P.m) / P.cw);
       if (i < 0 || i >= TT) return;
-      pb.stop();
+      playback.stop();
       X[i] = (X[i] + 1) % 3;
       reset();
       msg =
@@ -564,11 +568,11 @@ export default {
     });
     return {
       draw,
-      stop: () => pb.stop(),
+      stop: () => playback.stop(),
       auto: () => {
         reset();
         draw();
-        pb.start();
+        playback.start();
       },
     };
   },

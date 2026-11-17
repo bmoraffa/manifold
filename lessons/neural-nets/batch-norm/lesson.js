@@ -3,30 +3,30 @@ import {
   $,
   Anim,
   MONO,
-  T,
+  readThemeColors,
   bind,
   clamp,
   eqShow,
   f2,
   f3,
-  fit,
+  prepareCanvas,
   mix,
   playBtn,
   randnFrom,
   rng,
-  runCtl,
-  setR,
+  attachRunLimit,
+  setReadout,
 } from '../../../js/core/shared.js';
-import { dotAt, segBind, uCur, uLine } from '../../unsupervised/shared.js';
+import { dotAt, segBind, highlightLessonStep, drawSeriesChart } from '../../unsupervised/shared.js';
 import { pct } from '../../ensembles/shared.js';
 
 export default {
   init(root) {
-    const c = $('#bn-c', root),
+    const mainCanvas = $('#bn-c', root),
       cr = $('#bn-r', root),
       live = $('#bn-live', root),
       eq = $('#bn-eq', root),
-      S = { d: 'spiral', w: 0.3, lr: 0.1, b: 16, L: 6 },
+      settings = { d: 'spiral', w: 0.3, lr: 0.1, b: 16, L: 6 },
       H = 10;
     let D = [],
       Y = [],
@@ -35,29 +35,29 @@ export default {
       fin = false,
       hist = [[], []],
       acc = [0, 0],
-      rng_ = null,
+      shuffleRng = null,
       seed = 1,
       msg = '',
-      cu = 0,
-      pb,
-      chk = () => false,
-      fld = [null, null],
+      activeStepIndex = 0,
+      playback,
+      checkRunStop = () => false,
+      predictionGrids = [null, null],
       GW = 30,
       GH = 30,
-      work = null;
+      normalizationExample = null;
     const gen = () => {
-      const r = rng(41 + S.d.length),
+      const r = rng(41 + settings.d.length),
         rn = randnFrom(r);
       D = [];
       Y = [];
       for (let i = 0; i < 160; i++) {
         const k = i % 2;
         let p;
-        if (S.d === 'spiral') {
+        if (settings.d === 'spiral') {
           const t = 0.35 + 2.3 * r() * Math.PI * 0.75,
             s = k ? 1 : -1;
           p = [s * t * 0.55 * Math.cos(t) + 0.07 * rn(), s * t * 0.55 * Math.sin(t) + 0.07 * rn()];
-        } else if (S.d === 'rings') {
+        } else if (settings.d === 'rings') {
           const a = 2 * Math.PI * r(),
             rad = k ? 2.1 : 0.7;
           p = [rad * Math.cos(a) + 0.14 * rn(), rad * Math.sin(a) + 0.14 * rn()];
@@ -73,7 +73,7 @@ export default {
     };
     const mk = (bn) => {
       const r = randnFrom(rng(seed * 97 + 5)),
-        sz = [2, ...Array(S.L).fill(H), 1],
+        sz = [2, ...Array(settings.L).fill(H), 1],
         W = [],
         B = [],
         G = [],
@@ -81,7 +81,7 @@ export default {
         RM_ = [],
         RV = [];
       for (let l = 0; l < sz.length - 1; l++) {
-        const sd = S.w * Math.sqrt(2 / (sz[l] + sz[l + 1]));
+        const sd = settings.w * Math.sqrt(2 / (sz[l] + sz[l + 1]));
         W.push(
           Array.from({ length: sz[l + 1] }, () => Array.from({ length: sz[l] }, () => sd * r())),
         );
@@ -177,8 +177,8 @@ export default {
             gb += d;
             for (let k = 0; k < ni; k++) gw[k] += d * Ain[i][k];
           }
-          for (let k = 0; k < ni; k++) w[k] -= S.lr * clamp(gw[k], -5, 5);
-          N.B[l][j] -= S.lr * clamp(gb, -5, 5);
+          for (let k = 0; k < ni; k++) w[k] -= settings.lr * clamp(gw[k], -5, 5);
+          N.B[l][j] -= settings.lr * clamp(gb, -5, 5);
         }
         if (l > 0) {
           const lp = l - 1,
@@ -205,8 +205,8 @@ export default {
                 const dh = dU[i][j] * N.G[lp][j];
                 dZ[i][j] = (m * dh - s1 - Zh[i][j] * s2) / (m * sd[j]);
               }
-              N.G[lp][j] -= S.lr * clamp(gg, -5, 5);
-              N.Be[lp][j] -= S.lr * clamp(gb, -5, 5);
+              N.G[lp][j] -= settings.lr * clamp(gg, -5, 5);
+              N.Be[lp][j] -= settings.lr * clamp(gb, -5, 5);
             }
           } else dZ = dU;
         }
@@ -231,7 +231,7 @@ export default {
       const keep = nets[k].pre;
       const P = fwd(nets[k], X, false, false).A[nets[k].W.length];
       nets[k].pre = keep;
-      fld[k] = P.map((p) => p[0]);
+      predictionGrids[k] = P.map((p) => p[0]);
     };
     const reset = () => {
       nets = [mk(false), mk(true)];
@@ -239,21 +239,21 @@ export default {
       ep = 0;
       fin = false;
       hist = [[], []];
-      rng_ = rng(seed * 3 + 1);
+      shuffleRng = rng(seed * 3 + 1);
       for (const k of [0, 1]) {
         const [l, a] = evalN(nets[k]);
         hist[k].push(l);
         acc[k] = a;
         field(k);
       }
-      cu = 0;
-      work = null;
+      activeStepIndex = 0;
+      normalizationExample = null;
       msg =
         'Two networks with identical starting weights' +
-        (S.w > 1.5
-          ? ', ' + f2(S.w) + ' times larger than the careful choice'
-          : S.w < 0.7
-            ? ', ' + f2(S.w) + ' times the careful size, so too small'
+        (settings.w > 1.5
+          ? ', ' + f2(settings.w) + ' times larger than the careful choice'
+          : settings.w < 0.7
+            ? ', ' + f2(settings.w) + ' times the careful size, so too small'
             : '') +
         '. Press Run.';
       eqShow(eq, ['No batch yet. Press One pass or Run.'], 0);
@@ -263,11 +263,11 @@ export default {
       const n = D.length,
         idx = D.map((_, i) => i);
       for (let i = n - 1; i > 0; i--) {
-        const j = Math.floor(rng_() * (i + 1));
+        const j = Math.floor(shuffleRng() * (i + 1));
         [idx[i], idx[j]] = [idx[j], idx[i]];
       }
-      for (let s = 0; s + 1 < n; s += S.b) {
-        const bi = idx.slice(s, s + S.b);
+      for (let s = 0; s + 1 < n; s += settings.b) {
+        const bi = idx.slice(s, s + settings.b);
         if (bi.length < 2) continue;
         const X = bi.map((i) => D[i]),
           y = bi.map((i) => Y[i]);
@@ -277,7 +277,7 @@ export default {
             ).slice(0, 5),
             mu = z.reduce((p, v) => p + v, 0) / z.length,
             sd = Math.sqrt(z.reduce((p, v) => p + (v - mu) ** 2, 0) / z.length + 1e-5);
-          work = { z, mu, sd, g: nets[1].G[0][0], b: nets[1].Be[0][0] };
+          normalizationExample = { z, mu, sd, g: nets[1].G[0][0], b: nets[1].Be[0][0] };
         }
         for (const N of nets) train(N, X, y);
       }
@@ -288,7 +288,7 @@ export default {
         acc[k] = a;
         if (ep % 2 === 0 || ep < 6) field(k);
       }
-      cu = ep % 5;
+      activeStepIndex = ep % 5;
       const h = hist[1];
       msg =
         'Pass ' +
@@ -298,24 +298,37 @@ export default {
         ' for the plain network and ' +
         f3(h[ep]) +
         ' with batch normalization.';
-      if (work)
+      if (normalizationExample)
         eqShow(
           eq,
           [
             'First ' +
-              work.z.length +
+              normalizationExample.z.length +
               ' values of one unit in this batch: ' +
-              work.z.map(f2).join(', '),
+              normalizationExample.z.map(f2).join(', '),
             'batch mean μ = <b>' +
-              f3(work.mu) +
+              f3(normalizationExample.mu) +
               '</b>, batch standard deviation σ = <b>' +
-              f3(work.sd) +
+              f3(normalizationExample.sd) +
               '</b>',
             'normalized: (z − μ) ÷ σ = ' +
-              work.z.map((v) => f2((v - work.mu) / work.sd)).join(', '),
-            'learned scale γ = ' + f3(work.g) + ', learned shift β = ' + f3(work.b),
+              normalizationExample.z
+                .map((v) => f2((v - normalizationExample.mu) / normalizationExample.sd))
+                .join(', '),
+            'learned scale γ = ' +
+              f3(normalizationExample.g) +
+              ', learned shift β = ' +
+              f3(normalizationExample.b),
             'into tanh: γ × normalized + β = <b>' +
-              work.z.map((v) => f2((work.g * (v - work.mu)) / work.sd + work.b)).join(', ') +
+              normalizationExample.z
+                .map((v) =>
+                  f2(
+                    (normalizationExample.g * (v - normalizationExample.mu)) /
+                      normalizationExample.sd +
+                      normalizationExample.b,
+                  ),
+                )
+                .join(', ') +
               '</b>',
           ],
           0,
@@ -342,9 +355,9 @@ export default {
       return [s[Math.floor(s.length * 0.05)], s[Math.floor(s.length * 0.95)]];
     };
     const draw = () => {
-      const t = T();
+      const colors = readThemeColors();
       {
-        const { g, w, h } = fit(c),
+        const { g: ctx, w, h } = prepareCanvas(mainCanvas),
           pw = (w - 14) / 2,
           sz = Math.min(pw, h - 26);
         for (const k of [0, 1]) {
@@ -354,138 +367,140 @@ export default {
             Yc = (y) => y0 + ((3 - y) / 6) * sz;
           for (let r = 0; r < GH; r++)
             for (let q = 0; q < GW; q++) {
-              const v = fld[k][r * GW + q];
-              g.fillStyle =
-                v > 0.5 ? mix(t.bg, t.gold, (v - 0.5) * 0.9) : mix(t.bg, t.accent, (0.5 - v) * 0.9);
+              const v = predictionGrids[k][r * GW + q];
+              ctx.fillStyle =
+                v > 0.5
+                  ? mix(colors.bg, colors.gold, (v - 0.5) * 0.9)
+                  : mix(colors.bg, colors.accent, (0.5 - v) * 0.9);
               const xa = Math.round(x0 + (q * sz) / GW),
                 xb = Math.round(x0 + ((q + 1) * sz) / GW),
                 ya = Math.round(y0 + (r * sz) / GH),
                 yb = Math.round(y0 + ((r + 1) * sz) / GH);
-              g.fillRect(xa, ya, xb - xa, yb - ya);
+              ctx.fillRect(xa, ya, xb - xa, yb - ya);
             }
           D.forEach((p, i) => {
-            g.lineWidth = 1;
-            dotAt(g, X(p[0]), Yc(p[1]), 2.6, Y[i] ? t.gold : t.accent, t.bg);
+            ctx.lineWidth = 1;
+            dotAt(ctx, X(p[0]), Yc(p[1]), 2.6, Y[i] ? colors.gold : colors.accent, colors.bg);
           });
-          g.font = MONO;
-          g.fillStyle = t.muted;
-          g.textAlign = 'center';
-          g.fillText(k ? 'with batch normalization' : 'plain network', x0 + sz / 2, 14);
+          ctx.font = MONO;
+          ctx.fillStyle = colors.muted;
+          ctx.textAlign = 'center';
+          ctx.fillText(k ? 'with batch normalization' : 'plain network', x0 + sz / 2, 14);
         }
       }
       {
-        const { g, w, h } = fit(cr),
+        const { g: ctx, w, h } = prepareCanvas(cr),
           h1 = h * 0.46,
           ym = Math.max(0.75, ...hist[0].slice(0, 3), ...hist[1].slice(0, 3)) * 1.05,
-          A = uLine(g, t, 0, 0, w, h1, [], {
+          A = drawSeriesChart(ctx, colors, 0, 0, w, h1, [], {
             title: 'training loss: plain (amber), batch normalization (green)',
             n: Math.max(40, ep + 1),
             ym,
             y1: 0,
           });
-        g.save();
-        g.beginPath();
-        g.rect(0, 16, w, h1 - 34);
-        g.clip();
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(0, 16, w, h1 - 34);
+        ctx.clip();
         [
-          [0, t.cut],
-          [1, t.accent],
+          [0, colors.cut],
+          [1, colors.accent],
         ].forEach(([k, col]) => {
-          g.strokeStyle = col;
-          g.lineWidth = 2.2;
-          g.beginPath();
+          ctx.strokeStyle = col;
+          ctx.lineWidth = 2.2;
+          ctx.beginPath();
           hist[k].forEach((v, i) =>
             i
-              ? g.lineTo(A.X(i), A.Y(Math.min(v, ym * 2)))
-              : g.moveTo(A.X(i), A.Y(Math.min(v, ym * 2))),
+              ? ctx.lineTo(A.X(i), A.Y(Math.min(v, ym * 2)))
+              : ctx.moveTo(A.X(i), A.Y(Math.min(v, ym * 2))),
           );
-          g.stroke();
+          ctx.stroke();
         });
-        g.restore();
+        ctx.restore();
         const y0 = h1 + 6,
           H2 = h - y0,
           m = { l: 86, r: 14, t: 24, b: 8 },
-          rh = (H2 - m.t - m.b) / S.L,
+          rh = (H2 - m.t - m.b) / settings.L,
           R = 8,
           X = (v) => m.l + ((clamp(v, -R, R) + R) / (2 * R)) * (w - m.l - m.r);
-        g.font = MONO;
-        g.fillStyle = t.muted;
-        g.textAlign = 'left';
-        g.fillText('inputs to tanh at each hidden layer (−8 to 8)', 8, y0 + 12);
-        g.strokeStyle = t.muted;
-        g.setLineDash([4, 4]);
-        g.lineWidth = 1;
+        ctx.font = MONO;
+        ctx.fillStyle = colors.muted;
+        ctx.textAlign = 'left';
+        ctx.fillText('inputs to tanh at each hidden layer (−8 to 8)', 8, y0 + 12);
+        ctx.strokeStyle = colors.muted;
+        ctx.setLineDash([4, 4]);
+        ctx.lineWidth = 1;
         for (const v of [-2, 2]) {
-          g.beginPath();
-          g.moveTo(X(v), y0 + m.t);
-          g.lineTo(X(v), h - m.b);
-          g.stroke();
+          ctx.beginPath();
+          ctx.moveTo(X(v), y0 + m.t);
+          ctx.lineTo(X(v), h - m.b);
+          ctx.stroke();
         }
-        g.setLineDash([]);
-        for (let l = 0; l < S.L; l++) {
+        ctx.setLineDash([]);
+        for (let l = 0; l < settings.L; l++) {
           const yy = y0 + m.t + l * rh;
-          g.fillStyle = t.muted;
-          g.textAlign = 'right';
-          g.fillText('layer ' + (l + 1), m.l - 8, yy + rh / 2 + 4);
+          ctx.fillStyle = colors.muted;
+          ctx.textAlign = 'right';
+          ctx.fillText('layer ' + (l + 1), m.l - 8, yy + rh / 2 + 4);
           [
-            [0, t.cut],
-            [1, t.accent],
+            [0, colors.cut],
+            [1, colors.accent],
           ].forEach(([k, col]) => {
             const pr = nets[k].pre[l];
             if (!pr) return;
             const [a, b] = q90(pr);
-            g.fillStyle = col;
-            g.fillRect(X(a), yy + 3 + k * (rh / 2 - 2), Math.max(2, X(b) - X(a)), rh / 2 - 5);
+            ctx.fillStyle = col;
+            ctx.fillRect(X(a), yy + 3 + k * (rh / 2 - 2), Math.max(2, X(b) - X(a)), rh / 2 - 5);
           });
         }
       }
       const sat = (k) => {
-        const pr = nets[k].pre[S.L - 1];
+        const pr = nets[k].pre[settings.L - 1];
         if (!pr) return NaN;
         let s = 0;
         for (const v of pr) s += v * v;
         return Math.sqrt(s / pr.length);
       };
       live.textContent = msg;
-      uCur(root, 'bn', cu);
-      setR(root, 'ep', ep + (fin ? ' (stopped)' : ''));
-      setR(root, 'lp', f3(hist[0][ep]));
-      setR(root, 'lb', f3(hist[1][ep]));
-      setR(root, 'ap', pct(acc[0]));
-      setR(root, 'ab', pct(acc[1]));
-      setR(root, 'sat', f3(sat(0)) + ' / ' + f3(sat(1)));
+      highlightLessonStep(root, 'bn', activeStepIndex);
+      setReadout(root, 'ep', ep + (fin ? ' (stopped)' : ''));
+      setReadout(root, 'lp', f3(hist[0][ep]));
+      setReadout(root, 'lb', f3(hist[1][ep]));
+      setReadout(root, 'ap', pct(acc[0]));
+      setReadout(root, 'ab', pct(acc[1]));
+      setReadout(root, 'sat', f3(sat(0)) + ' / ' + f3(sat(1)));
     };
     gen();
     reset();
     const anim = Anim(() => {
       if (fin) {
-        pb.stop();
+        playback.stop();
         return;
       }
       pass();
       draw();
-      chk();
+      checkRunStop();
     });
-    pb = playBtn($('#bn-play', root), anim);
-    chk = runCtl(pb, root, 'bn', {
+    playback = playBtn($('#bn-play', root), anim);
+    checkRunStop = attachRunLimit(playback, root, 'bn', {
       done: () => fin,
       restart: reset,
       count: () => ep,
       what: 'passes',
     });
     const go = () => {
-        pb.stop();
+        playback.stop();
         reset();
         draw();
-        pb.start();
+        playback.start();
       },
       ch = () => {
-        pb.stop();
+        playback.stop();
         reset();
         draw();
       };
     $('#bn-step', root).onclick = () => {
-      pb.stop();
+      playback.stop();
       if (fin) reset();
       else pass();
       draw();
@@ -499,7 +514,7 @@ export default {
       root,
       'bn-w',
       (v) => {
-        S.w = v;
+        settings.w = v;
         ch();
       },
       (v) => (+v).toFixed(1) + '×',
@@ -508,7 +523,7 @@ export default {
       root,
       'bn-lr',
       (v) => {
-        S.lr = v;
+        settings.lr = v;
       },
       f3,
     );
@@ -516,7 +531,7 @@ export default {
       root,
       'bn-b',
       (v) => {
-        S.b = v;
+        settings.b = v;
       },
       (v) => String(+v),
     );
@@ -524,23 +539,23 @@ export default {
       root,
       'bn-L',
       (v) => {
-        S.L = v;
+        settings.L = v;
         ch();
       },
       (v) => String(+v),
     );
-    segBind(root, 'bn-d', S.d, (v) => {
-      S.d = v;
+    segBind(root, 'bn-d', settings.d, (v) => {
+      settings.d = v;
       gen();
       go();
     });
     return {
       draw,
-      stop: () => pb.stop(),
+      stop: () => playback.stop(),
       auto: () => {
         reset();
         draw();
-        pb.start();
+        playback.start();
       },
     };
   },

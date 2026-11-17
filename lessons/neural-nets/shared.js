@@ -146,7 +146,16 @@ function NNet(sizes, o = {}) {
     }
     return { loss: loss / N, mask: lastMask };
   };
-  return { W, B, sizes, L, fwd, train, p: (x) => fwd(x).A[L][0], p2: (x) => fwd(x).A[L] };
+  return {
+    W,
+    B,
+    sizes,
+    L,
+    fwd,
+    train,
+    predictScalar: (x) => fwd(x).A[L][0],
+    predictVector: (x) => fwd(x).A[L],
+  };
 }
 
 function nnData(kind, n, nz, seed) {
@@ -274,7 +283,7 @@ function sigFlow(act, depth, base, seed) {
     A.forEach((a, b) => fl.set(a, b * n));
     acts.push(fl);
   }
-  const gr = new Array(depth).fill(0);
+  const gradientRms = new Array(depth).fill(0);
   let D = [];
   for (let b = 0; b < bt; b++) D.push(Float64Array.from({ length: n }, () => r()));
   for (let l = depth - 1; l >= 0; l--) {
@@ -294,7 +303,7 @@ function sigFlow(act, depth, base, seed) {
       }
       ND.push(da);
     }
-    gr[l] = Math.sqrt(s / (n * bt));
+    gradientRms[l] = Math.sqrt(s / (n * bt));
     D = ND;
   }
   const sd = acts.map((a) => {
@@ -305,7 +314,7 @@ function sigFlow(act, depth, base, seed) {
     for (const v of a) s += (v - m) ** 2;
     return Math.sqrt(s / a.length);
   });
-  return { acts, gr, sd };
+  return { acts, gradientRms, sd };
 }
 
 const sci = (v) =>

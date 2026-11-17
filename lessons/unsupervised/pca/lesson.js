@@ -3,31 +3,31 @@ import {
   $,
   Anim,
   MONO,
-  RM,
+  prefersReducedMotion,
   SANS,
-  T,
+  readThemeColors,
   bind,
   clamp,
   ellPath,
   f2,
-  fit,
+  prepareCanvas,
   markTP,
   mix,
   playBtn,
   randnFrom,
   rng,
-  runCtl,
-  setR,
+  attachRunLimit,
+  setReadout,
   testPoint,
 } from '../../../js/core/shared.js';
-import { uCur, uDataBind, uFrame, uNum, uView } from '../shared.js';
+import { highlightLessonStep, uDataBind, uFrame, uNum, uView } from '../shared.js';
 
 export default {
   init(root) {
     const c = $('#pc-c', root),
       cr = $('#pc-r', root),
       live = $('#pc-live', root),
-      S = { ds: 'corr', n: 160, seed: 1, rho: 0.8 };
+      settings = { ds: 'corr', n: 160, seed: 1, rho: 0.8 };
     let P = [],
       mu = { x: 0, y: 0 },
       Q = [],
@@ -35,31 +35,31 @@ export default {
       e1 = { l1: 1, l2: 1, th: 0 },
       v = null,
       ph = 'raw',
-      cen = 0,
-      pj = 0,
-      pit = 0,
+      centeringProgress = 0,
+      projectionProgress = 0,
+      powerIterations = 0,
       msg = '',
-      cu = -1,
+      activeStepIndex = -1,
       wait = 0,
-      fr = 0,
-      pb,
+      frameCount = 0,
+      playback,
       twId = null,
       man = false;
     const mk = () => {
-      const r = rng(S.seed * 7 + 3),
+      const r = rng(settings.seed * 7 + 3),
         rn = randnFrom(r),
         o = [];
-      for (let i = 0; i < S.n; i++) {
+      for (let i = 0; i < settings.n; i++) {
         const u = rn(),
           w = rn();
         let x, y;
-        if (S.ds === 'corr') {
+        if (settings.ds === 'corr') {
           x = 1.05 * u;
-          y = 0.8 * (S.rho * u + Math.sqrt(1 - S.rho * S.rho) * w);
-        } else if (S.ds === 'banana') {
+          y = 0.8 * (settings.rho * u + Math.sqrt(1 - settings.rho * settings.rho) * w);
+        } else if (settings.ds === 'banana') {
           x = 1.05 * u;
           y = 0.42 * x * x - 0.7 + 0.2 * w;
-        } else if (S.ds === 'twoc') {
+        } else if (settings.ds === 'twoc') {
           const k = i % 2 ? 1 : -1;
           x = k * 1.3 + 0.42 * u;
           y = k * 0.75 + 0.42 * w;
@@ -105,7 +105,7 @@ export default {
       deg = (a) => ((a * 180) / Math.PI).toFixed(0) + '°';
     const tween = (set, to) => {
       cancelAnimationFrame(twId);
-      if (RM) {
+      if (prefersReducedMotion) {
         set(to);
         return;
       }
@@ -122,10 +122,10 @@ export default {
       cancelAnimationFrame(twId);
       v = null;
       ph = 'raw';
-      cen = 0;
-      pj = 0;
-      pit = 0;
-      cu = -1;
+      centeringProgress = 0;
+      projectionProgress = 0;
+      powerIterations = 0;
+      activeStepIndex = -1;
       wait = 0;
       man = false;
       msg =
@@ -142,9 +142,9 @@ export default {
       man = false;
       if (ph === 'raw') {
         ph = 'centre';
-        cu = 0;
+        activeStepIndex = 0;
         tween((u) => {
-          cen = u;
+          centeringProgress = u;
         }, 1);
         msg =
           'Centre: the mean (' +
@@ -155,9 +155,9 @@ export default {
         return;
       }
       if (ph === 'centre') {
-        cen = 1;
+        centeringProgress = 1;
         ph = 'cov';
-        cu = 1;
+        activeStepIndex = 1;
         msg =
           'Covariance matrix: the variance of x is ' +
           f2(cv.a) +
@@ -176,8 +176,8 @@ export default {
       }
       if (ph === 'cov') {
         ph = 'power';
-        cu = 2;
-        pit = 0;
+        activeStepIndex = 2;
+        powerIterations = 0;
         const a = e1.th + 1.4;
         v = { x: Math.cos(a), y: Math.sin(a) };
         msg =
@@ -196,12 +196,12 @@ export default {
           wy = cv.b * v.x + cv.d * v.y,
           nn = Math.hypot(wx, wy) || 1;
         v = { x: wx / nn, y: wy / nn };
-        pit++;
+        powerIterations++;
         let dl = Math.abs(ang() - o);
         if (dl > Math.PI / 2) dl = Math.PI - dl;
         msg =
           'Power iteration ' +
-          pit +
+          powerIterations +
           ': the direction was multiplied by the covariance matrix and rescaled to length 1. It turned by ' +
           ((dl * 180) / Math.PI).toFixed(1) +
           '° toward the long axis of the cloud, to ' +
@@ -211,7 +211,7 @@ export default {
           ' (' +
           ((100 * va(ang())) / (cv.a + cv.d)).toFixed(0) +
           '% of the total).';
-        if (dl < 0.004 || pit >= 40) {
+        if (dl < 0.004 || powerIterations >= 40) {
           ph = 'pc1';
           msg +=
             ' It has stopped turning. This is the first principal component, and the spread along it is the largest eigenvalue, λ₁ = ' +
@@ -222,7 +222,7 @@ export default {
       }
       if (ph === 'pc1') {
         ph = 'pc2';
-        cu = 3;
+        activeStepIndex = 3;
         msg =
           'The second component is at right angles to the first. In two dimensions there is only one such direction. The spread along it is λ₂ = ' +
           f2(e1.l2) +
@@ -233,9 +233,9 @@ export default {
       }
       if (ph === 'pc2') {
         ph = 'proj';
-        cu = 4;
+        activeStepIndex = 4;
         tween((u) => {
-          pj = u;
+          projectionProgress = u;
         }, 1);
         msg =
           'Project: every point slid along its dashed line onto the first component and now needs one number instead of two. That keeps ' +
@@ -258,7 +258,7 @@ export default {
       ],
     );
     const draw = () => {
-      const t = T(),
+      const colors = readThemeColors(),
         tot = cv.a + cv.d || 1,
         hasV = !!v,
         know = man || ['pc1', 'pc2', 'proj'].includes(ph);
@@ -267,15 +267,15 @@ export default {
           { g, w, h, X, Y } = V;
         uFrame(
           V,
-          t,
-          S.ds === 'corr' ? 'height (standardised)' : 'x',
-          S.ds === 'corr' ? 'arm span (standardised)' : 'y',
+          colors,
+          settings.ds === 'corr' ? 'height (standardised)' : 'x',
+          settings.ds === 'corr' ? 'arm span (standardised)' : 'y',
         );
-        const ox = mu.x * (1 - cen),
-          oy = mu.y * (1 - cen);
+        const ox = mu.x * (1 - centeringProgress),
+          oy = mu.y * (1 - centeringProgress);
         if (ph !== 'raw' && ph !== 'centre') {
           ellPath(g, X, Y, ox, oy, cv.a, cv.b, cv.d, 2);
-          g.strokeStyle = t.muted;
+          g.strokeStyle = colors.muted;
           g.lineWidth = 1.2;
           g.setLineDash([3, 4]);
           g.stroke();
@@ -283,27 +283,27 @@ export default {
         }
         if (hasV) {
           const L = 6;
-          g.strokeStyle = know && !man ? t.gold : t.ink;
+          g.strokeStyle = know && !man ? colors.gold : colors.ink;
           g.lineWidth = 2.6;
           g.beginPath();
           g.moveTo(X(ox - L * v.x), Y(oy - L * v.y));
           g.lineTo(X(ox + L * v.x), Y(oy + L * v.y));
           g.stroke();
           if (ph === 'pc2' || ph === 'proj') {
-            g.strokeStyle = t.muted;
+            g.strokeStyle = colors.muted;
             g.lineWidth = 1.6;
             g.beginPath();
             g.moveTo(X(ox + 1.6 * v.y), Y(oy - 1.6 * v.x));
             g.lineTo(X(ox - 1.6 * v.y), Y(oy + 1.6 * v.x));
             g.stroke();
             g.font = SANS;
-            g.fillStyle = t.muted;
+            g.fillStyle = colors.muted;
             g.textAlign = 'left';
             g.fillText('second component', X(ox - 1.6 * v.y) + 8, Y(oy + 1.6 * v.x));
           }
           if (know && !man) {
             g.font = SANS;
-            g.fillStyle = t.cut;
+            g.fillStyle = colors.cut;
             g.textAlign = 'left';
             const s = v.x < 0 ? -1 : 1;
             g.fillText(
@@ -312,7 +312,7 @@ export default {
               clamp(Y(oy + s * 2.7 * v.y) - 8, 16, h - 10),
             );
           }
-          g.strokeStyle = mix(t.ok, t.ok, 0, 0.4);
+          g.strokeStyle = mix(colors.ok, colors.ok, 0, 0.4);
           g.lineWidth = 1;
           g.beginPath();
           for (const q of Q) {
@@ -322,20 +322,20 @@ export default {
           }
           g.stroke();
         }
-        g.fillStyle = mix(t.accent, t.accent, 0, 0.85);
+        g.fillStyle = mix(colors.accent, colors.accent, 0, 0.85);
         for (const q of Q) {
           let x = ox + q.x,
             y = oy + q.y;
-          if (hasV && pj > 0) {
+          if (hasV && projectionProgress > 0) {
             const z = q.x * v.x + q.y * v.y;
-            x += (ox + z * v.x - x) * pj;
-            y += (oy + z * v.y - y) * pj;
+            x += (ox + z * v.x - x) * projectionProgress;
+            y += (oy + z * v.y - y) * projectionProgress;
           }
           g.beginPath();
           g.arc(X(x), Y(y), 3.3, 0, 7);
           g.fill();
         }
-        g.strokeStyle = t.ink;
+        g.strokeStyle = colors.ink;
         g.lineWidth = 2;
         g.beginPath();
         g.moveTo(X(ox) - 7, Y(oy));
@@ -350,7 +350,7 @@ export default {
             y = Y(oy + dy);
           if (hasV && know) {
             const z = dx * v.x + dy * v.y;
-            g.strokeStyle = t.ink;
+            g.strokeStyle = colors.ink;
             g.lineWidth = 1.4;
             g.setLineDash([4, 3]);
             g.beginPath();
@@ -358,133 +358,133 @@ export default {
             g.lineTo(X(ox + z * v.x), Y(oy + z * v.y));
             g.stroke();
             g.setLineDash([]);
-            g.fillStyle = t.bg;
+            g.fillStyle = colors.bg;
             g.beginPath();
             g.arc(X(ox + z * v.x), Y(oy + z * v.y), 5, 0, 7);
             g.fill();
             g.stroke();
           }
-          markTP(g, x, y, t);
+          markTP(g, x, y, colors);
         }
       }
       {
-        const { g, w, h } = fit(cr),
+        const { g: ctx, w, h } = prepareCanvas(cr),
           h1 = h * 0.56,
           m = { l: 44, r: 12, t: 26, b: 22 },
           Xa = (a) => m.l + (a / Math.PI) * (w - m.l - m.r),
           ym = Math.max(1e-9, e1.l1) * 1.12,
           Ya = (u) => h1 - m.b - (u / ym) * (h1 - m.t - m.b);
-        g.strokeStyle = t.muted;
-        g.lineWidth = 1;
-        g.beginPath();
-        g.moveTo(m.l, h1 - m.b);
-        g.lineTo(w - m.r, h1 - m.b);
-        g.stroke();
-        g.font = MONO;
-        g.textAlign = 'center';
-        g.fillStyle = t.muted;
+        ctx.strokeStyle = colors.muted;
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(m.l, h1 - m.b);
+        ctx.lineTo(w - m.r, h1 - m.b);
+        ctx.stroke();
+        ctx.font = MONO;
+        ctx.textAlign = 'center';
+        ctx.fillStyle = colors.muted;
         [0, 45, 90, 135, 180].forEach((a) =>
-          g.fillText(a + '°', Xa((a * Math.PI) / 180), h1 - m.b + 14),
+          ctx.fillText(a + '°', Xa((a * Math.PI) / 180), h1 - m.b + 14),
         );
-        g.textAlign = 'right';
-        g.fillText(uNum(ym / 1.12), m.l - 5, Ya(ym / 1.12) + 4);
-        g.fillText('0', m.l - 5, Ya(0) + 4);
-        g.textAlign = 'left';
-        g.fillStyle = t.cut;
-        g.fillText('gold: spread kept along the line', 8, 12);
-        g.fillStyle = t.ok;
-        g.fillText('red: spread lost (they always add up to ' + f2(tot) + ')', 8, 25);
+        ctx.textAlign = 'right';
+        ctx.fillText(uNum(ym / 1.12), m.l - 5, Ya(ym / 1.12) + 4);
+        ctx.fillText('0', m.l - 5, Ya(0) + 4);
+        ctx.textAlign = 'left';
+        ctx.fillStyle = colors.cut;
+        ctx.fillText('gold: spread kept along the line', 8, 12);
+        ctx.fillStyle = colors.ok;
+        ctx.fillText('red: spread lost (they always add up to ' + f2(tot) + ')', 8, 25);
         [
-          [(a) => va(a), t.gold],
-          [(a) => tot - va(a), t.ok],
+          [(a) => va(a), colors.gold],
+          [(a) => tot - va(a), colors.ok],
         ].forEach(([f, cl]) => {
-          g.strokeStyle = cl;
-          g.lineWidth = 2.4;
-          g.beginPath();
+          ctx.strokeStyle = cl;
+          ctx.lineWidth = 2.4;
+          ctx.beginPath();
           for (let i = 0; i <= 180; i++) {
             const a = (i * Math.PI) / 180;
-            i ? g.lineTo(Xa(a), Ya(f(a))) : g.moveTo(Xa(a), Ya(f(a)));
+            i ? ctx.lineTo(Xa(a), Ya(f(a))) : ctx.moveTo(Xa(a), Ya(f(a)));
           }
-          g.stroke();
+          ctx.stroke();
         });
         if ((know && !man) || ph === 'proj') {
-          g.setLineDash([4, 4]);
-          g.strokeStyle = t.muted;
-          g.lineWidth = 1.2;
-          g.beginPath();
-          g.moveTo(Xa(e1.th), Ya(0));
-          g.lineTo(Xa(e1.th), Ya(e1.l1));
-          g.stroke();
-          g.setLineDash([]);
+          ctx.setLineDash([4, 4]);
+          ctx.strokeStyle = colors.muted;
+          ctx.lineWidth = 1.2;
+          ctx.beginPath();
+          ctx.moveTo(Xa(e1.th), Ya(0));
+          ctx.lineTo(Xa(e1.th), Ya(e1.l1));
+          ctx.stroke();
+          ctx.setLineDash([]);
         }
         if (hasV) {
           const a = ang();
-          g.strokeStyle = t.ink;
-          g.lineWidth = 1.6;
-          g.beginPath();
-          g.moveTo(Xa(a), Ya(0));
-          g.lineTo(Xa(a), m.t + 4);
-          g.stroke();
-          g.fillStyle = t.gold;
-          g.beginPath();
-          g.arc(Xa(a), Ya(va(a)), 6, 0, 7);
-          g.fill();
-          g.fillStyle = t.ok;
-          g.beginPath();
-          g.arc(Xa(a), Ya(tot - va(a)), 5, 0, 7);
-          g.fill();
+          ctx.strokeStyle = colors.ink;
+          ctx.lineWidth = 1.6;
+          ctx.beginPath();
+          ctx.moveTo(Xa(a), Ya(0));
+          ctx.lineTo(Xa(a), m.t + 4);
+          ctx.stroke();
+          ctx.fillStyle = colors.gold;
+          ctx.beginPath();
+          ctx.arc(Xa(a), Ya(va(a)), 6, 0, 7);
+          ctx.fill();
+          ctx.fillStyle = colors.ok;
+          ctx.beginPath();
+          ctx.arc(Xa(a), Ya(tot - va(a)), 5, 0, 7);
+          ctx.fill();
         }
         const y0 = h1 + 18,
           hb = h - y0 - 24,
           Xs = (z) => w / 2 + (z * (w - 56)) / 8.4;
-        g.fillStyle = t.muted;
-        g.textAlign = 'left';
-        g.fillText(
+        ctx.fillStyle = colors.muted;
+        ctx.textAlign = 'left';
+        ctx.fillText(
           hasV ? 'each point’s position along the line (its shadow)' : 'no direction chosen yet',
           8,
           y0,
         );
-        g.strokeStyle = t.muted;
-        g.lineWidth = 1;
-        g.beginPath();
-        g.moveTo(28, h - 22);
-        g.lineTo(w - 28, h - 22);
-        g.stroke();
-        g.textAlign = 'center';
-        [-4, -2, 0, 2, 4].forEach((z) => g.fillText(String(z), Xs(z), h - 7));
+        ctx.strokeStyle = colors.muted;
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(28, h - 22);
+        ctx.lineTo(w - 28, h - 22);
+        ctx.stroke();
+        ctx.textAlign = 'center';
+        [-4, -2, 0, 2, 4].forEach((z) => ctx.fillText(String(z), Xs(z), h - 7));
         if (hasV) {
           const bins = {};
-          g.fillStyle = mix(t.accent, t.accent, 0, 0.85);
+          ctx.fillStyle = mix(colors.accent, colors.accent, 0, 0.85);
           const rad = Math.max(2, Math.min(3.4, hb / 26));
           for (const q of Q) {
             const z = q.x * v.x + q.y * v.y,
               b = Math.round(z / 0.14),
               k = (bins[b] = (bins[b] || 0) + 1);
-            g.beginPath();
-            g.arc(Xs(b * 0.14), h - 22 - rad - 1 - (k - 1) * rad * 2, rad, 0, 7);
-            g.fill();
+            ctx.beginPath();
+            ctx.arc(Xs(b * 0.14), h - 22 - rad - 1 - (k - 1) * rad * 2, rad, 0, 7);
+            ctx.fill();
           }
           const sdv = Math.sqrt(va(ang()));
-          g.strokeStyle = t.gold;
-          g.lineWidth = 3;
-          g.beginPath();
-          g.moveTo(Xs(-sdv), h - 22);
-          g.lineTo(Xs(sdv), h - 22);
-          g.stroke();
+          ctx.strokeStyle = colors.gold;
+          ctx.lineWidth = 3;
+          ctx.beginPath();
+          ctx.moveTo(Xs(-sdv), h - 22);
+          ctx.lineTo(Xs(sdv), h - 22);
+          ctx.stroke();
         }
       }
       live.textContent = msg;
-      uCur(root, 'pc', cu);
+      highlightLessonStep(root, 'pc', activeStepIndex);
       if (hasV) {
         const a = ang();
-        setR(root, 'th', deg(a));
-        setR(root, 'va', f2(va(a)));
-        setR(root, 'sh', ((100 * va(a)) / tot).toFixed(1) + '%');
-        setR(root, 'er', f2(tot - va(a)));
-      } else ['th', 'va', 'sh', 'er'].forEach((k) => setR(root, k, '–'));
+        setReadout(root, 'th', deg(a));
+        setReadout(root, 'va', f2(va(a)));
+        setReadout(root, 'sh', ((100 * va(a)) / tot).toFixed(1) + '%');
+        setReadout(root, 'er', f2(tot - va(a)));
+      } else ['th', 'va', 'sh', 'er'].forEach((k) => setReadout(root, k, '–'));
       const sh = ph !== 'raw' && ph !== 'centre';
-      setR(root, 'l1', sh ? f2(e1.l1) + ', ' + f2(e1.l2) : '–');
-      setR(root, 'a1', (know && !man) || ph === 'proj' ? deg(e1.th) : '–');
+      setReadout(root, 'l1', sh ? f2(e1.l1) + ', ' + f2(e1.l2) : '–');
+      setReadout(root, 'a1', (know && !man) || ph === 'proj' ? deg(e1.th) : '–');
       if (hasV && know) {
         const dx = tp.v[0] - mu.x,
           dy = tp.v[1] - mu.y,
@@ -513,9 +513,9 @@ export default {
     const gen = uDataBind(
       root,
       'pc',
-      S,
+      settings,
       () => {
-        pb.stop();
+        playback.stop();
         P = gen();
         comp();
         reset();
@@ -530,15 +530,15 @@ export default {
       root,
       'pc-th',
       (d) => {
-        pb.stop();
+        playback.stop();
         cancelAnimationFrame(twId);
         const a = (d * Math.PI) / 180;
         v = { x: Math.cos(a), y: Math.sin(a) };
         man = true;
         ph = 'manual';
-        cen = 1;
-        pj = 0;
-        cu = 2;
+        centeringProgress = 1;
+        projectionProgress = 0;
+        activeStepIndex = 2;
         const b = (e1.th * 180) / Math.PI;
         msg =
           'Your direction, at ' +
@@ -556,9 +556,9 @@ export default {
       (d) => Math.round(d) + '°',
     );
     bind(root, 'pc-rho', (r) => {
-      S.rho = r;
-      pb.stop();
-      if (S.ds === 'corr') {
+      settings.rho = r;
+      playback.stop();
+      if (settings.ds === 'corr') {
         P = gen();
         comp();
         const k = man;
@@ -571,7 +571,7 @@ export default {
       draw();
     });
     const anim = Anim(() => {
-      fr++;
+      frameCount++;
       if (wait > 0) {
         wait--;
         if (!wait) {
@@ -580,35 +580,38 @@ export default {
         }
         return;
       }
-      if (fr % (ph === 'power' ? 30 : 70)) return;
+      if (frameCount % (ph === 'power' ? 30 : 70)) return;
       if (ph === 'manual') reset();
       step();
       draw();
-      chk();
+      checkRunStop();
     });
-    pb = playBtn($('#pc-play', root), anim);
-    const chk = runCtl(pb, root, 'pc', { done: () => ph === 'proj', restart: () => reset() });
+    playback = playBtn($('#pc-play', root), anim);
+    const checkRunStop = attachRunLimit(playback, root, 'pc', {
+      done: () => ph === 'proj',
+      restart: () => reset(),
+    });
     $('#pc-step', root).onclick = () => {
-      pb.stop();
+      playback.stop();
       if (ph === 'manual') reset();
       step();
       draw();
     };
     $('#pc-reset', root).onclick = () => {
-      pb.stop();
+      playback.stop();
       reset();
       draw();
     };
     return {
       draw,
       stop: () => {
-        pb.stop();
+        playback.stop();
         cancelAnimationFrame(twId);
       },
       auto: () => {
         reset();
         draw();
-        pb.start();
+        playback.start();
       },
     };
   },

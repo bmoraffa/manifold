@@ -3,264 +3,279 @@ import {
   $,
   Anim,
   MONO,
-  T,
+  readThemeColors,
   bind,
   clamp,
   clipPlot,
   curve,
   f3,
-  fit,
+  prepareCanvas,
   mix,
   playBtn,
   plot,
-  runCtl,
-  setR,
+  attachRunLimit,
+  setReadout,
 } from '../../../js/core/shared.js';
 import { ACT, ACTN, sci, sigFlow } from '../shared.js';
-import { segBind, uCur } from '../../unsupervised/shared.js';
+import { segBind, highlightLessonStep } from '../../unsupervised/shared.js';
 
 export default {
   init(root) {
-    const c = $('#af-c', root),
+    const mainCanvas = $('#af-c', root),
       cr = $('#af-r', root),
       live = $('#af-live', root),
-      S = { act: 'sigmoid', d: 12, w: 1 };
-    let F = null,
+      settings = { act: 'sigmoid', d: 12, w: 1 };
+    let signalFlow = null,
       shown = 0,
       msg = '',
-      cu = 0,
-      fr = 0,
-      pb,
-      ph = 0;
+      activeStepIndex = 0,
+      frameCount = 0,
+      playback,
+      probePhase = 0;
     const comp = () => {
-      F = sigFlow(S.act, S.d, S.w * S.w, 11);
+      signalFlow = sigFlow(settings.act, settings.d, settings.w * settings.w, 11);
       shown = 0;
-      cu = 0;
+      activeStepIndex = 0;
       msg =
         'A stack of ' +
-        S.d +
+        settings.d +
         ' layers with ' +
-        ACTN[S.act] +
+        ACTN[settings.act] +
         ' is ready, and data has been sent forward through it. Press Send the signal back or One layer.';
     };
-    const rel = (l) => F.gr[l] / F.gr[S.d - 1];
+    const relativeGradientRms = (l) =>
+      signalFlow.gradientRms[l] / signalFlow.gradientRms[settings.d - 1];
     const step = () => {
-      if (shown >= S.d) {
+      if (shown >= settings.d) {
         shown = 0;
-        cu = 0;
+        activeStepIndex = 0;
         return;
       }
       shown++;
-      const l = S.d - shown;
-      cu = shown === 1 ? 1 : shown >= S.d ? 4 : shown === 2 ? 2 : 3;
+      const l = settings.d - shown;
+      activeStepIndex = shown === 1 ? 1 : shown >= settings.d ? 4 : shown === 2 ? 2 : 3;
       msg =
         shown === 1
-          ? 'The signal starts at layer ' + S.d + ', the last one, with strength 1.'
+          ? 'The signal starts at layer ' + settings.d + ', the last one, with strength 1.'
           : 'Layer ' +
             (l + 1) +
             ': going back one layer multiplied the signal by ' +
-            sci(F.gr[l] / F.gr[l + 1]) +
+            sci(signalFlow.gradientRms[l] / signalFlow.gradientRms[l + 1]) +
             '. It is now ' +
-            sci(rel(l)) +
+            sci(relativeGradientRms(l)) +
             ' of what it was at the last layer.';
-      if (shown >= S.d)
+      if (shown >= settings.d)
         msg +=
           ' That is what reaches the first layer after ' +
-          S.d +
+          settings.d +
           ' layers: ' +
-          (rel(0) < 0.01
+          (relativeGradientRms(0) < 0.01
             ? 'almost nothing. The first layers of this network would learn extremely slowly.'
-            : rel(0) > 100
+            : relativeGradientRms(0) > 100
               ? 'far too much. This network’s first updates would be wildly large.'
               : 'a healthy share. Every layer of this network can learn.');
     };
     const draw = () => {
-      const t = T(),
-        f = ACT[S.act][0],
-        df = ACT[S.act][1],
-        z = 4.6 * Math.sin(ph);
+      const colors = readThemeColors(),
+        f = ACT[settings.act][0],
+        df = ACT[settings.act][1],
+        z = 4.6 * Math.sin(probePhase);
       {
-        const { g, w, h } = fit(c),
-          P = plot(g, w, h, [-5, 5], [-1.3, S.act === 'relu' || S.act === 'leaky' ? 3.2 : 1.3], t, {
-            xstep: 1,
-            yticks: [-1, 0, 1],
-            xlabel: 'total input z',
-          });
-        clipPlot(g, P);
-        g.strokeStyle = t.line;
-        g.lineWidth = 1;
-        g.beginPath();
-        g.moveTo(P.X(0), P.Y(-2));
-        g.lineTo(P.X(0), P.Y(4));
-        g.stroke();
-        curve(g, P, df, -5, 5, 400);
-        g.strokeStyle = t.ok;
-        g.lineWidth = 2.2;
-        g.stroke();
-        curve(g, P, f, -5, 5, 400);
-        g.strokeStyle = t.accent;
-        g.lineWidth = 3;
-        g.stroke();
+        const { g: ctx, w, h } = prepareCanvas(mainCanvas),
+          P = plot(
+            ctx,
+            w,
+            h,
+            [-5, 5],
+            [-1.3, settings.act === 'relu' || settings.act === 'leaky' ? 3.2 : 1.3],
+            colors,
+            {
+              xstep: 1,
+              yticks: [-1, 0, 1],
+              xlabel: 'total input z',
+            },
+          );
+        clipPlot(ctx, P);
+        ctx.strokeStyle = colors.line;
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(P.X(0), P.Y(-2));
+        ctx.lineTo(P.X(0), P.Y(4));
+        ctx.stroke();
+        curve(ctx, P, df, -5, 5, 400);
+        ctx.strokeStyle = colors.ok;
+        ctx.lineWidth = 2.2;
+        ctx.stroke();
+        curve(ctx, P, f, -5, 5, 400);
+        ctx.strokeStyle = colors.accent;
+        ctx.lineWidth = 3;
+        ctx.stroke();
         const s = df(z);
-        g.strokeStyle = t.gold;
-        g.lineWidth = 2;
-        g.beginPath();
-        g.moveTo(P.X(z - 1.1), P.Y(f(z) - 1.1 * s));
-        g.lineTo(P.X(z + 1.1), P.Y(f(z) + 1.1 * s));
-        g.stroke();
-        g.setLineDash([3, 3]);
-        g.strokeStyle = t.muted;
-        g.lineWidth = 1;
-        g.beginPath();
-        g.moveTo(P.X(z), P.Y(f(z)));
-        g.lineTo(P.X(z), P.Y(s));
-        g.stroke();
-        g.setLineDash([]);
-        g.fillStyle = t.accent;
-        g.beginPath();
-        g.arc(P.X(z), P.Y(f(z)), 6.5, 0, 7);
-        g.fill();
-        g.fillStyle = t.ok;
-        g.beginPath();
-        g.arc(P.X(z), P.Y(s), 5, 0, 7);
-        g.fill();
-        g.restore();
-        g.font = MONO;
-        g.textAlign = 'left';
-        g.fillStyle = t.accent;
-        g.fillText('green: ' + ACTN[S.act] + '(z)', P.m.l + 8, P.m.t + 8);
-        g.fillStyle = t.ok;
-        g.fillText('red: its slope = share of the signal let through', P.m.l + 8, P.m.t + 22);
-        g.fillStyle = t.cut;
-        g.fillText('gold: the tangent at the dot', P.m.l + 8, P.m.t + 36);
+        ctx.strokeStyle = colors.gold;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(P.X(z - 1.1), P.Y(f(z) - 1.1 * s));
+        ctx.lineTo(P.X(z + 1.1), P.Y(f(z) + 1.1 * s));
+        ctx.stroke();
+        ctx.setLineDash([3, 3]);
+        ctx.strokeStyle = colors.muted;
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(P.X(z), P.Y(f(z)));
+        ctx.lineTo(P.X(z), P.Y(s));
+        ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.fillStyle = colors.accent;
+        ctx.beginPath();
+        ctx.arc(P.X(z), P.Y(f(z)), 6.5, 0, 7);
+        ctx.fill();
+        ctx.fillStyle = colors.ok;
+        ctx.beginPath();
+        ctx.arc(P.X(z), P.Y(s), 5, 0, 7);
+        ctx.fill();
+        ctx.restore();
+        ctx.font = MONO;
+        ctx.textAlign = 'left';
+        ctx.fillStyle = colors.accent;
+        ctx.fillText('green: ' + ACTN[settings.act] + '(z)', P.m.l + 8, P.m.t + 8);
+        ctx.fillStyle = colors.ok;
+        ctx.fillText('red: its slope = share of the signal let through', P.m.l + 8, P.m.t + 22);
+        ctx.fillStyle = colors.cut;
+        ctx.fillText('gold: the tangent at the dot', P.m.l + 8, P.m.t + 36);
       }
       {
-        const { g, w, h } = fit(cr),
+        const { g: ctx, w, h } = prepareCanvas(cr),
           m = { l: 54, r: 12, t: 20, b: 36 },
-          D = S.d,
+          D = settings.d,
           bw = (w - m.l - m.r) / D;
         let lo = -6,
           hi = 1;
         for (let l = 0; l < D; l++) {
-          const v = Math.log10(rel(l) + 1e-300);
+          const v = Math.log10(relativeGradientRms(l) + 1e-300);
           lo = Math.min(lo, Math.floor(v));
           hi = Math.max(hi, Math.ceil(v));
         }
         lo = Math.max(lo, -14);
         const Y = (v) =>
           h - m.b - ((clamp(Math.log10(v + 1e-300), lo, hi) - lo) / (hi - lo)) * (h - m.t - m.b);
-        g.font = MONO;
-        g.textAlign = 'right';
+        ctx.font = MONO;
+        ctx.textAlign = 'right';
         for (let e = lo; e <= hi; e += Math.max(1, Math.round((hi - lo) / 7))) {
-          g.strokeStyle = e === 0 ? t.muted : t.line;
-          g.lineWidth = 1;
-          g.beginPath();
-          g.moveTo(m.l, Y(10 ** e));
-          g.lineTo(w - m.r, Y(10 ** e));
-          g.stroke();
-          g.fillStyle = t.muted;
-          g.fillText(e === 0 ? '1' : '10^' + e, m.l - 5, Y(10 ** e) + 4);
+          ctx.strokeStyle = e === 0 ? colors.muted : colors.line;
+          ctx.lineWidth = 1;
+          ctx.beginPath();
+          ctx.moveTo(m.l, Y(10 ** e));
+          ctx.lineTo(w - m.r, Y(10 ** e));
+          ctx.stroke();
+          ctx.fillStyle = colors.muted;
+          ctx.fillText(e === 0 ? '1' : '10^' + e, m.l - 5, Y(10 ** e) + 4);
         }
         for (let l = 0; l < D; l++) {
           const on = l >= D - shown,
             x = m.l + l * bw + bw * 0.14,
-            v = rel(l),
+            v = relativeGradientRms(l),
             y1 = Y(1),
             y2 = Y(v);
-          g.fillStyle = on
+          ctx.fillStyle = on
             ? l === D - shown
-              ? t.gold
+              ? colors.gold
               : v < 0.01
-                ? t.ok
-                : t.accent
-            : mix(t.ink, t.ink, 0, 0.07);
-          if (on) g.fillRect(x, Math.min(y1, y2), bw * 0.72, Math.max(3, Math.abs(y2 - y1)));
-          else g.fillRect(x, y1 - 2, bw * 0.72, 4);
+                ? colors.ok
+                : colors.accent
+            : mix(colors.ink, colors.ink, 0, 0.07);
+          if (on) ctx.fillRect(x, Math.min(y1, y2), bw * 0.72, Math.max(3, Math.abs(y2 - y1)));
+          else ctx.fillRect(x, y1 - 2, bw * 0.72, 4);
           if (D <= 16 || l % 2 === 0) {
-            g.fillStyle = t.muted;
-            g.textAlign = 'center';
-            g.fillText(String(l + 1), x + bw * 0.36, h - m.b + 14);
+            ctx.fillStyle = colors.muted;
+            ctx.textAlign = 'center';
+            ctx.fillText(String(l + 1), x + bw * 0.36, h - m.b + 14);
           }
         }
-        g.fillStyle = t.muted;
-        g.textAlign = 'left';
-        g.fillText('first layer', m.l, h - 5);
-        g.textAlign = 'right';
-        g.fillText('last layer: the signal starts here ←', w - m.r, h - 5);
-        g.textAlign = 'left';
-        g.fillText('strength compared with the start (each line is ×10)', m.l, 12);
+        ctx.fillStyle = colors.muted;
+        ctx.textAlign = 'left';
+        ctx.fillText('first layer', m.l, h - 5);
+        ctx.textAlign = 'right';
+        ctx.fillText('last layer: the signal starts here ←', w - m.r, h - 5);
+        ctx.textAlign = 'left';
+        ctx.fillText('strength compared with the start (each line is ×10)', m.l, 12);
       }
       live.textContent = msg;
-      uCur(root, 'af', cu);
-      setR(root, 'f', f3(f(z)));
-      setR(root, 's', f3(df(z)));
-      setR(root, 'mx', S.act === 'sigmoid' ? '0.25' : '1');
-      setR(
+      highlightLessonStep(root, 'af', activeStepIndex);
+      setReadout(root, 'f', f3(f(z)));
+      setReadout(root, 's', f3(df(z)));
+      setReadout(root, 'mx', settings.act === 'sigmoid' ? '0.25' : '1');
+      setReadout(
         root,
         'g1',
-        shown >= S.d ? sci(rel(0)) + ' of the start' : 'send the signal back to see',
+        shown >= settings.d
+          ? sci(relativeGradientRms(0)) + ' of the start'
+          : 'send the signal back to see',
       );
-      setR(root, 'pl', '× ' + sci(Math.pow(rel(0), 1 / Math.max(1, S.d - 1))));
+      setReadout(
+        root,
+        'pl',
+        '× ' + sci(Math.pow(relativeGradientRms(0), 1 / Math.max(1, settings.d - 1))),
+      );
     };
     comp();
-    shown = S.d;
+    shown = settings.d;
     const anim = Anim(() => {
-      fr++;
-      ph += 0.02;
-      if (fr % 34 === 0 && shown < S.d) step();
+      frameCount++;
+      probePhase += 0.02;
+      if (frameCount % 34 === 0 && shown < settings.d) step();
       draw();
-      if (shown >= S.d && fr % 34 === 0) pb.stop();
+      if (shown >= settings.d && frameCount % 34 === 0) playback.stop();
     });
-    pb = playBtn($('#af-play', root), anim);
-    runCtl(pb, root, 'af', {
-      done: () => shown >= S.d,
+    playback = playBtn($('#af-play', root), anim);
+    attachRunLimit(playback, root, 'af', {
+      done: () => shown >= settings.d,
       restart: () => {
         shown = 0;
       },
     });
     $('#af-step', root).onclick = () => {
-      pb.stop();
+      playback.stop();
       step();
       draw();
     };
     $('#af-reset', root).onclick = () => {
-      pb.stop();
+      playback.stop();
       comp();
       draw();
     };
-    segBind(root, 'af-act', S.act, (v) => {
-      S.act = v;
-      pb.stop();
+    segBind(root, 'af-act', settings.act, (v) => {
+      settings.act = v;
+      playback.stop();
       comp();
       draw();
-      pb.start();
+      playback.start();
     });
     bind(
       root,
       'af-d',
       (v) => {
-        S.d = v;
-        pb.stop();
+        settings.d = v;
+        playback.stop();
         comp();
-        shown = S.d;
+        shown = settings.d;
         draw();
       },
       (v) => String(v),
     );
     bind(root, 'af-w', (v) => {
-      S.w = v;
-      pb.stop();
+      settings.w = v;
+      playback.stop();
       comp();
-      shown = S.d;
+      shown = settings.d;
       draw();
     });
     return {
       draw,
-      stop: () => pb.stop(),
+      stop: () => playback.stop(),
       auto: () => {
         comp();
         draw();
-        pb.start();
+        playback.start();
       },
     };
   },

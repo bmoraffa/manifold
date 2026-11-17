@@ -3,44 +3,44 @@ import {
   $,
   Anim,
   MONO,
-  RM,
-  T,
+  prefersReducedMotion,
+  readThemeColors,
   bind,
   clamp,
-  fit,
+  prepareCanvas,
   mix,
   playBtn,
   randnFrom,
   rng,
-  runCtl,
-  setR,
+  attachRunLimit,
+  setReadout,
 } from '../../../js/core/shared.js';
 import { AD } from '../../../js/math/autodiff.js';
 import { pct } from '../../ensembles/shared.js';
 import { sig } from '../../classification/shared.js';
-import { uCur, uLine } from '../../unsupervised/shared.js';
+import { highlightLessonStep, drawSeriesChart } from '../../unsupervised/shared.js';
 
 export default {
   init(root) {
-    const c = $('#un-c', root),
+    const mainCanvas = $('#un-c', root),
       cr = $('#un-r', root),
       live = $('#un-live', root),
       S = { nz: 0.3 },
       MAXS = 700;
-    let NA,
-      NB,
+    let plainNet,
+      skipNet,
       ts = 0,
       IA = [],
       IB = [],
       TE = [],
       pad = new Float64Array(256),
-      OUT = [],
+      previewMaskProbs = [],
       done = false,
       msg = '',
-      cu = 0,
-      fr = 0,
-      pb,
-      chk = () => false,
+      activeStepIndex = 0,
+      frameCount = 0,
+      playback,
+      checkRunStop = () => false,
       run = 1,
       geo = null,
       paint = false;
@@ -123,20 +123,20 @@ export default {
       return s / TE.length;
     };
     const outs = () => {
-      OUT = [];
+      previewMaskProbs = [];
       const rows = TE.slice(0, 3)
         .map((q) => q.x)
         .concat([pad]);
       for (const x of rows) {
-        const a = NA.fwd(x),
-          b = NB.fwd(x);
+        const a = plainNet.fwd(x),
+          b = skipNet.fwd(x);
         AD.clear();
-        OUT.push([Float64Array.from(a.L.v, sig), Float64Array.from(b.L.v, sig)]);
+        previewMaskProbs.push([Float64Array.from(a.L.v, sig), Float64Array.from(b.L.v, sig)]);
       }
     };
     const build = () => {
-      NA = mkNet(false, run * 7 + 1);
-      NB = mkNet(true, run * 7 + 1);
+      plainNet = mkNet(false, run * 7 + 1);
+      skipNet = mkNet(true, run * 7 + 1);
       const r = rng(run * 5 + 9),
         rn = randnFrom(r);
       TE = [];
@@ -145,7 +145,7 @@ export default {
       IA = [];
       IB = [];
       done = false;
-      cu = 0;
+      activeStepIndex = 0;
       outs();
       msg = 'Two networks with random weights. Both answers are grey fog. Press Train both.';
     };
@@ -153,22 +153,22 @@ export default {
       for (let q = 0; q < k && !done; q++) {
         for (let b = 0; b < 5; b++) {
           const s = shape(R, RN);
-          for (const N of [NA, NB]) {
+          for (const N of [plainNet, skipNet]) {
             const o = N.fwd(s.x, s.m);
             AD.backward(o.loss);
           }
         }
         ts++;
-        AD.adam(NA.ps, 0.006, ts, 5);
-        AD.adam(NB.ps, 0.006, ts, 5);
+        AD.adam(plainNet.ps, 0.006, ts, 5);
+        AD.adam(skipNet.ps, 0.006, ts, 5);
         if (ts % 10 === 0 || ts === 1) {
-          IA.push(iou(NA));
-          IB.push(iou(NB));
+          IA.push(iou(plainNet));
+          IB.push(iou(skipNet));
         }
         if (ts >= MAXS) done = true;
       }
       outs();
-      cu = done ? 4 : 1 + (ts % 3);
+      activeStepIndex = done ? 4 : 1 + (ts % 3);
       const a = IA[IA.length - 1],
         b = IB[IB.length - 1];
       msg =
@@ -191,47 +191,47 @@ export default {
           : '');
     };
     const draw = () => {
-      const t = T();
+      const colors = readThemeColors();
       {
-        const { g, w, h } = fit(c),
+        const { g: ctx, w, h } = prepareCanvas(mainCanvas),
           sz = Math.min((w - 30) / 4.3, (h - 34) / 4.25),
           gx = (w - sz * 4.3) / 2,
           cz = sz / 16,
           hd = ['noisy input', 'true shape', 'without skips', 'with skips'],
           rows = TE.slice(0, 3);
-        g.font = MONO;
+        ctx.font = MONO;
         hd.forEach((s, q) => {
-          g.fillStyle = q === 2 ? t.ok : q === 3 ? t.accent : t.muted;
-          g.textAlign = 'center';
-          g.fillText(s, gx + q * sz * 1.1 + sz / 2, 12);
+          ctx.fillStyle = q === 2 ? colors.ok : q === 3 ? colors.accent : colors.muted;
+          ctx.textAlign = 'center';
+          ctx.fillText(s, gx + q * sz * 1.1 + sz / 2, 12);
         });
         const pic = (A, x, y, cl) => {
           for (let i = 0; i < 256; i++) {
-            g.fillStyle = mix(t.bg, t.ink, 0.05 + 0.95 * clamp(A[i], 0, 1));
-            g.fillRect(x + (i % 16) * cz, y + Math.floor(i / 16) * cz, cz + 0.3, cz + 0.3);
+            ctx.fillStyle = mix(colors.bg, colors.ink, 0.05 + 0.95 * clamp(A[i], 0, 1));
+            ctx.fillRect(x + (i % 16) * cz, y + Math.floor(i / 16) * cz, cz + 0.3, cz + 0.3);
           }
-          g.strokeStyle = cl || t.line;
-          g.lineWidth = cl ? 2 : 1;
-          g.strokeRect(x - 0.5, y - 0.5, sz, sz);
+          ctx.strokeStyle = cl || colors.line;
+          ctx.lineWidth = cl ? 2 : 1;
+          ctx.strokeRect(x - 0.5, y - 0.5, sz, sz);
         };
         for (let r = 0; r < 4; r++) {
           const y = 20 + r * sz * 1.06,
             mine = r === 3;
-          pic(mine ? pad : rows[r].x, gx, y, mine ? t.gold : null);
+          pic(mine ? pad : rows[r].x, gx, y, mine ? colors.gold : null);
           if (mine) {
-            g.fillStyle = t.muted;
-            g.textAlign = 'center';
-            g.fillText('draw in the gold box', gx + sz * 1.1 + sz / 2, y + sz / 2);
+            ctx.fillStyle = colors.muted;
+            ctx.textAlign = 'center';
+            ctx.fillText('draw in the gold box', gx + sz * 1.1 + sz / 2, y + sz / 2);
             geo = { x: gx, y, cz };
           } else pic(rows[r].m, gx + sz * 1.1, y);
-          pic(OUT[r][0], gx + 2 * sz * 1.1, y, t.ok);
-          pic(OUT[r][1], gx + 3 * sz * 1.1, y, t.accent);
+          pic(previewMaskProbs[r][0], gx + 2 * sz * 1.1, y, colors.ok);
+          pic(previewMaskProbs[r][1], gx + 3 * sz * 1.1, y, colors.accent);
         }
       }
       {
-        const { g, w, h } = fit(cr),
+        const { g: ctx, w, h } = prepareCanvas(cr),
           h1 = h * 0.5,
-          ph = (fr / 90) % 1,
+          ph = (frameCount / 90) % 1,
           L = [
             [0.1, 0.16, 34, '16 × 16', '4 maps'],
             [0.27, 0.5, 24, '8 × 8', '6 maps'],
@@ -239,101 +239,101 @@ export default {
             [0.73, 0.5, 24, '8 × 8', '6 maps'],
             [0.9, 0.16, 34, '16 × 16', '4 maps'],
           ].map((q) => [q[0] * w, q[1] * (h1 - 30) + 14, q[2], q[3], q[4]]);
-        g.font = MONO;
+        ctx.font = MONO;
         for (let q = 0; q < 4; q++) {
-          g.strokeStyle = t.muted;
-          g.lineWidth = 1.4;
-          g.beginPath();
-          g.moveTo(L[q][0], L[q][1]);
-          g.lineTo(L[q + 1][0], L[q + 1][1]);
-          g.stroke();
+          ctx.strokeStyle = colors.muted;
+          ctx.lineWidth = 1.4;
+          ctx.beginPath();
+          ctx.moveTo(L[q][0], L[q][1]);
+          ctx.lineTo(L[q + 1][0], L[q + 1][1]);
+          ctx.stroke();
         }
         [
           [0, 4],
           [1, 3],
         ].forEach(([a, b]) => {
-          g.strokeStyle = t.accent;
-          g.lineWidth = 2.6;
-          g.beginPath();
-          g.moveTo(L[a][0] + L[a][2] / 2 + 4, L[a][1]);
-          g.lineTo(L[b][0] - L[b][2] / 2 - 4, L[b][1]);
-          g.stroke();
-          g.fillStyle = t.accent;
-          g.textAlign = 'center';
-          g.fillText('skip', (L[a][0] + L[b][0]) / 2, L[a][1] - 6);
-          if (pb && pb.on) {
-            g.beginPath();
-            g.arc(L[a][0] + (L[b][0] - L[a][0]) * ph, L[a][1], 4.5, 0, 7);
-            g.fill();
+          ctx.strokeStyle = colors.accent;
+          ctx.lineWidth = 2.6;
+          ctx.beginPath();
+          ctx.moveTo(L[a][0] + L[a][2] / 2 + 4, L[a][1]);
+          ctx.lineTo(L[b][0] - L[b][2] / 2 - 4, L[b][1]);
+          ctx.stroke();
+          ctx.fillStyle = colors.accent;
+          ctx.textAlign = 'center';
+          ctx.fillText('skip', (L[a][0] + L[b][0]) / 2, L[a][1] - 6);
+          if (playback && playback.on) {
+            ctx.beginPath();
+            ctx.arc(L[a][0] + (L[b][0] - L[a][0]) * ph, L[a][1], 4.5, 0, 7);
+            ctx.fill();
           }
         });
         L.forEach((q, i) => {
-          g.fillStyle = i === 2 ? t.gold : t.bg;
-          g.strokeStyle = t.ink;
-          g.lineWidth = 1.5;
-          g.beginPath();
-          g.rect(q[0] - q[2] / 2, q[1] - q[2] / 2, q[2], q[2]);
-          g.fill();
-          g.stroke();
-          g.fillStyle = t.muted;
-          g.textAlign = 'center';
-          g.fillText(q[3], q[0], q[1] + q[2] / 2 + 13);
-          g.fillText(q[4], q[0], q[1] + q[2] / 2 + 25);
+          ctx.fillStyle = i === 2 ? colors.gold : colors.bg;
+          ctx.strokeStyle = colors.ink;
+          ctx.lineWidth = 1.5;
+          ctx.beginPath();
+          ctx.rect(q[0] - q[2] / 2, q[1] - q[2] / 2, q[2], q[2]);
+          ctx.fill();
+          ctx.stroke();
+          ctx.fillStyle = colors.muted;
+          ctx.textAlign = 'center';
+          ctx.fillText(q[3], q[0], q[1] + q[2] / 2 + 13);
+          ctx.fillText(q[4], q[0], q[1] + q[2] / 2 + 25);
         });
-        if (pb && pb.on) {
+        if (playback && playback.on) {
           const k = Math.min(3, Math.floor(ph * 4)),
             uu = ph * 4 - k;
-          g.fillStyle = t.gold;
-          g.beginPath();
-          g.arc(
+          ctx.fillStyle = colors.gold;
+          ctx.beginPath();
+          ctx.arc(
             L[k][0] + (L[k + 1][0] - L[k][0]) * uu,
             L[k][1] + (L[k + 1][1] - L[k][1]) * uu,
             5,
             0,
             7,
           );
-          g.fill();
+          ctx.fill();
         }
-        g.fillStyle = t.muted;
-        g.textAlign = 'left';
-        g.fillText('down: convolve, shrink', 8, h1 - 6);
-        g.textAlign = 'right';
-        g.fillText('up: enlarge, convolve', w - 8, h1 - 6);
-        const U = uLine(g, t, 0, h1, w, h - h1, IB, {
+        ctx.fillStyle = colors.muted;
+        ctx.textAlign = 'left';
+        ctx.fillText('down: convolve, shrink', 8, h1 - 6);
+        ctx.textAlign = 'right';
+        ctx.fillText('up: enlarge, convolve', w - 8, h1 - 6);
+        const U = drawSeriesChart(ctx, colors, 0, h1, w, h - h1, IB, {
           title: 'overlap with the truth on test pictures: with skips (green), without (red)',
           n: MAXS / 10 + 1,
           ym: 1,
-          col: t.accent,
+          col: colors.accent,
         });
-        g.strokeStyle = t.ok;
-        g.lineWidth = 2.2;
-        g.beginPath();
-        IA.forEach((v, i) => (i ? g.lineTo(U.X(i), U.Y(v)) : g.moveTo(U.X(i), U.Y(v))));
-        g.stroke();
+        ctx.strokeStyle = colors.ok;
+        ctx.lineWidth = 2.2;
+        ctx.beginPath();
+        IA.forEach((v, i) => (i ? ctx.lineTo(U.X(i), U.Y(v)) : ctx.moveTo(U.X(i), U.Y(v))));
+        ctx.stroke();
       }
       live.textContent = msg;
-      uCur(root, 'un', cu);
+      highlightLessonStep(root, 'un', activeStepIndex);
       const cnt = (N) => N.ps.reduce((a, p) => a + p.v.length, 0);
-      setR(root, 'step', ts + ' of ' + MAXS);
-      setR(root, 'i0', IA.length ? pct(IA[IA.length - 1]) : '–');
-      setR(root, 'i1', IB.length ? pct(IB[IB.length - 1]) : '–');
-      setR(root, 'np', cnt(NA) + ' / ' + cnt(NB));
-      setR(root, 'st', done ? 'Finished' : ts ? 'Training' : 'Not started');
+      setReadout(root, 'step', ts + ' of ' + MAXS);
+      setReadout(root, 'i0', IA.length ? pct(IA[IA.length - 1]) : '–');
+      setReadout(root, 'i1', IB.length ? pct(IB[IB.length - 1]) : '–');
+      setReadout(root, 'np', cnt(plainNet) + ' / ' + cnt(skipNet));
+      setReadout(root, 'st', done ? 'Finished' : ts ? 'Training' : 'Not started');
     };
     build();
-    if (RM) train(MAXS);
+    if (prefersReducedMotion) train(MAXS);
     const anim = Anim(() => {
-      fr++;
-      if (ts < 10 && fr % 6) {
+      frameCount++;
+      if (ts < 10 && frameCount % 6) {
         draw();
         return;
       }
-      train(Math.min(1, chk.remaining()));
+      train(Math.min(1, checkRunStop.remaining()));
       draw();
-      chk();
+      checkRunStop();
     });
-    pb = playBtn($('#un-play', root), anim);
-    chk = runCtl(pb, root, 'un', {
+    playback = playBtn($('#un-play', root), anim);
+    checkRunStop = attachRunLimit(playback, root, 'un', {
       done: () => done,
       restart: () => {
         run++;
@@ -343,7 +343,7 @@ export default {
       what: 'steps',
     });
     $('#un-step', root).onclick = () => {
-      pb.stop();
+      playback.stop();
       if (done) {
         run++;
         build();
@@ -351,14 +351,14 @@ export default {
       draw();
     };
     $('#un-reset', root).onclick = () => {
-      pb.stop();
+      playback.stop();
       run++;
       build();
       draw();
     };
     bind(root, 'un-nz', (v) => {
       S.nz = v;
-      pb.stop();
+      playback.stop();
       run++;
       build();
       draw();
@@ -370,29 +370,29 @@ export default {
     };
     const pt = (e) => {
       if (!geo) return false;
-      const r = c.getBoundingClientRect(),
+      const r = mainCanvas.getBoundingClientRect(),
         x = Math.floor((e.clientX - r.left - geo.x) / geo.cz),
         y = Math.floor((e.clientY - r.top - geo.y) / geo.cz);
       if (x < 0 || y < 0 || x >= 16 || y >= 16) return false;
       pad[y * 16 + x] = 1;
       return true;
     };
-    c.style.touchAction = 'none';
-    c.addEventListener('pointerdown', (e) => {
+    mainCanvas.style.touchAction = 'none';
+    mainCanvas.addEventListener('pointerdown', (e) => {
       if (pt(e) === false) return;
       paint = true;
-      c.setPointerCapture(e.pointerId);
+      mainCanvas.setPointerCapture(e.pointerId);
       outs();
-      if (!pb.on) draw();
+      if (!playback.on) draw();
     });
-    c.addEventListener('pointermove', (e) => {
+    mainCanvas.addEventListener('pointermove', (e) => {
       if (!paint) return;
       pt(e);
       outs();
-      if (!pb.on) draw();
+      if (!playback.on) draw();
     });
     ['pointerup', 'pointercancel'].forEach((n2) =>
-      c.addEventListener(n2, () => {
+      mainCanvas.addEventListener(n2, () => {
         if (paint) {
           paint = false;
           msg =
@@ -403,12 +403,12 @@ export default {
     );
     return {
       draw,
-      stop: () => pb.stop(),
+      stop: () => playback.stop(),
       auto: () => {
         run++;
         build();
         draw();
-        pb.start();
+        playback.start();
       },
     };
   },

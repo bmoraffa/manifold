@@ -3,31 +3,31 @@ import {
   $,
   Anim,
   MONO,
-  RM,
-  T,
+  prefersReducedMotion,
+  readThemeColors,
   bind,
   clamp,
   f3,
-  fit,
+  prepareCanvas,
   letterData,
   mix,
   playBtn,
   randnFrom,
   rng,
-  runCtl,
-  setR,
+  attachRunLimit,
+  setReadout,
 } from '../../../js/core/shared.js';
 import { AD } from '../../../js/math/autodiff.js';
-import { g2Bench } from '../shared.js';
+import { drawSamplerBenchmark } from '../shared.js';
 import { pct } from '../../ensembles/shared.js';
-import { segBind, uCur, uLine } from '../../unsupervised/shared.js';
+import { segBind, highlightLessonStep, drawSeriesChart } from '../../unsupervised/shared.js';
 
 export default {
   init(root) {
-    const c = $('#dd-c', root),
+    const mainCanvas = $('#dd-c', root),
       cr = $('#dd-r', root),
       live = $('#dd-live', root),
-      S = { kind: 'pic', ni: 5, ord: 'conf' },
+      settings = { kind: 'pic', ni: 5, ord: 'conf' },
       G = 8,
       KD = {
         pic: {
@@ -45,7 +45,7 @@ export default {
         'apple bread chair dance eagle flame grape house juice knife lemon mouse night ocean piano queen river snake table uncle voice water zebra beach cloud dream earth field green heart light money music paper plant radio sheep smile stone sugar tiger train truck watch world young brain bring candy clean clock drink floor fruit glass happy horse lunch magic party pizza robot shirt storm'.split(
           ' ',
         );
-    let K,
+    let taskConfig,
       net,
       ts = 0,
       LL = [],
@@ -55,30 +55,31 @@ export default {
       clean = [],
       CHN = [],
       msg = '',
-      cu = 0,
-      fr = 0,
-      pb,
-      chk = () => false,
+      activeStepIndex = 0,
+      frameCount = 0,
+      playback,
+      checkRunStop = () => false,
       run = 1,
       X = null,
-      PR = null,
+      tokenProbabilities = null,
       si = 0,
       rev = 0,
       done = false,
       Q = [[], []],
       bi = 0,
       okV = NaN,
-      just = [],
+      newlyRevealedPositions = [],
       ex = null,
       exO = null,
       res = [];
-    const W = () => K.Ln * (K.V + 1);
+    const W = () => taskConfig.Ln * (taskConfig.V + 1);
     const enc = (rows) => {
       const B = rows.length,
         w = W(),
         A = new Float64Array(B * w);
       rows.forEach((r, b) => {
-        for (let i = 0; i < K.Ln; i++) A[b * w + i * (K.V + 1) + (r[i] < 0 ? K.V : r[i])] = 1;
+        for (let i = 0; i < taskConfig.Ln; i++)
+          A[b * w + i * (taskConfig.V + 1) + (r[i] < 0 ? taskConfig.V : r[i])] = 1;
       });
       return A;
     };
@@ -86,9 +87,9 @@ export default {
       const B = rows.length,
         o = net.fwd(AD.input(enc(rows), [B, W()]));
       AD.clear();
-      const V = K.V,
+      const V = taskConfig.V,
         P = new Float64Array(o.v.length);
-      for (let i = 0; i < B * K.Ln; i++) {
+      for (let i = 0; i < B * taskConfig.Ln; i++) {
         let mx = -1e30;
         for (let j = 0; j < V; j++) mx = Math.max(mx, o.v[i * V + j]);
         let z = 0;
@@ -101,7 +102,7 @@ export default {
       return P;
     };
     const match = (r) => {
-      if (S.kind === 'word')
+      if (settings.kind === 'word')
         return WORDS.indexOf(r.map((v) => String.fromCharCode(97 + v)).join(''));
       let b = -1,
         bd = 3;
@@ -116,8 +117,8 @@ export default {
       return b;
     };
     const build = () => {
-      K = KD[S.kind];
-      if (S.kind === 'pic') {
+      taskConfig = KD[settings.kind];
+      if (settings.kind === 'pic') {
         const d = letterData(run, 0.02);
         seqs = d.X.map((x) => x.map((v) => (v > 0.5 ? 1 : 0)));
         CHN = d.CH;
@@ -127,34 +128,38 @@ export default {
         seqs = WORDS.map((w) => [...w].map((ch) => ch.charCodeAt(0) - 97));
         clean = [];
       }
-      net = AD.mlp([W(), 96, 96, K.Ln * K.V], randnFrom(rng(run * 9 + 2)), 'relu');
+      net = AD.mlp(
+        [W(), 96, 96, taskConfig.Ln * taskConfig.V],
+        randnFrom(rng(run * 9 + 2)),
+        'relu',
+      );
       ts = 0;
       LL = [];
       sm = [];
       phase = 'train';
       X = null;
-      PR = null;
+      tokenProbabilities = null;
       done = false;
-      cu = 0;
-      Q = [K.NS.map(() => NaN), K.NS.map(() => NaN)];
+      activeStepIndex = 0;
+      Q = [taskConfig.NS.map(() => NaN), taskConfig.NS.map(() => NaN)];
       bi = 0;
       okV = NaN;
-      just = [];
+      newlyRevealedPositions = [];
       res = [];
       si = 0;
       rev = 0;
       ex = seqs[Math.floor(Math.random() * seqs.length)];
-      exO = Array.from({ length: K.Ln }, (_, i) => i).sort(() => Math.random() - 0.5);
+      exO = Array.from({ length: taskConfig.Ln }, (_, i) => i).sort(() => Math.random() - 0.5);
       msg =
         'A network with random weights. It has ' +
-        K.Ln +
+        taskConfig.Ln +
         ' positions to fill, each with one of ' +
-        K.V +
+        taskConfig.V +
         ' tokens. Press Run to train it.';
     };
     const train = (k) => {
       const B = 32,
-        Ln = K.Ln;
+        Ln = taskConfig.Ln;
       for (let q = 0; q < k && ts < MAXS; q++) {
         const rows = [],
           tg = new Int32Array(B * Ln),
@@ -179,7 +184,7 @@ export default {
           }
           rows.push(r);
         }
-        const l = AD.mce(net.fwd(AD.input(enc(rows), [B, W()])), K.V, tg, mk);
+        const l = AD.mce(net.fwd(AD.input(enc(rows), [B, W()])), taskConfig.V, tg, mk);
         LL.push(l.v[0]);
         AD.backward(l);
         AD.adam(net.ps, 0.003, ++ts, 1);
@@ -189,31 +194,31 @@ export default {
           sm.push(s / 20);
         }
       }
-      cu = Math.floor(ts / 100) % 2;
+      activeStepIndex = Math.floor(ts / 100) % 2;
       msg =
         'Training step ' +
         ts +
         ' of ' +
         MAXS +
         ': 32 real examples each had a random share of their ' +
-        K.unit +
+        taskConfig.unit +
         ' hidden, and the network guessed what was under every blank. Average error over the last 20 steps: ' +
         f3(sm.length ? sm[sm.length - 1] : LL[ts - 1]) +
         ' (guessing blindly would score ' +
-        f3(Math.log(K.V)) +
+        f3(Math.log(taskConfig.V)) +
         ').';
       if (ts >= MAXS) {
         phase = 'bench';
         bi = 0;
-        cu = 2;
+        activeStepIndex = 2;
         msg =
           'Training is finished. Next the network generates with each number of reveal steps, in both orders.';
       }
     };
     const reveal = (rows, P, cnt, ord) => {
       const out = [],
-        V = K.V,
-        Ln = K.Ln;
+        V = taskConfig.V,
+        Ln = taskConfig.Ln;
       rows.forEach((r, b) => {
         const hid = [];
         for (let i = 0; i < Ln; i++)
@@ -238,10 +243,10 @@ export default {
       return out;
     };
     const sampleAll = (N, ord, B) => {
-      const rows = Array.from({ length: B }, () => new Array(K.Ln).fill(-1));
+      const rows = Array.from({ length: B }, () => new Array(taskConfig.Ln).fill(-1));
       let rv = 0;
       for (let j = 1; j <= N; j++) {
-        const tgt = Math.round((K.Ln * j) / N);
+        const tgt = Math.round((taskConfig.Ln * j) / N);
         reveal(rows, probs(rows), tgt - rv, ord);
         rv = tgt;
       }
@@ -250,22 +255,22 @@ export default {
       return ok / B;
     };
     const startGen = () => {
-      X = Array.from({ length: G }, () => new Array(K.Ln).fill(-1));
-      PR = probs(X);
+      X = Array.from({ length: G }, () => new Array(taskConfig.Ln).fill(-1));
+      tokenProbabilities = probs(X);
       si = 0;
       rev = 0;
       done = false;
-      just = [];
+      newlyRevealedPositions = [];
       okV = NaN;
       res = [];
     };
     const bench = () => {
       const j = bi >> 1,
         e = bi & 1,
-        N = K.NS[j];
+        N = taskConfig.NS[j];
       Q[e][j] = sampleAll(N, e ? 'conf' : 'rand', 64);
       bi++;
-      cu = 2;
+      activeStepIndex = 2;
       msg =
         'Measuring: ' +
         N +
@@ -276,25 +281,25 @@ export default {
         ': ' +
         pct(Q[e][j]) +
         ' of 64 samples came out as ' +
-        K.what +
+        taskConfig.what +
         '.';
-      if (bi >= 2 * K.NS.length) {
+      if (bi >= 2 * taskConfig.NS.length) {
         phase = 'gen';
         startGen();
-        cu = 3;
+        activeStepIndex = 3;
         msg =
           'All settings are measured: see the chart at the bottom right. Now watch one run. Eight samples, everything hidden. The tint shows what the network believes before anything is revealed, and it is the same for all eight.';
       }
     };
     const gstep = () => {
       if (done || !X) return;
-      const N = K.NS[S.ni],
-        tgt = Math.round((K.Ln * (si + 1)) / N),
+      const N = taskConfig.NS[settings.ni],
+        tgt = Math.round((taskConfig.Ln * (si + 1)) / N),
         cnt = tgt - rev;
-      just = reveal(X, PR, cnt, S.ord);
+      newlyRevealedPositions = reveal(X, tokenProbabilities, cnt, settings.ord);
       rev = tgt;
       si++;
-      cu = 4;
+      activeStepIndex = 4;
       msg =
         'Reveal step ' +
         si +
@@ -303,25 +308,25 @@ export default {
         ': the network was run once on each sample. ' +
         cnt +
         ' hidden ' +
-        (cnt === 1 ? K.unit.slice(0, -1) + ' was' : K.unit + ' were') +
+        (cnt === 1 ? taskConfig.unit.slice(0, -1) + ' was' : taskConfig.unit + ' were') +
         ' chosen in each (' +
-        (S.ord === 'conf' ? 'where the network was most sure' : 'at random') +
+        (settings.ord === 'conf' ? 'where the network was most sure' : 'at random') +
         ') and filled by drawing from its beliefs' +
         (cnt > 1 ? ', each drawn without knowing the others.' : '.') +
         ' ' +
-        (K.Ln - rev) +
+        (taskConfig.Ln - rev) +
         ' remain hidden.';
       if (si >= N) {
         done = true;
-        cu = 5;
+        activeStepIndex = 5;
         res = X.map(match);
         let ok = 0;
         for (const v of res) if (v >= 0) ok++;
         okV = ok / G;
-        msg += ' Finished: ' + ok + ' of ' + G + ' samples are ' + K.what + '.';
+        msg += ' Finished: ' + ok + ' of ' + G + ' samples are ' + taskConfig.what + '.';
       } else {
-        PR = probs(X);
-        cu = 5;
+        tokenProbabilities = probs(X);
+        activeStepIndex = 5;
       }
     };
     const step = () => {
@@ -329,7 +334,7 @@ export default {
       else if (phase === 'bench') bench();
       else if (done) {
         startGen();
-        cu = 3;
+        activeStepIndex = 3;
         msg = 'Eight fresh samples with everything hidden. Press Run or One step.';
       } else gstep();
     };
@@ -384,25 +389,25 @@ export default {
       g.textBaseline = 'alphabetic';
     };
     const draw = () => {
-      const t = T(),
-        Ln = K.Ln,
-        V = K.V,
-        N = K.NS[S.ni],
-        hot = new Set(just);
+      const colors = readThemeColors(),
+        Ln = taskConfig.Ln,
+        V = taskConfig.V,
+        N = taskConfig.NS[settings.ni],
+        hot = new Set(newlyRevealedPositions);
       {
-        const { g, w, h } = fit(c);
-        g.font = MONO;
+        const { g: ctx, w, h } = prepareCanvas(mainCanvas);
+        ctx.font = MONO;
         if (!X) {
-          g.fillStyle = t.muted;
-          g.textAlign = 'center';
-          g.fillText(
+          ctx.fillStyle = colors.muted;
+          ctx.textAlign = 'center';
+          ctx.fillText(
             phase === 'bench'
               ? 'measuring each number of reveal steps'
               : 'the eight samples appear here once the network is trained',
             w / 2,
             h / 2,
           );
-        } else if (S.kind === 'pic') {
+        } else if (settings.kind === 'pic') {
           const s = Math.floor(Math.min((w - 50) / (4 * 5 + 3 * 1.2), (h - 70) / (2 * 7 + 1.6)));
           const ox = (w - (4 * 5 * s + 3 * 1.2 * s)) / 2,
             oy = (h - (2 * 7 * s + 1.6 * s)) / 2 - 6;
@@ -411,20 +416,20 @@ export default {
               y0 = oy + Math.floor(b / 4) * 8.6 * s;
             for (let i = 0; i < 35; i++)
               cell(
-                g,
-                t,
+                ctx,
+                colors,
                 x0 + (i % 5) * s,
                 y0 + Math.floor(i / 5) * s,
                 s,
                 X[b][i],
-                PR ? PR[(b * Ln + i) * V + 1] : 0,
+                tokenProbabilities ? tokenProbabilities[(b * Ln + i) * V + 1] : 0,
                 hot.has(b * Ln + i),
               );
             if (done) {
-              g.font = MONO;
-              g.textAlign = 'center';
-              g.fillStyle = res[b] >= 0 ? t.ok : t.cut;
-              g.fillText(
+              ctx.font = MONO;
+              ctx.textAlign = 'center';
+              ctx.fillStyle = res[b] >= 0 ? colors.ok : colors.cut;
+              ctx.fillText(
                 res[b] >= 0 ? 'reads as ' + CHN[res[b]] : 'not a letter',
                 x0 + 2.5 * s,
                 y0 + 7 * s + 15,
@@ -440,38 +445,40 @@ export default {
               y0 = oy + Math.floor(b / 2) * 1.5 * s;
             for (let i = 0; i < 5; i++)
               tile(
-                g,
-                t,
+                ctx,
+                colors,
                 x0 + i * s,
                 y0,
                 s,
                 X[b][i],
-                PR ? PR.subarray((b * Ln + i) * V, (b * Ln + i + 1) * V) : null,
+                tokenProbabilities
+                  ? tokenProbabilities.subarray((b * Ln + i) * V, (b * Ln + i + 1) * V)
+                  : null,
                 hot.has(b * Ln + i),
               );
             if (done) {
-              g.font = MONO;
-              g.textAlign = 'left';
-              g.fillStyle = res[b] >= 0 ? t.ok : t.cut;
-              g.fillText(res[b] >= 0 ? 'a real word' : 'not a word', x0, y0 + s + 9);
+              ctx.font = MONO;
+              ctx.textAlign = 'left';
+              ctx.fillStyle = res[b] >= 0 ? colors.ok : colors.cut;
+              ctx.fillText(res[b] >= 0 ? 'a real word' : 'not a word', x0, y0 + s + 9);
             }
           }
         }
       }
       {
-        const { g, w, h } = fit(cr),
+        const { g: ctx, w, h } = prepareCanvas(cr),
           h1 = h * 0.44,
           FR = [0, 0.25, 0.5, 0.75, 1],
           pw = (w - 20) / 5;
-        g.font = MONO;
-        g.fillStyle = t.muted;
-        g.textAlign = 'left';
-        g.fillText('one training example, hidden more and more: what training sees', 8, 13);
+        ctx.font = MONO;
+        ctx.fillStyle = colors.muted;
+        ctx.textAlign = 'left';
+        ctx.fillText('one training example, hidden more and more: what training sees', 8, 13);
         FR.forEach((f, q) => {
           const nh = Math.round(f * Ln),
             hid = new Set(exO.slice(0, nh)),
             cx = 10 + q * pw + pw / 2;
-          if (S.kind === 'pic') {
+          if (settings.kind === 'pic') {
             const s = Math.floor(Math.min((pw - 14) / 5, (h1 - 48) / 7)),
               x0 = cx - 2.5 * s,
               y0 = 22;
@@ -479,15 +486,15 @@ export default {
               const x = x0 + (i % 5) * s,
                 y = y0 + Math.floor(i / 5) * s;
               if (hid.has(i)) {
-                g.fillStyle = mix(t.accent, t.accent, 0, 0.22);
-                g.fillRect(x, y, s - 1, s - 1);
+                ctx.fillStyle = mix(colors.accent, colors.accent, 0, 0.22);
+                ctx.fillRect(x, y, s - 1, s - 1);
               } else {
-                g.fillStyle = ex[i] ? t.ink : t.bg;
-                g.fillRect(x, y, s - 1, s - 1);
+                ctx.fillStyle = ex[i] ? colors.ink : colors.bg;
+                ctx.fillRect(x, y, s - 1, s - 1);
                 if (!ex[i]) {
-                  g.strokeStyle = t.line;
-                  g.lineWidth = 1;
-                  g.strokeRect(x + 0.5, y + 0.5, s - 2, s - 2);
+                  ctx.strokeStyle = colors.line;
+                  ctx.lineWidth = 1;
+                  ctx.strokeRect(x + 0.5, y + 0.5, s - 2, s - 2);
                 }
               }
             }
@@ -498,57 +505,57 @@ export default {
               y0 = 20 + q * rh;
             for (let i = 0; i < 5; i++) {
               const x = x0 + i * s;
-              g.textAlign = 'center';
+              ctx.textAlign = 'center';
               if (hid.has(i)) {
-                g.fillStyle = mix(t.accent, t.accent, 0, 0.22);
-                g.fillRect(x, y0, s - 2, s - 2);
+                ctx.fillStyle = mix(colors.accent, colors.accent, 0, 0.22);
+                ctx.fillRect(x, y0, s - 2, s - 2);
               } else {
-                g.strokeStyle = t.ink;
-                g.lineWidth = 1;
-                g.strokeRect(x + 0.5, y0 + 0.5, s - 3, s - 3);
-                g.fillStyle = t.ink;
-                g.font = '600 ' + Math.round(s * 0.6) + 'px ' + MONO.split('px ')[1];
-                g.fillText(String.fromCharCode(97 + ex[i]), x + (s - 2) / 2, y0 + s * 0.68);
+                ctx.strokeStyle = colors.ink;
+                ctx.lineWidth = 1;
+                ctx.strokeRect(x + 0.5, y0 + 0.5, s - 3, s - 3);
+                ctx.fillStyle = colors.ink;
+                ctx.font = '600 ' + Math.round(s * 0.6) + 'px ' + MONO.split('px ')[1];
+                ctx.fillText(String.fromCharCode(97 + ex[i]), x + (s - 2) / 2, y0 + s * 0.68);
               }
             }
-            g.font = MONO;
-            g.fillStyle = t.muted;
-            g.textAlign = 'left';
-            g.fillText(Math.round(f * 100) + '% hidden', x0 + 5 * s + 12, y0 + s * 0.62);
+            ctx.font = MONO;
+            ctx.fillStyle = colors.muted;
+            ctx.textAlign = 'left';
+            ctx.fillText(Math.round(f * 100) + '% hidden', x0 + 5 * s + 12, y0 + s * 0.62);
             return;
           }
-          g.font = MONO;
-          g.fillStyle = t.muted;
-          g.textAlign = 'center';
-          g.fillText(Math.round(f * 100) + '% hidden', cx, h1 - 6);
+          ctx.font = MONO;
+          ctx.fillStyle = colors.muted;
+          ctx.textAlign = 'center';
+          ctx.fillText(Math.round(f * 100) + '% hidden', cx, h1 - 6);
         });
         if (phase === 'train')
-          uLine(g, t, 0, h1, w, h - h1, sm, {
+          drawSeriesChart(ctx, colors, 0, h1, w, h - h1, sm, {
             title: 'error at guessing hidden tokens (average of every 20 steps)',
             n: MAXS / 20,
-            col: t.ok,
+            col: colors.ok,
             ym: Math.max(Math.log(V) * 1.05, sm[0] || 0),
           });
         else
-          g2Bench(
-            g,
-            t,
+          drawSamplerBenchmark(
+            ctx,
+            colors,
             0,
             h1,
             w,
             h - h1,
-            K.NS,
+            taskConfig.NS,
             [
-              { ys: Q[0], col: t.cut, lab: 'random order' },
-              { ys: Q[1], col: t.accent, lab: 'most confident first' },
+              { ys: Q[0], col: colors.cut, lab: 'random order' },
+              { ys: Q[1], col: colors.accent, lab: 'most confident first' },
             ],
-            phase === 'gen' ? S.ni : -1,
-            'share of samples that are ' + K.what + ', by number of reveal steps',
+            phase === 'gen' ? settings.ni : -1,
+            'share of samples that are ' + taskConfig.what + ', by number of reveal steps',
           );
       }
       live.textContent = msg;
-      uCur(root, 'dd', cu);
-      setR(
+      highlightLessonStep(root, 'dd', activeStepIndex);
+      setReadout(
         root,
         'ph',
         phase === 'train'
@@ -561,48 +568,49 @@ export default {
               ? 'Finished'
               : 'Generating',
       );
-      setR(root, 'ts', ts + ' of ' + MAXS);
-      setR(root, 'L', sm.length ? f3(sm[sm.length - 1]) : '–');
-      setR(root, 'rs', phase === 'gen' ? si + ' of ' + N : '–');
-      setR(root, 'hid', phase === 'gen' ? Ln - rev + ' of ' + Ln : '–');
-      setR(root, 'ok', isFinite(okV) ? Math.round(okV * G) + ' of ' + G : '–');
+      setReadout(root, 'ts', ts + ' of ' + MAXS);
+      setReadout(root, 'L', sm.length ? f3(sm[sm.length - 1]) : '–');
+      setReadout(root, 'rs', phase === 'gen' ? si + ' of ' + N : '–');
+      setReadout(root, 'hid', phase === 'gen' ? Ln - rev + ' of ' + Ln : '–');
+      setReadout(root, 'ok', isFinite(okV) ? Math.round(okV * G) + ' of ' + G : '–');
     };
     const sl = $('#dd-n', root),
       slo = $('#dd-n-o', root),
       setSl = () => {
-        sl.max = K.NS.length - 1;
-        S.ni = K.def;
-        sl.value = K.def;
-        if (slo) slo.textContent = String(K.NS[S.ni]);
+        sl.max = taskConfig.NS.length - 1;
+        settings.ni = taskConfig.def;
+        sl.value = taskConfig.def;
+        if (slo) slo.textContent = String(taskConfig.NS[settings.ni]);
       };
     build();
     setSl();
-    if (RM) {
+    if (prefersReducedMotion) {
       train(MAXS);
       while (phase === 'bench') bench();
       while (!done) gstep();
     }
     const anim = Anim(() => {
-      fr++;
+      frameCount++;
       if (phase === 'train') {
-        train(Math.min(ts < 60 ? 1 : 5, chk.remaining()));
+        train(Math.min(ts < 60 ? 1 : 5, checkRunStop.remaining()));
         draw();
-        chk();
+        checkRunStop();
         return;
       }
       if (phase === 'bench') {
-        if (fr % 5 === 0) {
+        if (frameCount % 5 === 0) {
           bench();
           draw();
         }
         return;
       }
-      if (fr % clamp(Math.round(260 / K.NS[S.ni]), 14, 70) === 0 && !done) gstep();
+      if (frameCount % clamp(Math.round(260 / taskConfig.NS[settings.ni]), 14, 70) === 0 && !done)
+        gstep();
       draw();
-      if (done) pb.stop();
+      if (done) playback.stop();
     });
-    pb = playBtn($('#dd-play', root), anim);
-    chk = runCtl(pb, root, 'dd', {
+    playback = playBtn($('#dd-play', root), anim);
+    checkRunStop = attachRunLimit(playback, root, 'dd', {
       done: () => phase === 'gen' && done,
       restart: () => startGen(),
       count: () => ts,
@@ -614,18 +622,18 @@ export default {
         draw();
         return;
       }
-      pb.stop();
+      playback.stop();
       startGen();
       draw();
-      pb.start();
+      playback.start();
     };
     $('#dd-step', root).onclick = () => {
-      pb.stop();
+      playback.stop();
       step();
       draw();
     };
     $('#dd-reset', root).onclick = () => {
-      pb.stop();
+      playback.stop();
       run++;
       build();
       draw();
@@ -635,34 +643,34 @@ export default {
       root,
       'dd-n',
       (v) => {
-        if (!pb) return;
-        S.ni = clamp(+v, 0, K.NS.length - 1);
+        if (!playback) return;
+        settings.ni = clamp(+v, 0, taskConfig.NS.length - 1);
         if (phase === 'gen') regen();
         else draw();
       },
-      (v) => String((K || KD.pic).NS[Math.min(+v, (K || KD.pic).NS.length - 1)]),
+      (v) => String((taskConfig || KD.pic).NS[Math.min(+v, (taskConfig || KD.pic).NS.length - 1)]),
     );
-    segBind(root, 'dd-ord', S.ord, (v) => {
-      S.ord = v;
+    segBind(root, 'dd-ord', settings.ord, (v) => {
+      settings.ord = v;
       if (phase === 'gen') regen();
     });
-    segBind(root, 'dd-kind', S.kind, (v) => {
-      S.kind = v;
-      pb.stop();
+    segBind(root, 'dd-kind', settings.kind, (v) => {
+      settings.kind = v;
+      playback.stop();
       run++;
       build();
       setSl();
       draw();
-      pb.start();
+      playback.start();
     });
     return {
       draw,
-      stop: () => pb.stop(),
+      stop: () => playback.stop(),
       auto: () => {
         run++;
         build();
         draw();
-        pb.start();
+        playback.start();
       },
     };
   },

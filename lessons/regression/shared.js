@@ -42,21 +42,21 @@ function betai(a, b, x) {
     : 1 - (bt * betacf(b, a, 1 - x)) / b;
 }
 
-const tp2 = (t, df) => betai(df / 2, 0.5, df / (df + t * t));
+const twoSidedTPValue = (t, df) => betai(df / 2, 0.5, df / (df + t * t));
 
 function tcrit(df) {
   let lo = 1,
     hi = 60;
   for (let i = 0; i < 50; i++) {
     const m = (lo + hi) / 2;
-    tp2(m, df) > 0.05 ? (lo = m) : (hi = m);
+    twoSidedTPValue(m, df) > 0.05 ? (lo = m) : (hi = m);
   }
   return (lo + hi) / 2;
 }
 
-const fpval = (F, d1, d2) => (F <= 0 ? 1 : betai(d2 / 2, d1 / 2, d2 / (d2 + d1 * F)));
+const fTestPValue = (F, d1, d2) => (F <= 0 ? 1 : betai(d2 / 2, d1 / 2, d2 / (d2 + d1 * F)));
 
-const pfmt = (p) => (p < 1e-4 ? '< 0.0001' : p.toFixed(4));
+const formatPValue = (p) => (p < 1e-4 ? '< 0.0001' : p.toFixed(4));
 
 function solve(A, b) {
   const n = b.length,
@@ -246,10 +246,10 @@ function Orbit(c, redraw, ctl, V0 = { az: -0.7, el: 0.42, zoom: 1 }) {
 export {
   betacf,
   betai,
-  tp2,
+  twoSidedTPValue,
   tcrit,
-  fpval,
-  pfmt,
+  fTestPValue,
+  formatPValue,
   solve,
   lsq,
   legendre,

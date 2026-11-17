@@ -1,7 +1,7 @@
 /* Manifold. © 2026 Bahman Moraffah. All rights reserved. */
 export default {
   id: 'deep-learning',
-  t: 'Deep learning',
+  title: 'Deep learning',
   lessons: [
     {
       id: 'convolution',

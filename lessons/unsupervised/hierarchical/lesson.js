@@ -3,41 +3,41 @@ import {
   $,
   Anim,
   MONO,
-  T,
+  readThemeColors,
   bind,
   f2,
-  fit,
+  prepareCanvas,
   mix,
   playBtn,
   randnFrom,
   rng,
-  runCtl,
-  setR,
+  attachRunLimit,
+  setReadout,
 } from '../../../js/core/shared.js';
-import { UC, d2, uCur, uData, uDataBind, uFrame, uView } from '../shared.js';
+import { UC, d2, highlightLessonStep, uData, uDataBind, uFrame, uView } from '../shared.js';
 
 export default {
   init(root) {
     const c = $('#hc-c', root),
       cr = $('#hc-r', root),
       live = $('#hc-live', root),
-      S = { link: 'average', K: 3, ds: 'blobs', n: 36, seed: 4, cap: 70 };
+      settings = { link: 'average', K: 3, ds: 'blobs', n: 36, seed: 4, cap: 70 };
     let P = [],
-      M = [],
+      merges = [],
       mem = {},
       pos = [],
-      xp = {},
-      hh = {},
+      nodeXPositions = {},
+      nodeHeights = {},
       shown = 0,
       cut = false,
       msg = '',
-      cu = 0,
+      activeStepIndex = 0,
       wait = 0,
-      fr = 0,
-      pb;
+      frameCount = 0,
+      playback;
     const build = () => {
       const n = P.length,
-        W = S.link === 'ward',
+        W = settings.link === 'ward',
         N2 = 2 * n,
         D = [];
       for (let i = 0; i < N2; i++) D.push(new Float64Array(N2));
@@ -54,7 +54,7 @@ export default {
         mem[i] = [i];
         sz[i] = 1;
       }
-      M = [];
+      merges = [];
       for (let m = 0; m < n - 1; m++) {
         let bi = -1,
           bj = -1,
@@ -77,9 +77,9 @@ export default {
             b = D[k][bj],
             sk = sz[k];
           let v;
-          if (S.link === 'single') v = Math.min(a, b);
-          else if (S.link === 'complete') v = Math.max(a, b);
-          else if (S.link === 'average') v = (si * a + sj * b) / (si + sj);
+          if (settings.link === 'single') v = Math.min(a, b);
+          else if (settings.link === 'complete') v = Math.max(a, b);
+          else if (settings.link === 'average') v = (si * a + sj * b) / (si + sj);
           else v = ((si + sk) * a + (sj + sk) * b - sk * bd) / (si + sj + sk);
           D[k][id] = D[id][k] = v;
         }
@@ -87,11 +87,11 @@ export default {
         mem[id] = mem[bi].concat(mem[bj]);
         act = act.filter((k) => k !== bi && k !== bj);
         act.push(id);
-        M.push({ a: bi, b: bj, id, h: W ? Math.sqrt(Math.max(0, bd)) : bd, na: si, nb: sj });
+        merges.push({ a: bi, b: bj, id, h: W ? Math.sqrt(Math.max(0, bd)) : bd, na: si, nb: sj });
       }
       const ord = (id) => {
         if (id < n) return [id];
-        const q = M[id - n];
+        const q = merges[id - n];
         return ord(q.a).concat(ord(q.b));
       };
       const o = n > 1 ? ord(2 * n - 2) : [0];
@@ -99,22 +99,22 @@ export default {
       o.forEach((l, i) => {
         pos[l] = i;
       });
-      xp = {};
-      hh = {};
+      nodeXPositions = {};
+      nodeHeights = {};
       for (let i = 0; i < n; i++) {
-        xp[i] = pos[i];
-        hh[i] = 0;
+        nodeXPositions[i] = pos[i];
+        nodeHeights[i] = 0;
       }
-      M.forEach((q) => {
-        xp[q.id] = (xp[q.a] + xp[q.b]) / 2;
-        hh[q.id] = q.h;
+      merges.forEach((q) => {
+        nodeXPositions[q.id] = (nodeXPositions[q.a] + nodeXPositions[q.b]) / 2;
+        nodeHeights[q.id] = q.h;
       });
     };
     const labels = (m) => {
       const n = P.length,
         L = new Array(n);
       for (let i = 0; i < n; i++) L[i] = i;
-      for (let k = 0; k < m; k++) for (const l of mem[M[k].id]) L[l] = M[k].id;
+      for (let k = 0; k < m; k++) for (const l of mem[merges[k].id]) L[l] = merges[k].id;
       return L;
     };
     const colOf = (id) => {
@@ -126,7 +126,7 @@ export default {
       shown = 0;
       cut = false;
       wait = 0;
-      cu = 0;
+      activeStepIndex = 0;
       msg =
         'Every one of the ' + P.length + ' points is its own cluster. Press Merge or One merge.';
     };
@@ -137,24 +137,24 @@ export default {
       ward: 'Ward linkage (the growth in spread, shown as a distance)',
     };
     const step = () => {
-      if (cut || shown >= M.length) {
-        if (shown >= M.length && !cut) {
+      if (cut || shown >= merges.length) {
+        if (shown >= merges.length && !cut) {
           cut = true;
-          cu = 4;
+          activeStepIndex = 4;
           msg = cutMsg();
           return;
         }
         reset();
         return;
       }
-      const q = M[shown];
+      const q = merges[shown];
       shown++;
-      cu = 2;
+      activeStepIndex = 2;
       msg =
         'Merge ' +
         shown +
         ' of ' +
-        M.length +
+        merges.length +
         ': joined a cluster of ' +
         q.na +
         ' point' +
@@ -162,23 +162,23 @@ export default {
         ' with a cluster of ' +
         q.nb +
         '. Their distance under ' +
-        names[S.link] +
+        names[settings.link] +
         ' was ' +
         f2(q.h) +
         ', the smallest of all pairs. ' +
         (P.length - shown) +
         ' cluster' +
         (P.length - shown === 1 ? ' remains.' : 's remain.');
-      if (shown >= M.length) {
-        cu = 3;
+      if (shown >= merges.length) {
+        activeStepIndex = 3;
       }
     };
-    const lvl = () => (cut ? Math.max(0, P.length - Math.min(S.K, P.length)) : shown);
+    const lvl = () => (cut ? Math.max(0, P.length - Math.min(settings.K, P.length)) : shown);
     const cutMsg = () => {
-      const k = Math.min(S.K, P.length),
+      const k = Math.min(settings.K, P.length),
         m = P.length - k,
-        lo = m > 0 ? M[m - 1].h : 0,
-        hi = m < M.length ? M[m].h : lo;
+        lo = m > 0 ? merges[m - 1].h : 0,
+        hi = m < merges.length ? merges[m].h : lo;
       return (
         'The tree is finished. A cut anywhere between height ' +
         f2(lo) +
@@ -203,7 +203,7 @@ export default {
         bg = -1;
       for (let k = 2; k <= Math.min(9, P.length - 1); k++) {
         const m = P.length - k,
-          g = M[m].h - M[m - 1].h;
+          g = merges[m].h - merges[m - 1].h;
         if (g > bg) {
           bg = g;
           b = k;
@@ -212,14 +212,14 @@ export default {
       return b;
     };
     const draw = () => {
-      const t = T(),
-        col = UC(t),
+      const colors = readThemeColors(),
+        col = UC(colors),
         n = P.length,
         L = labels(lvl());
       {
         const V = uView(c),
           { g, w, h, X, Y } = V;
-        uFrame(V, t, 'x', 'y');
+        uFrame(V, colors, 'x', 'y');
         const cen = {};
         for (let i = 0; i < n; i++) {
           const k = L[i];
@@ -241,16 +241,16 @@ export default {
           g.stroke();
         }
         if (!cut && shown > 0) {
-          const q = M[shown - 1],
+          const q = merges[shown - 1],
             A = mem[q.a],
             B = mem[q.b];
           let pa, pb2;
-          if (S.link === 'single' || S.link === 'complete') {
-            let bd = S.link === 'single' ? 1e18 : -1;
+          if (settings.link === 'single' || settings.link === 'complete') {
+            let bd = settings.link === 'single' ? 1e18 : -1;
             for (const i of A)
               for (const j of B) {
                 const d = d2(P[i], P[j]);
-                if (S.link === 'single' ? d < bd : d > bd) {
+                if (settings.link === 'single' ? d < bd : d > bd) {
                   bd = d;
                   pa = P[i];
                   pb2 = P[j];
@@ -264,7 +264,7 @@ export default {
             pa = cn(A);
             pb2 = cn(B);
           }
-          g.strokeStyle = t.ink;
+          g.strokeStyle = colors.ink;
           g.lineWidth = 3.2;
           g.beginPath();
           g.moveTo(X(pa.x), Y(pa.y));
@@ -275,93 +275,93 @@ export default {
           const k = L[i];
           g.beginPath();
           g.arc(X(P[i].x), Y(P[i].y), 4.4, 0, 7);
-          g.fillStyle = k < n ? mix(t.ink, t.ink, 0, 0.42) : col[colOf(k)];
+          g.fillStyle = k < n ? mix(colors.ink, colors.ink, 0, 0.42) : col[colOf(k)];
           g.fill();
-          g.strokeStyle = t.bg;
+          g.strokeStyle = colors.bg;
           g.lineWidth = 1.2;
           g.stroke();
         }
       }
       {
-        const { g, w, h } = fit(cr),
+        const { g: ctx, w, h } = prepareCanvas(cr),
           m = { l: 44, r: 14, t: 16, b: 22 },
-          hm = Math.max(1e-9, M.length ? M[M.length - 1].h : 1) * 1.06,
+          hm = Math.max(1e-9, merges.length ? merges[merges.length - 1].h : 1) * 1.06,
           X = (v) => m.l + (n > 1 ? v / (n - 1) : 0.5) * (w - m.l - m.r),
           Y = (v) => h - m.b - (v / hm) * (h - m.t - m.b),
           lv = lvl();
-        g.strokeStyle = t.muted;
-        g.lineWidth = 1;
-        g.beginPath();
-        g.moveTo(m.l - 8, m.t);
-        g.lineTo(m.l - 8, h - m.b);
-        g.stroke();
-        g.font = MONO;
-        g.fillStyle = t.muted;
-        g.textAlign = 'right';
-        g.fillText(f2(hm / 1.06), m.l - 12, Y(hm / 1.06) + 4);
-        g.fillText('0', m.l - 12, Y(0) + 4);
-        g.save();
-        g.translate(11, h / 2);
-        g.rotate(-Math.PI / 2);
-        g.textAlign = 'center';
-        g.fillText('merge distance', 0, 0);
-        g.restore();
+        ctx.strokeStyle = colors.muted;
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(m.l - 8, m.t);
+        ctx.lineTo(m.l - 8, h - m.b);
+        ctx.stroke();
+        ctx.font = MONO;
+        ctx.fillStyle = colors.muted;
+        ctx.textAlign = 'right';
+        ctx.fillText(f2(hm / 1.06), m.l - 12, Y(hm / 1.06) + 4);
+        ctx.fillText('0', m.l - 12, Y(0) + 4);
+        ctx.save();
+        ctx.translate(11, h / 2);
+        ctx.rotate(-Math.PI / 2);
+        ctx.textAlign = 'center';
+        ctx.fillText('merge distance', 0, 0);
+        ctx.restore();
         for (let k = 0; k < shown; k++) {
-          const q = M[k];
-          g.strokeStyle = k < lv ? col[colOf(L[mem[q.id][0]])] : t.ink;
-          g.lineWidth = k === shown - 1 && !cut ? 3 : 1.7;
-          g.beginPath();
-          g.moveTo(X(xp[q.a]), Y(hh[q.a]));
-          g.lineTo(X(xp[q.a]), Y(q.h));
-          g.lineTo(X(xp[q.b]), Y(q.h));
-          g.lineTo(X(xp[q.b]), Y(hh[q.b]));
-          g.stroke();
+          const q = merges[k];
+          ctx.strokeStyle = k < lv ? col[colOf(L[mem[q.id][0]])] : colors.ink;
+          ctx.lineWidth = k === shown - 1 && !cut ? 3 : 1.7;
+          ctx.beginPath();
+          ctx.moveTo(X(nodeXPositions[q.a]), Y(nodeHeights[q.a]));
+          ctx.lineTo(X(nodeXPositions[q.a]), Y(q.h));
+          ctx.lineTo(X(nodeXPositions[q.b]), Y(q.h));
+          ctx.lineTo(X(nodeXPositions[q.b]), Y(nodeHeights[q.b]));
+          ctx.stroke();
         }
         for (let i = 0; i < n; i++) {
-          g.fillStyle = L[i] < n ? mix(t.ink, t.ink, 0, 0.42) : col[colOf(L[i])];
-          g.beginPath();
-          g.arc(X(pos[i]), h - m.b + 7, 3, 0, 7);
-          g.fill();
+          ctx.fillStyle = L[i] < n ? mix(colors.ink, colors.ink, 0, 0.42) : col[colOf(L[i])];
+          ctx.beginPath();
+          ctx.arc(X(pos[i]), h - m.b + 7, 3, 0, 7);
+          ctx.fill();
         }
-        if (cut && M.length) {
-          const k = Math.min(S.K, n),
+        if (cut && merges.length) {
+          const k = Math.min(settings.K, n),
             mm = n - k,
-            lo = mm > 0 ? M[mm - 1].h : 0,
-            hi = mm < M.length ? M[mm].h : lo * 1.05,
+            lo = mm > 0 ? merges[mm - 1].h : 0,
+            hi = mm < merges.length ? merges[mm].h : lo * 1.05,
             y = Y((lo + hi) / 2);
-          g.setLineDash([7, 5]);
-          g.strokeStyle = t.gold;
-          g.lineWidth = 2;
-          g.beginPath();
-          g.moveTo(m.l - 8, y);
-          g.lineTo(w - m.r, y);
-          g.stroke();
-          g.setLineDash([]);
-          g.fillStyle = t.cut;
-          g.textAlign = 'right';
-          g.fillText('cut here: ' + k + ' cluster' + (k === 1 ? '' : 's'), w - m.r, y - 6);
+          ctx.setLineDash([7, 5]);
+          ctx.strokeStyle = colors.gold;
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.moveTo(m.l - 8, y);
+          ctx.lineTo(w - m.r, y);
+          ctx.stroke();
+          ctx.setLineDash([]);
+          ctx.fillStyle = colors.cut;
+          ctx.textAlign = 'right';
+          ctx.fillText('cut here: ' + k + ' cluster' + (k === 1 ? '' : 's'), w - m.r, y - 6);
         }
-        g.fillStyle = t.muted;
-        g.textAlign = 'center';
-        g.fillText('one dot per point', w / 2, h - 2);
+        ctx.fillStyle = colors.muted;
+        ctx.textAlign = 'center';
+        ctx.fillText('one dot per point', w / 2, h - 2);
       }
       live.textContent = msg;
-      uCur(root, 'hc', cu);
-      setR(root, 'cl', String(n - lvl()));
-      setR(root, 'mg', shown + ' of ' + M.length);
-      setR(root, 'ht', shown ? f2(M[shown - 1].h) : '–');
-      setR(root, 'gap', M.length > 2 ? sugg() + ' clusters' : '–');
+      highlightLessonStep(root, 'hc', activeStepIndex);
+      setReadout(root, 'cl', String(n - lvl()));
+      setReadout(root, 'mg', shown + ' of ' + merges.length);
+      setReadout(root, 'ht', shown ? f2(merges[shown - 1].h) : '–');
+      setReadout(root, 'gap', merges.length > 2 ? sugg() + ' clusters' : '–');
     };
     const fin = () => {
-      shown = M.length;
+      shown = merges.length;
       cut = true;
-      cu = 4;
+      activeStepIndex = 4;
       msg = cutMsg();
     };
     const gen = uDataBind(
       root,
       'hc',
-      S,
+      settings,
       () => {
         P = gen();
         build();
@@ -370,12 +370,12 @@ export default {
         draw();
       },
       () => {
-        if (S.ds !== 'moons') return uData(S.ds, S.n, S.seed);
-        const r = rng(S.seed * 13 + 5),
+        if (settings.ds !== 'moons') return uData(settings.ds, settings.n, settings.seed);
+        const r = rng(settings.seed * 13 + 5),
           rn = randnFrom(r),
           o = [],
-          hf = Math.ceil(S.n / 2);
-        for (let i = 0; i < S.n; i++) {
+          hf = Math.ceil(settings.n / 2);
+        for (let i = 0; i < settings.n; i++) {
           const a = ((Math.floor(i / 2) + 0.5 + 0.3 * (r() - 0.5)) / hf) * Math.PI;
           o.push(
             i % 2
@@ -396,7 +396,7 @@ export default {
     build();
     fin();
     const anim = Anim(() => {
-      fr++;
+      frameCount++;
       if (wait > 0) {
         wait--;
         if (!wait) {
@@ -405,31 +405,34 @@ export default {
         }
         return;
       }
-      if (fr % (shown < 6 ? 30 : shown > M.length - 6 ? 26 : 7)) return;
+      if (frameCount % (shown < 6 ? 30 : shown > merges.length - 6 ? 26 : 7)) return;
       step();
       draw();
-      chk();
+      checkRunStop();
     });
-    pb = playBtn($('#hc-play', root), anim);
-    const chk = runCtl(pb, root, 'hc', { done: () => cut, restart: () => reset() });
+    playback = playBtn($('#hc-play', root), anim);
+    const checkRunStop = attachRunLimit(playback, root, 'hc', {
+      done: () => cut,
+      restart: () => reset(),
+    });
     $('#hc-step', root).onclick = () => {
-      pb.stop();
+      playback.stop();
       step();
       draw();
     };
     $('#hc-reset', root).onclick = () => {
-      pb.stop();
+      playback.stop();
       reset();
       draw();
     };
     $('#hc-fin', root).onclick = () => {
-      pb.stop();
+      playback.stop();
       fin();
       draw();
     };
     $('#hc-link', root).onchange = (e) => {
-      S.link = e.target.value;
-      pb.stop();
+      settings.link = e.target.value;
+      playback.stop();
       build();
       fin();
       draw();
@@ -438,8 +441,8 @@ export default {
       root,
       'hc-K',
       (v) => {
-        S.K = v;
-        pb.stop();
+        settings.K = v;
+        playback.stop();
         fin();
         draw();
       },
@@ -447,11 +450,11 @@ export default {
     );
     return {
       draw,
-      stop: () => pb.stop(),
+      stop: () => playback.stop(),
       auto: () => {
         reset();
         draw();
-        pb.start();
+        playback.start();
       },
     };
   },

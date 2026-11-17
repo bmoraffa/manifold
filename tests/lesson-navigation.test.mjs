@@ -20,7 +20,7 @@ function harness({ withProse = false } = {}) {
       window.location.hash = hash;
     },
   };
-  const entries = ['a', 'b', 'c'].map((id) => ({ id, tab: id, title: id, page: true }));
+  const entries = ['a', 'b', 'c'].map((id) => ({ id, tab: id, title: id, isAboutPage: true }));
   const pending = new Map();
   const calls = [];
   const loader = {
@@ -68,7 +68,7 @@ function harness({ withProse = false } = {}) {
   const app = mountApp({
     document,
     window,
-    catalog: [{ id: 'topic', t: 'Topic', lessons: entries }],
+    catalog: [{ id: 'topic', title: 'Topic', lessons: entries }],
     loader,
     hero: { start() {}, stop() {}, draw() {}, rebuild() {} },
   });
@@ -156,14 +156,14 @@ test(
 
 test('movement follows lesson order and switches to a fade between topics', () => {
   const a = { topic: { id: 'one' }, index: 1 };
-  assert.deepEqual(lessonMotion(a, { ...a, index: 2 }), { shift: 30, duration: 280 });
-  assert.deepEqual(lessonMotion(a, { ...a, index: 0 }), { shift: -30, duration: 280 });
+  assert.deepEqual(lessonMotion(a, { ...a, index: 2 }), { offsetXPx: 30, duration: 280 });
+  assert.deepEqual(lessonMotion(a, { ...a, index: 0 }), { offsetXPx: -30, duration: 280 });
   assert.deepEqual(lessonMotion(a, { topic: { id: 'two' }, index: 1 }), {
-    shift: 0,
+    offsetXPx: 0,
     duration: 220,
   });
-  assert.deepEqual(lessonMotion(a, { ...a, topic: { id: 'one', about: true }, index: 2 }), {
-    shift: 0,
+  assert.deepEqual(lessonMotion(a, { ...a, topic: { id: 'one', isAbout: true }, index: 2 }), {
+    offsetXPx: 0,
     duration: 220,
   });
 });

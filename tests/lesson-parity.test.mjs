@@ -39,10 +39,10 @@ test('all 119 native entries preserve catalog metadata and generated HTML', asyn
   const { document } = parseHTML('<html><body></body></html>');
   const loader = createLessonLoader({ fetchText: (url) => readFile(url, 'utf8') });
   assert.deepEqual(
-    TOPICS.map(({ id, t, about, lessons }) => ({
+    TOPICS.map(({ id, title, isAbout, lessons }) => ({
       id,
-      t,
-      ...(about ? { about } : {}),
+      t: title,
+      ...(isAbout ? { about: isAbout } : {}),
       ids: lessons.map((l) => l.id),
     })),
     baseline.topics,

@@ -1,7 +1,7 @@
 /* Manifold. © 2026 Bahman Moraffah. All rights reserved. */
 export default {
   id: 'language-models',
-  t: 'Language models',
+  title: 'Language models',
   lessons: [
     {
       id: 'bpe',

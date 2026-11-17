@@ -1,5 +1,5 @@
 /* Manifold. © 2026 Bahman Moraffah. All rights reserved. */
-import { $, MONO, clamp, fit, mix } from '../../../js/core/shared.js';
+import { $, MONO, clamp, prepareCanvas, mix } from '../../../js/core/shared.js';
 import { Orbit, dot, solve } from '../../regression/shared.js';
 import { clfLesson, sig } from '../shared.js';
 
@@ -19,7 +19,7 @@ export default clfLesson({
     let w = [0, 0, 0, 0],
       al = [],
       Tr = [],
-      wl = [0, 0, 0],
+      linearWeights = [0, 0, 0],
       u = 0,
       wait = 0;
     const orb = Orbit(api.cr, () => api.redraw(), root.querySelector('.viewbar'), {
@@ -27,7 +27,7 @@ export default clfLesson({
       el: 0.36,
       zoom: 1,
     });
-    const zf = (x, y) =>
+    const liftedFeature = (x, y) =>
         S.lift === 'r2'
           ? (x * x + y * y) / 3.4
           : S.lift === 'xy'
@@ -49,7 +49,7 @@ export default clfLesson({
       }
       return v;
     };
-    const kf = (x, y) => {
+    const kernelScore = (x, y) => {
       let s = 0;
       const gm = gam();
       for (let i = 0; i < Tr.length; i++)
@@ -67,7 +67,7 @@ export default clfLesson({
       fit() {
         Tr = api.train;
         if (!Tr.length) return;
-        wl = logit((x, y) => [1, x, y], Tr);
+        linearWeights = logit((x, y) => [1, x, y], Tr);
         if (S.lift === 'kern') {
           const n = Tr.length,
             gm = gam(),
@@ -81,10 +81,16 @@ export default clfLesson({
             K,
             Tr.map((p) => (p.c ? 1 : -1)),
           );
-        } else w = S.lift === 'none' ? [...wl, 0] : logit((x, y) => [1, x, y, zf(x, y)], Tr);
+        } else
+          w =
+            S.lift === 'none'
+              ? [...linearWeights, 0]
+              : logit((x, y) => [1, x, y, liftedFeature(x, y)], Tr);
       },
       p: (x, y) =>
-        S.lift === 'kern' ? sig(3.5 * kf(x, y)) : sig(w[0] + w[1] * x + w[2] * y + w[3] * zf(x, y)),
+        S.lift === 'kern'
+          ? sig(3.5 * kernelScore(x, y))
+          : sig(w[0] + w[1] * x + w[2] * y + w[3] * liftedFeature(x, y)),
       tick() {
         if (wait > 0) {
           wait--;
@@ -102,23 +108,23 @@ export default clfLesson({
         orb.spin(false);
       },
       right(t) {
-        const { g, w: cw, h } = fit(api.cr),
+        const { g: ctx, w: cw, h } = prepareCanvas(api.cr),
           pr = orb.cam(cw, h, 8.4),
           R = 3,
           e = u < 0.5 ? 2 * u * u : 1 - 2 * (1 - u) * (1 - u),
           kern = S.lift === 'kern',
-          hz = (x, y) => (kern ? clamp(kf(x, y), -1.6, 1.6) * e : zf(x, y) * e),
+          hz = (x, y) => (kern ? clamp(kernelScore(x, y), -1.6, 1.6) * e : liftedFeature(x, y) * e),
           path = (ps) => {
-            g.beginPath();
-            ps.forEach((p, i) => (i ? g.lineTo(p[0], p[1]) : g.moveTo(p[0], p[1])));
+            ctx.beginPath();
+            ps.forEach((p, i) => (i ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1])));
           };
-        g.strokeStyle = t.line;
-        g.lineWidth = 1;
+        ctx.strokeStyle = t.line;
+        ctx.lineWidth = 1;
         for (let k = -3; k <= 3; k++) {
           path([pr(k, -R, 0), pr(k, R, 0)]);
-          g.stroke();
+          ctx.stroke();
           path([pr(-R, k, 0), pr(R, k, 0)]);
-          g.stroke();
+          ctx.stroke();
         }
         const N = kern ? 26 : 16,
           Q = [];
@@ -140,14 +146,14 @@ export default clfLesson({
         Q.sort((a, b) => b.d - a.d);
         for (const q of Q) {
           path(q.ps);
-          g.closePath();
+          ctx.closePath();
           if (kern) {
-            g.fillStyle = mix(q.z >= 0 ? t.gold : t.accent, t.bg, 0.35, 0.55);
-            g.fill();
+            ctx.fillStyle = mix(q.z >= 0 ? t.gold : t.accent, t.bg, 0.35, 0.55);
+            ctx.fill();
           }
-          g.strokeStyle = mix(t.ink, t.ink, 0, 0.16);
-          g.lineWidth = 0.7;
-          g.stroke();
+          ctx.strokeStyle = mix(t.ink, t.ink, 0, 0.16);
+          ctx.lineWidth = 0.7;
+          ctx.stroke();
         }
         const zp = (x, y) =>
             kern ? 0 : Math.abs(w[3]) > 1e-6 ? -(w[0] + w[1] * x + w[2] * y) / w[3] : NaN,
@@ -163,31 +169,31 @@ export default clfLesson({
                 zs = [zp(a0, b0), zp(a1, b0), zp(a1, b1), zp(a0, b1)];
               if (zs.some((v) => v < -1.8 || v > 3.4)) continue;
               path([pr(a0, b0, zs[0]), pr(a1, b0, zs[1]), pr(a1, b1, zs[2]), pr(a0, b1, zs[3])]);
-              g.closePath();
-              g.fillStyle = mix(t.ok, t.ok, 0, 0.2 * pa);
-              g.fill();
-              g.strokeStyle = mix(t.ok, t.ok, 0, 0.5 * pa);
-              g.lineWidth = 1;
-              g.stroke();
+              ctx.closePath();
+              ctx.fillStyle = mix(t.ok, t.ok, 0, 0.2 * pa);
+              ctx.fill();
+              ctx.strokeStyle = mix(t.ok, t.ok, 0, 0.5 * pa);
+              ctx.lineWidth = 1;
+              ctx.stroke();
             }
         }
         api.pts
           .map((p) => ({ p, q: pr(p.x, p.y, hz(p.x, p.y) + 0.03) }))
           .sort((a, b) => b.q[2] - a.q[2])
           .forEach((o) => {
-            g.fillStyle = o.p.c ? t.gold : t.accent;
-            g.strokeStyle = t.bg;
-            g.lineWidth = 1;
-            g.beginPath();
-            g.arc(o.q[0], o.q[1], 4, 0, 7);
-            g.fill();
-            g.stroke();
+            ctx.fillStyle = o.p.c ? t.gold : t.accent;
+            ctx.strokeStyle = t.bg;
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.arc(o.q[0], o.q[1], 4, 0, 7);
+            ctx.fill();
+            ctx.stroke();
           });
-        g.font = MONO;
-        g.fillStyle = t.ok;
-        g.textAlign = 'left';
+        ctx.font = MONO;
+        ctx.fillStyle = t.ok;
+        ctx.textAlign = 'left';
         if (pa > 0)
-          g.fillText(
+          ctx.fillText(
             kern ? 'burgundy sheet: height zero, the boundary' : 'burgundy sheet: the flat cut',
             8,
             14,
@@ -195,7 +201,11 @@ export default clfLesson({
       },
       read(set) {
         const te = api.test,
-          ok = te.filter((p) => (wl[0] + wl[1] * p.x + wl[2] * p.y >= 0 ? 1 : 0) === p.c).length;
+          ok = te.filter(
+            (p) =>
+              (linearWeights[0] + linearWeights[1] * p.x + linearWeights[2] * p.y >= 0 ? 1 : 0) ===
+              p.c,
+          ).length;
         set('lin', te.length ? ((100 * ok) / te.length).toFixed(1) + '%' : '–');
         set(
           'what',

@@ -3,53 +3,56 @@ import {
   $,
   Anim,
   MONO,
-  RM,
-  T,
+  prefersReducedMotion,
+  readThemeColors,
   bind,
   clamp,
   f3,
-  fit,
+  prepareCanvas,
   mix,
   playBtn,
   randnFrom,
   rng,
-  runCtl,
-  setR,
+  attachRunLimit,
+  setReadout,
 } from '../../../js/core/shared.js';
 import { laChol, laInv, laMul, laT, laTop } from '../../../js/math/linear-algebra.js';
-import { segBind, uCur, uLine } from '../shared.js';
+import { segBind, highlightLessonStep, drawSeriesChart } from '../shared.js';
 
 export default {
   init(root) {
-    const c = $('#fa-c', root),
+    const mainCanvas = $('#fa-c', root),
       cr = $('#fa-r', root),
       live = $('#fa-live', root),
-      S = { d: 'two', k: 2, rot: true },
-      NM = ['Algebra', 'Geometry', 'Statistics', 'Reading', 'Writing', 'Vocabulary'],
+      settings = { d: 'two', k: 2, rot: true },
+      subjectNames = ['Algebra', 'Geometry', 'Statistics', 'Reading', 'Writing', 'Vocabulary'],
       p = 6;
     let Sm = null,
       L = null,
-      Ps = null,
+      uniqueVariances = null,
       it = 0,
       ll = NaN,
-      hist = [],
+      logLikelihoodHistory = [],
       fin = false,
       seed = 1,
       msg = '',
-      cu = 0,
-      pb,
-      chk = () => false,
+      activeStepIndex = 0,
+      playback,
+      checkRunStop = () => false,
       pc1 = 0;
     const gen = () => {
-      const r = rng(seed * 19 + S.d.length),
+      const r = rng(seed * 19 + settings.d.length),
         rn = randnFrom(r),
         n = 300,
         X = [];
       for (let i = 0; i < n; i++) {
         const m = rn(),
-          v = S.d === 'one' ? m : 0.35 * m + Math.sqrt(1 - 0.35 * 0.35) * rn(),
-          ld = S.d === 'one' ? [0.9, 0.8, 0.85, 0.8, 0.85, 0.75] : [0.9, 0.85, 0.8, 0.85, 0.9, 0.8],
-          ns = [0.5, 0.6, S.d === 'noisy' ? 2.2 : 0.6, 0.55, 0.5, 0.65];
+          v = settings.d === 'one' ? m : 0.35 * m + Math.sqrt(1 - 0.35 * 0.35) * rn(),
+          ld =
+            settings.d === 'one'
+              ? [0.9, 0.8, 0.85, 0.8, 0.85, 0.75]
+              : [0.9, 0.85, 0.8, 0.85, 0.9, 0.8],
+          ns = [0.5, 0.6, settings.d === 'noisy' ? 2.2 : 0.6, 0.55, 0.5, 0.65];
         X.push(ld.map((l, j) => l * (j < 3 ? m : v) + ns[j] * rn()));
       }
       const mu = Array.from({ length: p }, (_, j) => X.reduce((s, x) => s + x[j], 0) / n);
@@ -59,12 +62,14 @@ export default {
           (_, b) => X.reduce((s, x) => s + (x[a] - mu[a]) * (x[b] - mu[b]), 0) / n,
         ),
       );
-      const e = laTop(Sm, 1).vecs[0];
+      const e = laTop(Sm, 1).eigenvectors[0];
       pc1 = e.reduce((m, v, i) => (Math.abs(v) > Math.abs(e[m]) ? i : m), 0);
     };
     const sig = () =>
       L.map((r, a) =>
-        L.map((q, b) => r.reduce((s, v, j) => s + v * q[j], 0) + (a === b ? Ps[a] : 0)),
+        L.map(
+          (q, b) => r.reduce((s, v, j) => s + v * q[j], 0) + (a === b ? uniqueVariances[a] : 0),
+        ),
       );
     const loglik = () => {
       const Sg = sig(),
@@ -79,22 +84,22 @@ export default {
       return -0.5 * (p * Math.log(2 * Math.PI) + ld + tr);
     };
     const reset = () => {
-      const r = randnFrom(rng(seed * 5 + S.k));
+      const r = randnFrom(rng(seed * 5 + settings.k));
       L = Array.from({ length: p }, (_, a) =>
-        Array.from({ length: S.k }, () => 0.4 * Math.sqrt(Sm[a][a]) * r()),
+        Array.from({ length: settings.k }, () => 0.4 * Math.sqrt(Sm[a][a]) * r()),
       );
-      Ps = Sm.map((r, a) => r[a]);
+      uniqueVariances = Sm.map((r, a) => r[a]);
       it = 0;
       fin = false;
       ll = loglik();
-      hist = [ll];
-      cu = 0;
+      logLikelihoodHistory = [ll];
+      activeStepIndex = 0;
       msg =
         'A random first guess for the loadings; every test’s own noise starts at its full variance. Press One step or Run.';
     };
     const step = () => {
       if (fin) return;
-      const k = S.k,
+      const k = settings.k,
         iv = laInv(sig()),
         B = laMul(laT(L), iv),
         BL = laMul(B, L),
@@ -103,13 +108,13 @@ export default {
         SB = laMul(Sm, laT(B));
       L = laMul(SB, laInv(C));
       const LBS = laMul(laMul(L, B), Sm);
-      Ps = Sm.map((r, a) => Math.max(1e-4, r[a] - LBS[a][a]));
+      uniqueVariances = Sm.map((r, a) => Math.max(1e-4, r[a] - LBS[a][a]));
       it++;
       const nl = loglik(),
         gain = nl - ll;
       ll = nl;
-      hist.push(ll);
-      cu = it % 2 ? 1 : 2;
+      logLikelihoodHistory.push(ll);
+      activeStepIndex = it % 2 ? 1 : 2;
       msg =
         'Step ' +
         it +
@@ -120,23 +125,23 @@ export default {
         ').';
       if (gain < 1e-7 || it >= 1500) {
         fin = true;
-        cu = 5;
+        activeStepIndex = 5;
         const R = view(),
           top = (m) => {
             const col = R.map((r) => Math.abs(r[m]));
-            return NM.filter((_, i) => col[i] > 0.5 * Math.max(...col)).join(', ');
+            return subjectNames.filter((_, i) => col[i] > 0.5 * Math.max(...col)).join(', ');
           };
         msg =
           'Stopped after ' +
           it +
           ' steps: the log-likelihood has stopped rising. ' +
-          (S.k === 1
+          (settings.k === 1
             ? 'The single factor drives ' + top(0) + '.'
             : 'Factor 1 drives ' +
               top(0) +
               '; factor 2 drives ' +
               top(1) +
-              (S.k === 3 ? '; factor 3 drives ' + top(2) : '') +
+              (settings.k === 3 ? '; factor 3 drives ' + top(2) : '') +
               '.') +
           ' Largest mismatch between the grids: ' +
           f3(gap()) +
@@ -152,8 +157,8 @@ export default {
     };
     const view = () => {
       let R = L.map((r) => r.slice());
-      const k = S.k;
-      if (S.rot && k > 1) {
+      const k = settings.k;
+      if (settings.rot && k > 1) {
         for (let sweep = 0; sweep < 25; sweep++)
           for (let a = 0; a < k; a++)
             for (let b = a + 1; b < k; b++) {
@@ -213,11 +218,11 @@ export default {
         }
     };
     const draw = () => {
-      const t = T(),
+      const colors = readThemeColors(),
         Sg = sig(),
         R = view();
       {
-        const { g, w, h } = fit(c),
+        const { g: ctx, w, h } = prepareCanvas(mainCanvas),
           lm = 64,
           sz = Math.min((w - lm - 24) / 2, h - 52),
           y0 = 30,
@@ -225,117 +230,123 @@ export default {
             Math.max(
               ...Sm.map((r, a) => Math.max(...r.map((v, b) => (a === b ? 0 : Math.abs(v))))),
             ) * 1.15;
-        grid(g, t, Sm, lm, y0, sz, 'data', mx);
-        grid(g, t, Sg, lm + sz + 18, y0, sz, 'model', mx);
-        g.font = MONO;
-        g.fillStyle = t.muted;
-        g.textAlign = 'right';
-        NM.forEach((nm, a) => g.fillText(nm.slice(0, 7), lm - 5, y0 + ((a + 0.5) * sz) / p + 4));
-        g.textAlign = 'left';
-        g.fillText('colour is capped at the largest off-diagonal value', lm, y0 + sz + 16);
+        grid(ctx, colors, Sm, lm, y0, sz, 'data', mx);
+        grid(ctx, colors, Sg, lm + sz + 18, y0, sz, 'model', mx);
+        ctx.font = MONO;
+        ctx.fillStyle = colors.muted;
+        ctx.textAlign = 'right';
+        subjectNames.forEach((nm, a) =>
+          ctx.fillText(nm.slice(0, 7), lm - 5, y0 + ((a + 0.5) * sz) / p + 4),
+        );
+        ctx.textAlign = 'left';
+        ctx.fillText('colour is capped at the largest off-diagonal value', lm, y0 + sz + 16);
       }
       {
-        const { g, w, h } = fit(cr),
+        const { g: ctx, w, h } = prepareCanvas(cr),
           h1 = h * 0.6,
           m = { l: 74, r: 10, t: 22, b: 8 },
           rh = (h1 - m.t - m.b) / p,
-          cols = [t.accent, t.gold, t.ok],
-          mx = Math.max(1, ...R.flat().map(Math.abs), ...Ps.map(Math.sqrt)),
+          cols = [colors.accent, colors.gold, colors.ok],
+          mx = Math.max(1, ...R.flat().map(Math.abs), ...uniqueVariances.map(Math.sqrt)),
           x0 = m.l + (w - m.l - m.r) * 0.38,
           sc = ((w - m.l - m.r) * 0.6) / mx;
-        g.font = MONO;
-        g.fillStyle = t.muted;
-        g.textAlign = 'left';
-        g.fillText(
+        ctx.font = MONO;
+        ctx.fillStyle = colors.muted;
+        ctx.textAlign = 'left';
+        ctx.fillText(
           'loadings (coloured, one per factor) and own noise (grey, as a standard deviation)',
           8,
           13,
         );
-        g.strokeStyle = t.line;
-        g.beginPath();
-        g.moveTo(x0, m.t);
-        g.lineTo(x0, h1 - m.b);
-        g.stroke();
+        ctx.strokeStyle = colors.line;
+        ctx.beginPath();
+        ctx.moveTo(x0, m.t);
+        ctx.lineTo(x0, h1 - m.b);
+        ctx.stroke();
         for (let a = 0; a < p; a++) {
           const y = m.t + a * rh,
-            bh = (rh - 6) / (S.k + 1);
-          g.fillStyle = t.muted;
-          g.textAlign = 'right';
-          g.fillText(NM[a], m.l - 6, y + rh / 2 + 4);
-          for (let q = 0; q < S.k; q++) {
-            g.fillStyle = cols[q];
+            bh = (rh - 6) / (settings.k + 1);
+          ctx.fillStyle = colors.muted;
+          ctx.textAlign = 'right';
+          ctx.fillText(subjectNames[a], m.l - 6, y + rh / 2 + 4);
+          for (let q = 0; q < settings.k; q++) {
+            ctx.fillStyle = cols[q];
             const v = R[a][q] * sc;
-            g.fillRect(v >= 0 ? x0 : x0 + v, y + 3 + q * bh, Math.abs(v), bh - 1.5);
+            ctx.fillRect(v >= 0 ? x0 : x0 + v, y + 3 + q * bh, Math.abs(v), bh - 1.5);
           }
-          g.fillStyle = mix(t.muted, t.muted, 0, 0.55);
-          g.fillRect(x0, y + 3 + S.k * bh, Math.sqrt(Ps[a]) * sc, bh - 1.5);
+          ctx.fillStyle = mix(colors.muted, colors.muted, 0, 0.55);
+          ctx.fillRect(x0, y + 3 + settings.k * bh, Math.sqrt(uniqueVariances[a]) * sc, bh - 1.5);
         }
-        const lo = Math.min(...hist.slice(Math.min(3, hist.length - 1))),
-          hi = Math.max(...hist),
-          B = uLine(g, t, 0, h1, w, h - h1, hist, {
+        const lo = Math.min(
+            ...logLikelihoodHistory.slice(Math.min(3, logLikelihoodHistory.length - 1)),
+          ),
+          hi = Math.max(...logLikelihoodHistory),
+          B = drawSeriesChart(ctx, colors, 0, h1, w, h - h1, logLikelihoodHistory, {
             title: 'log-likelihood per student',
-            n: Math.max(30, hist.length),
+            n: Math.max(30, logLikelihoodHistory.length),
             y1: lo - 0.02 * (hi - lo + 1e-9),
             ym: hi + 0.05 * (hi - lo + 1e-9),
           });
-        g.save();
-        g.beginPath();
-        g.rect(0, h1 + 16, w, h - h1 - 34);
-        g.clip();
-        g.strokeStyle = t.accent;
-        g.lineWidth = 2;
-        g.beginPath();
-        hist.forEach((v, i) => (i ? g.lineTo(B.X(i), B.Y(v)) : g.moveTo(B.X(i), B.Y(v))));
-        g.stroke();
-        g.restore();
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(0, h1 + 16, w, h - h1 - 34);
+        ctx.clip();
+        ctx.strokeStyle = colors.accent;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        logLikelihoodHistory.forEach((v, i) =>
+          i ? ctx.lineTo(B.X(i), B.Y(v)) : ctx.moveTo(B.X(i), B.Y(v)),
+        );
+        ctx.stroke();
+        ctx.restore();
       }
       const f1 = R.reduce((m, r, i) => (Math.abs(r[0]) > Math.abs(R[m][0]) ? i : m), 0);
       live.textContent = msg;
-      uCur(root, 'fa', cu);
-      setR(root, 'it', it + (fin ? ' (stopped)' : ''));
-      setR(root, 'll', ll.toFixed(4));
-      setR(root, 'gap', f3(gap()));
-      setR(root, 'pc', NM[pc1]);
-      setR(root, 'f1', it ? NM[f1] : '–');
+      highlightLessonStep(root, 'fa', activeStepIndex);
+      setReadout(root, 'it', it + (fin ? ' (stopped)' : ''));
+      setReadout(root, 'll', ll.toFixed(4));
+      setReadout(root, 'gap', f3(gap()));
+      setReadout(root, 'pc', subjectNames[pc1]);
+      setReadout(root, 'f1', it ? subjectNames[f1] : '–');
     };
     gen();
     reset();
-    if (RM) {
+    if (prefersReducedMotion) {
       while (!fin) step();
     }
     const anim = Anim(() => {
       if (fin) {
-        pb.stop();
+        playback.stop();
         return;
       }
       const k = it < 12 ? 1 : it < 60 ? 3 : 8;
-      if (it < 12 && ++fr % 8) return;
-      for (let i = 0; i < k && !fin && chk.remaining() > 0; i++) step();
+      if (it < 12 && ++frameCount % 8) return;
+      for (let i = 0; i < k && !fin && checkRunStop.remaining() > 0; i++) step();
       draw();
-      chk();
+      checkRunStop();
     });
-    let fr = 0;
-    pb = playBtn($('#fa-play', root), anim);
-    chk = runCtl(pb, root, 'fa', {
+    let frameCount = 0;
+    playback = playBtn($('#fa-play', root), anim);
+    checkRunStop = attachRunLimit(playback, root, 'fa', {
       done: () => fin,
       restart: reset,
       count: () => it,
       what: 'steps',
     });
     const go = () => {
-      pb.stop();
+      playback.stop();
       reset();
       draw();
-      pb.start();
+      playback.start();
     };
     $('#fa-step', root).onclick = () => {
-      pb.stop();
+      playback.stop();
       if (fin) reset();
       else step();
       draw();
     };
     $('#fa-reset', root).onclick = () => {
-      pb.stop();
+      playback.stop();
       reset();
       draw();
     };
@@ -348,29 +359,29 @@ export default {
       root,
       'fa-k',
       (v) => {
-        S.k = v;
+        settings.k = v;
         go();
       },
       (v) => String(+v),
     );
-    segBind(root, 'fa-d', S.d, (v) => {
-      S.d = v;
-      S.k = v === 'one' ? 1 : 2;
-      kB.set(S.k);
+    segBind(root, 'fa-d', settings.d, (v) => {
+      settings.d = v;
+      settings.k = v === 'one' ? 1 : 2;
+      kB.set(settings.k);
       gen();
       go();
     });
     $('#fa-rot', root).onchange = (e) => {
-      S.rot = e.target.checked;
+      settings.rot = e.target.checked;
       draw();
     };
     return {
       draw,
-      stop: () => pb.stop(),
+      stop: () => playback.stop(),
       auto: () => {
         reset();
         draw();
-        pb.start();
+        playback.start();
       },
     };
   },

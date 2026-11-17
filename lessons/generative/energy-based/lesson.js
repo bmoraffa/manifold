@@ -3,33 +3,43 @@ import {
   $,
   Anim,
   MONO,
-  RM,
-  T,
+  prefersReducedMotion,
+  readThemeColors,
   bind,
   clamp,
   f2,
   f3,
-  fit,
+  prepareCanvas,
   markTP,
   mix,
   playBtn,
   randnFrom,
   rng,
-  runCtl,
-  setR,
+  attachRunLimit,
+  setReadout,
   testPoint,
 } from '../../../js/core/shared.js';
 import { AD } from '../../../js/math/autodiff.js';
-import { G2S, ebE, ebLang, g2Data, g2Near, g2Note, g2Pts, g2Samp, g2Uni } from '../shared.js';
+import {
+  G2S,
+  ebE,
+  ebLang,
+  g2Data,
+  fractionNearData,
+  g2Note,
+  g2Pts,
+  g2Samp,
+  g2Uni,
+} from '../shared.js';
 import { pct } from '../../ensembles/shared.js';
-import { uCur, uLine, uView } from '../../unsupervised/shared.js';
+import { highlightLessonStep, drawSeriesChart, uView } from '../../unsupervised/shared.js';
 
 export default {
   init(root) {
     const c = $('#eb-c', root),
       cr = $('#eb-r', root),
       live = $('#eb-live', root),
-      S = { ds: 'moons', sl: 0.25 },
+      settings = { ds: 'moons', sl: 0.25 },
       MAXS = 800,
       NP = 96,
       M = 300,
@@ -41,17 +51,17 @@ export default {
       RN = randnFrom(Math.random);
     let net,
       ts = 0,
-      GAP = [],
-      gsm = [],
+      energyGapHistory = [],
+      smoothedEnergyGapHistory = [],
       phase = 'train',
       data = [],
       msg = '',
-      cu = 0,
-      fr = 0,
-      pb,
-      chk = () => false,
+      activeStepIndex = 0,
+      frameCount = 0,
+      playback,
+      checkRunStop = () => false,
       run = 1,
-      P = null,
+      negativeParticles = null,
       xs = null,
       si = 0,
       done = false,
@@ -86,18 +96,18 @@ export default {
     const build = () => {
       net = AD.mlp([2, 48, 48, 1], randnFrom(rng(run * 3 + 5)), 'relu');
       ts = 0;
-      GAP = [];
-      gsm = [];
+      energyGapHistory = [];
+      smoothedEnergyGapHistory = [];
       phase = 'train';
       xs = null;
       done = false;
-      cu = 0;
+      activeStepIndex = 0;
       nearV = NaN;
       edm = NaN;
       esm = NaN;
       si = 0;
-      data = Array.from({ length: 500 }, () => g2Samp(S.ds, RN));
-      P = g2Uni(NP);
+      data = Array.from({ length: 500 }, () => g2Samp(settings.ds, RN));
+      negativeParticles = g2Uni(NP);
       refreshE();
       msg =
         'A network with random weights gives a landscape that has nothing to do with the data. The small dots are the model’s own points, scattered at random. Press Run.';
@@ -106,18 +116,18 @@ export default {
       for (let q = 0; q < k && ts < MAXS; q++) {
         const X = new Float64Array(2 * NP);
         for (let i = 0; i < NP; i++) {
-          const p = g2Samp(S.ds, RN);
+          const p = g2Samp(settings.ds, RN);
           X[2 * i] = p[0] + 0.03 * RN();
           X[2 * i + 1] = p[1] + 0.03 * RN();
         }
         for (let i = 0; i < NP; i++)
           if (Math.random() < 0.05) {
-            P[2 * i] = (Math.random() * 2 - 1) * 2.2;
-            P[2 * i + 1] = (Math.random() * 2 - 1) * 1.65;
+            negativeParticles[2 * i] = (Math.random() * 2 - 1) * 2.2;
+            negativeParticles[2 * i + 1] = (Math.random() * 2 - 1) * 1.65;
           }
-        ebLang(net, P, NP, 5, A, SGM, RN);
+        ebLang(net, negativeParticles, NP, 5, A, SGM, RN);
         const Ed = net.fwd(AD.input(X, [NP, 2])),
-          Es = net.fwd(AD.input(P, [NP, 2])),
+          Es = net.fwd(AD.input(negativeParticles, [NP, 2])),
           l = AD.ebl(Ed, Es, 0.1);
         let md = 0,
           ms = 0;
@@ -127,17 +137,17 @@ export default {
         }
         AD.backward(l);
         AD.adam(net.ps, 0.003, ++ts, 1);
-        GAP.push(ms - md);
+        energyGapHistory.push(ms - md);
         edm = md;
         esm = ms;
         if (ts % 10 === 0) {
           let s = 0;
-          for (let j = ts - 10; j < ts; j++) s += GAP[j];
-          gsm.push(s / 10);
+          for (let j = ts - 10; j < ts; j++) s += energyGapHistory[j];
+          smoothedEnergyGapHistory.push(s / 10);
         }
       }
       if (ts - lastE >= 8 || ts >= MAXS) refreshE();
-      cu = 1 + (Math.floor(ts / 60) % 3);
+      activeStepIndex = 1 + (Math.floor(ts / 60) % 3);
       msg =
         'Training step ' +
         ts +
@@ -151,7 +161,7 @@ export default {
       if (ts >= MAXS) {
         phase = 'gen';
         startGen();
-        cu = 4;
+        activeStepIndex = 4;
         msg =
           'Training is finished and the landscape is fixed. ' +
           M +
@@ -168,7 +178,7 @@ export default {
       if (done || !xs) return;
       ebLang(net, xs, M, k, A, SGM, RN);
       si += k;
-      cu = 4;
+      activeStepIndex = 4;
       msg =
         'Rolling step ' +
         si +
@@ -178,8 +188,8 @@ export default {
       if (si >= GENS) {
         ebLang(net, xs, M, 20, A, 0, RN);
         done = true;
-        cu = 5;
-        nearV = g2Near(xs, M, data);
+        activeStepIndex = 5;
+        nearV = fractionNearData(xs, M, data);
         msg =
           'Finished: ' +
           GENS +
@@ -192,7 +202,7 @@ export default {
       if (phase === 'train') train(20);
       else if (done) {
         startGen();
-        cu = 4;
+        activeStepIndex = 4;
         msg = 'A fresh scatter of random points. Press Run or One step.';
       } else gstep(10);
     };
@@ -207,7 +217,7 @@ export default {
       ],
     );
     const draw = () => {
-      const t = T();
+      const colors = readThemeColors();
       {
         const V = uView(c),
           { g, w, h } = V,
@@ -218,7 +228,7 @@ export default {
             for (let q = 0; q < GW; q++) {
               const u = 1 - clamp((EG[r * GW + q] - emin) / (ecap - emin), 0, 1);
               if (u < 0.03) continue;
-              g.fillStyle = mix(t.accent, t.accent, 0, 0.8 * Math.pow(u, 1.2));
+              g.fillStyle = mix(colors.accent, colors.accent, 0, 0.8 * Math.pow(u, 1.2));
               const xa = Math.round(V.X(-4 + (8 * q) / GW)),
                 xb = Math.round(V.X(-4 + (8 * (q + 1)) / GW)),
                 ya = Math.round(V.Y(3 - (6 * r) / GH)),
@@ -226,20 +236,21 @@ export default {
               g.fillRect(xa, ya, xb - xa, yb - ya);
             }
         g.setLineDash([6, 5]);
-        g.strokeStyle = t.muted;
+        g.strokeStyle = colors.muted;
         g.lineWidth = 1;
         g.beginPath();
-        g.moveTo(V.X(-4), V.Y(S.sl * G2S));
-        g.lineTo(V.X(4), V.Y(S.sl * G2S));
+        g.moveTo(V.X(-4), V.Y(settings.sl * G2S));
+        g.lineTo(V.X(4), V.Y(settings.sl * G2S));
         g.stroke();
         g.setLineDash([]);
-        g2Data(g, V, t, data, 0.4);
-        if (phase === 'train' && P) g2Pts(g, V, t, P, NP, t.cut, 2.4);
-        if (xs) g2Pts(g, V, t, xs, M, t.gold);
-        markTP(g, V.X(tp.v[0] * G2S), V.Y(tp.v[1] * G2S), t);
+        g2Data(g, V, colors, data, 0.4);
+        if (phase === 'train' && negativeParticles)
+          g2Pts(g, V, colors, negativeParticles, NP, colors.cut, 2.4);
+        if (xs) g2Pts(g, V, colors, xs, M, colors.gold);
+        markTP(g, V.X(tp.v[0] * G2S), V.Y(tp.v[1] * G2S), colors);
         g2Note(
           g,
-          t,
+          colors,
           h,
           phase === 'train'
             ? 'small dots: the model’s own 96 points'
@@ -247,54 +258,54 @@ export default {
         );
       }
       {
-        const { g, w, h } = fit(cr),
+        const { g: ctx, w, h } = prepareCanvas(cr),
           h1 = h * 0.5,
           NPF = 70,
           F = new Float64Array(2 * NPF);
         for (let i = 0; i < NPF; i++) {
           F[2 * i] = -2.25 + (4.5 * i) / (NPF - 1);
-          F[2 * i + 1] = S.sl;
+          F[2 * i + 1] = settings.sl;
         }
         const pe = Array.from(ebE(net, F, NPF)),
           lo = Math.min(...pe),
           hi = Math.max(lo + 1e-6, ...pe);
-        const Lp = uLine(g, t, 0, 0, w, h1, pe, {
+        const Lp = drawSeriesChart(ctx, colors, 0, 0, w, h1, pe, {
           title: 'energy along the dashed line: valleys are where the model expects data',
-          col: t.accent,
+          col: colors.accent,
           y1: lo,
           ym: hi,
         });
-        g.fillStyle = t.ink;
+        ctx.fillStyle = colors.ink;
         for (const p of data)
-          if (Math.abs(p[1] - S.sl) < 0.07) {
+          if (Math.abs(p[1] - settings.sl) < 0.07) {
             const x = Lp.X(((p[0] + 2.25) / 4.5) * (NPF - 1));
-            g.fillRect(x - 0.8, h1 - Lp.m.b - 7, 1.6, 7);
+            ctx.fillRect(x - 0.8, h1 - Lp.m.b - 7, 1.6, 7);
           }
-        g.font = MONO;
-        g.fillStyle = t.muted;
-        g.textAlign = 'right';
-        g.fillText('ticks: real data near the line', w - Lp.m.r, h1 - 5);
-        const G2 = uLine(g, t, 0, h1, w, h - h1, gsm, {
+        ctx.font = MONO;
+        ctx.fillStyle = colors.muted;
+        ctx.textAlign = 'right';
+        ctx.fillText('ticks: real data near the line', w - Lp.m.r, h1 - 5);
+        const G2 = drawSeriesChart(ctx, colors, 0, h1, w, h - h1, smoothedEnergyGapHistory, {
           title: 'energy: model’s points minus real points (average of 10 steps)',
           n: MAXS / 10,
-          col: t.ok,
-          y1: Math.min(-0.05, ...gsm),
-          ym: Math.max(0.1, ...gsm),
+          col: colors.ok,
+          y1: Math.min(-0.05, ...smoothedEnergyGapHistory),
+          ym: Math.max(0.1, ...smoothedEnergyGapHistory),
         });
-        g.setLineDash([5, 4]);
-        g.strokeStyle = t.gold;
-        g.lineWidth = 1.3;
-        g.beginPath();
-        g.moveTo(G2.m.l, G2.Y(0));
-        g.lineTo(w - G2.m.r, G2.Y(0));
-        g.stroke();
-        g.setLineDash([]);
-        g.fillStyle = t.cut;
-        g.textAlign = 'right';
-        g.fillText('dashed line: zero, where samples look like data', w - G2.m.r, h - G2.m.b - 7);
+        ctx.setLineDash([5, 4]);
+        ctx.strokeStyle = colors.gold;
+        ctx.lineWidth = 1.3;
+        ctx.beginPath();
+        ctx.moveTo(G2.m.l, G2.Y(0));
+        ctx.lineTo(w - G2.m.r, G2.Y(0));
+        ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.fillStyle = colors.cut;
+        ctx.textAlign = 'right';
+        ctx.fillText('dashed line: zero, where samples look like data', w - G2.m.r, h - G2.m.b - 7);
       }
       live.textContent = msg;
-      uCur(root, 'eb', cu);
+      highlightLessonStep(root, 'eb', activeStepIndex);
       {
         const e = ebE(net, Float64Array.of(tp.v[0], tp.v[1]), 1)[0];
         let lo = 0;
@@ -311,60 +322,60 @@ export default {
             '.'
           : 'Train the model first: press Run.';
       }
-      setR(
+      setReadout(
         root,
         'ph',
         phase === 'train' ? (ts ? 'Training' : 'Not started') : done ? 'Finished' : 'Generating',
       );
-      setR(root, 'ts', ts + ' of ' + MAXS);
-      setR(root, 'ed', isFinite(edm) ? f3(edm) : '–');
-      setR(root, 'es', isFinite(esm) ? f3(esm) : '–');
-      setR(root, 'gs', phase === 'gen' ? Math.min(si, GENS) + ' of ' + GENS : '–');
-      setR(root, 'near', isFinite(nearV) ? pct(nearV) : '–');
+      setReadout(root, 'ts', ts + ' of ' + MAXS);
+      setReadout(root, 'ed', isFinite(edm) ? f3(edm) : '–');
+      setReadout(root, 'es', isFinite(esm) ? f3(esm) : '–');
+      setReadout(root, 'gs', phase === 'gen' ? Math.min(si, GENS) + ' of ' + GENS : '–');
+      setReadout(root, 'near', isFinite(nearV) ? pct(nearV) : '–');
     };
     tp.on = () => draw();
     build();
-    if (RM) {
+    if (prefersReducedMotion) {
       train(MAXS);
       while (!done) gstep(10);
     }
     const anim = Anim(() => {
-      fr++;
+      frameCount++;
       if (phase === 'train') {
-        train(Math.min(ts < 30 ? 1 : 2, chk.remaining()));
+        train(Math.min(ts < 30 ? 1 : 2, checkRunStop.remaining()));
         draw();
-        chk();
+        checkRunStop();
         return;
       }
       if (!done) gstep(1);
       draw();
-      if (done) pb.stop();
+      if (done) playback.stop();
     });
-    pb = playBtn($('#eb-play', root), anim);
-    chk = runCtl(pb, root, 'eb', {
+    playback = playBtn($('#eb-play', root), anim);
+    checkRunStop = attachRunLimit(playback, root, 'eb', {
       done: () => phase === 'gen' && done,
       restart: () => startGen(),
       count: () => ts,
       what: 'training steps',
     });
     $('#eb-step', root).onclick = () => {
-      pb.stop();
+      playback.stop();
       step();
       draw();
     };
     $('#eb-reset', root).onclick = () => {
-      pb.stop();
+      playback.stop();
       run++;
       build();
       draw();
     };
     $('#eb-ds', root).onchange = (e) => {
-      S.ds = e.target.value;
-      pb.stop();
+      settings.ds = e.target.value;
+      playback.stop();
       run++;
       build();
       draw();
-      pb.start();
+      playback.start();
     };
     $('#eb-gen', root).onclick = () => {
       if (phase !== 'gen') {
@@ -372,28 +383,28 @@ export default {
         draw();
         return;
       }
-      pb.stop();
+      playback.stop();
       startGen();
       draw();
-      pb.start();
+      playback.start();
     };
     bind(
       root,
       'eb-sl',
       (v) => {
-        S.sl = +v;
-        if (pb) draw();
+        settings.sl = +v;
+        if (playback) draw();
       },
       f2,
     );
     return {
       draw,
-      stop: () => pb.stop(),
+      stop: () => playback.stop(),
       auto: () => {
         run++;
         build();
         draw();
-        pb.start();
+        playback.start();
       },
     };
   },

@@ -3,49 +3,49 @@ import {
   $,
   Anim,
   MONO,
-  RM,
-  T,
+  prefersReducedMotion,
+  readThemeColors,
   bind,
   clamp,
   eqShow,
   f2,
   f3,
-  fit,
+  prepareCanvas,
   markTP,
   mix,
   playBtn,
   randnFrom,
   rng,
-  runCtl,
-  setR,
+  attachRunLimit,
+  setReadout,
   testPoint,
 } from '../../../js/core/shared.js';
-import { segBind, uCur, uLine } from '../../unsupervised/shared.js';
+import { segBind, highlightLessonStep, drawSeriesChart } from '../../unsupervised/shared.js';
 
 export default {
   init(root) {
-    const c = $('#ts-c', root),
+    const mainCanvas = $('#ts-c', root),
       cr = $('#ts-r', root),
       live = $('#ts-live', root),
       eq = $('#ts-eq', root),
       st = $('#ts-st', root),
-      S = { m: 2, s: 12, a: 0.3, p: 13, d: 'ice' },
+      settings = { m: 2, s: 12, a: 0.3, p: 13, d: 'ice' },
       NM = ['Last Value', 'Same Season Last Cycle', 'Holt-Winters', 'Autoregression'],
       HZ = 24;
     let Yd = [],
       t0 = 0,
       t = 0,
-      F = [[], [], [], []],
-      AE = [[0], [0], [0], [0]],
-      ER = [[], [], [], []],
+      backtestForecasts = [[], [], [], []],
+      runningMaeByModel = [[0], [0], [0], [0]],
+      absoluteErrorsByModel = [[], [], [], []],
       hw = null,
       phi = null,
       ACF = [],
       FUT = null,
       msg = '',
-      cu = 0,
-      fr = 0,
-      pb,
+      activeStepIndex = 0,
+      frameCount = 0,
+      playback,
       fin = false,
       custom = null,
       unit = '';
@@ -90,7 +90,7 @@ export default {
       return o;
     };
     const hwInit = () => {
-      const m = S.s,
+      const m = settings.s,
         y = Yd,
         n = Math.min(t0, 2 * m),
         L = y.slice(0, m).reduce((a, b) => a + b, 0) / m,
@@ -103,8 +103,8 @@ export default {
       for (let i = 0; i < t0; i++) hwUp(y[i], i);
     };
     const hwUp = (y, i) => {
-      const m = S.s,
-        a = S.a,
+      const m = settings.s,
+        a = settings.a,
         so = hw.s[i % m],
         l0 = hw.l;
       hw.l = a * (y - so) + (1 - a) * (hw.l + hw.b);
@@ -112,7 +112,7 @@ export default {
       hw.s[i % m] = 0.25 * (y - hw.l) + 0.75 * so;
     };
     const arFit = (n) => {
-      const p = Math.min(S.p, Math.floor(n / 3)),
+      const p = Math.min(settings.p, Math.floor(n / 3)),
         k = p + 1,
         A = Array.from({ length: k }, () => new Float64Array(k)),
         b = new Float64Array(k);
@@ -146,23 +146,23 @@ export default {
       return w;
     };
     const fc = (n) => {
-      const m = S.s,
+      const m = settings.s,
         p = phi.length - 1;
       let ar = phi[0];
       for (let j = 1; j <= p; j++) ar += phi[j] * Yd[n - j];
       return [Yd[n - 1], n - m >= 0 ? Yd[n - m] : Yd[n - 1], hw.l + hw.b + hw.s[n % m], ar];
     };
     const build = () => {
-      Yd = custom || mk(S.d);
+      Yd = custom || mk(settings.d);
       const n = Yd.length;
-      t0 = clamp(Math.max(Math.round(n * 0.4), 3 * S.s), 8, n - 6);
+      t0 = clamp(Math.max(Math.round(n * 0.4), 3 * settings.s), 8, n - 6);
       t = t0;
-      F = [[], [], [], []];
-      AE = [[], [], [], []];
-      ER = [[], [], [], []];
+      backtestForecasts = [[], [], [], []];
+      runningMaeByModel = [[], [], [], []];
+      absoluteErrorsByModel = [[], [], [], []];
       FUT = null;
       fin = false;
-      cu = 0;
+      activeStepIndex = 0;
       ACF = acf(Yd);
       hwInit();
       phi = arFit(t);
@@ -175,8 +175,8 @@ export default {
       eqShow(eq, ['The walk has not started.'], 0);
     };
     const explain = (n, f) => {
-      const m = S.s,
-        w = S.m,
+      const m = settings.s,
+        w = settings.m,
         L = [
           'Predicting point ' +
             (n + 1) +
@@ -257,24 +257,28 @@ export default {
         y = Yd[n],
         L = explain(n, f);
       for (let k = 0; k < 4; k++) {
-        F[k].push(f[k]);
-        ER[k].push(Math.abs(y - f[k]));
-        AE[k].push(ER[k].reduce((a, b) => a + b, 0) / ER[k].length);
+        backtestForecasts[k].push(f[k]);
+        absoluteErrorsByModel[k].push(Math.abs(y - f[k]));
+        runningMaeByModel[k].push(
+          absoluteErrorsByModel[k].reduce((a, b) => a + b, 0) / absoluteErrorsByModel[k].length,
+        );
       }
       L.push(
         'the true value is revealed: ' +
           f2(y) +
           '.  This forecaster missed by <b>' +
-          f2(Math.abs(y - f[S.m])) +
+          f2(Math.abs(y - f[settings.m])) +
           '</b>',
       );
       eqShow(eq, L, 0);
       hwUp(y, n);
       t++;
       phi = arFit(t);
-      cu = 2;
+      activeStepIndex = 2;
       const bestk = [0, 1, 2, 3].sort(
-        (a, b) => AE[a][AE[a].length - 1] - AE[b][AE[b].length - 1],
+        (a, b) =>
+          runningMaeByModel[a][runningMaeByModel[a].length - 1] -
+          runningMaeByModel[b][runningMaeByModel[b].length - 1],
       )[0];
       msg =
         'Point ' +
@@ -282,39 +286,41 @@ export default {
         ' revealed: ' +
         f2(y) +
         '. ' +
-        NM[S.m] +
+        NM[settings.m] +
         ' had forecast ' +
-        f2(f[S.m]) +
+        f2(f[settings.m]) +
         '. Smallest average miss so far: ' +
         NM[bestk] +
         ', ' +
-        f2(AE[bestk][AE[bestk].length - 1]) +
+        f2(runningMaeByModel[bestk][runningMaeByModel[bestk].length - 1]) +
         '.';
       if (t >= Yd.length) {
         fin = true;
-        cu = 5;
+        activeStepIndex = 5;
         future();
         msg =
           'The walk is finished. Average miss: ' +
-          [0, 1, 2, 3].map((k) => NM[k] + ' ' + f2(AE[k][AE[k].length - 1])).join(', ') +
+          [0, 1, 2, 3]
+            .map((k) => NM[k] + ' ' + f2(runningMaeByModel[k][runningMaeByModel[k].length - 1]))
+            .join(', ') +
           '. The forecast for the next ' +
           HZ +
           ' points by ' +
-          NM[S.m] +
+          NM[settings.m] +
           ' is drawn on the right of the series.';
       }
     };
     const future = () => {
       const n = Yd.length,
-        m = S.s,
+        m = settings.s,
         ext = Yd.slice(),
         p = phi.length - 1,
         o = [];
       for (let h = 1; h <= HZ; h++) {
         let v;
-        if (S.m === 0) v = Yd[n - 1];
-        else if (S.m === 1) v = ext[n + h - 1 - m];
-        else if (S.m === 2) v = hw.l + h * hw.b + hw.s[(n + h - 1) % m];
+        if (settings.m === 0) v = Yd[n - 1];
+        else if (settings.m === 1) v = ext[n + h - 1 - m];
+        else if (settings.m === 2) v = hw.l + h * hw.b + hw.s[(n + h - 1) % m];
         else {
           v = phi[0];
           for (let j = 1; j <= p; j++) v += phi[j] * ext[n + h - 1 - j];
@@ -322,18 +328,18 @@ export default {
         ext.push(v);
         o.push(v);
       }
-      const e = ER[S.m],
+      const e = absoluteErrorsByModel[settings.m],
         sd = Math.sqrt(e.reduce((a, b) => a + b * b, 0) / Math.max(1, e.length));
       FUT = { v: o, sd };
     };
     const tp = testPoint(root, 'ts', ['Steps ahead'], [6], [[1, HZ]]);
     const draw = () => {
-      const tt = T(),
+      const tt = readThemeColors(),
         n = Yd.length,
         tot = n + HZ,
         nf = (v) => (Math.abs(v) >= 100 ? v.toFixed(0) : f2(v));
       {
-        const { g, w, h } = fit(c),
+        const { g: ctx, w, h } = prepareCanvas(mainCanvas),
           m = { l: 44, r: 10, t: 12, b: 22 },
           all = Yd.concat(FUT ? FUT.v : []),
           lo = Math.min(...all),
@@ -341,122 +347,124 @@ export default {
           pd = (hi - lo) * 0.3 || 1,
           X = (i) => m.l + (i / (tot - 1)) * (w - m.l - m.r),
           Yv = (v) => h - m.b - ((v - lo + pd) / (hi - lo + 2 * pd)) * (h - m.t - m.b);
-        g.font = MONO;
-        g.strokeStyle = tt.muted;
-        g.lineWidth = 1;
-        g.beginPath();
-        g.moveTo(m.l, h - m.b);
-        g.lineTo(w - m.r, h - m.b);
-        g.stroke();
-        g.fillStyle = tt.muted;
-        g.textAlign = 'right';
-        g.fillText(nf(lo), m.l - 4, Yv(lo) + 4);
-        g.fillText(nf(hi), m.l - 4, Yv(hi) + 4);
-        g.save();
-        g.beginPath();
-        g.rect(m.l, m.t, w - m.l - m.r, h - m.t - m.b);
-        g.clip();
-        g.fillStyle = mix(tt.ink, tt.ink, 0, 0.06);
-        g.fillRect(X(0), m.t, X(t0 - 1) - X(0), h - m.t - m.b);
-        g.strokeStyle = mix(tt.ink, tt.ink, 0, 0.2);
-        g.lineWidth = 1.2;
-        g.beginPath();
+        ctx.font = MONO;
+        ctx.strokeStyle = tt.muted;
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(m.l, h - m.b);
+        ctx.lineTo(w - m.r, h - m.b);
+        ctx.stroke();
+        ctx.fillStyle = tt.muted;
+        ctx.textAlign = 'right';
+        ctx.fillText(nf(lo), m.l - 4, Yv(lo) + 4);
+        ctx.fillText(nf(hi), m.l - 4, Yv(hi) + 4);
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(m.l, m.t, w - m.l - m.r, h - m.t - m.b);
+        ctx.clip();
+        ctx.fillStyle = mix(tt.ink, tt.ink, 0, 0.06);
+        ctx.fillRect(X(0), m.t, X(t0 - 1) - X(0), h - m.t - m.b);
+        ctx.strokeStyle = mix(tt.ink, tt.ink, 0, 0.2);
+        ctx.lineWidth = 1.2;
+        ctx.beginPath();
         for (let i = Math.max(0, t - 1); i < n; i++)
-          i === Math.max(0, t - 1) ? g.moveTo(X(i), Yv(Yd[i])) : g.lineTo(X(i), Yv(Yd[i]));
-        g.stroke();
-        g.strokeStyle = tt.ink;
-        g.lineWidth = 1.8;
-        g.beginPath();
-        for (let i = 0; i < t; i++) i ? g.lineTo(X(i), Yv(Yd[i])) : g.moveTo(X(i), Yv(Yd[i]));
-        g.stroke();
-        const f = F[S.m];
-        g.strokeStyle = mix(tt.gold, tt.gold, 0, 0.8);
-        g.lineWidth = 1.4;
-        g.beginPath();
-        f.forEach((v, i) => (i ? g.lineTo(X(t0 + i), Yv(v)) : g.moveTo(X(t0 + i), Yv(v))));
-        g.stroke();
-        g.fillStyle = tt.gold;
+          i === Math.max(0, t - 1) ? ctx.moveTo(X(i), Yv(Yd[i])) : ctx.lineTo(X(i), Yv(Yd[i]));
+        ctx.stroke();
+        ctx.strokeStyle = tt.ink;
+        ctx.lineWidth = 1.8;
+        ctx.beginPath();
+        for (let i = 0; i < t; i++) i ? ctx.lineTo(X(i), Yv(Yd[i])) : ctx.moveTo(X(i), Yv(Yd[i]));
+        ctx.stroke();
+        const f = backtestForecasts[settings.m];
+        ctx.strokeStyle = mix(tt.gold, tt.gold, 0, 0.8);
+        ctx.lineWidth = 1.4;
+        ctx.beginPath();
+        f.forEach((v, i) => (i ? ctx.lineTo(X(t0 + i), Yv(v)) : ctx.moveTo(X(t0 + i), Yv(v))));
+        ctx.stroke();
+        ctx.fillStyle = tt.gold;
         f.forEach((v, i) => {
-          g.beginPath();
-          g.arc(X(t0 + i), Yv(v), 2.6, 0, 7);
-          g.fill();
+          ctx.beginPath();
+          ctx.arc(X(t0 + i), Yv(v), 2.6, 0, 7);
+          ctx.fill();
         });
         if (!fin && t < n) {
-          const nx = fc(t)[S.m];
-          g.strokeStyle = tt.cut;
-          g.lineWidth = 2;
-          g.beginPath();
-          g.arc(X(t), Yv(nx), 6, 0, 7);
-          g.stroke();
+          const nx = fc(t)[settings.m];
+          ctx.strokeStyle = tt.cut;
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.arc(X(t), Yv(nx), 6, 0, 7);
+          ctx.stroke();
         }
         if (FUT) {
-          g.fillStyle = mix(tt.accent, tt.accent, 0, 0.2);
-          g.beginPath();
+          ctx.fillStyle = mix(tt.accent, tt.accent, 0, 0.2);
+          ctx.beginPath();
           FUT.v.forEach((v, i) => {
             const y = Yv(v + 2 * FUT.sd * Math.sqrt(i + 1));
-            i ? g.lineTo(X(n + i), y) : g.moveTo(X(n + i), y);
+            i ? ctx.lineTo(X(n + i), y) : ctx.moveTo(X(n + i), y);
           });
           for (let i = HZ - 1; i >= 0; i--)
-            g.lineTo(X(n + i), Yv(FUT.v[i] - 2 * FUT.sd * Math.sqrt(i + 1)));
-          g.closePath();
-          g.fill();
-          g.strokeStyle = tt.accent;
-          g.lineWidth = 2.4;
-          g.beginPath();
-          g.moveTo(X(n - 1), Yv(Yd[n - 1]));
-          FUT.v.forEach((v, i) => g.lineTo(X(n + i), Yv(v)));
-          g.stroke();
+            ctx.lineTo(X(n + i), Yv(FUT.v[i] - 2 * FUT.sd * Math.sqrt(i + 1)));
+          ctx.closePath();
+          ctx.fill();
+          ctx.strokeStyle = tt.accent;
+          ctx.lineWidth = 2.4;
+          ctx.beginPath();
+          ctx.moveTo(X(n - 1), Yv(Yd[n - 1]));
+          FUT.v.forEach((v, i) => ctx.lineTo(X(n + i), Yv(v)));
+          ctx.stroke();
           const hh = clamp(Math.round(tp.v[0]), 1, HZ);
-          markTP(g, X(n + hh - 1), Yv(FUT.v[hh - 1]), tt, false);
+          markTP(ctx, X(n + hh - 1), Yv(FUT.v[hh - 1]), tt, false);
         }
-        g.restore();
-        g.fillStyle = tt.muted;
-        g.textAlign = 'left';
-        g.fillText('history given at the start', X(0) + 4, m.t + 10);
-        g.textAlign = 'right';
-        g.fillText(fin ? 'the future →' : '', w - m.r, m.t + 10);
+        ctx.restore();
+        ctx.fillStyle = tt.muted;
+        ctx.textAlign = 'left';
+        ctx.fillText('history given at the start', X(0) + 4, m.t + 10);
+        ctx.textAlign = 'right';
+        ctx.fillText(fin ? 'the future →' : '', w - m.r, m.t + 10);
       }
       {
-        const { g, w, h } = fit(cr),
+        const { g: ctx, w, h } = prepareCanvas(cr),
           h1 = h * 0.42,
           m = { l: 44, r: 12, t: 26, b: 20 },
           bw = (w - m.l - m.r) / 24,
           Y0 = m.t + (h1 - m.t - m.b) / 2,
           sc = (h1 - m.t - m.b) / 2;
-        g.font = MONO;
-        g.fillStyle = tt.muted;
-        g.textAlign = 'left';
-        g.fillText('resemblance to the value k steps earlier (autocorrelation)', 8, 13);
+        ctx.font = MONO;
+        ctx.fillStyle = tt.muted;
+        ctx.textAlign = 'left';
+        ctx.fillText('resemblance to the value k steps earlier (autocorrelation)', 8, 13);
         ACF.forEach((v, i) => {
-          g.fillStyle = i + 1 === S.s ? tt.gold : mix(tt.accent, tt.accent, 0, 0.7);
-          g.fillRect(m.l + i * bw + 1, v >= 0 ? Y0 - v * sc : Y0, bw - 2, Math.abs(v) * sc);
+          ctx.fillStyle = i + 1 === settings.s ? tt.gold : mix(tt.accent, tt.accent, 0, 0.7);
+          ctx.fillRect(m.l + i * bw + 1, v >= 0 ? Y0 - v * sc : Y0, bw - 2, Math.abs(v) * sc);
           if ((i + 1) % 2 === 0 || i === 0) {
-            g.fillStyle = i + 1 === S.s ? tt.cut : tt.muted;
-            g.textAlign = 'center';
-            g.fillText(String(i + 1), m.l + (i + 0.5) * bw, h1 - 4);
+            ctx.fillStyle = i + 1 === settings.s ? tt.cut : tt.muted;
+            ctx.textAlign = 'center';
+            ctx.fillText(String(i + 1), m.l + (i + 0.5) * bw, h1 - 4);
           }
         });
-        g.strokeStyle = tt.muted;
-        g.lineWidth = 1;
-        g.beginPath();
-        g.moveTo(m.l, Y0);
-        g.lineTo(w - m.r, Y0);
-        g.stroke();
-        g.textAlign = 'right';
-        g.fillStyle = tt.muted;
-        g.fillText('1', m.l - 5, Y0 - sc + 4);
-        g.fillText('−1', m.l - 5, Y0 + sc + 4);
+        ctx.strokeStyle = tt.muted;
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(m.l, Y0);
+        ctx.lineTo(w - m.r, Y0);
+        ctx.stroke();
+        ctx.textAlign = 'right';
+        ctx.fillStyle = tt.muted;
+        ctx.fillText('1', m.l - 5, Y0 - sc + 4);
+        ctx.fillText('−1', m.l - 5, Y0 + sc + 4);
         const col = [tt.muted, tt.ok, tt.accent, tt.cut],
           nn = Math.max(10, n - t0 + 1),
           ym =
             Math.max(
               1e-6,
-              ...AE.map((a) => (a.length ? Math.max(...a.slice(Math.min(a.length - 1, 4))) : 0)),
+              ...runningMaeByModel.map((a) =>
+                a.length ? Math.max(...a.slice(Math.min(a.length - 1, 4))) : 0,
+              ),
             ) * 1.1;
         let L = null;
-        AE.forEach((a, k) => {
-          L = uLine(
-            g,
+        runningMaeByModel.forEach((a, k) => {
+          L = drawSeriesChart(
+            ctx,
             tt,
             0,
             h1,
@@ -467,16 +475,16 @@ export default {
           );
         });
         const SH = ['Last Value', 'Same Season', 'Holt-Winters', 'Autoregression'];
-        AE.forEach((a, k) => {
-          g.fillStyle = col[k];
-          g.textAlign = 'left';
-          g.font = (k === S.m ? '700 ' : '') + '11px ' + MONO.split('px ')[1];
-          g.fillText(SH[k], w - 146, h1 + 40 + k * 30);
-          g.fillText(a.length ? nf(a[a.length - 1]) : '–', w - 146, h1 + 53 + k * 30);
+        runningMaeByModel.forEach((a, k) => {
+          ctx.fillStyle = col[k];
+          ctx.textAlign = 'left';
+          ctx.font = (k === settings.m ? '700 ' : '') + '11px ' + MONO.split('px ')[1];
+          ctx.fillText(SH[k], w - 146, h1 + 40 + k * 30);
+          ctx.fillText(a.length ? nf(a[a.length - 1]) : '–', w - 146, h1 + 53 + k * 30);
         });
       }
       live.textContent = msg;
-      uCur(root, 'ts', cu);
+      highlightLessonStep(root, 'ts', activeStepIndex);
       if (FUT) {
         const hh = clamp(Math.round(tp.v[0]), 1, HZ),
           v = FUT.v[hh - 1],
@@ -486,7 +494,7 @@ export default {
           ' step' +
           (hh > 1 ? 's' : '') +
           ' ahead, ' +
-          NM[S.m] +
+          NM[settings.m] +
           ' forecasts ' +
           f2(v) +
           '. A rough range for what will actually happen: ' +
@@ -497,38 +505,44 @@ export default {
       } else
         tp.out.textContent =
           'Finish the walk first: the forecast for the future appears at the end.';
-      setR(root, 't', t + ' of ' + n);
-      setR(root, 'f', t < n ? f2(fc(t)[S.m]) : FUT ? f2(FUT.v[0]) : '–');
+      setReadout(root, 't', t + ' of ' + n);
+      setReadout(root, 'f', t < n ? f2(fc(t)[settings.m]) : FUT ? f2(FUT.v[0]) : '–');
       for (let k = 0; k < 4; k++)
-        setR(root, 'e' + k, AE[k].length ? f2(AE[k][AE[k].length - 1]) : '–');
+        setReadout(
+          root,
+          'e' + k,
+          runningMaeByModel[k].length
+            ? f2(runningMaeByModel[k][runningMaeByModel[k].length - 1])
+            : '–',
+        );
     };
     tp.on = () => draw();
     build();
-    if (RM) {
+    if (prefersReducedMotion) {
       while (!fin) step();
     }
     const anim = Anim(() => {
-      fr++;
+      frameCount++;
       if (fin) {
-        pb.stop();
+        playback.stop();
         return;
       }
-      if (fr % (t - t0 < 5 ? 30 : 5)) return;
+      if (frameCount % (t - t0 < 5 ? 30 : 5)) return;
       step();
       draw();
-      if (fin) pb.stop();
+      if (fin) playback.stop();
     });
-    pb = playBtn($('#ts-play', root), anim);
-    runCtl(pb, root, 'ts', { done: () => fin, restart: () => build() });
+    playback = playBtn($('#ts-play', root), anim);
+    attachRunLimit(playback, root, 'ts', { done: () => fin, restart: () => build() });
     const re = (go) => {
-      if (!pb) return;
-      pb.stop();
+      if (!playback) return;
+      playback.stop();
       build();
       draw();
-      if (go) pb.start();
+      if (go) playback.start();
     };
     $('#ts-step', root).onclick = () => {
-      pb.stop();
+      playback.stop();
       if (fin) build();
       else step();
       draw();
@@ -538,7 +552,7 @@ export default {
       root,
       'ts-s',
       (v) => {
-        S.s = +v;
+        settings.s = +v;
         re(false);
       },
       (v) => String(v),
@@ -547,7 +561,7 @@ export default {
       root,
       'ts-a',
       (v) => {
-        S.a = +v;
+        settings.a = +v;
         re(false);
       },
       f2,
@@ -556,22 +570,22 @@ export default {
       root,
       'ts-p',
       (v) => {
-        S.p = +v;
+        settings.p = +v;
         re(false);
       },
       (v) => String(v),
     );
-    segBind(root, 'ts-m', String(S.m), (v) => {
-      S.m = +v;
+    segBind(root, 'ts-m', String(settings.m), (v) => {
+      settings.m = +v;
       if (fin) future();
       draw();
     });
     $('#ts-d', root).onchange = (e) => {
-      S.d = e.target.value;
+      settings.d = e.target.value;
       custom = null;
       st.textContent = '';
-      const m = S.d === 'traffic' ? 7 : 12;
-      S.s = m;
+      const m = settings.d === 'traffic' ? 7 : 12;
+      settings.s = m;
       bs.set(m);
       re(true);
     };
@@ -612,11 +626,11 @@ export default {
     };
     return {
       draw,
-      stop: () => pb.stop(),
+      stop: () => playback.stop(),
       auto: () => {
         build();
         draw();
-        pb.start();
+        playback.start();
       },
     };
   },
