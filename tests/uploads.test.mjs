@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { Parser, Config } from 'html-validate';
 import { loadSite } from './helpers/load-site.mjs';
+import { parseTable } from '../lessons/unsupervised/pca-table/lesson.js';
 
 const site = loadSite();
 const call = (name, ...args) => site.evaluate(`${name}(...${JSON.stringify(args)})`);
@@ -56,10 +57,6 @@ test('large numeric uploads respect both caps without argument overflow', () => 
   const input = '1,2\n'.repeat(150000);
   assert.equal(call('parseXY', input).length, 2000);
   assert.equal(call('parseXY', input, 5000).length, 5000);
-  const source = site.lessons.find((l) => l.id === 'pca-table').init.toString();
-  const parse = site.evaluate(
-    '(' + source.match(/const parse = (\(text\) => \{[\s\S]*?\n {6}\});/)[1] + ')',
-  );
-  assert.equal(parse('1,2,3\n'.repeat(150000)).X.length, 2000);
-  assert.equal(parse('x,y,z\n' + '1,2,3\n'.repeat(10) + '1,2,"   "').X.length, 10);
+  assert.equal(parseTable('1,2,3\n'.repeat(150000)).X.length, 2000);
+  assert.equal(parseTable('x,y,z\n' + '1,2,3\n'.repeat(10) + '1,2,"   "').X.length, 10);
 });

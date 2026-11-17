@@ -1,0 +1,200 @@
+<template data-part="lede"
+  >Before training, every weight is set to a small random number. How small matters a great deal.
+  Too small, and the signal fades to nothing on its way through the layers. Too large, and it blows
+  up or jams every neuron at its limit. Send a signal through ten layers and see which starting
+  scale keeps it alive.</template
+>
+
+<template data-part="intro"
+  ><p
+    >Line up ten people to pass a message by whispering. If each person speaks a little more quietly
+    than they heard, the last one hears nothing. If each speaks a little louder, the last one is
+    being shouted at and cannot make out a word. The message survives only if each person repeats it
+    at the volume they heard it. The layers of a network are that line of people, the starting
+    weights set each one's volume, and the goal of a good initialisation is to make every layer pass
+    the signal on at the strength it arrived.</p
+  >
+</template>
+
+<template data-part="stage"
+  ><div class="row seg" id="wi-mode" role="group" aria-label="Starting scale of the weights"
+    ><button class="btn" type="button" data-v="small">Too Small</button
+    ><button class="btn" type="button" data-v="xavier">Xavier</button
+    ><button class="btn" type="button" data-v="he">He</button
+    ><button class="btn" type="button" data-v="large">Too Large</button></div
+  >
+  <div class="stage one"
+    ><figure class="fig"
+      ><figcaption
+        >What the neurons in each layer output, as a histogram, for 50 random inputs. The signal
+        enters on the left</figcaption
+      ><canvas
+        class="wide"
+        id="wi-c"
+        role="img"
+        aria-label="Histograms of neuron outputs in each layer"
+      ></canvas></figure
+  ></div>
+  <div class="stage" style="margin-top:20px"
+    ><figure class="fig"
+      ><figcaption>Forward: spread of the outputs in each layer</figcaption
+      ><canvas
+        class="tall"
+        id="wi-f"
+        role="img"
+        aria-label="Standard deviation of activations by layer"
+      ></canvas
+    ></figure>
+    <figure class="fig"
+      ><figcaption>Backward: strength of the learning signal reaching each layer</figcaption
+      ><canvas
+        class="tall"
+        id="wi-b"
+        role="img"
+        aria-label="Gradient strength by layer"
+      ></canvas></figure
+  ></div>
+  <div class="howto"
+    ><div
+      ><h3>How it works, step by step</h3
+      ><ol id="wi-steps"
+        ><li>Draw every weight at random with the chosen spread.</li
+        ><li>Send 50 random inputs into the first layer.</li
+        ><li
+          >Forward, one layer at a time: each neuron adds up its weighted inputs and applies the
+          activation. Watch the histogram.</li
+        ><li
+          >At the last layer, start a learning signal and send it backward, one layer at a time.</li
+        ><li
+          >Compare the first layer with the last: a healthy start keeps both the outputs and the
+          learning signal about the same size everywhere.</li
+        ></ol
+      ></div
+    ><div><h3>What just happened</h3><p class="live" id="wi-live" role="status"></p></div
+  ></div>
+  <div class="controls"
+    ><template data-label="Animation" data-control="group"
+      ><div class="row"
+        ><button class="btn go" id="wi-play" type="button">Send the signal through</button
+        ><button class="btn" id="wi-step" type="button">One layer</button
+        ><button class="btn" id="wi-reset" type="button">Start over</button></div
+      ></template
+    >
+    <template data-label="The network" data-control="group"
+      ><label class="ctl" for="wi-act"
+        ><span>Activation</span
+        ><select id="wi-act"
+          ><option value="tanh">tanh</option
+          ><option value="relu">ReLU</option
+          ><option value="sigmoid">Sigmoid</option></select
+        ></label
+      ><template
+        data-value="1"
+        data-step="0.05"
+        data-max="8"
+        data-min="0.05"
+        data-label="Variance of the weights × number of inputs"
+        data-id="wi-v"
+        data-control="slider"
+      ></template
+      ><template
+        data-value="10"
+        data-step="1"
+        data-max="16"
+        data-min="4"
+        data-label="Number of layers"
+        data-id="wi-d"
+        data-control="slider"
+      ></template></template
+  ></div>
+  <dl class="read"
+    ><template data-label="Weight variance × inputs" data-key="v" data-control="readout"></template
+    ><template
+      data-label="Spread of outputs, first layer"
+      data-key="s1"
+      data-control="readout"
+    ></template
+    ><template
+      data-class="hl"
+      data-label="Spread of outputs, last layer"
+      data-key="sL"
+      data-control="readout"
+    ></template
+    ><template
+      data-class="hl2"
+      data-label="Learning signal at the first layer, relative to the last"
+      data-key="g"
+      data-control="readout"
+    ></template
+    ><template data-label="Verdict" data-key="vd" data-control="readout"></template></dl
+></template>
+
+<template data-part="tryit"
+  >With tanh, press Too Small and watch the histograms collapse to a spike at zero. Press Too Large:
+  every neuron is jammed at −1 or +1. Xavier keeps a healthy spread. Now switch the activation to
+  ReLU and press Xavier again: the signal fades, because ReLU throws away half of it at every layer.
+  Press He. What number did He change, and why that number?</template
+>
+
+<template data-part="math"
+  ><h4>How the spread changes from layer to layer</h4
+  ><p
+    >Take a neuron with \(n\) inputs, each of variance \(\operatorname{Var}(a)\), and weights drawn
+    independently with mean 0 and variance \(\operatorname{Var}(w)\). Its total input \(z=\sum_i
+    w_ia_i\) has</p
+  >$$\operatorname{Var}(z)=n\,\operatorname{Var}(w)\,\mathbb E[a^2].$$<p
+    >So each layer multiplies the size of the signal by the factor \(n\operatorname{Var}(w)\),
+    adjusted for what the activation does. Across \(L\) layers the factors multiply. A factor of 0.5
+    per layer leaves \(0.5^{10}\approx0.001\) after ten layers; a factor of 2 gives about 1000. Only
+    a factor of 1 is stable.</p
+  >
+  <h4>Xavier (Glorot) initialisation</h4
+  ><p
+    >Near zero, \(\tanh(z)\approx z\), so the activation passes the signal through nearly unchanged
+    and the factor is \(n\operatorname{Var}(w)\). Setting it to 1 gives</p
+  >$$\operatorname{Var}(w)=\frac{1}{n_{\text{in}}}\qquad\text{or, balancing forward and
+  backward,}\qquad\operatorname{Var}(w)=\frac{2}{n_{\text{in}}+n_{\text{out}}} .$$
+  <h4>He (Kaiming) initialisation</h4
+  ><p
+    >ReLU sets every negative input to zero. For inputs symmetric around zero that removes half of
+    \(\mathbb E[a^2]\), so the factor is \(\tfrac12 n\operatorname{Var}(w)\). Setting that to 1
+    gives</p
+  >$$\operatorname{Var}(w)=\frac{2}{n_{\text{in}}} .$$<p
+    >The slider on this page is \(n\operatorname{Var}(w)\): Xavier is 1 and He is 2.</p
+  >
+  <h4>The backward direction</h4
+  ><p
+    >The learning signal obeys the same arithmetic going the other way: at each layer it is
+    multiplied by the weights and by the slope of the activation. If the forward signal vanishes, so
+    does the gradient (<b>vanishing gradients</b>), and the early layers do not learn. If it
+    explodes, the first update throws the weights far away (<b>exploding gradients</b>). With tanh
+    and weights that are too large there is a third failure: the forward signal looks fine in size,
+    because tanh is bounded, but every neuron sits at −1 or +1 where the slope is nearly zero, so
+    the gradient still dies. The histograms piled up at the two ends are the sign of that.</p
+  >
+  <h4>Two things that are never done</h4
+  ><p
+    >Starting all weights at zero, or at the same value, makes every neuron in a layer compute the
+    same thing and receive the same gradient, so they stay identical for ever: the layer behaves as
+    one neuron. Randomness is needed to <b>break the symmetry</b>. Biases, on the other hand, are
+    usually started at zero.</p
+  >
+  <h4>In practice</h4
+  ><p
+    >Libraries pick He for ReLU-type layers and Xavier for tanh by default. Batch normalisation and
+    residual connections make deep networks far less sensitive to the starting scale, by rescaling
+    the signal at every layer or by giving it a path around the layers.</p
+  ></template
+>
+
+<template data-part="question"
+  >A ten-layer ReLU network is initialised with Xavier variance 1/n instead of He variance 2/n.
+  Roughly how much smaller is the signal at the last layer than it should be?</template
+>
+
+<template data-part="answer"
+  >With ReLU each layer multiplies the variance of the signal by one half of n × Var(w). With He
+  that is ½ × 2 = 1. With Xavier it is ½ × 1 = ½. After ten layers the variance is (½)¹⁰, about a
+  thousandth, so the typical size of the signal (the standard deviation) is about 1/32 of what it
+  should be. The gradient is reduced by a similar factor on the way back.</template
+>

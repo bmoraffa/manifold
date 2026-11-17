@@ -1,0 +1,77 @@
+/* Manifold. © 2026 Bahman Moraffah. All rights reserved. */
+export default {
+  id: 'classification',
+  t: 'Classification',
+  lessons: [
+    {
+      id: 'logistic',
+      tab: 'Logistic regression',
+      title: 'A line that gives probabilities',
+      viewUrl: new URL('./logistic/lesson.html', import.meta.url),
+      load: () => import('./logistic/lesson.js'),
+    },
+    {
+      id: 'softmax',
+      tab: 'Softmax regression',
+      title: 'More than two classes',
+      viewUrl: new URL('./softmax/lesson.html', import.meta.url),
+      load: () => import('./softmax/lesson.js'),
+    },
+    {
+      id: 'knn',
+      tab: 'k-nearest neighbors',
+      title: 'Ask the neighbours',
+      viewUrl: new URL('./knn/lesson.html', import.meta.url),
+      load: () => import('./knn/lesson.js'),
+    },
+    {
+      id: 'nbayes',
+      tab: 'Naive Bayes',
+      title: 'One feature at a time',
+      viewUrl: new URL('./nbayes/lesson.html', import.meta.url),
+      load: () => import('./nbayes/lesson.js'),
+    },
+    {
+      id: 'lda',
+      tab: 'LDA and QDA',
+      title: 'One hill per class',
+      viewUrl: new URL('./lda/lesson.html', import.meta.url),
+      load: () => import('./lda/lesson.js'),
+    },
+    {
+      id: 'perceptron',
+      tab: 'Perceptron',
+      title: 'Learning from mistakes',
+      viewUrl: new URL('./perceptron/lesson.html', import.meta.url),
+      load: () => import('./perceptron/lesson.js'),
+    },
+    {
+      id: 'svm',
+      tab: 'Support vector machines',
+      title: 'The widest street between the classes',
+      viewUrl: new URL('./svm/lesson.html', import.meta.url),
+      load: () => import('./svm/lesson.js'),
+    },
+    {
+      id: 'kernel',
+      tab: 'The kernel trick',
+      title: 'Lift the data until a flat cut works',
+      viewUrl: new URL('./kernel/lesson.html', import.meta.url),
+      load: () => import('./kernel/lesson.js'),
+    },
+    {
+      id: 'tree',
+      tab: 'Decision trees',
+      title: 'Twenty questions',
+      viewUrl: new URL('./tree/lesson.html', import.meta.url),
+      load: () => import('./tree/lesson.js'),
+    },
+    {
+      id: 'semi-supervised',
+      tab: 'Semi-supervised learning',
+      title: 'Semi-supervised learning: a few labels and a great many hints',
+      viewUrl: new URL('./semi-supervised/lesson.html', import.meta.url),
+      load: () => import('./semi-supervised/lesson.js'),
+    },
+  ],
+};

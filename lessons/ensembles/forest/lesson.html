@@ -1,0 +1,165 @@
+<template data-part="lede"
+  >Bagged trees are too alike: they all reach for the same strong feature first, so they make the
+  same mistakes. A random forest hides some of the features at every split. Each tree gets a little
+  worse, the trees get much more different, and the vote gets better.</template
+>
+
+<template data-part="intro"
+  ><p
+    >A committee of experts who all read the same newspaper is barely better than one expert: they
+    share the same blind spots. A committee is strong when its members are individually competent
+    <em>and</em> think differently. Bagging makes trees differ only through resampling, and if one
+    feature is much more useful than the rest, every tree splits on it first and the trees end up
+    alike. The random forest forces variety: at each split a tree may only choose among a random
+    handful of features.</p
+  >
+</template>
+
+<template data-part="left-caption"
+  >The data, and what the model predicts everywhere (click to add a point, drag to move
+  one)</template
+>
+
+<template data-part="right-figure"
+  ><figure class="fig"
+    ><figcaption
+      >The most recent trees, each on its own, and the error as trees are added</figcaption
+    ><canvas
+      class="short"
+      id="forest-r"
+      role="img"
+      aria-label="The most recent trees, each on its own, and the error as trees are added"
+    ></canvas></figure
+></template>
+
+<template data-part="steps"
+  ><li
+    >Draw a new training set of the same size by picking points at random with replacement. About a
+    third of the points are left out each time.</li
+  ><li>Grow a deep tree on it. At every split, look at only a random subset of the features.</li
+  ><li>Repeat to get many different trees.</li
+  ><li>To predict, let every tree vote and take the average.</li
+  ><li
+    >Score each training point using only the trees that never saw it. That is the out-of-bag
+    estimate, a free test set.</li
+  ></template
+>
+
+<template data-part="animation-controls"
+  ><div class="row"
+    ><button class="btn go" id="forest-play" type="button">Grow the forest</button
+    ><button class="btn" id="forest-step" type="button">One step</button
+    ><button class="btn" id="forest-reset" type="button">Start over</button></div
+  ><p class="status" id="forest-note" role="status"></p
+></template>
+
+<template data-part="model-controls"
+  ><template
+    data-value="40"
+    data-step="1"
+    data-max="80"
+    data-min="1"
+    data-label="Number of trees"
+    data-id="forest-B"
+    data-control="slider"
+  ></template
+  ><template
+    data-value="6"
+    data-step="1"
+    data-max="8"
+    data-min="1"
+    data-label="Depth of each tree"
+    data-id="forest-depth"
+    data-control="slider"
+  ></template
+  ><template
+    data-value="1"
+    data-step="1"
+    data-max="2"
+    data-min="1"
+    data-label="Features each split may look at"
+    data-id="forest-mtry"
+    data-control="slider"
+  ></template
+></template>
+
+<template data-part="datasets"
+  ><option value="moons">Two moons</option><option value="overlap">Two overlapping clouds</option
+  ><option value="blobs">Two clouds</option><option value="circles">Ring around a core</option
+  ><option value="xor">Checkerboard (XOR)</option></template
+>
+
+<template data-part="point-count"
+  ><template
+    data-value="140"
+    data-step="2"
+    data-max="300"
+    data-min="20"
+    data-label="Number of points"
+    data-id="forest-n"
+    data-control="slider"
+  ></template
+></template>
+
+<template data-part="readouts"
+  ><div><dt>Trees so far</dt><dd data-r="k">–</dd></div
+  ><div><dt>One tree alone, average test accuracy</dt><dd data-r="one">–</dd></div
+  ><template
+    data-class="hl"
+    data-label="Out-of-bag accuracy"
+    data-key="oob"
+    data-control="readout"
+  ></template
+  ><div><dt>How often two trees agree</dt><dd data-r="agree">–</dd></div
+  ><div><dt>Share of the splitting done by x, y</dt><dd data-r="imp">–</dd></div></template
+>
+
+<template data-part="tryit"
+  >With “features each split may look at” set to 1, read how often two trees agree. Set it to 2,
+  which is plain bagging, and read it again. Compare the test error of the vote in both cases, on
+  the overlapping clouds with depth 8.</template
+>
+
+<template data-part="math"
+  ><h4>The one change</h4
+  ><p
+    >Grow each tree on a bootstrap resample, as in bagging. But at <em>every split</em>, draw \(m\)
+    of the \(p\) features at random and choose the best split among those \(m\) only. Typical
+    choices are \(m\approx\sqrt p\) for classification and \(m\approx p/3\) for regression. With
+    \(m=p\) it is bagging again. (Here \(p=2\), so the only choices are 1 and 2; with real data and
+    dozens of features the effect is far stronger.)</p
+  >
+  <h4>Why it works</h4>$$\operatorname{Var}\big(\text{average of }B\text{
+  trees}\big)=\rho\,\sigma^2+\frac{1-\rho}{B}\,\sigma^2$$<p
+    >For large \(B\) only \(\rho\sigma^2\) is left. Restricting the features makes each tree
+    slightly worse, so \(\sigma^2\) and the bias rise a little, but it cuts the correlation \(\rho\)
+    between trees sharply, and the product falls. The readout "how often two trees agree" tracks
+    \(\rho\).</p
+  >
+  <h4>Feature importance</h4
+  ><p
+    >Each split lowers the impurity. Add up those reductions over every split in every tree, grouped
+    by the feature that was used:</p
+  >$$\text{importance}(j)=\sum_{\text{trees}}\ \sum_{\text{splits on
+  }j}\frac{n_{\text{node}}}{n}\,\Delta I.$$<p
+    >It ranks the features by how much sorting each one did. A second method shuffles one feature's
+    values in the out-of-bag points and measures how much the accuracy drops.</p
+  >
+  <h4>In practice</h4
+  ><p
+    >Random forests need almost no tuning, do not need feature scaling, cope with many features,
+    give out-of-bag error and importances for free, and rarely do badly. They are the standard first
+    thing to try on tabular data. What they give up is the readability of a single tree.</p
+  ></template
+>
+
+<template data-part="question"
+  >Why does deliberately making each tree worse make the forest better?</template
+>
+
+<template data-part="answer"
+  >The forest’s error depends on how good the trees are and on how correlated they are. Hiding
+  features costs each tree a little accuracy but makes the trees far less alike. Once many trees are
+  averaged, the shared, correlated part of the error is all that remains, so reducing the
+  correlation matters more than the small loss in each tree.</template
+>

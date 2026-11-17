@@ -1,0 +1,200 @@
+<template data-part="lede"
+  >Two robots learn the same walk: from the bottom-left corner to the bottom-right, with a cliff
+  along the whole way between. Falling costs 100 and sends the robot back to the start. Both use a
+  table and both explore by making an occasional random move. Their update rules differ in a single
+  term. One learns the shortest path, right along the edge. The other learns to keep its distance.
+  Which is the wiser depends on a question that matters far beyond this grid: are you being judged
+  while you learn?</template
+>
+
+<template data-part="intro"
+  ><p
+    >Two apprentices learn to carry trays through a crowded kitchen. Both are clumsy: one step in
+    ten goes somewhere they did not intend. The first reasons, "the best route is the short one past
+    the hot stove, and that is what I will learn", and gives no thought to its own clumsiness. The
+    second reasons, "given how I actually walk, how do routes work out for me?", and finds that the
+    route past the stove regularly ends in a burn. It learns to go the long way round. The first has
+    learned the route that is best for a waiter who never stumbles. The second has learned the route
+    that is best for the waiter it currently is.</p
+  >
+</template>
+
+<template data-part="stage"
+  ><div class="stage"
+    ><figure class="fig"
+      ><figcaption
+        >Top: Q-learning. Bottom: SARSA. The gold line is the route each table currently recommends.
+        The dot is the robot, still exploring</figcaption
+      ><canvas
+        class="short"
+        id="sa-c"
+        role="img"
+        aria-label="Two cliff worlds with the routes learned by Q-learning and SARSA"
+      ></canvas
+    ></figure>
+    <figure class="fig"
+      ><figcaption
+        >Top: the reward each robot actually collected, averaged over the last 20 episodes. Bottom:
+        how often each fell off the cliff</figcaption
+      ><canvas
+        class="short"
+        id="sa-r"
+        role="img"
+        aria-label="Reward per episode and number of falls for both methods"
+      ></canvas></figure
+  ></div>
+  <figure class="fig" style="margin-top:18px"
+    ><figcaption>The same step, updated by each rule</figcaption
+    ><div class="eq" id="sa-eq" aria-live="polite" style="min-height:9.5em;margin-top:6px"></div
+  ></figure>
+  <div class="howto"
+    ><div
+      ><h3>How it works, step by step</h3
+      ><ol id="sa-steps"
+        ><li
+          >Both robots start with a table of zeros and behave the same way: the best-looking move
+          most of the time, a random move with probability ε.</li
+        ><li>Each makes a move, gets a reward and lands in a new square.</li
+        ><li
+          >Q-learning asks: what is the best move from the new square? Its target is reward + γ ×
+          the value of that best move.</li
+        ><li
+          >SARSA first chooses its next move, random slips included, and asks: what is the value of
+          the move I am actually going to make? Its target is reward + γ × that value.</li
+        ><li>Each moves its table entry a fraction α of the way toward its own target.</li
+        ><li>Repeat for 500 episodes.</li></ol
+      ></div
+    ><div><h3>What just happened</h3><p class="live" id="sa-live" role="status"></p></div
+  ></div>
+  <div class="controls"
+    ><template data-label="Animation" data-control="group"
+      ><div class="row"
+        ><button class="btn go" id="sa-play" type="button">Run</button
+        ><button class="btn" id="sa-step" type="button">One step</button
+        ><button class="btn" id="sa-reset" type="button">Start over</button></div
+      ><template data-unit="episodes" data-id="sa" data-control="run-limit"></template
+    ></template>
+    <template data-label="Learning" data-control="group"
+      ><template
+        data-value="0.1"
+        data-step="0.02"
+        data-max="0.5"
+        data-min="0"
+        data-label="Exploration ε: share of random moves"
+        data-id="sa-ep2"
+        data-control="slider"
+      ></template
+      ><template
+        data-value="0.5"
+        data-step="0.05"
+        data-max="1"
+        data-min="0.05"
+        data-label="Learning rate α"
+        data-id="sa-al"
+        data-control="slider"
+      ></template
+      ><template
+        data-value="2"
+        data-step="1"
+        data-max="3"
+        data-min="1"
+        data-label="Speed"
+        data-id="sa-sp"
+        data-control="slider"
+      ></template></template
+  ></div>
+  <dl class="read"
+    ><template data-label="Episodes finished" data-key="ep" data-control="readout"></template
+    ><template
+      data-class="hl"
+      data-label="Q-learning: average reward, last 50 episodes"
+      data-key="rq"
+      data-control="readout"
+    ></template
+    ><template
+      data-class="hl2"
+      data-label="SARSA: average reward, last 50 episodes"
+      data-key="rs"
+      data-control="readout"
+    ></template
+    ><template
+      data-label="Q-learning: recommended route"
+      data-key="pq"
+      data-control="readout"
+    ></template
+    ><template data-label="SARSA: recommended route" data-key="ps" data-control="readout"></template
+    ><template
+      data-label="Falls so far: Q-learning / SARSA"
+      data-key="fq"
+      data-control="readout"
+    ></template></dl
+></template>
+
+<template data-part="tryit"
+  >Press Run and watch the gold routes. Which robot learns to hug the cliff, and which goes the long
+  way round? Now compare the reward curves: the robot with the shorter route earns less. How can
+  that be? (Count the falls.) Slide ε down to 0.02 and start over, then to 0: what happens to the
+  difference between the two? Slide it up to 0.3. Finally step slowly and read the two updates side
+  by side on a step where the robot explored: that is the only kind of step on which the two rules
+  disagree.</template
+>
+
+<template data-part="math"
+  ><h4>The two updates</h4
+  ><p
+    >After the step \(s,a\to r,s'\), Q-learning uses the best next move in its target, and SARSA
+    uses the next move \(a'\) that it has actually chosen:</p
+  >$$\text{Q-learning:}\quad Q(s,a)\leftarrow
+  Q(s,a)+\alpha\big[r+\gamma\max_{a'}Q(s',a')-Q(s,a)\big]$$$$\text{SARSA:}\quad Q(s,a)\leftarrow
+  Q(s,a)+\alpha\big[r+\gamma\,Q(s',a')-Q(s,a)\big].$$<p
+    >The name SARSA spells out what one update needs: \(s,a,r,s',a'\). When the next move is the
+    best-looking one, the two targets are identical. They differ only when the next move is an
+    exploratory one, which happens with probability \(\varepsilon\).</p
+  >
+  <h4>On-policy and off-policy</h4
+  ><p
+    >SARSA's table answers the question "how good is this move, given that I will go on behaving as
+    I do now, random moves included?" It evaluates the policy it is following, so it is called
+    <b>on-policy</b>. Q-learning's table answers "how good is this move, given that I behave
+    perfectly from the next step on?" It learns about a policy it is not following, so it is
+    <b>off-policy</b>.</p
+  >
+  <h4>Why the cliff separates them</h4
+  ><p
+    >On a square at the cliff edge, a random move has a one in four chance of stepping off, at a
+    cost of 100. SARSA's targets include those accidents, so the values of edge squares are dragged
+    down and the route moves away from the edge. Q-learning's targets ignore them, because the best
+    move from an edge square is never to jump. Its table is right about the shortest path. But while
+    it learns, it still explores, walks along the edge, and falls. That is why its reward during
+    learning is lower although its route is better.</p
+  >
+  <h4>Which is right?</h4
+  ><p
+    >If learning happens in a simulator and only the final behaviour is used, with exploration
+    switched off, Q-learning's route is the one you want. If mistakes during learning cost something
+    real, as for a robot that can break or a system that serves customers while it learns, SARSA's
+    caution is worth having. As \(\varepsilon\to0\) the accidents disappear and the two learn the
+    same thing: try it.</p
+  >
+  <h4>What this page runs</h4
+  ><p
+    >The cliff walk of Sutton and Barto, here 4 squares high and 10 wide. Every step costs 1, the
+    cliff costs 100 and returns the robot to the start, and the goal ends the episode. There is no
+    discounting, \(\gamma=1\). Both robots run for 500 episodes. The reward curve shows the average
+    of the last 20 episodes, since single episodes swing wildly whenever a robot falls.</p
+  ></template
+>
+
+<template data-part="question"
+  >With ε = 0.1, Q-learning’s recommended route is 11 steps and SARSA’s is longer. A classmate says
+  SARSA has “learned the wrong answer”. In what sense is SARSA’s answer correct?</template
+>
+
+<template data-part="answer"
+  >SARSA has learned the true values of moves for a robot that keeps making a random move one time
+  in ten. For that robot, walking along the edge really is worse, because the expected cost of falls
+  outweighs the steps saved. SARSA’s route is the best one available to the robot as it actually
+  behaves. Q-learning’s route is the best one for a robot that will stop exploring. Neither is
+  wrong. They answer different questions, and the right one to ask depends on whether the exploring
+  will ever be switched off.</template
+>

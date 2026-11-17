@@ -1,0 +1,196 @@
+<template data-part="lede"
+  >A straight line can predict minus three customers or a 130% chance of rain. Counts cannot go
+  below zero and probabilities must stay between 0 and 1. A generalized linear model keeps the
+  straight line and bends it through a link function so that predictions land where the data can
+  actually be. Linear, logistic and Poisson regression turn out to be one method with three
+  settings.</template
+>
+
+<template data-part="intro"
+  ><p
+    >You want to predict how many ice creams a stall sells from the temperature. A straight line
+    works in the middle and then predicts a negative number on a cold day. The fix is to stop
+    predicting the count itself and predict its logarithm with a straight line instead. A logarithm
+    can be any number, positive or negative, so the line is free to go wherever it likes, and when
+    you undo the logarithm the prediction is always positive. For a yes-or-no outcome you do the
+    same with the log-odds. The straight line lives on a scale where it cannot do harm, and a fixed
+    bend carries it back to the scale of the data.</p
+  >
+</template>
+
+<template data-part="stage"
+  ><div class="row seg" id="gl-f" role="group" aria-label="Kind of data"
+    ><button class="btn" type="button" data-v="pois">Counts: Ice Creams Sold</button
+    ><button class="btn" type="button" data-v="bern">Yes or No: Passed the Exam</button
+    ><button class="btn" type="button" data-v="gaus">Amounts: Plant Height</button></div
+  >
+  <div class="stage"
+    ><figure class="fig"
+      ><figcaption id="gl-cap1"
+        >The data, the generalized linear model (solid), and an ordinary straight line fitted by
+        least squares (dashed)</figcaption
+      ><canvas
+        class="short"
+        id="gl-c"
+        role="img"
+        aria-label="Data with the fitted mean curve"
+      ></canvas
+    ></figure>
+    <figure class="fig"
+      ><figcaption
+        >The same fit seen through the link function. On this scale the model is a straight line.
+        Each dot is a data point moved to this scale; bigger dots carry more weight in the next
+        refit</figcaption
+      ><canvas
+        class="short"
+        id="gl-r"
+        role="img"
+        aria-label="The linear predictor on the link scale"
+      ></canvas></figure
+  ></div>
+  <figure class="fig" style="margin-top:18px"
+    ><figcaption>The last refit, worked out</figcaption
+    ><div class="eq" id="gl-eq" aria-live="polite" style="min-height:8em;margin-top:6px"></div
+  ></figure>
+  <div class="howto"
+    ><div
+      ><h3>How it works, step by step</h3
+      ><ol id="gl-steps"
+        ><li>Start with a flat model: every prediction equals the average of the data.</li
+        ><li
+          >Move each data point to the link scale, where the model is a straight line. This gives a
+          working value for each point.</li
+        ><li>Give each point a weight: how much information it carries at the current fit.</li
+        ><li>Fit a weighted straight line through the working values.</li
+        ><li>Bend that line back through the link to get the new curve.</li
+        ><li>Repeat until the fit stops changing. It usually takes five or six rounds.</li></ol
+      ></div
+    ><div><h3>What just happened</h3><p class="live" id="gl-live" role="status"></p></div
+  ></div>
+  <div class="controls"
+    ><template data-label="Animation" data-control="group"
+      ><div class="row"
+        ><button class="btn go" id="gl-play" type="button">Run</button
+        ><button class="btn" id="gl-step" type="button">One refit</button
+        ><button class="btn" id="gl-reset" type="button">Start over</button></div
+      ><template data-unit="refits" data-id="gl" data-control="run-limit"></template
+    ></template>
+    <template data-label="Data" data-control="group"
+      ><template
+        data-value="40"
+        data-step="5"
+        data-max="120"
+        data-min="10"
+        data-label="Number of observations"
+        data-id="gl-n"
+        data-control="slider"
+      ></template
+      ><div class="row"><button class="btn" id="gl-new" type="button">New data</button></div
+      ><template data-id="gl" data-control="xy-upload"></template></template
+  ></div>
+  <dl class="read"
+    ><template data-label="Refits so far" data-key="it" data-control="readout"></template
+    ><template
+      data-class="hl"
+      data-label="Intercept and slope on the link scale"
+      data-key="ab"
+      data-control="readout"
+    ></template
+    ><template
+      data-class="hl2"
+      data-label="Deviance: misfit of the model"
+      data-key="dev"
+      data-control="readout"
+    ></template
+    ><template
+      data-label="Deviance of a flat model"
+      data-key="dev0"
+      data-control="readout"
+    ></template
+    ><template
+      data-label="What one more unit of x does"
+      data-key="mean"
+      data-control="readout"
+    ></template
+    ><template
+      data-label="Impossible predictions from the dashed line"
+      data-key="bad"
+      data-control="readout"
+    ></template></dl
+></template>
+
+<template data-part="tryit"
+  >On Ice Creams Sold, press One refit and follow the panel under the charts: the curve moves from
+  flat to fitted in a handful of jumps. Look at the dashed straight line at the cold end. What does
+  it predict there? Switch to Passed the Exam. The same procedure now draws an S-curve. Why is the
+  right-hand chart still a straight line? Switch to Plant Height: how many refits does it need, and
+  why? Then type your own x and read the prediction.</template
+>
+
+<template data-part="math"
+  ><h4>Three ingredients</h4
+  ><p
+    >A generalized linear model (Nelder and Wedderburn, 1972) has a <b>linear predictor</b>, a
+    <b>link function</b> \(g\) connecting it to the mean, and a <b>distribution</b> for the scatter
+    around the mean:</p
+  >$$\eta_i=a+b\,x_i,\qquad g(\mu_i)=\eta_i,\qquad y_i\sim\text{a distribution with mean }\mu_i.$$
+  <table
+    ><tr
+      ><th>Data</th><th>Distribution</th><th>Link \(g(\mu)\)</th><th>Mean \(\mu\)</th
+      ><th>Variance</th></tr
+    ><tr><td>Amounts</td><td>Gaussian</td><td>\(\mu\)</td><td>\(\eta\)</td><td>\(\sigma^2\)</td></tr
+    ><tr
+      ><td>Yes or no</td><td>Bernoulli</td><td>\(\log\frac{\mu}{1-\mu}\)</td
+      ><td>\(\frac{1}{1+e^{-\eta}}\)</td><td>\(\mu(1-\mu)\)</td></tr
+    ><tr
+      ><td>Counts</td><td>Poisson</td><td>\(\log\mu\)</td><td>\(e^{\eta}\)</td><td>\(\mu\)</td></tr
+    ></table
+  >
+  <p
+    >The variance column matters as much as the link. Counts scatter more when the mean is large,
+    and a yes-or-no outcome is most uncertain at a probability of one half. The model knows this and
+    weights each point accordingly.</p
+  >
+  <h4>Fitting: iteratively reweighted least squares</h4
+  ><p
+    >The parameters maximize the likelihood. There is no formula for the answer, but Newton's method
+    takes a pleasant form. At the current fit, compute for every point a <b>working value</b> and a
+    <b>weight</b>,</p
+  >$$z_i=\eta_i+\frac{y_i-\mu_i}{d\mu_i/d\eta_i},\qquad
+  w_i=\frac{(d\mu_i/d\eta_i)^2}{\operatorname{Var}(y_i)},$$<p
+    >and then solve an ordinary weighted least-squares problem for the line through the \(z_i\):</p
+  >$$(a,b)\leftarrow\arg\min_{a,b}\sum_i w_i\,(z_i-a-b\,x_i)^2.$$<p
+    >For the three links above the weights simplify to \(1\), \(\mu_i(1-\mu_i)\) and \(\mu_i\). For
+    the Gaussian case the working values are the data and the weights are all equal, so one refit
+    gives the exact answer: that is ordinary least squares.</p
+  >
+  <h4>Deviance</h4
+  ><p
+    >The misfit is measured by the deviance, twice the gap in log-likelihood between the model and a
+    perfect fit:</p
+  >$$D_{\text{Poisson}}=2\sum_i\Big[y_i\log\frac{y_i}{\mu_i}-(y_i-\mu_i)\Big],\qquad
+  D_{\text{Bernoulli}}=-2\sum_i\big[y_i\log\mu_i+(1-y_i)\log(1-\mu_i)\big].$$<p
+    >For Gaussian data it is the familiar sum of squared residuals. The run stops when a refit
+    lowers the deviance by less than \(10^{-8}\).</p
+  >
+  <h4>Reading the slope</h4
+  ><p
+    >On the link scale the slope has a simple meaning. With a log link, one more unit of \(x\)
+    <i>multiplies</i> the expected count by \(e^{b}\). With a logit link it multiplies the
+    <i>odds</i> by \(e^{b}\). With the identity link it adds \(b\).</p
+  ></template
+>
+
+<template data-part="question"
+  >On Ice Creams Sold, why does the fit give more weight to hot days than to cold days, when a
+  least-squares line would treat them all the same?</template
+>
+
+<template data-part="answer"
+  >For a Poisson count the variance equals the mean, and with a log link the weight of a point works
+  out to be its fitted mean. On the link scale a hot day with 40 sales has a working value known to
+  within about 1 part in √40, while a cold day with 2 sales could just as easily have been 0 or 5,
+  which is a huge difference in logarithms. The hot days pin down the line more firmly on the log
+  scale, so they are trusted more. Least squares on the raw counts makes the opposite mistake in
+  another way: it assumes the scatter is the same everywhere.</template
+>

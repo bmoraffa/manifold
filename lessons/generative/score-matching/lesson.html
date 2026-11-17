@@ -1,0 +1,230 @@
+<template data-part="lede"
+  >Suppose you could stand anywhere in the plane and ask one question: in which direction does the
+  data get denser? That arrow is called the score. With arrows everywhere you can generate data by
+  dropping points at random and letting them climb, with a little jitter. The surprise is that the
+  arrows can be learned without ever knowing the density itself, by practising one simple job:
+  removing noise.</template
+>
+
+<template data-part="intro"
+  ><p
+    >Imagine a dark hillside with a few campfires. You cannot see the fires, but everywhere you
+    stand you can feel which way is warmer. Follow the warmth and you reach a fire. The score is
+    that "warmer this way" arrow, with data density in place of heat. There is one difficulty: far
+    from every fire you feel almost nothing, and what you do feel is unreliable. The fix is to begin
+    with huge bonfires whose warmth reaches the whole hillside, walk toward them, and then shrink
+    the fires in stages. Each stage only has to guide you from "roughly right" to "a bit more
+    exactly right".</p
+  >
+</template>
+
+<template data-part="stage"
+  ><div class="stage"
+    ><figure class="fig"
+      ><figcaption
+        >Faint dots: the real data. Arrows: the score the network has learned at the noise level
+        shown. Gold dots: points that are climbing the arrows</figcaption
+      ><canvas
+        class="short"
+        id="sm-c"
+        role="img"
+        aria-label="Data, the learned score field and samples"
+      ></canvas
+    ></figure>
+    <figure class="fig"
+      ><figcaption
+        >Top: the exact score at the same noise level, worked out from the data for comparison.
+        Bottom: the training error, then how well the learned arrows match the exact ones at each
+        level</figcaption
+      ><canvas
+        class="short"
+        id="sm-r"
+        role="img"
+        aria-label="Exact score field, loss and agreement by noise level"
+      ></canvas></figure
+  ></div>
+  <div class="howto"
+    ><div
+      ><h3>How it works, step by step</h3
+      ><ol id="sm-steps"
+        ><li>Take real points. Choose one of ten noise levels for each and add that much noise.</li
+        ><li
+          >Ask the network which way leads back toward the clean point. The right answer is known,
+          because we added the noise ourselves. Backpropagate.</li
+        ><li
+          >Repeat for 2,500 batches. The network now gives an arrow at every place, for every noise
+          level.</li
+        ><li>Generate: scatter points at random over the whole picture.</li
+        ><li
+          >Langevin step: move each point a little way along its arrow and add a little random
+          jitter. Repeat.</li
+        ><li
+          >Annealing: start with the arrows for the largest noise level, which reach everywhere, and
+          work down to the smallest, which are precise.</li
+        ></ol
+      ></div
+    ><div><h3>What just happened</h3><p class="live" id="sm-live" role="status"></p></div
+  ></div>
+  <div class="controls"
+    ><template data-label="Animation" data-control="group"
+      ><div class="row"
+        ><button class="btn go" id="sm-play" type="button">Run</button
+        ><button class="btn" id="sm-step" type="button">One step</button
+        ><button class="btn" id="sm-reset" type="button">Start over</button></div
+      ><template data-unit="training steps" data-id="sm" data-control="run-limit"></template
+    ></template>
+    <template data-label="Generating" data-control="group"
+      ><div class="row seg" id="sm-mode" role="group" aria-label="Which arrows to follow"
+        ><button class="btn" type="button" data-v="ann">All Ten Levels, Large to Small</button
+        ><button class="btn" type="button" data-v="one">Only the Level Shown</button></div
+      ><template
+        data-value="5"
+        data-step="1"
+        data-max="10"
+        data-min="1"
+        data-label="Noise level shown (1 = most noise)"
+        data-id="sm-lv"
+        data-control="slider"
+      ></template
+      ><div class="row"
+        ><button class="btn" id="sm-gen" type="button">Generate Again</button></div
+      ></template
+    >
+    <template data-label="The data" data-control="group"
+      ><label class="ctl" for="sm-ds"
+        ><span>Shape to learn</span
+        ><select id="sm-ds"
+          ><option value="moons">Two moons</option
+          ><option value="ring">A ring</option
+          ><option value="spiral">A spiral</option
+          ><option value="blobs" selected>Three blobs</option></select
+        ></label
+      ></template
+    ></div
+  >
+  <dl class="read"
+    ><template data-label="Stage" data-key="ph" data-control="readout"></template
+    ><template data-label="Training steps" data-key="ts" data-control="readout"></template
+    ><template
+      data-class="hl2"
+      data-label="Error at guessing the noise"
+      data-key="L"
+      data-control="readout"
+    ></template
+    ><template
+      data-label="Noise level shown, and its size σ"
+      data-key="sg"
+      data-control="readout"
+    ></template
+    ><template
+      data-label="Learned arrows within 25° of the exact ones, at that level"
+      data-key="ag"
+      data-control="readout"
+    ></template
+    ><template
+      data-class="hl"
+      data-label="Generated points that land on the shape"
+      data-key="near"
+      data-control="readout"
+    ></template></dl
+></template>
+
+<template data-part="tryit"
+  >After training, drag the noise-level slider from 1 to 10 and compare the two arrow pictures. At
+  level 1 the arrows are simple: everything points at the middle of the data. At level 10 they are
+  detailed near the data. What do the learned arrows do far from the data at level 10, and how does
+  the bar chart show it? Now choose Only the Level Shown with level 10 and press Generate Again. Do
+  all the points find the shape? Try level 1, then a middle level such as 5 or 6. On these small
+  shapes a well-chosen middle level can do about as well as the full ladder. What would you have to
+  know in advance to choose it? Then switch back to All Ten Levels: which problem of the smallest
+  level does starting large solve, and which problem of the largest level does finishing small
+  solve?</template
+>
+
+<template data-part="math"
+  ><h4>The score</h4
+  ><p>For a density \(p(\mathbf x)\) the score is the gradient of its logarithm:</p>$$\mathbf
+  s(\mathbf x)=\nabla_{\mathbf x}\log p(\mathbf x).$$<p
+    >It points toward higher density, and it is longer where the density changes faster. Writing a
+    model as \(p(\mathbf x)=e^{-E(\mathbf x)}/Z\) shows why the score is convenient: the awkward
+    constant \(Z\), which makes probabilities sum to one, disappears when you take the gradient of
+    the logarithm. A network can output a score without anyone ever computing \(Z\).</p
+  >
+  <h4>Learning it by denoising</h4
+  ><p
+    >We do not know \(p\), so we cannot compute its score to train against. Vincent (2011) showed a
+    way around this. Blur the data with Gaussian noise of size \(\sigma\): \(\tilde{\mathbf
+    x}=\mathbf x+\sigma\boldsymbol\varepsilon\). The score of the blurred density \(p_\sigma\) is
+    the minimiser of</p
+  >$$\mathcal L(\sigma)=\mathbb E_{\mathbf x,\boldsymbol\varepsilon}\Big\lVert\,\mathbf
+  s_\theta(\tilde{\mathbf x},\sigma)+\frac{\boldsymbol\varepsilon}{\sigma}\Big\rVert^2 .$$<p
+    >In words: the arrow at a noisy point should point back along the noise that was added,
+    \(-\boldsymbol\varepsilon/\sigma=(\mathbf x-\tilde{\mathbf x})/\sigma^2\). Many clean points
+    could have produced the same noisy point, and the average of all their "way back" arrows is
+    exactly \(\nabla\log p_\sigma\). This page trains the network to output
+    \(\hat{\boldsymbol\varepsilon}\) and uses \(\mathbf
+    s_\theta=-\hat{\boldsymbol\varepsilon}/\sigma\), which is the same loss multiplied by
+    \(\sigma^2\) so that every level counts equally.</p
+  >
+  <h4>Checking against the exact answer</h4
+  ><p
+    >For the 500 data points on this page, the blurred density is a mixture of 500 small Gaussians,
+    one on each point, and its score has a closed form:</p
+  >$$\nabla\log p_\sigma(\mathbf x)=\frac{1}{\sigma^2}\sum_i w_i(\mathbf x)\,(\mathbf x_i-\mathbf
+  x),\qquad w_i(\mathbf x)\propto\exp\!\Big(-\frac{\lVert\mathbf x-\mathbf
+  x_i\rVert^2}{2\sigma^2}\Big).$$<p
+    >That is the top-right picture. The network never sees this formula. The bar chart counts how
+    many of its arrows fall within 25° of it.</p
+  >
+  <h4>Generating: Langevin dynamics</h4><p>Given a score, repeat</p>$$\mathbf x\leftarrow\mathbf
+  x+\frac{\alpha}{2}\,\mathbf s_\theta(\mathbf x,\sigma)+\sqrt{\alpha}\,\mathbf z,\qquad\mathbf
+  z\sim\mathcal N(\mathbf 0,\mathbf I).$$<p
+    >Climb the arrow a little, then jitter. Without the jitter every point would end on a peak of
+    the density. With it, and with a small step \(\alpha\), the points settle into samples spread
+    according to \(p_\sigma\) itself.</p
+  >
+  <h4>Why one noise level is a poor bet</h4
+  ><p
+    >With a small \(\sigma\) the blurred density is almost the real one, but training only ever
+    showed the network points close to the data. Far away, where random starting points land, the
+    arrows were never practised and cannot be trusted. Even the exact score has a second problem
+    there: between two separate groups it is nearly blind to how many points each group holds, so
+    the groups receive the wrong shares. With a large \(\sigma\) the arrows are reliable everywhere,
+    but they lead to a blurred version of the data. On the two-dimensional shapes of this page a
+    middle level happens to work about as well as the whole ladder, as you can check. For images,
+    the distance from a random start to the data is vastly larger than the detail that has to be
+    resolved, and no single level covers both.</p
+  >
+  <h4>Annealing</h4
+  ><p
+    >Song and Ermon (2019) train one network on a ladder of levels
+    \(\sigma_1>\sigma_2>\dots>\sigma_L\) and sample by running Langevin dynamics at each level in
+    turn, with step \(\alpha_i\propto\sigma_i^2\), using the result of one level as the start of the
+    next. The large levels move the points across empty space. The small levels sharpen them. This
+    page uses ten levels from 1.2 down to 0.05, each 0.7 times the one before, with twelve Langevin
+    steps per level.</p
+  >
+  <h4>The link to diffusion</h4
+  ><p
+    >A diffusion model's noise prediction is this same quantity under another name: \(\nabla\log
+    p_t(\mathbf x)=-\boldsymbol\varepsilon_\theta(\mathbf x,t)/\sqrt{1-\bar\alpha_t}\). Its many
+    noise levels are the ladder, and its sampling loop is annealed Langevin dynamics with a
+    particular choice of step sizes. Song and others (2021) joined the two views into one framework
+    in which the noise level changes continuously.</p
+  ></template
+>
+
+<template data-part="question"
+  >The loss compares the network’s arrow with the direction back to one particular clean point. But
+  many clean points could have produced the same noisy point. Why does training on these conflicting
+  targets give the right answer?</template
+>
+
+<template data-part="answer"
+  >Because the loss is a squared error, and the single arrow that minimises a squared error against
+  many targets is their average. At a given noisy point the targets are the “way back” arrows to
+  every clean point that could have produced it, weighted by how likely each one is. That weighted
+  average is exactly the gradient of the log of the blurred density, which is the score. The
+  individual targets conflict, but their mean is what we wanted all along. It is the same reason the
+  error never falls to zero.</template
+>

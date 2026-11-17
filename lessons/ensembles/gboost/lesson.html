@@ -1,0 +1,197 @@
+<template data-part="lede"
+  >Start with the simplest prediction there is, the average. Look at the errors it leaves. Fit a
+  small tree to those errors and add a fraction of it to the prediction. Look at the errors that
+  remain, and repeat. Hundreds of small corrections add up to a flexible curve.</template
+>
+
+<template data-part="intro"
+  ><p
+    >A golfer does not expect to sink the ball from the tee. The first shot gets it roughly toward
+    the green. The second is aimed at what the first left: the remaining distance to the hole. Each
+    later shot is smaller and corrects the leftover error of all the shots before. Gradient boosting
+    plays the same way. No single tree is asked to model the data. Each is asked only to model what
+    the ensemble so far has got wrong.</p
+  >
+</template>
+
+<template data-part="stage"
+  ><div class="stage"
+    ><figure class="fig"
+      ><figcaption>The data and the prediction so far</figcaption
+      ><canvas
+        class="short"
+        id="gbm-c"
+        role="img"
+        aria-label="Data with the boosted prediction"
+      ></canvas
+    ></figure>
+    <figure class="fig"
+      ><figcaption
+        >Top: what is still unexplained, and the tree just fitted to it. Bottom: error by
+        round</figcaption
+      ><canvas
+        class="short"
+        id="gbm-r"
+        role="img"
+        aria-label="Residuals with the latest tree, and error against rounds"
+      ></canvas></figure
+  ></div>
+  <div class="howto"
+    ><div
+      ><h3>How it learns, step by step</h3
+      ><ol id="gbm-steps"
+        ><li>Predict the average of y for every point.</li
+        ><li>Compute each point’s residual: its true value minus the current prediction.</li
+        ><li>Fit a small tree to the residuals.</li
+        ><li>Add a fraction ν of that tree to the prediction.</li
+        ><li>Go back to step 2. Stop when the test error stops falling.</li></ol
+      ></div
+    ><div><h3>What just happened</h3><p class="live" id="gbm-live" role="status"></p></div
+  ></div>
+  <div class="controls"
+    ><template data-label="Animation" data-control="group"
+      ><div class="row"
+        ><button class="btn go" id="gbm-play" type="button">Add trees</button
+        ><button class="btn" id="gbm-step" type="button">One round</button
+        ><button class="btn" id="gbm-reset" type="button">Start over</button></div
+      ></template
+    >
+    <template data-label="The model" data-control="group"
+      ><template
+        data-value="0.2"
+        data-step="0.01"
+        data-max="1"
+        data-min="0.02"
+        data-label="Learning rate ν (share of each tree added)"
+        data-id="gbm-nu"
+        data-control="slider"
+      ></template
+      ><template
+        data-value="2"
+        data-step="1"
+        data-max="4"
+        data-min="1"
+        data-label="Depth of each tree"
+        data-id="gbm-depth"
+        data-control="slider"
+      ></template
+      ><template
+        data-value="100"
+        data-step="5"
+        data-max="300"
+        data-min="5"
+        data-label="Number of rounds"
+        data-id="gbm-B"
+        data-control="slider"
+      ></template
+    ></template>
+    <template data-label="The data" data-control="group"
+      ><label class="ctl" for="gbm-f"
+        ><span>True curve</span
+        ><select id="gbm-f"
+          ><option value="wave">Wave</option
+          ><option value="steps">Steps</option
+          ><option value="line">Straight line</option></select
+        ></label
+      ><template
+        data-value="0.35"
+        data-step="0.01"
+        data-max="1.2"
+        data-min="0"
+        data-label="Noise σ"
+        data-id="gbm-s"
+        data-control="slider"
+      ></template
+      ><template
+        data-value="90"
+        data-step="2"
+        data-max="300"
+        data-min="20"
+        data-label="Number of points"
+        data-id="gbm-n"
+        data-control="slider"
+      ></template
+      ><div class="row"
+        ><button class="btn" id="gbm-new" type="button">New random sample</button></div
+      ></template
+    ></div
+  >
+  <dl class="read"
+    ><template data-label="Rounds so far" data-key="k" data-control="readout"></template
+    ><template
+      data-class="hl3"
+      data-label="Train error (MSE)"
+      data-key="tr"
+      data-control="readout"
+    ></template
+    ><template
+      data-class="hl2"
+      data-label="Test error (MSE)"
+      data-key="te"
+      data-control="readout"
+    ></template
+    ><template
+      data-class="hl"
+      data-label="Round with the lowest test error"
+      data-key="best"
+      data-control="readout"
+    ></template
+    ><template
+      data-label="Noise level σ² (best possible)"
+      data-key="s2"
+      data-control="readout"
+    ></template></dl
+></template>
+
+<template data-part="tryit"
+  >Take the first four rounds one at a time and watch the residuals on the right shrink toward zero.
+  Then set the learning rate to 1 and run 300 rounds: when does the test error turn back up? Set it
+  to 0.05: how many rounds does it need now, and how low does the test error go?</template
+>
+
+<template data-part="math"
+  ><h4>The algorithm for squared error</h4>$$F_0(x)=\bar y,\qquad r_i^{(m)}=y_i-F_{m-1}(x_i),\qquad
+  F_m(x)=F_{m-1}(x)+\nu\,h_m(x)$$<p
+    >where \(h_m\) is a small regression tree fitted to the residuals \(r^{(m)}\), and
+    \(\nu\in(0,1]\) is the learning rate. The final model is the sum of all the trees.</p
+  >
+  <h4>Why "gradient"</h4
+  ><p
+    >Think of the predictions \(F(x_1),\dots,F(x_n)\) as \(n\) adjustable numbers and the loss
+    \(L=\tfrac12\sum_i(y_i-F(x_i))^2\) as a function of them. Its gradient with respect to
+    \(F(x_i)\) is</p
+  >$$\frac{\partial L}{\partial F(x_i)}=-(y_i-F(x_i))=-r_i.$$<p
+    >The residuals are the negative gradient. Adding a tree fitted to the residuals is one step of
+    gradient descent, taken in the space of functions instead of the space of weights, with \(\nu\)
+    as the step size. For any other differentiable loss, replace the residuals with that loss's
+    negative gradient (the "pseudo-residuals") and everything else stays the same: log loss gives
+    classification, absolute or Huber loss gives robustness to outliers. This generality is what
+    separates gradient boosting from AdaBoost, which is the special case of exponential loss.</p
+  >
+  <h4>The three dials</h4
+  ><p
+    ><b>Learning rate \(\nu\).</b> Small steps mean each tree corrects only part of the error,
+    leaving room for later trees to correct it differently. Smaller \(\nu\) needs more rounds and
+    almost always generalises better. <b>Number of rounds.</b> Unlike bagging, boosting does overfit
+    eventually: training error keeps falling toward zero while test error turns back up. Stop at the
+    minimum of the validation error (early stopping). <b>Tree depth.</b> Depth 1 gives an additive
+    model with no interactions; depth \(d\) allows interactions among up to \(d\) features. Depths
+    of 3 to 6 are usual.</p
+  >
+  <h4>In practice</h4
+  ><p
+    >With subsampling of rows and columns and a penalty on leaf values, this is XGBoost, LightGBM
+    and CatBoost: the strongest general-purpose methods for tabular data.</p
+  ></template
+>
+
+<template data-part="question"
+  >Halving the learning rate roughly doubles the number of rounds needed. Why bother?</template
+>
+
+<template data-part="answer"
+  >With a large learning rate each tree commits fully to the residual pattern it happens to see,
+  noise included. With a small one, each tree makes a cautious correction and hundreds of slightly
+  different trees average out their individual quirks. The path to the answer is smoother and the
+  test error at the best round is usually lower.</template
+>

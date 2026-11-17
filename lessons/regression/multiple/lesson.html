@@ -1,0 +1,158 @@
+<template data-part="lede"
+  >With two inputs the line becomes a plane. Rotate it and watch it tilt into place. Then make the
+  two inputs correlated and see the estimates lose their footing.</template
+>
+
+<template data-part="intro"
+  ><p
+    >Each input gets its own slope, and each slope answers a specific question: if this input goes
+    up by one <em>while the other stays fixed</em>, how much does the prediction change? When the
+    two inputs always move together, the data never shows one changing without the other, so it
+    cannot say how to split the credit. The plane is still well pinned down above the data, but it
+    can pivot freely about the line where the data lies.</p
+  >
+</template>
+
+<template data-part="stage"
+  ><div class="stage"
+    ><figure class="fig"
+      ><figcaption>The data and the fitted plane</figcaption><canvas class="d3" id="mr-c"></canvas
+      ><template data-control="rotation"></template
+    ></figure>
+    <figure class="fig"
+      ><figcaption>The two slopes, re-estimated on 200 fresh samples</figcaption
+      ><canvas
+        class="sq"
+        id="mr-e"
+        role="img"
+        aria-label="Cloud of slope estimates across repeated samples"
+      ></canvas></figure
+  ></div>
+  <div class="controls"
+    ><template data-label="Animation" data-control="group"
+      ><div class="row"
+        ><button class="btn go" id="mr-play" type="button">Fit the plane</button
+        ><button class="btn" id="mr-new" type="button">New random sample</button></div
+      ><label class="check" for="mr-res"
+        ><input type="checkbox" id="mr-res" checked />Show the misses (residuals)</label
+      ></template
+    >
+    <template data-label="The true relationship" data-control="group"
+      ><template
+        data-value="1.2"
+        data-step="0.05"
+        data-max="2"
+        data-min="-2"
+        data-label="True slope for x₁"
+        data-id="mr-b1"
+        data-control="slider"
+      ></template
+      ><template
+        data-value="-0.8"
+        data-step="0.05"
+        data-max="2"
+        data-min="-2"
+        data-label="True slope for x₂"
+        data-id="mr-b2"
+        data-control="slider"
+      ></template
+      ><template
+        data-value="0.8"
+        data-step="0.05"
+        data-max="2.5"
+        data-min="0"
+        data-label="Noise σ"
+        data-id="mr-s"
+        data-control="slider"
+      ></template
+    ></template>
+    <template data-label="The inputs" data-control="group"
+      ><template
+        data-value="0"
+        data-step="0.01"
+        data-max="0.98"
+        data-min="-0.98"
+        data-label="Correlation between x₁ and x₂"
+        data-id="mr-r"
+        data-control="slider"
+      ></template
+      ><template
+        data-value="60"
+        data-step="1"
+        data-max="200"
+        data-min="10"
+        data-label="Number of points"
+        data-id="mr-n"
+        data-control="slider"
+      ></template></template
+  ></div>
+  <dl class="read"
+    ><template
+      data-class="hl"
+      data-label="Estimated intercept, slope₁, slope₂"
+      data-key="b"
+      data-control="readout"
+    ></template
+    ><template data-label="R²" data-key="r2" data-control="readout"></template
+    ><template data-label="Adjusted R²" data-key="ar2" data-control="readout"></template
+    ><template data-label="F statistic" data-key="f" data-control="readout"></template
+    ><template
+      data-class="hl2"
+      data-label="p-value (all slopes = 0?)"
+      data-key="p"
+      data-control="readout"
+    ></template
+    ><template
+      data-class="hl3"
+      data-label="Variance inflation factor"
+      data-key="vif"
+      data-control="readout"
+    ></template></dl
+></template>
+
+<template data-part="tryit"
+  >Slide the correlation between the inputs from 0 to 0.95. The plane hardly changes, but watch the
+  cloud of estimates on the right. Which combinations of the two slopes can the data no longer tell
+  apart?</template
+>
+
+<template data-part="math"
+  ><h4>The model</h4>$$\hat y=\beta_0+\beta_1x_1+\beta_2x_2\qquad\text{or, stacking all
+  points,}\qquad \hat{\mathbf y}=X\boldsymbol\beta$$<p
+    >where each row of \(X\) is \((1,x_{i1},x_{i2})\).</p
+  >
+  <h4>The normal equations</h4>$$L(\boldsymbol\beta)=\frac1n\lVert\mathbf
+  y-X\boldsymbol\beta\rVert^2,\qquad \nabla L=0\ \Longrightarrow\
+  X^{\top}X\,\hat{\boldsymbol\beta}=X^{\top}\mathbf y,\qquad
+  \hat{\boldsymbol\beta}=(X^{\top}X)^{-1}X^{\top}\mathbf y.$$<p
+    >Geometrically, \(X\hat{\boldsymbol\beta}\) is the projection of \(\mathbf y\) onto the space
+    spanned by the columns of \(X\); the residual vector is perpendicular to every column.</p
+  >
+  <h4>How much the estimates wobble</h4
+  >$$\operatorname{Cov}(\hat{\boldsymbol\beta})=\sigma^2\,(X^{\top}X)^{-1}$$<p
+    >The right-hand cloud is this covariance, drawn by refitting on fresh noise. With uncorrelated
+    inputs it is round. As the correlation \(r\) between \(x_1\) and \(x_2\) grows, \(X^{\top}X\)
+    becomes nearly singular and the cloud stretches into a long thin ellipse:
+    \(\hat\beta_1+\hat\beta_2\) is still known well, \(\hat\beta_1-\hat\beta_2\) is not. The
+    variance of each slope is multiplied by</p
+  >$$\mathrm{VIF}=\frac{1}{1-r^2}.$$
+  <h4>Does the model explain anything?</h4>$$R^2=1-\frac{\mathrm{RSS}}{\mathrm{TSS}},\qquad \bar
+  R^2=1-(1-R^2)\frac{n-1}{n-p-1},\qquad
+  F=\frac{(\mathrm{TSS}-\mathrm{RSS})/p}{\mathrm{RSS}/(n-p-1)}\sim F_{p,\,n-p-1}$$<p
+    >with \(p=2\) inputs. \(R^2\) never goes down when you add an input, even a useless one; the
+    adjusted version charges for each extra input. The F test asks whether all slopes could be zero
+    at once. Note that with strongly correlated inputs the F test can be decisive while neither
+    slope is individually significant.</p
+  ></template
+>
+
+<template data-part="question"
+  >With correlation 0.95 the fitted plane still predicts well. So why does multicollinearity
+  matter?</template
+>
+
+<template data-part="answer"
+  >It matters when you interpret the slopes or predict away from the data. The individual slopes are
+  unreliable and can even flip sign between samples, and predictions for an x₁ and x₂ that do not
+  follow the usual pattern can be badly wrong.</template
+>

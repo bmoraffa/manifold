@@ -1,0 +1,226 @@
+<template data-part="lede"
+  >A single neuron can only draw one straight edge. Put a few of them in a layer, feed that layer
+  into another, and the edges combine into curves, rings and spirals. Here you can watch that
+  happen: the picture inside each neuron shows what that neuron has learned to respond to.</template
+>
+
+<template data-part="intro"
+  ><p
+    >Think of a sculptor who may only make straight cuts. One cut divides the block in two: that is
+    one neuron. Three cuts can leave a triangle standing. With enough cuts, and a second sculptor
+    who combines the pieces the first one made, any shape can be carved. A neural network works the
+    same way. The first hidden layer makes straight cuts through the input space, and each later
+    layer combines the pieces from the layer before into more elaborate regions.</p
+  >
+</template>
+
+<template data-part="stage"
+  ><div class="stage"
+    ><figure class="fig"
+      ><figcaption
+        >The network’s answer at every position: green side or gold side. Filled dots are training
+        points, rings are test points</figcaption
+      ><canvas
+        class="short"
+        id="nn-c"
+        role="img"
+        aria-label="Decision regions of the network with the data"
+      ></canvas
+    ></figure>
+    <figure class="fig"
+      ><figcaption
+        >Top: the network. Each small square shows where that neuron is active. Line colour is the
+        sign of the weight, thickness its size. Bottom: loss by epoch</figcaption
+      ><canvas
+        class="sq"
+        id="nn-r"
+        role="img"
+        aria-label="Network diagram with per-neuron activity and the loss curves"
+      ></canvas></figure
+  ></div>
+  <div class="howto"
+    ><div
+      ><h3>How it works, step by step</h3
+      ><ol id="nn-steps"
+        ><li>Start with random weights. The answer is a meaningless smear.</li
+        ><li
+          >Forward pass: every point flows through the network, left to right, and comes out as a
+          number between 0 and 1.</li
+        ><li>Loss: compare those numbers with the true colours.</li
+        ><li
+          >Backward pass: work out how each weight should change to lower the loss, and nudge them
+          all.</li
+        ><li>Repeat. Stop when the loss stops falling.</li></ol
+      ></div
+    ><div><h3>What just happened</h3><p class="live" id="nn-live" role="status"></p></div
+  ></div>
+  <div class="controls"
+    ><template data-label="Animation" data-control="group"
+      ><div class="row"
+        ><button class="btn go" id="nn-play" type="button">Train</button
+        ><button class="btn" id="nn-step" type="button">One epoch</button
+        ><button class="btn" id="nn-reset" type="button">Start over</button></div
+      ><template data-unit="epochs" data-id="nn" data-control="run-limit"></template
+    ></template>
+    <template data-label="The network" data-control="group"
+      ><template
+        data-value="2"
+        data-step="1"
+        data-max="3"
+        data-min="1"
+        data-label="Hidden layers"
+        data-id="nn-hl"
+        data-control="slider"
+      ></template
+      ><template
+        data-value="5"
+        data-step="1"
+        data-max="8"
+        data-min="1"
+        data-label="Neurons in each hidden layer"
+        data-id="nn-hw"
+        data-control="slider"
+      ></template
+      ><label class="ctl" for="nn-act"
+        ><span>Activation</span
+        ><select id="nn-act"
+          ><option value="tanh">tanh</option
+          ><option value="relu">ReLU</option
+          ><option value="sigmoid">Sigmoid</option></select
+        ></label
+      ><template
+        data-value="0.015"
+        data-step="0.001"
+        data-max="0.2"
+        data-min="0.003"
+        data-label="Learning rate"
+        data-id="nn-lr"
+        data-control="slider"
+      ></template
+    ></template>
+    <template data-label="The data" data-control="group"
+      ><label class="ctl" for="nn-ds"
+        ><span>Shape to learn</span
+        ><select id="nn-ds"
+          ><option value="circles">A ring around a core</option
+          ><option value="moons">Two moons</option
+          ><option value="xor">Checkerboard</option
+          ><option value="spiral">Two spirals</option
+          ><option value="blobs">Two clouds</option></select
+        ></label
+      ><template
+        data-value="0.2"
+        data-step="0.01"
+        data-max="0.6"
+        data-min="0"
+        data-label="Noise"
+        data-id="nn-nz"
+        data-control="slider"
+      ></template
+      ><template
+        data-value="200"
+        data-step="2"
+        data-max="400"
+        data-min="60"
+        data-label="Number of points"
+        data-id="nn-n"
+        data-control="slider"
+      ></template
+      ><div class="row"
+        ><button class="btn" id="nn-new" type="button">New random sample</button></div
+      ></template
+    ></div
+  >
+  <dl class="read"
+    ><template data-label="Epochs" data-key="ep" data-control="readout"></template
+    ><template
+      data-class="hl3"
+      data-label="Training loss"
+      data-key="lt"
+      data-control="readout"
+    ></template
+    ><template
+      data-class="hl2"
+      data-label="Test loss"
+      data-key="le"
+      data-control="readout"
+    ></template
+    ><template data-label="Training accuracy" data-key="at" data-control="readout"></template
+    ><template
+      data-class="hl"
+      data-label="Test accuracy"
+      data-key="ae"
+      data-control="readout"
+    ></template
+    ><template
+      data-label="Weights and biases in the network"
+      data-key="np"
+      data-control="readout"
+    ></template
+    ><template data-label="Status" data-key="st" data-control="readout"></template></dl
+></template>
+
+<template data-part="tryit"
+  >On the ring, set one hidden layer with 1 neuron, then 2, then 3, and train each time. How many
+  neurons does it take to close a ring, and what do their little pictures look like? Then choose Two
+  Spirals: one layer of 8 struggles, while three layers of 8 can do it. Watch the pictures inside
+  the neurons get more complicated from left to right.</template
+>
+
+<template data-part="math"
+  ><h4>One neuron</h4
+  ><p
+    >A neuron takes its inputs, multiplies each by a weight, adds a bias, and passes the total
+    through an activation function \(\phi\):</p
+  >$$a=\phi\big(w_1x_1+w_2x_2+b\big).$$<p
+    >The set of points where \(w_1x_1+w_2x_2+b=0\) is a straight line, and the neuron is "on" on one
+    side and "off" on the other. Look at any neuron in the first hidden layer: its picture is always
+    a straight edge.</p
+  >
+  <h4>Layers</h4
+  ><p
+    >A layer is many neurons reading the same inputs. Stacking the weights into a matrix \(\mathbf
+    W^{(l)}\) and the biases into a vector \(\mathbf b^{(l)}\),</p
+  >$$\mathbf a^{(0)}=\mathbf x,\qquad\mathbf a^{(l)}=\phi\big(\mathbf W^{(l)}\mathbf
+  a^{(l-1)}+\mathbf b^{(l)}\big),\qquad\hat y=\sigma\big(\mathbf w^{\top}\mathbf a^{(L)}+b\big),$$<p
+    >where the final \(\sigma\) is the logistic function, so that \(\hat y\) is the probability of
+    the gold class. A neuron in layer 2 takes a weighted sum of the straight-edge pictures from
+    layer 1 and bends the result, which is how corners and closed regions appear.</p
+  >
+  <h4>Why the activation must bend</h4
+  ><p
+    >If \(\phi\) were the identity, each layer would be a linear map, and a stack of linear maps is
+    one linear map: \(\mathbf W^{(2)}\mathbf W^{(1)}\mathbf x\). The whole network would be a single
+    straight cut, however deep. The non-linear activation is what lets layers build on one
+    another.</p
+  >
+  <h4>What training does</h4
+  ><p>The loss is the average log loss (cross-entropy) over the training points,</p>$$\mathcal
+  L=-\frac1n\sum_{i=1}^{n}\big[y_i\log\hat y_i+(1-y_i)\log(1-\hat y_i)\big].$$<p
+    >Each epoch computes the gradient of \(\mathcal L\) with respect to every weight by
+    backpropagation (its own tab) and moves the weights a small step against it. This page uses the
+    Adam optimiser from the Foundations module. Training stops here when the loss has stopped
+    falling.</p
+  >
+  <h4>Width and depth</h4
+  ><p
+    >More neurons in a layer give more cuts to work with. More layers let cuts be combined into
+    pieces, and pieces into shapes, so a deep network can describe some shapes with far fewer
+    neurons than a wide shallow one. The count of weights grows quickly: a layer of \(m\) neurons
+    reading \(n\) inputs has \(m(n+1)\) parameters. When the network is much larger than the data
+    needs, training loss keeps falling while test loss turns back up: the same overfitting you saw
+    with polynomials.</p
+  ></template
+>
+
+<template data-part="question"
+  >A network with one hidden layer of 2 tanh neurons cannot separate the ring from its core. Why
+  not?</template
+>
+
+<template data-part="answer"
+  >Each first-layer neuron makes one straight cut, so two neurons give two lines. The output can
+  only combine "which side of line 1" and "which side of line 2", and no region bounded by two lines
+  is closed: it always runs off to infinity somewhere. Closing a region around the core takes at
+  least three cuts, which is why three neurons are the minimum.</template
+>

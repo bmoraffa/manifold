@@ -1,0 +1,334 @@
+<template data-part="lede"
+  >Stir a drop of ink into water and it spreads until nothing of the drop is left. That direction is
+  easy. A diffusion model learns the other direction: it removes a little noise at a time until a
+  picture appears. Choose a picture, watch it dissolve, then watch the denoiser bring it back.
+  Whether the same picture returns depends on how much of it survived, and that is decided by the
+  noise schedule, which you can redesign here: the original DDPM schedule, the improved one from
+  IDDPM, or your own.</template
+>
+
+<template data-part="intro"
+  ><p
+    >A sculptor starts with a rough block and removes a little at a time until the statue appears.
+    Nobody could carve a statue in a single blow, but each small cut is easy: look at what is there,
+    decide what does not belong, take it off. A diffusion model generates the same way. It starts
+    from a block of static and removes a little noise at each step. It learns what "does not belong"
+    by first watching real pictures being buried in noise, where it knows exactly what noise was
+    added. If you bury a picture only part of the way, enough of it shows through for the sculptor
+    to recover that same picture. Bury it completely and the sculptor is free to carve any statue it
+    knows.</p
+  >
+</template>
+
+<template data-part="stage"
+  ><div class="row seg" id="dp-dir" role="group" aria-label="What to do"
+    ><button class="btn" type="button" data-v="round">Noise This Picture, Then Denoise It</button
+    ><button class="btn" type="button" data-v="gen"
+      >Generate a Picture from Pure Static</button
+    ></div
+  >
+  <div class="stage"
+    ><figure class="fig"
+      ><figcaption id="dp-cap"
+        >The picture at the current step. The small picture in the corner is the
+        original</figcaption
+      ><canvas
+        class="sq"
+        id="dp-c"
+        role="img"
+        aria-label="The image at the current diffusion step"
+      ></canvas
+    ></figure>
+    <figure class="fig"
+      ><figcaption
+        >Top: the denoiser’s best guess at the clean picture, and which known picture it thinks this
+        is. Middle: the same picture a quarter, half, three quarters and all the way through, under
+        your schedule and under the alternative. Bottom: how much picture and how much noise is in
+        the mix at each step</figcaption
+      ><canvas
+        class="sq"
+        id="dp-r"
+        role="img"
+        aria-label="Denoiser estimate, belief in each known picture, schedule comparison strips and the noise schedule curves"
+      ></canvas></figure
+  ></div>
+  <div class="howto"
+    ><div
+      ><h3>How it works, step by step</h3
+      ><ol id="dp-steps"
+        ><li
+          >Forward, one step: shrink the picture slightly toward grey and add a little fresh random
+          noise. The noise schedule says how much at each step.</li
+        ><li
+          >Repeat up to the turning point you chose. The further you go, the less of the original is
+          left in the mix.</li
+        ><li
+          >Reverse: ask the denoiser, “given this noisy picture, what was the clean one?” Its answer
+          blends the pictures it knows, weighted by how well each one fits.</li
+        ><li
+          >Step toward that guess and add back a little fresh noise. The reverse-noise setting says
+          how much.</li
+        ><li
+          >Repeat down to step 0. If enough of the original survived at the turning point, the same
+          picture comes back.</li
+        ><li
+          >Generate: start from pure static instead. There is no original to recover, so any picture
+          the model knows can appear.</li
+        ></ol
+      ></div
+    ><div><h3>What just happened</h3><p class="live" id="dp-live" role="status"></p></div
+  ></div>
+  <div class="controls"
+    ><template data-label="Animation" data-control="group"
+      ><div class="row"
+        ><button class="btn go" id="dp-play" type="button">Run</button
+        ><button class="btn" id="dp-step" type="button">One step</button
+        ><button class="btn" id="dp-reset" type="button">Start over</button></div
+      ><template
+        data-value="0"
+        data-step="1"
+        data-max="100"
+        data-min="0"
+        data-label="Jump to a forward step"
+        data-id="dp-t"
+        data-control="slider"
+      ></template
+      ><template
+        data-value="60"
+        data-step="5"
+        data-max="100"
+        data-min="10"
+        data-label="Turn back after this share of the steps"
+        data-id="dp-turn"
+        data-control="slider"
+      ></template
+    ></template>
+    <template data-label="The noise schedule" data-control="group"
+      ><div class="row seg" id="dp-sch" role="group" aria-label="Noise schedule"
+        ><button class="btn" type="button" data-v="lin">Linear (DDPM)</button
+        ><button class="btn" type="button" data-v="cos">Cosine (IDDPM)</button
+        ><button class="btn" type="button" data-v="con">Constant</button></div
+      ><template
+        data-value="100"
+        data-step="10"
+        data-max="200"
+        data-min="20"
+        data-label="Number of steps T"
+        data-id="dp-T"
+        data-control="slider"
+      ></template
+      ><template
+        data-value="0.001"
+        data-step="0.0005"
+        data-max="0.02"
+        data-min="0.0005"
+        data-label="Linear: noise added at the first step, β₁"
+        data-id="dp-b0"
+        data-control="slider"
+      ></template
+      ><template
+        data-value="0.2"
+        data-step="0.01"
+        data-max="0.5"
+        data-min="0.02"
+        data-label="Linear and constant: noise at the last step, β_T"
+        data-id="dp-b1"
+        data-control="slider"
+      ></template
+    ></template>
+    <template data-label="The reverse process" data-control="group"
+      ><template
+        data-value="0"
+        data-step="0.05"
+        data-max="1"
+        data-min="0"
+        data-label="Noise put back at each reverse step (0 = least, 1 = most)"
+        data-id="dp-v"
+        data-control="slider"
+      ></template
+      ><template
+        data-value="100"
+        data-step="5"
+        data-max="100"
+        data-min="5"
+        data-label="Reverse steps used, as a share of the forward steps"
+        data-id="dp-rs"
+        data-control="slider"
+      ></template
+      ><div class="row"
+        ><button class="btn" id="dp-new" type="button">New Random Noise</button></div
+      ></template
+    >
+    <template data-label="The pictures the model knows" data-control="group"
+      ><label class="ctl" for="dp-pic"
+        ><span>Picture to start from</span
+        ><select id="dp-pic"></select></label
+      ><div class="row"
+        ><label class="btn file"
+          >Upload a Picture<input type="file" id="dp-file" accept="image/*" /></label></div
+      ><p class="status" id="dp-st" role="status"></p></template
+  ></div>
+  <dl class="read"
+    ><template data-label="Step" data-key="t" data-control="readout"></template
+    ><template
+      data-class="hl3"
+      data-label="Share of the original left (√ᾱ)"
+      data-key="sig"
+      data-control="readout"
+    ></template
+    ><template
+      data-class="hl2"
+      data-label="Share of noise (√(1−ᾱ))"
+      data-key="nz"
+      data-control="readout"
+    ></template
+    ><template
+      data-class="hl"
+      data-label="The denoiser thinks this is"
+      data-key="to"
+      data-control="readout"
+    ></template
+    ><template
+      data-label="Steps on which the denoiser can still recognise the original: your schedule / the alternative"
+      data-key="rc"
+      data-control="readout"
+    ></template
+    ><template data-label="Result" data-key="res" data-control="readout"></template></dl
+></template>
+
+<template data-part="tryit"
+  >Choose the sunflower and press Run. The picture is noised for 60% of the steps of the linear DDPM
+  schedule and then denoised: the sunflower comes back. Now move “Turn back” to 100% and run a few
+  times. Sometimes a different picture comes back. Read the two share readouts at the turning point
+  to see why. Next compare the two strips in the middle of the right-hand picture: under the linear
+  schedule the picture is already static halfway through, and under the cosine schedule it fades
+  evenly. That waste is what IDDPM fixed. Design your own schedule with the β sliders and watch the
+  curves and the “still recognisable” readout. Then lower the reverse steps to 10%: does the
+  denoiser still get home? Finally choose Generate a Picture from Pure Static and run it several
+  times.</template
+>
+
+<template data-part="math"
+  ><h4>The forward process: adding noise</h4
+  ><p
+    >Let \(\mathbf x_0\) be a picture with pixel values scaled to \([-1,1]\). Each step mixes in a
+    little Gaussian noise:</p
+  >$$\mathbf x_t=\sqrt{1-\beta_t}\;\mathbf
+  x_{t-1}+\sqrt{\beta_t}\;\boldsymbol\varepsilon_t,\qquad\boldsymbol\varepsilon_t\sim\mathcal
+  N(\mathbf 0,\mathbf I).$$<p
+    >The numbers \(\beta_1,\dots,\beta_T\) are the <b>noise schedule</b>. Because Gaussians combine
+    neatly, any step can be reached from the original in one jump. With \(\bar\alpha_t=\prod_{s\le
+    t}(1-\beta_s)\),</p
+  >$$\mathbf x_t=\sqrt{\bar\alpha_t}\;\mathbf x_0+\sqrt{1-\bar\alpha_t}\;\boldsymbol\varepsilon
+  .$$<p
+    >\(\sqrt{\bar\alpha_t}\) is how much picture is left and \(\sqrt{1-\bar\alpha_t}\) how much
+    noise: the two solid curves at the lower right. The step slider uses this formula to jump
+    anywhere.</p
+  >
+  <h4>The reverse process: removing noise</h4
+  ><p
+    >A network \(\boldsymbol\varepsilon_\theta(\mathbf x_t,t)\) is trained to predict the noise that
+    was added, by minimising</p
+  >$$\mathcal L_{\text{simple}}=\mathbb E_{\mathbf
+  x_0,\,t,\,\boldsymbol\varepsilon}\Big[\big\lVert\boldsymbol\varepsilon-\boldsymbol\varepsilon_\theta\big(\sqrt{\bar\alpha_t}\,\mathbf
+  x_0+\sqrt{1-\bar\alpha_t}\,\boldsymbol\varepsilon,\;t\big)\big\rVert^2\Big].$$<p
+    >Predicting the noise is the same as predicting the clean picture, since \(\hat{\mathbf
+    x}_0=(\mathbf x_t-\sqrt{1-\bar\alpha_t}\,\boldsymbol\varepsilon_\theta)/\sqrt{\bar\alpha_t}\).
+    One reverse step then draws \(\mathbf x_{t-1}\) from a Gaussian whose centre lies between the
+    current noisy picture and the guess:</p
+  >$$\mathbf
+  x_{t-1}=\underbrace{\frac{\sqrt{\bar\alpha_{t-1}}\,\beta_t}{1-\bar\alpha_t}\,\hat{\mathbf
+  x}_0+\frac{\sqrt{1-\beta_t}\,(1-\bar\alpha_{t-1})}{1-\bar\alpha_t}\,\mathbf
+  x_t}_{\text{mean}}+\sigma_t\,\mathbf z,\qquad\mathbf z\sim\mathcal N(\mathbf 0,\mathbf I).$$<p
+    >This is DDPM, denoising diffusion probabilistic models (Ho, Jain and Abbeel, 2020). They used a
+    schedule in which \(\beta_t\) rises in a straight line, and \(\sigma_t^2=\beta_t\).</p
+  >
+  <h4>Why the picture you chose comes back, or does not</h4
+  ><p
+    >The reverse process only sees the noisy picture. When you turn back early,
+    \(\sqrt{\bar\alpha_t}\) is still well above zero, the original shows through, and the denoiser's
+    guess is that picture. At the very end of a schedule \(\bar\alpha_T\) is practically zero: the
+    noisy picture is static that would look the same whichever picture you began with. Nothing is
+    left to say it was the sunflower, so the reverse process is free to end on any picture it knows.
+    That is not a fault. It is exactly what makes diffusion a <b>generator</b>: begin from fresh
+    static and a new sample appears. Starting the reverse process from a partly noised picture, as
+    the first button does, is how diffusion models are used to edit or restore an existing image.</p
+  >
+  <h4>IDDPM, part 1: the cosine schedule</h4
+  ><p
+    >Nichol and Dhariwal (2021) noticed that the linear schedule destroys small pictures far too
+    quickly. Look at the middle strips: with the linear schedule the picture is gone about halfway
+    through, so the remaining steps are spent turning static into static and teach the network very
+    little. They proposed choosing \(\bar\alpha_t\) directly, as a smooth curve that falls gently at
+    both ends:</p
+  >$$\bar\alpha_t=\frac{f(t)}{f(0)},\qquad
+  f(t)=\cos^2\!\Big(\frac{t/T+s}{1+s}\cdot\frac{\pi}{2}\Big),\qquad
+  \beta_t=1-\frac{\bar\alpha_t}{\bar\alpha_{t-1}},$$<p
+    >with a small offset \(s=0.008\) and \(\beta_t\) capped at 0.999. Information is removed at a
+    nearly even pace from the first step to the last. The readout "steps on which the denoiser can
+    still recognise the original" measures the difference. The ideal denoiser on this page sees
+    through far more noise than your eye does, so judge the strips by eye and the readout by
+    number.</p
+  >
+  <h4>IDDPM, part 2: how much noise to put back</h4
+  ><p
+    >For the size \(\sigma_t\) of the fresh noise in the reverse step there are two natural choices.
+    The largest sensible value is \(\sigma_t^2=\beta_t\). The smallest is the variance the step
+    would have if the clean picture were known exactly,</p
+  >$$\tilde\beta_t=\frac{1-\bar\alpha_{t-1}}{1-\bar\alpha_t}\,\beta_t .$$<p
+    >DDPM fixed one of them. IDDPM lets the network output a number \(v\) between 0 and 1 for every
+    step and pixel, and uses a blend of the two on a logarithmic scale:</p
+  >$$\sigma_t^2=\exp\!\big(v\,\log\beta_t+(1-v)\,\log\tilde\beta_t\big).$$<p
+    >On this page you set \(v\) by hand with the reverse-noise slider. The two ends differ most in
+    the last few steps, where \(\tilde\beta_t\) goes to zero and \(\beta_t\) does not. To train
+    \(v\), IDDPM adds a small multiple of the full likelihood bound to the simple loss, \(\mathcal
+    L_{\text{hybrid}}=\mathcal L_{\text{simple}}+\lambda\,\mathcal L_{\text{vlb}}\).</p
+  >
+  <h4>IDDPM, part 3: fewer reverse steps</h4
+  ><p
+    >With a well-chosen variance, sampling does not have to visit every step. Pick a shorter list of
+    steps \(t_1>t_2>\dots\), treat each jump from \(t\) to \(s\) as one step with
+    \(\beta'=1-\bar\alpha_t/\bar\alpha_s\), and apply the same formulas. A model trained with 4,000
+    steps could then be sampled in about 100. The "reverse steps used" slider does this. The DDIM
+    and Samplers tab takes the idea further.</p
+  >
+  <h4>Why the first guesses are blurry</h4
+  ><p
+    >The best possible answer to "what clean picture is behind this static?" is the average of all
+    the pictures it could have been, weighted by how likely each is. At high noise many pictures are
+    plausible, so the average is a blur. As noise is removed the candidates narrow and the guess
+    sharpens. The fresh noise added at each step helps decide which candidate wins.</p
+  >
+  <h4>What this page computes</h4
+  ><p
+    >The forward process, the schedules, the reverse mean and the reverse variance are exactly the
+    formulas above. For the denoiser this page does not train a network. It uses the
+    <b>mathematically ideal denoiser for a tiny data set</b>: when the model "knows" only the \(K\)
+    pictures in the list, the best guess is</p
+  >$$\hat{\mathbf x}_0=\sum_{k=1}^{K}w_k\,\mathbf x^{(k)},\qquad
+  w_k\propto\exp\!\Big(-\frac{\lVert\mathbf x_t-\sqrt{\bar\alpha_t}\,\mathbf
+  x^{(k)}\rVert^2}{2(1-\bar\alpha_t)}\Big),$$<p
+    >the bars at the top right. Because it knows so few pictures, it can pick out the original from
+    astonishingly little: a picture has thousands of pixels, and a faint trace spread over all of
+    them adds up. A real diffusion model replaces this sum with a U-Net trained on millions of
+    pictures. When such a model denoises a heavily noised photo it returns a picture like the
+    original, not the original itself, and it can produce pictures that are in none of its training
+    data. The next tab trains a denoising network on simple data. The built-in pictures are drawn by
+    code, and an uploaded photo is shrunk to 32 × 32 pixels.</p
+  ></template
+>
+
+<template data-part="question"
+  >You noise the sunflower all the way to the last step of the linear schedule and denoise it, and a
+  cat comes back. A classmate says the denoiser made a mistake. Did it?</template
+>
+
+<template data-part="answer"
+  >No. At the last step of that schedule the share of the original left in the mix is practically
+  zero, so the noisy picture is static that could have come from any picture with almost equal
+  probability. The information that it was a sunflower has been destroyed, not hidden, and no
+  denoiser, however good, can read what is no longer there. From that point the reverse process is
+  generating a new sample, and which picture it lands on is decided by the random noise. Turn back
+  earlier, or use a schedule that still keeps a trace at the turning point, and the sunflower
+  returns.</template
+>

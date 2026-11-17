@@ -1,0 +1,201 @@
+<template data-part="lede"
+  >A model that can fit any pattern of labels you give it has learned nothing when it fits yours.
+  The VC dimension measures that flexibility with a game. Put some points down. An opponent labels
+  them in every possible way. If your family of models has an answer for every labelling, the points
+  are shattered. The largest number of points that can be shattered is the VC dimension, and it
+  controls how much data you need before a good fit means anything.</template
+>
+
+<template data-part="intro"
+  ><p
+    >Suppose a fortune-teller can explain any outcome after the fact. If you won, the stars foretold
+    it. If you lost, the stars foretold that too. Their record of explaining the past is perfect and
+    tells you nothing about whether they can predict the future. A family of models is in the same
+    position when it is flexible enough to match every possible labelling of your data: a perfect
+    fit was guaranteed in advance. A family that can match only a few of the possible labellings is
+    different. If it fits yours, that is evidence. The VC dimension counts how many points a family
+    can explain away completely.</p
+  >
+</template>
+
+<template data-part="stage"
+  ><div class="row seg" id="vc-h" role="group" aria-label="Family of models"
+    ><button class="btn" type="button" data-v="int">Intervals on a Line</button
+    ><button class="btn" type="button" data-v="line">Straight Lines</button
+    ><button class="btn" type="button" data-v="rect">Upright Rectangles</button></div
+  >
+  <div class="stage"
+    ><figure class="fig"
+      ><figcaption
+        >The current labelling: gold points must be inside (positive), dark points outside. If the
+        family has a member that does it, it is drawn. Drag the points to rearrange them</figcaption
+      ><canvas
+        class="short"
+        id="vc-c"
+        role="img"
+        aria-label="Points with the current labelling and a separating model if one exists"
+      ></canvas
+    ></figure>
+    <figure class="fig"
+      ><figcaption
+        >Top: every possible labelling as a tile. Filled: the family can produce it. Crossed: it
+        cannot. Bottom: how many labellings the family can produce on n points (solid), against all
+        2ⁿ labellings (dashed)</figcaption
+      ><canvas
+        class="short"
+        id="vc-r"
+        role="img"
+        aria-label="Grid of labellings and the growth function"
+      ></canvas></figure
+  ></div>
+  <div class="howto"
+    ><div
+      ><h3>How it works, step by step</h3
+      ><ol id="vc-steps"
+        ><li>Choose a family of models and put down n points.</li
+        ><li>List every way of labelling the points positive or negative. There are 2ⁿ of them.</li
+        ><li>For each labelling, look for a member of the family that gets every point right.</li
+        ><li>If every labelling can be matched, the points are shattered.</li
+        ><li
+          >If even one labelling cannot be matched, try moving the points. Shattering needs only one
+          good arrangement.</li
+        ><li>The VC dimension is the largest n for which some arrangement can be shattered.</li></ol
+      ></div
+    ><div><h3>What just happened</h3><p class="live" id="vc-live" role="status"></p></div
+  ></div>
+  <div class="controls"
+    ><template data-label="Animation" data-control="group"
+      ><div class="row"
+        ><button class="btn go" id="vc-play" type="button">Run</button
+        ><button class="btn" id="vc-step" type="button">Next labelling</button
+        ><button class="btn" id="vc-reset" type="button">Start over</button></div
+      ><template data-unit="labellings" data-id="vc" data-control="run-limit"></template
+    ></template>
+    <template data-label="The points" data-control="group"
+      ><template
+        data-value="3"
+        data-step="1"
+        data-max="6"
+        data-min="1"
+        data-label="Number of points"
+        data-id="vc-n"
+        data-control="slider"
+      ></template
+      ><div class="row"
+        ><button class="btn" id="vc-new" type="button">Rearrange at random</button
+        ><button class="btn" id="vc-row" type="button">Put them in a row</button
+        ><button class="btn" id="vc-best" type="button">A good arrangement</button></div
+      ><template
+        data-value="2"
+        data-step="1"
+        data-max="3"
+        data-min="1"
+        data-label="Speed"
+        data-id="vc-sp"
+        data-control="slider"
+      ></template></template
+  ></div>
+  <dl class="read"
+    ><template data-label="Points" data-key="n" data-control="readout"></template
+    ><template data-label="Labellings tried" data-key="done" data-control="readout"></template
+    ><template
+      data-class="hl"
+      data-label="Labellings the family can match"
+      data-key="ok"
+      data-control="readout"
+    ></template
+    ><template
+      data-class="hl2"
+      data-label="Shattered?"
+      data-key="sh"
+      data-control="readout"
+    ></template
+    ><template
+      data-label="VC dimension of this family"
+      data-key="vc"
+      data-control="readout"
+    ></template
+    ><template
+      data-label="First labelling that failed"
+      data-key="fail"
+      data-control="readout"
+    ></template></dl
+></template>
+
+<template data-part="tryit"
+  >With Straight Lines and three points, press Run: all 8 labellings can be matched. Now press Put
+  them in a row and run again. Which labelling fails, and does that change the VC dimension? Raise
+  the number of points to 4 and try to find any arrangement, by dragging, that a straight line can
+  shatter. Switch to Upright Rectangles: four points in a diamond can be shattered. Try five.
+  Whatever you do, one labelling always fails. Which point is always the problem?</template
+>
+
+<template data-part="math"
+  ><h4>Shattering</h4
+  ><p
+    >Let \(\mathcal H\) be a family of classifiers. A set of \(n\) points is <b>shattered</b> by
+    \(\mathcal H\) if, for every one of the \(2^n\) ways of labelling them \(\pm1\), some
+    \(h\in\mathcal H\) labels all of them correctly. The <b>Vapnik-Chervonenkis dimension</b> is</p
+  >$$d_{\mathrm{VC}}(\mathcal H)=\max\{\,n:\ \text{some set of }n\text{ points is shattered by
+  }\mathcal H\,\}.$$<p
+    >Note the two quantifiers. To show \(d_{\mathrm{VC}}\ge n\) you need <i>one</i> arrangement that
+    works. To show \(d_{\mathrm{VC}}&lt;n\) you must show that <i>every</i> arrangement fails.</p
+  >
+  <h4>The three families here</h4
+  ><p
+    ><b>Intervals</b> label a point positive when it lies in \([a,b]\). Two points can be shattered.
+    Three cannot: positive, negative, positive from left to right is impossible. So
+    \(d_{\mathrm{VC}}=2\).</p
+  ><p
+    ><b>Straight lines</b> in the plane label one side positive. Three points not in a row can be
+    shattered. Four never can: either one point lies inside the triangle of the others, and cannot
+    be labelled differently from all three, or the four form a quadrilateral, and the two diagonals
+    cannot be given opposite labels. So \(d_{\mathrm{VC}}=3\). In \(d\) dimensions a hyperplane has
+    \(d_{\mathrm{VC}}=d+1\).</p
+  ><p
+    ><b>Upright rectangles</b> label the inside positive. Four points in a diamond can be shattered.
+    With five, take the leftmost, rightmost, top and bottom points: any rectangle containing those
+    four contains the fifth as well. So \(d_{\mathrm{VC}}=4\).</p
+  >
+  <h4>The growth function</h4
+  ><p
+    >Let \(m_{\mathcal H}(n)\) be the largest number of distinct labellings \(\mathcal H\) can
+    produce on any \(n\) points. Up to the VC dimension it equals \(2^n\). Beyond it, Sauer's lemma
+    says it grows only like a polynomial:</p
+  >$$m_{\mathcal
+  H}(n)\le\sum_{i=0}^{d_{\mathrm{VC}}}\binom{n}{i}\le\Big(\frac{e\,n}{d_{\mathrm{VC}}}\Big)^{d_{\mathrm{VC}}}.$$<p
+    >That break from exponential to polynomial is what makes learning possible. The bottom-right
+    chart shows the two curves separating.</p
+  >
+  <h4>Why it matters</h4
+  ><p>With probability at least \(1-\delta\), every classifier in the family satisfies</p
+  >$$\text{true error}\ \le\ \text{training
+  error}+\sqrt{\frac{8}{n}\Big(d_{\mathrm{VC}}\ln\frac{2en}{d_{\mathrm{VC}}}+\ln\frac4\delta\Big)}.$$<p
+    >The gap between what you measure and what you get shrinks as the number of examples \(n\) grows
+    and widens with the VC dimension. A family with infinite VC dimension offers no such guarantee
+    at all. The bound is loose in practice, often by a large factor, and modern networks generalize
+    far better than it predicts. Its lasting lesson is the trade: more flexibility buys a better fit
+    and costs certainty about what that fit means.</p
+  >
+  <h4>What this page checks</h4
+  ><p
+    >For each labelling the page searches the family exhaustively: every pair of cut points for
+    intervals, the bounding box of the positive points for rectangles, and 720 directions for lines.
+    The growth-function chart uses the exact values for these three families, \(\binom n2+n+1\) for
+    intervals, \(n^2-n+2\) for lines and the Sauer bound for rectangles.</p
+  ></template
+>
+
+<template data-part="question"
+  >Three points in a row cannot be shattered by straight lines. Four points in general position
+  cannot either. Why is the VC dimension of lines 3 and not 2?</template
+>
+
+<template data-part="answer"
+  >Because the definition asks for the best case over arrangements. It is enough that one set of
+  three points can be shattered, and any three points that are not in a row can be. The failure for
+  three points in a row is a property of that unlucky arrangement, not of the family. For four
+  points the failure is different in kind: it happens for every arrangement, whether one point is
+  inside the triangle of the others or the four form a quadrilateral. So three is achievable and
+  four is not, and the VC dimension is 3.</template
+>

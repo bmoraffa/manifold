@@ -1,0 +1,213 @@
+<template data-part="lede"
+  >An ordinary network gives one answer and sounds equally sure everywhere, even far from anything
+  it was trained on. A small change fixes that: leave dropout switched on when predicting, and ask
+  the same question many times. Each time a different random part of the network answers. Where the
+  answers agree, the network knows. Where they scatter, it is guessing.</template
+>
+
+<template data-part="intro"
+  ><p
+    >Ask one expert a question and you get one answer, with no way to tell a fact from a guess. Ask
+    a panel of fifty, each of whom studied slightly different notes. On a question from the middle
+    of the syllabus they all say the same thing. On a question nobody covered, the answers are all
+    over the place, and that disagreement is the useful information: it tells you not to rely on the
+    answer. Dropout already contains such a panel. Every random choice of which neurons to switch
+    off is a slightly different network that shares the same training. Leaving dropout on at
+    prediction time lets you poll them.</p
+  >
+</template>
+
+<template data-part="stage"
+  ><div class="stage"
+    ><figure class="fig"
+      ><figcaption
+        >Dots: the training data, with a gap in the middle. Black: the ordinary prediction. Thin
+        lines: predictions with dropout left on. Gold: their average. Green band: where 95% of them
+        fall</figcaption
+      ><canvas
+        class="short"
+        id="mc-c"
+        role="img"
+        aria-label="Data, ordinary prediction and many dropout predictions with an uncertainty band"
+      ></canvas
+    ></figure>
+    <figure class="fig"
+      ><figcaption
+        >Top: all the answers given at your x so far. Bottom: how much the answers disagree at every
+        x</figcaption
+      ><canvas
+        class="short"
+        id="mc-r"
+        role="img"
+        aria-label="Histogram of predictions at one point and uncertainty against x"
+      ></canvas></figure
+  ></div>
+  <div class="howto"
+    ><div
+      ><h3>How it works, step by step</h3
+      ><ol id="mc-steps"
+        ><li>Train a network with dropout in the usual way.</li
+        ><li>Ordinary prediction: switch every neuron on and get one answer for each x.</li
+        ><li
+          >Bayesian prediction: leave dropout on. Switch off a random share of neurons and predict
+          the whole curve.</li
+        ><li>Do it again with a different random share. The curve comes out slightly different.</li
+        ><li
+          >After many passes, the average is the prediction and the spread is the uncertainty.</li
+        ></ol
+      ></div
+    ><div><h3>What just happened</h3><p class="live" id="mc-live" role="status"></p></div
+  ></div>
+  <div class="controls"
+    ><template data-label="Animation" data-control="group"
+      ><div class="row"
+        ><button class="btn go" id="mc-play" type="button">Run</button
+        ><button class="btn" id="mc-step" type="button">One pass</button
+        ><button class="btn" id="mc-reset" type="button">Start over</button></div
+      ><template data-unit="passes" data-id="mc" data-control="run-limit"></template
+    ></template>
+    <template data-label="The model" data-control="group"
+      ><template
+        data-value="0.1"
+        data-step="0.01"
+        data-max="0.6"
+        data-min="0.05"
+        data-label="Share of neurons switched off, p"
+        data-id="mc-p"
+        data-control="slider"
+      ></template
+      ><template
+        data-value="48"
+        data-step="1"
+        data-max="64"
+        data-min="8"
+        data-label="Neurons in each of the two hidden layers"
+        data-id="mc-hw"
+        data-control="slider"
+      ></template
+    ></template>
+    <template data-label="The data" data-control="group"
+      ><template
+        data-value="2.2"
+        data-step="0.05"
+        data-max="3.2"
+        data-min="0"
+        data-label="Width of the gap with no data"
+        data-id="mc-gap"
+        data-control="slider"
+      ></template
+      ><template
+        data-value="0.12"
+        data-step="0.01"
+        data-max="0.5"
+        data-min="0"
+        data-label="Noise in the measurements"
+        data-id="mc-nz"
+        data-control="slider"
+      ></template
+      ><div class="row"
+        ><button class="btn" id="mc-new" type="button">New random sample</button></div
+      ></template
+    ></div
+  >
+  <dl class="read"
+    ><template data-label="Stage" data-key="ph" data-control="readout"></template
+    ><template data-label="Dropout passes so far" data-key="k" data-control="readout"></template
+    ><template
+      data-class="hl3"
+      data-label="Uncertainty where there is data (±)"
+      data-key="sd"
+      data-control="readout"
+    ></template
+    ><template
+      data-class="hl2"
+      data-label="Uncertainty in the gap (±)"
+      data-key="sg"
+      data-control="readout"
+    ></template
+    ><template
+      data-label="Uncertainty beyond the data (±)"
+      data-key="so"
+      data-control="readout"
+    ></template
+    ><template
+      data-label="Training points inside the 95% band"
+      data-key="ins"
+      data-control="readout"
+    ></template></dl
+></template>
+
+<template data-part="tryit"
+  >Watch the thin lines pile up: they bunch together over the dots and fan out in the gap and past
+  both ends. Move your x into the gap and read the histogram on the right, then move it onto the
+  data. Widen the gap to 3.2, then close it to 0. Finally raise p to 0.5: the band gets wider
+  everywhere. Is the network really less sure, or did you just turn up a dial?</template
+>
+
+<template data-part="math"
+  ><h4>The recipe (Monte Carlo dropout)</h4
+  ><p
+    >Train with dropout as usual. To predict at \(x\), run \(T\) forward passes, each with a fresh
+    random mask \(\mathbf m_t\), giving \(\hat y_t=f(x;\mathbf m_t)\). Then</p
+  >$$\text{prediction}=\bar y=\frac1T\sum_{t=1}^{T}\hat y_t,\qquad\text{model
+  uncertainty}=s^2=\frac{1}{T-1}\sum_{t=1}^{T}\big(\hat y_t-\bar y\big)^2 .$$<p
+    >The green band on this page is \(\bar y\pm1.96\,s\). The passes stop when adding more no longer
+    changes the band.</p
+  >
+  <h4>Why it is called Bayesian</h4
+  ><p
+    >A Bayesian treats the weights as uncertain: there is a whole distribution of weight settings
+    consistent with the data, the posterior \(p(\mathbf w\mid\mathcal D)\), and a prediction should
+    average over all of them,</p
+  >$$p(y\mid x,\mathcal D)=\int p(y\mid x,\mathbf w)\,p(\mathbf w\mid\mathcal D)\,d\mathbf w .$$<p
+    >That integral cannot be computed for a neural network. Gal and Ghahramani (2016) showed that
+    training with dropout is mathematically equivalent to fitting an approximation \(q(\mathbf w)\)
+    to the posterior, in which each neuron's outgoing weights are randomly either kept or set to
+    zero. Each dropout pass is then one sample of weights from \(q\), and averaging passes is a
+    Monte Carlo estimate of the integral. No change to the network or its training is required.</p
+  >
+  <h4>Two kinds of uncertainty</h4
+  ><p
+    ><b>Model (epistemic) uncertainty</b> comes from not having seen enough data. It is what the
+    scatter of the passes measures, it is large in the gap and beyond the ends, and more data there
+    would shrink it. <b>Noise (aleatoric) uncertainty</b> is the irreducible noise \(\sigma^2\) from
+    the Bias and Variance lesson: the measurements themselves wobble, and no amount of data removes
+    it. The total predictive variance is the sum,</p
+  >$$\operatorname{Var}(y\mid x)\approx s^2(x)+\sigma^2 ,$$<p
+    >so the band drawn here, which shows only \(s\), is the uncertainty about the curve, not about a
+    new measurement.</p
+  >
+  <h4>Why it matters</h4
+  ><p
+    >A model that can say "I do not know" can hand a case to a person, ask for more data where it is
+    unsure (active learning), or decline to act. This is important in medicine, driving and anywhere
+    a confident wrong answer is costly. An ordinary network extrapolates across the gap with a
+    single smooth line and gives no warning.</p
+  >
+  <h4>Cautions</h4
+  ><ul
+    ><li
+      >The size of the band depends on \(p\), which you chose. The method ranks regions by
+      uncertainty much better than it gives the exact width. Check calibration on held-out data.</li
+    ><li
+      >It tends to underestimate uncertainty, and far from the data it can still be
+      overconfident.</li
+    ><li>It costs \(T\) forward passes per prediction.</li
+    ><li
+      >Alternatives with the same aim: deep ensembles (train several networks from different starts
+      and compare them), and Gaussian processes for small problems.</li
+    ></ul
+  ></template
+>
+
+<template data-part="question"
+  >Two regions have the same wide band. In one, collecting more data would shrink it; in the other
+  it would not. Which kind of uncertainty is each, and which one does this method measure?</template
+>
+
+<template data-part="answer"
+  >The one that shrinks with more data is model (epistemic) uncertainty: the network has not seen
+  enough examples there. The one that does not is noise (aleatoric) uncertainty: the outcomes
+  themselves vary. The scatter of dropout passes measures only the first. To capture the second, the
+  network must also predict a noise level, or one must be estimated from the residuals.</template
+>

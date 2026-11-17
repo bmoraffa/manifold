@@ -71,19 +71,18 @@ Polytechnic Institute, for discussion and feedback throughout. The full note is 
 
 The site is plain HTML, CSS and JavaScript. There is no build step and no server code.
 
-| Path                                     | Contents                                                    |
-| ---------------------------------------- | ----------------------------------------------------------- |
-| `index.html`                             | The page shell, and the scripts in the order they must load |
-| `css/style.css`                          | All styling; light and dark themes follow the device        |
-| `js/core.js`                             | Shared helpers: drawing, controls, animation, small maths   |
-| `js/gaussian.js` … `js/probabilistic.js` | One file per topic                                          |
-| `js/extra-lessons.js`                    | Lessons added later, appended to their topics               |
-| `js/about.js`                            | References, Suggested Books, Acknowledgements, How to Cite  |
-| `js/app.js`                              | Topic list, home-page animation, menu and routing           |
-| `CITATION.cff`                           | Citation details for GitHub                                 |
+| Path                             | Contents                                                            |
+| -------------------------------- | ------------------------------------------------------------------- |
+| `index.html`, `css/style.css`    | Page shell, shared styling, and themes                              |
+| `lessons/<topic>/index.js`       | Topic metadata and lesson order                                     |
+| `lessons/<topic>/<id>/`          | Lesson HTML beside its simulation module                            |
+| `js/core/`, `js/ui/`, `js/math/` | Shared drawing, controls, and numerical helpers                     |
+| `js/app/`                        | Loading, routing, caching, home animation, and transitions          |
+| `pages/about/`, `CITATION.cff`   | References, suggested books, acknowledgements, and citation details |
 
-To preview a change, open `index.html` in a browser. To publish it, commit to `main`; GitHub Pages updates
-the live site within a minute or two.
+Run `npm ci` and `npm run dev`, then open [the local site](http://127.0.0.1:4173/manifold/).
+GitHub Pages serves the repository source directly. See the [lesson authoring guide](docs/lesson-authoring.md)
+for the file layout and shared control conventions.
 
 The only outside resources are MathJax, for typesetting formulas, and three typefaces from Google Fonts.
 
@@ -100,7 +99,7 @@ the browser without installing dependencies or running a build.
 | `npm test`             | Run focused upload, tree, markup, animation and math regressions |
 | `npm run lint:js`      | Check JavaScript with ESLint's recommended rules                 |
 | `npm run lint:css`     | Check CSS with Stylelint's recommended rules                     |
-| `npm run lint:html`    | Validate the HTML shell with HTML Validate's recommended rules   |
+| `npm run lint:html`    | Validate the shell and check lesson fragments                    |
 | `npm run lint`         | Run the three linters, stopping at the first failure             |
 | `npm run check`        | Check formatting, run tests, then run the linters                |
 
@@ -110,14 +109,9 @@ Git line endings consistent. Embedded-language formatting is disabled to preserv
 and HTML whitespace uses strict sensitivity. HTML Validate's Prettier preset disables conflicting
 formatting rules; CSS linting checks correctness rather than duplicating Prettier's style rules.
 
-ESLint treats `js/` files as classic browser scripts, not modules. `eslint.config.mjs` records which
-file owns each binding used by other scripts; update that map when adding a shared helper. Shared
-bindings are read-only in consuming files. Unused local variables and parameters are checked, while
-top-level bindings and caught exception parameters are allowed to be unused.
-
-The Node tests load the classic scripts in page order and check production helpers, generated
-lesson markup, and selected frame callbacks. They do not emulate a browser. Rendered slider events,
-uploaded labels, autoplay and reduced-motion behavior still need real-browser smoke checks.
+ESLint checks native module imports. Node tests exercise the production modules, assembled lesson
+HTML, loading, navigation, and existing simulation regressions. LinkeDOM is used only by tests.
+Use a real browser to verify canvas drawing, file inputs, visual layout, and motion.
 
 Existing lint debt remains in unused locals, precision-loss literals, empty blocks, a constant
 condition, and CSS selector ordering. Consequently `npm run check` currently fails on lint debt

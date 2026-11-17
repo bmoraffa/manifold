@@ -1,0 +1,214 @@
+<template data-part="lede"
+  >Q-learning learns how good every move is and then picks the best. There is a more direct idea:
+  skip the values, and learn the behaviour itself. Give every square four preferences, one per move,
+  and choose moves at random in proportion to them. After each episode, strengthen the moves that
+  were followed by a good outcome and weaken the ones followed by a bad one. Here the arrows in each
+  square show the current probabilities, and you can watch a robot that starts by wandering
+  aimlessly make up its mind.</template
+>
+
+<template data-part="intro"
+  ><p
+    >Think of training a dog. You do not hand the dog a table of how valuable each action is in each
+    situation. You wait until it does something, and if what follows is good, you reward it, and it
+    becomes a little more inclined to do the same thing in the same situation. Policy gradient is
+    exactly that, done with arithmetic: behave, see how it turned out, and make the things you did a
+    little more or a little less likely.</p
+  >
+</template>
+
+<template data-part="stage"
+  ><div class="stage"
+    ><figure class="fig"
+      ><figcaption
+        >The policy. In every square the four arrows show how likely each move is: longer and darker
+        means more likely. The gold line is the last episode. Click a square to see its
+        numbers</figcaption
+      ><canvas
+        class="short"
+        id="pg-c"
+        role="img"
+        aria-label="Grid world with the probability of each move in each square"
+      ></canvas
+    ></figure>
+    <figure class="fig"
+      ><figcaption
+        >Top: the total reward of each episode (faint) and its average over 30 episodes (bold).
+        Bottom: the four probabilities in the selected square</figcaption
+      ><canvas
+        class="short"
+        id="pg-r"
+        role="img"
+        aria-label="Reward per episode and the action probabilities of one square"
+      ></canvas></figure
+  ></div>
+  <figure class="fig" style="margin-top:18px"
+    ><figcaption>One update from the last episode, worked out</figcaption
+    ><div class="eq" id="pg-eq" aria-live="polite" style="min-height:10.5em;margin-top:6px"></div
+  ></figure>
+  <div class="howto"
+    ><div
+      ><h3>How it works, step by step</h3
+      ><ol id="pg-steps"
+        ><li
+          >Every square has four preferences, all zero at first, so all four moves are equally
+          likely.</li
+        ><li
+          >Play one whole episode, choosing each move at random according to the current
+          probabilities.</li
+        ><li
+          >For every step of the episode, work out the return: the total discounted reward from that
+          step to the end.</li
+        ><li
+          >Compare the return with what is usual for that square, the baseline. Better than usual
+          counts as good, worse as bad.</li
+        ><li
+          >Raise the preference of the move that was made if the result was good, lower it if bad,
+          by an amount proportional to how good or bad. The other three moves shift the opposite
+          way.</li
+        ><li>Repeat until the average reward stops improving.</li></ol
+      ></div
+    ><div><h3>What just happened</h3><p class="live" id="pg-live" role="status"></p></div
+  ></div>
+  <div class="controls"
+    ><template data-label="Animation" data-control="group"
+      ><div class="row"
+        ><button class="btn go" id="pg-play" type="button">Run</button
+        ><button class="btn" id="pg-step" type="button">One episode</button
+        ><button class="btn" id="pg-reset" type="button">Start over</button></div
+      ><template data-unit="episodes" data-id="pg" data-control="run-limit"></template
+    ></template>
+    <template data-label="Learning" data-control="group"
+      ><template
+        data-value="0.1"
+        data-step="0.01"
+        data-max="0.3"
+        data-min="0.01"
+        data-label="Step size α"
+        data-id="pg-al"
+        data-control="slider"
+      ></template
+      ><div class="row seg" id="pg-b" role="group" aria-label="Baseline"
+        ><button class="btn" type="button" data-v="1">With a Baseline</button
+        ><button class="btn" type="button" data-v="0">Without a Baseline</button></div
+      ><template
+        data-value="2"
+        data-step="1"
+        data-max="3"
+        data-min="1"
+        data-label="Speed"
+        data-id="pg-sp"
+        data-control="slider"
+      ></template></template
+  ></div>
+  <dl class="read"
+    ><template data-label="Episodes finished" data-key="ep" data-control="readout"></template
+    ><template
+      data-label="Reward of the last episode"
+      data-key="lr"
+      data-control="readout"
+    ></template
+    ><template
+      data-class="hl"
+      data-label="Average reward, last 30 episodes"
+      data-key="av"
+      data-control="readout"
+    ></template
+    ><template data-label="Best possible reward" data-key="op" data-control="readout"></template
+    ><template
+      data-class="hl2"
+      data-label="Chance of choosing a best move, averaged over the squares of the last episode"
+      data-key="ps"
+      data-control="readout"
+    ></template
+    ><template
+      data-label="Steps in the last episode"
+      data-key="ls"
+      data-control="readout"
+    ></template></dl
+></template>
+
+<template data-part="tryit"
+  >Press One episode a few times. The first episodes are long and aimless, and they usually end
+  badly: read the worked update to see a move being made less likely. Press Run and watch the arrows
+  grow in one direction, square by square, starting near the goal. Click the start square and watch
+  its four bars in the bottom-right picture. When learning stops, start over with Without a
+  Baseline, two or three times. Most runs now settle into a poor habit and never reach the best
+  reward. Then go back to the baseline and try a step size of 0.3: fast, and in a good share of runs
+  it commits to a poor habit and cannot undo it. Why is that harder to recover from here than in
+  Q-learning?</template
+>
+
+<template data-part="math"
+  ><h4>A policy with adjustable preferences</h4
+  ><p
+    >Each state \(s\) has one number \(\theta_{s,a}\) for each move, and the probability of a move
+    comes from a softmax:</p
+  >$$\pi_\theta(a\mid s)=\frac{e^{\theta_{s,a}}}{\sum_{b}e^{\theta_{s,b}}} .$$<p
+    >With all preferences equal every move is equally likely. Raising one preference makes its move
+    more likely and all the others less. The behaviour is random by construction, so exploration is
+    built in and fades by itself as the preferences grow apart.</p
+  >
+  <h4>What is being maximised</h4
+  ><p
+    >The objective is the expected return of an episode played with the policy, \(J(\theta)=\mathbb
+    E_{\pi_\theta}[G_0]\). The aim is to climb its gradient. The <b>policy gradient theorem</b> says
+    this gradient can be estimated from sampled episodes without knowing how the world works:</p
+  >$$\nabla_\theta J(\theta)=\mathbb E_{\pi_\theta}\Big[\sum_t
+  G_t\,\nabla_\theta\log\pi_\theta(a_t\mid s_t)\Big],\qquad G_t=\sum_{k\ge0}\gamma^k r_{t+k+1}.$$
+  <h4>REINFORCE</h4
+  ><p
+    >Williams (1992) turned this into an algorithm: play an episode, then for every step move the
+    preferences along \(G_t\nabla\log\pi\). For the softmax above the gradient is simple, and the
+    update for the visited state \(s_t\) is</p
+  >$$\theta_{s_t,a}\leftarrow\theta_{s_t,a}+\alpha\,\big(G_t-b(s_t)\big)\,\big(\mathbb
+  1[a=a_t]-\pi_\theta(a\mid s_t)\big)\quad\text{for each move }a.$$<p
+    >For the move that was made, the last factor is \(1-\pi\), positive. For the others it is
+    \(-\pi\), negative. So a good outcome pushes the chosen move up and the rest down. The push is
+    larger when the chosen move was unlikely, because a surprising success is more informative.</p
+  >
+  <h4>The baseline</h4
+  ><p
+    >Without \(b\), every return is compared with zero. In a world where almost all returns are
+    negative, every move ever made is pushed down, and only the differences between large pushes
+    carry information. That works on average and is very noisy. Subtracting a
+    <b>baseline</b> \(b(s)\), the usual return from that state, changes the question from "was the
+    result good?" to "was it better than usual?". It does not change the expected gradient, because
+    \(\sum_a\pi(a\mid s)\,\nabla\log\pi(a\mid s)=0\), and it reduces the variance a great deal. Here
+    the baseline is a running average of the returns seen from each square. On this page the
+    difference is stark: in 40 test runs with a step size of 0.1, every run with the baseline
+    reached the best reward, typically in about 75 episodes, and 27 of the 40 runs without it were
+    still stuck after 1,500.</p
+  >
+  <h4>Compared with Q-learning</h4
+  ><p
+    >Policy gradient works unchanged when moves are continuous, such as a steering angle, and when
+    the best behaviour is itself random. It has no \(\max\) over moves to compute. Its weaknesses
+    are the ones visible here. It needs whole episodes before learning anything. Its updates are
+    noisy. And it is on-policy: when the probabilities for some move have collapsed to nearly zero,
+    that move is almost never tried again, so a bad habit formed early can be hard to unlearn.
+    Q-learning with ε-greedy keeps testing every move for ever.</p
+  >
+  <h4>What this page runs</h4
+  ><p
+    >The room with a pit, with a firm floor and \(\gamma=0.95\). Each episode is cut off at 60
+    steps. Learning stops when the average reward of the last 30 episodes is within 1 of the best
+    possible for 30 episodes in a row, or after 1,500 episodes. The next tab replaces the
+    running-average baseline with a learned critic, which gives the actor-critic method.</p
+  ></template
+>
+
+<template data-part="question"
+  >An episode ends in the pit with a total reward of −14. With no baseline, the preference of every
+  move made in that episode is lowered, including moves that were perfectly sensible. Why does
+  learning still work?</template
+>
+
+<template data-part="answer"
+  >Each single update is indeed a poor judge of each move. But the sensible moves also appear in the
+  episodes that end well, where they are raised, and across many episodes they are followed by
+  better returns on average than the foolish moves are. The updates are proportional to the returns,
+  so on average the sensible moves come out ahead. The price of relying on averages is noise and
+  slow learning. A baseline removes the part of every return that has nothing to do with the move,
+  so each update points more nearly in the right direction.</template
+>

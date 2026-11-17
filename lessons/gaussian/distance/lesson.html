@@ -1,0 +1,150 @@
+<template data-part="lede"
+  >Points A and B are the same straight-line distance from the centre. But A lies along the cloud
+  and B lies across it, so B is far more surprising. Mahalanobis distance measures distance in units
+  of spread.</template
+>
+
+<template data-part="intro"
+  ><p
+    >Is a point far from the centre? It depends which way you went. Along the long axis of the cloud
+    the data spreads widely, so two units is nothing unusual. Across the short axis two units puts
+    you well outside the cloud. A useful distance should count steps in units of the spread in that
+    direction.</p
+  >
+</template>
+
+<template data-part="stage"
+  ><div class="stage"
+    ><figure class="fig"
+      ><figcaption>Drag A and B</figcaption
+      ><canvas
+        class="sq"
+        id="md-c"
+        style="touch-action:none;cursor:pointer"
+        role="img"
+        aria-label="Two draggable points on a tilted Gaussian"
+      ></canvas
+    ></figure>
+    <div
+      ><dl class="read" style="margin-top:22px"
+        ><template
+          data-label="A: straight-line distance"
+          data-key="ae"
+          data-control="readout"
+        ></template
+        ><template
+          data-class="hl2"
+          data-label="A: Mahalanobis distance"
+          data-key="am"
+          data-control="readout"
+        ></template
+        ><template
+          data-label="B: straight-line distance"
+          data-key="be"
+          data-control="readout"
+        ></template
+        ><template
+          data-class="hl"
+          data-label="B: Mahalanobis distance"
+          data-key="bm"
+          data-control="readout"
+        ></template
+        ><template
+          data-class="hl2"
+          data-label="Share of the data closer than A"
+          data-key="pa"
+          data-control="readout"
+        ></template
+        ><template
+          data-class="hl"
+          data-label="Share of the data closer than B"
+          data-key="pb"
+          data-control="readout"
+        ></template></dl></div
+  ></div>
+  <div class="controls"
+    ><template data-label="Animation" data-control="group"
+      ><div class="row"
+        ><button class="btn go" id="md-play" type="button">Whiten</button
+        ><button class="btn" id="md-reset" type="button">Reset points</button></div
+      ><template
+        data-value="0"
+        data-step="0.01"
+        data-max="1"
+        data-min="0"
+        data-label="Whiten the space"
+        data-id="md-t"
+        data-control="slider"
+      ></template></template
+    ><template data-label="Shape of the cloud" data-control="group"
+      ><template
+        data-value="1.7"
+        data-step="0.01"
+        data-max="2"
+        data-min="0.45"
+        data-label="Spread of x, σₓ"
+        data-id="md-sx"
+        data-control="slider"
+      ></template
+      ><template
+        data-value="0.85"
+        data-step="0.01"
+        data-max="2"
+        data-min="0.45"
+        data-label="Spread of y, σᵧ"
+        data-id="md-sy"
+        data-control="slider"
+      ></template
+      ><template
+        data-value="0.72"
+        data-step="0.01"
+        data-max="0.97"
+        data-min="-0.97"
+        data-label="Correlation ρ"
+        data-id="md-rho"
+        data-control="slider"
+      ></template></template></div
+></template>
+
+<template data-part="tryit"
+  >Watch the space squeeze until the ellipses become circles, then relax again. When it is fully
+  whitened, compare the two rings with the ordinary distances on screen. Then make the cloud
+  isotropic: do the two distances still differ?</template
+>
+
+<template data-part="math"
+  ><h4>The formula</h4>$$d_M(\mathbf x)=\sqrt{(\mathbf
+  x-\boldsymbol\mu)^{\top}\,\Sigma^{-1}\,(\mathbf x-\boldsymbol\mu)}$$
+  <p
+    >This is the multivariate version of the z-score \(|x-\mu|/\sigma\). If \(\Sigma=\sigma^2 I\) it
+    reduces to ordinary distance divided by \(\sigma\).</p
+  >
+  <h4>Whitening</h4
+  ><p
+    >Apply the change of variables \(\mathbf z=\Sigma^{-1/2}(\mathbf x-\boldsymbol\mu)\). In the new
+    coordinates the cloud is round with unit variance, and</p
+  >$$d_M(\mathbf x)=\lVert\mathbf z\rVert.$$<p
+    >Mahalanobis distance is ordinary distance after the space has been stretched until the data
+    looks isotropic. That is what the animation does. Whitening inputs before training is the same
+    operation, and it is why feature scaling matters for methods based on distance such as k-nearest
+    neighbours.</p
+  >
+  <h4>Distance and density</h4
+  ><p
+    >The Gaussian density is \(p(\mathbf x)\propto e^{-d_M^2/2}\), so points at the same Mahalanobis
+    distance are equally likely: the rings are contours. In two dimensions the share of the data
+    closer than \(d\) is \(1-e^{-d^2/2}\), which gives 39% inside \(d=1\), 86% inside \(d=2\) and
+    98.9% inside \(d=3\).</p
+  ></template
+>
+
+<template data-part="question"
+  >An anomaly detector flags points with Mahalanobis distance above 3. Why is that better than a
+  straight-line threshold?</template
+>
+
+<template data-part="answer"
+  >A straight-line threshold draws a circle, which is too generous along the short axis and too
+  strict along the long one. The Mahalanobis threshold draws the 3σ ellipse, which matches where the
+  data actually lives.</template
+>

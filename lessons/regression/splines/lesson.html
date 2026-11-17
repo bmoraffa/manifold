@@ -1,0 +1,192 @@
+<template data-part="lede"
+  >One high-degree polynomial wiggles everywhere. A spline uses a low-degree piece between each pair
+  of knots and joins the pieces so the seams do not show. Change the kind of join and watch what
+  happens at the knots and beyond the ends of the data.</template
+>
+
+<template data-part="intro"
+  ><p
+    >A draughtsman's spline is a thin flexible strip of wood, pinned at a few points and left to
+    settle. It bends smoothly, as little as it can, and beyond the last pin it runs straight. A
+    mathematical spline copies this: cut the \(x\)-axis at a few knots, use a simple polynomial on
+    each stretch, and tie the pieces together so the joins are smooth. Flexibility is local: moving
+    one point bends the curve nearby and leaves the far end alone, which is exactly what a single
+    high-degree polynomial cannot do.</p
+  >
+</template>
+
+<template data-part="stage"
+  ><div class="row seg" id="sp-kind" role="group" aria-label="Kind of spline"
+    ><button class="btn" type="button" data-k="step">Steps</button
+    ><button class="btn" type="button" data-k="linear">Linear Spline</button
+    ><button class="btn" type="button" data-k="cubic">Cubic Spline</button
+    ><button class="btn" type="button" data-k="natural">Natural Cubic Spline</button
+    ><button class="btn" type="button" data-k="pen">Smoothing Spline</button></div
+  >
+  <p class="cap" id="sp-cap" role="status"></p>
+  <div class="stage"
+    ><figure class="fig"
+      ><figcaption>The fit, with its knots (shaded = outside the data)</figcaption
+      ><canvas
+        class="short"
+        id="sp-c"
+        role="img"
+        aria-label="Scatter plot with a spline fit and knot positions"
+      ></canvas
+    ></figure>
+    <figure class="fig"
+      ><figcaption>Curvature of the fit: its second derivative</figcaption
+      ><canvas
+        class="short"
+        id="sp-d"
+        role="img"
+        aria-label="Second derivative of the fitted curve"
+      ></canvas></figure
+  ></div>
+  <div class="controls"
+    ><template data-label="Animation" data-control="group"
+      ><div class="row"
+        ><button class="btn go" id="sp-play" type="button">Sweep</button
+        ><button class="btn" id="sp-new" type="button">New random sample</button></div
+      ></template
+    >
+    <template data-label="The model" data-control="group"
+      ><template
+        data-value="4"
+        data-step="1"
+        data-max="12"
+        data-min="0"
+        data-label="Number of interior knots"
+        data-id="sp-k"
+        data-control="slider"
+      ></template
+      ><template
+        data-value="18"
+        data-step="1"
+        data-max="40"
+        data-min="0"
+        data-label="Smoothing λ (smoothing spline only)"
+        data-id="sp-l"
+        data-control="slider"
+      ></template
+    ></template>
+    <template data-label="The data" data-control="group"
+      ><label class="ctl" for="sp-f"
+        ><span>True curve</span
+        ><select id="sp-f"
+          ><option value="sine">Sine wave</option
+          ><option value="cubic">Cubic</option
+          ><option value="bump">Single bump</option
+          ><option value="line">Straight line</option></select
+        ></label
+      ><template
+        data-value="0.25"
+        data-step="0.01"
+        data-max="0.8"
+        data-min="0"
+        data-label="Noise σ"
+        data-id="sp-s"
+        data-control="slider"
+      ></template
+      ><template
+        data-value="40"
+        data-step="1"
+        data-max="200"
+        data-min="12"
+        data-label="Number of points"
+        data-id="sp-n"
+        data-control="slider"
+      ></template></template
+  ></div>
+  <dl class="read"
+    ><template data-label="Coefficients fitted" data-key="df" data-control="readout"></template
+    ><template
+      data-class="hl3"
+      data-label="Train error (MSE)"
+      data-key="tr"
+      data-control="readout"
+    ></template
+    ><template
+      data-class="hl2"
+      data-label="Test error (MSE)"
+      data-key="te"
+      data-control="readout"
+    ></template
+    ><template
+      data-class="hl"
+      data-label="Curvature at the two ends"
+      data-key="end"
+      data-control="readout"
+    ></template
+    ><template
+      data-label="Knots with the lowest test error"
+      data-key="best"
+      data-control="readout"
+    ></template></dl
+></template>
+
+<template data-part="tryit"
+  >Step through the five kinds with 4 knots and watch the right-hand picture: where is the curvature
+  broken, where is it continuous, and for which kind is it exactly zero at both ends? Then look at
+  the shaded zones: which fit would you trust outside the data?</template
+>
+
+<template data-part="math"
+  ><h4>Piecewise polynomials and how smoothly they join</h4
+  ><p
+    >With knots \(\xi_1&lt;\dots&lt;\xi_K\), fit a polynomial of degree \(M\) on each interval and
+    require the pieces to agree at each knot in value and in their first \(M-1\) derivatives.
+    <b>Steps</b> (\(M=0\)) do not even agree in value. A <b>linear spline</b> (\(M=1\)) is
+    continuous but has corners. A <b>cubic spline</b> (\(M=3\)) matches value, slope and curvature
+    at every knot; only the third derivative jumps, and the eye cannot see that.</p
+  >
+  <h4>The cubic spline as a linear model</h4
+  >$$f(x)=\beta_0+\beta_1x+\beta_2x^2+\beta_3x^3+\sum_{k=1}^{K}\theta_k\,(x-\xi_k)_+^3,\qquad
+  (u)_+=\max(u,0)$$<p
+    >Each term \((x-\xi_k)_+^3\) is zero to the left of its knot and switches on smoothly to the
+    right, with value, slope and curvature all zero at the knot itself. So adding it changes the
+    cubic from that knot onward without breaking smoothness. The model has \(K+4\) coefficients and
+    is fitted by ordinary least squares, exactly like polynomial regression with different
+    columns.</p
+  >
+  <h4>The natural cubic spline</h4
+  ><p
+    >A cubic spline is poorly controlled near the ends, where there are few points, and outside the
+    data it shoots off like a cubic. The natural spline adds two conditions at each boundary knot
+    \(a\) and \(b\):</p
+  >$$f''(a)=0,\qquad f''(b)=0,\qquad\text{and }f\text{ is linear for }x&lt;a\text{ and }x>b.$$<p
+    >Zero curvature at the ends means the curve leaves the data as a straight line. These four
+    constraints remove four coefficients, leaving \(K+2\) when the boundary knots are counted, so it
+    is less flexible exactly where the data is thinnest. Its basis can be written</p
+  >$$N_1=1,\quad N_2=x,\quad N_{k+2}(x)=d_k(x)-d_{K-1}(x),\qquad
+  d_k(x)=\frac{(x-\xi_k)_+^3-(x-\xi_K)_+^3}{\xi_K-\xi_k}.$$ <h4>The smoothing spline</h4
+  ><p
+    >Choosing knots is awkward. The smoothing spline avoids it: use many knots and penalise
+    curvature instead.</p
+  >$$\min_f\ \sum_{i=1}^n\big(y_i-f(x_i)\big)^2+\lambda\int f''(x)^2\,dx$$<p
+    >The first term wants to pass through the points; the second charges for bending. At
+    \(\lambda=0\) the curve interpolates the data, and as \(\lambda\to\infty\) bending becomes
+    unaffordable and the answer is the least-squares straight line. The remarkable fact is that the
+    exact minimiser over <em>all</em> smooth functions is a natural cubic spline with a knot at
+    every data point. The picture uses a close relative, a penalised spline: 14 fixed knots with a
+    ridge penalty on the coefficients \(\theta_k\), since each \(\theta_k\) is the jump in the third
+    derivative at its knot.</p
+  >
+  <h4>Counting flexibility</h4
+  ><p
+    >More knots, like a higher degree, lower the bias and raise the variance. The number of fitted
+    coefficients (the degrees of freedom) is the dial, and test error picks its setting.</p
+  ></template
+>
+
+<template data-part="question"
+  >Why is a natural cubic spline usually preferred to a plain cubic spline with the same
+  knots?</template
+>
+
+<template data-part="answer"
+  >Near and beyond the ends of the data a cubic spline has freedom the data cannot pin down, so it
+  swings wildly there. The natural spline gives up that freedom by forcing zero curvature at the
+  ends. It has four fewer coefficients, lower variance at the boundaries, and it extrapolates as a
+  straight line.</template
+>

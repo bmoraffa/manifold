@@ -1,0 +1,136 @@
+<template data-part="lede"
+  >Cut the hill with a vertical wall at x = x₀. The cut face is a bell curve again: what you know
+  about y once x is fixed. The shadows on the back walls are what you know about each variable
+  alone.</template
+>
+
+<template data-part="intro"
+  ><p
+    >A <b>marginal</b> answers "what do I know about \(y\) if I ignore \(x\)?" You get it by
+    squashing the hill flat against a wall. A <b>conditional</b> answers "what do I know about \(y\)
+    now that I have seen \(x=x_0\)?" You get it by slicing the hill at \(x_0\) and rescaling the
+    slice so its area is 1. For a Gaussian, both are Gaussian again. Very few distributions have
+    this property, and it is why Gaussians make exact inference possible.</p
+  >
+</template>
+
+<template data-part="stage"
+  ><div class="stage"
+    ><figure class="fig"
+      ><figcaption>The hill, sliced at x = x₀</figcaption><canvas class="d3" id="sl-c3"></canvas
+      ><template data-control="rotation"></template></figure
+    ><figure class="fig"
+      ><figcaption>y on its own, and y given x₀</figcaption
+      ><canvas
+        class="short"
+        id="sl-c1"
+        role="img"
+        aria-label="Conditional and marginal density of y"
+      ></canvas></figure
+  ></div>
+  <div class="controls"
+    ><template data-label="Animation" data-control="group"
+      ><div class="row"
+        ><button class="btn go" id="sl-play" type="button">Slide the cut</button></div
+      ></template
+    >
+    <template data-label="The slice" data-control="group"
+      ><template
+        data-value="1"
+        data-step="0.05"
+        data-max="3"
+        data-min="-3"
+        data-label="Position x₀"
+        data-id="sl-x"
+        data-control="slider"
+      ></template></template
+    ><template data-label="Shape of the hill" data-control="group"
+      ><template
+        data-value="1.4"
+        data-step="0.01"
+        data-max="2"
+        data-min="0.45"
+        data-label="Spread of x, σₓ"
+        data-id="sl-sx"
+        data-control="slider"
+      ></template
+      ><template
+        data-value="0.9"
+        data-step="0.01"
+        data-max="2"
+        data-min="0.45"
+        data-label="Spread of y, σᵧ"
+        data-id="sl-sy"
+        data-control="slider"
+      ></template
+      ><template
+        data-value="0.6"
+        data-step="0.01"
+        data-max="0.97"
+        data-min="-0.97"
+        data-label="Correlation ρ"
+        data-id="sl-rho"
+        data-control="slider"
+      ></template></template
+  ></div>
+  <dl class="read"
+    ><template
+      data-class="hl2"
+      data-label="Mean of y given x₀"
+      data-key="m"
+      data-control="readout"
+    ></template
+    ><template
+      data-class="hl2"
+      data-label="Std of y given x₀"
+      data-key="s"
+      data-control="readout"
+    ></template
+    ><template
+      data-class="hl3"
+      data-label="Std of y alone"
+      data-key="ms"
+      data-control="readout"
+    ></template
+    ><template
+      data-class="hl"
+      data-label="Variance explained, ρ²"
+      data-key="r2"
+      data-control="readout"
+    ></template></dl
+></template>
+
+<template data-part="tryit"
+  >Watch the slice as the cut slides. Its centre moves but its width does not. Now push ρ toward
+  0.95: what happens to the width? What happens at ρ = 0?</template
+>
+
+<template data-part="math"
+  ><h4>The marginal</h4>$$p(y)=\int p(x,y)\,dx=N\big(\mu_y,\ \sigma_y^2\big)$$<p
+    >To marginalise a Gaussian you simply drop the rows and columns you do not care about.</p
+  >
+  <h4>The conditional</h4>$$y\mid x_0\ \sim\ N\!\Big(\
+  \mu_y+\rho\,\frac{\sigma_y}{\sigma_x}\,(x_0-\mu_x)\ ,\ \ \sigma_y^2\,(1-\rho^2)\ \Big)$$
+  <p
+    ><b>The mean is a straight line in \(x_0\).</b> Its slope \(\rho\,\sigma_y/\sigma_x\) is the
+    slope of the least-squares regression line. Linear regression is this formula.</p
+  >
+  <p
+    ><b>The variance does not depend on \(x_0\).</b> Wherever you cut, the slice has the same width.
+    And it is smaller than the marginal variance by the factor \(1-\rho^2\): the fraction \(\rho^2\)
+    of the variance of \(y\) has been explained by \(x\). That is the \(R^2\) of regression.</p
+  >
+  <h4>In any number of dimensions</h4>$$\boldsymbol\mu_{a\mid
+  b}=\boldsymbol\mu_a+\Sigma_{ab}\Sigma_{bb}^{-1}(\mathbf x_b-\boldsymbol\mu_b),\qquad \Sigma_{a\mid
+  b}=\Sigma_{aa}-\Sigma_{ab}\Sigma_{bb}^{-1}\Sigma_{ba}.$$<p
+    >Gaussian processes, Kalman filters and the denoising step of a diffusion model all apply these
+    two lines.</p
+  ></template
+>
+
+<template data-part="question">If ρ = 0, what does knowing x tell you about y?</template>
+
+<template data-part="answer"
+  >Nothing. The slice has the same centre and width wherever you cut, and it matches the shadow on
+  the wall. For Gaussians, zero correlation means independence.</template
+>

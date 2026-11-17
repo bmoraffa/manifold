@@ -1,0 +1,115 @@
+<template data-part="lede"
+  >Each ball hits a peg and bounces left or right at random, row after row. No single ball is
+  predictable. The pile at the bottom always is.</template
+>
+
+<template data-part="intro"
+  ><p
+    >Every peg is a coin flip. A ball's final slot is just the number of times it went right, so a
+    ball that lands in slot \(k\) after \(n\) rows made exactly \(k\) right turns. There is one path
+    to the far edge and a huge number of paths to the middle, and every individual path is equally
+    likely when \(p=\tfrac12\). The pile is tall where paths are many.</p
+  >
+</template>
+
+<template data-part="stage"
+  ><div class="stage one"
+    ><figure class="fig"
+      ><canvas
+        class="tall"
+        id="gb-c"
+        role="img"
+        aria-label="Balls falling through rows of pegs and piling into a bell shape"
+      ></canvas></figure
+  ></div>
+  <div class="controls"
+    ><template data-label="Animation" data-control="group"
+      ><div class="row"
+        ><button class="btn go" id="gb-play" type="button">Play</button
+        ><button class="btn" id="gb-reset" type="button">Empty the board</button></div
+      ><template
+        data-value="14"
+        data-step="1"
+        data-max="80"
+        data-min="1"
+        data-label="Balls per second"
+        data-id="gb-rate"
+        data-control="slider"
+      ></template
+    ></template>
+    <template data-label="The board" data-control="group"
+      ><template
+        data-value="12"
+        data-step="1"
+        data-max="16"
+        data-min="3"
+        data-label="Rows of pegs"
+        data-id="gb-rows"
+        data-control="slider"
+      ></template
+      ><template
+        data-value="0.5"
+        data-step="0.01"
+        data-max="0.85"
+        data-min="0.15"
+        data-label="Chance of bouncing right"
+        data-id="gb-p"
+        data-control="slider"
+      ></template></template
+  ></div>
+  <dl class="read"
+    ><template data-label="Balls landed" data-key="n" data-control="readout"></template
+    ><template
+      data-class="hl3"
+      data-label="Average slot"
+      data-key="m"
+      data-control="readout"
+    ></template
+    ><template
+      data-class="hl"
+      data-label="Predicted average"
+      data-key="pm"
+      data-control="readout"
+    ></template
+    ><template
+      data-class="hl3"
+      data-label="Spread of the pile"
+      data-key="s"
+      data-control="readout"
+    ></template
+    ><template
+      data-class="hl"
+      data-label="Predicted spread"
+      data-key="ps"
+      data-control="readout"
+    ></template></dl
+></template>
+
+<template data-part="tryit"
+  >Follow one ball with your eyes and guess its slot. Then tilt the odds to 0.7: the pile moves, but
+  does it keep its shape? Finally drop to 3 rows. Is it still a bell?</template
+>
+
+<template data-part="math"
+  ><h4>The formula</h4
+  ><p>Counting paths gives the binomial distribution:</p
+  >$$P(K=k)=\binom{n}{k}\,p^{k}(1-p)^{n-k},\qquad \mathbb{E}[K]=np,\quad
+  \operatorname{Var}(K)=np(1-p).$$
+  <p
+    >For many rows the binomial is very close to a Gaussian with the same mean and variance (the de
+    Moivre–Laplace theorem), which is the curve drawn over the pile:</p
+  >$$\binom{n}{k}p^{k}(1-p)^{n-k}\;\approx\;\frac{1}{\sqrt{2\pi\,np(1-p)}}\exp\!\left(-\frac{(k-np)^2}{2\,np(1-p)}\right).$$
+  <h4>Reading it</h4
+  ><p
+    >The board is \(n\) slots wide, but the pile is only about \(\sqrt{np(1-p)}\) wide. Doubling the
+    rows doubles the width of the board and widens the pile by only \(\sqrt2\). Sums of many small
+    independent pushes concentrate, and their shape is always this one.</p
+  ></template
+>
+
+<template data-part="question">Why do so few balls reach the outer slots?</template>
+
+<template data-part="answer"
+  >To land at the far right a ball must bounce right every single time, and only one path does that.
+  There are many different paths to the middle slots, so most balls end up there.</template
+>

@@ -1,0 +1,218 @@
+<template data-part="lede"
+  >PCA can only cast a flat shadow. t-SNE gives up on preserving distances altogether and asks for
+  less: points that are neighbours in the original space should be neighbours on the page. It starts
+  from a random scatter and moves the points, a little at a time, until that is true.</template
+>
+
+<template data-part="intro"
+  ><p
+    >Imagine seating guests at a wedding. You cannot reproduce on a floor plan every relationship
+    among 150 people, but you can try to seat friends at the same table. You do not care how far
+    table 3 is from table 9, only that each person sits near the people they are close to. t-SNE
+    (t-distributed stochastic neighbour embedding) draws data this way. Here each "guest" is a 5 by
+    7 picture of a letter, a point with 35 coordinates, and the page has only two.</p
+  >
+</template>
+
+<template data-part="stage"
+  ><div class="stage"
+    ><figure class="fig"
+      ><figcaption
+        >The t-SNE map taking shape. Each mark is one tiny picture of a letter. Point at one to see
+        it</figcaption
+      ><canvas
+        class="short"
+        id="ts-c"
+        role="img"
+        aria-label="t-SNE embedding of the letter pictures"
+      ></canvas
+    ></figure>
+    <figure class="fig"
+      ><figcaption
+        >Top: PCA of the same pictures. Bottom: mismatch between the map and the original
+        neighbourhoods</figcaption
+      ><canvas
+        class="sq"
+        id="ts-r"
+        role="img"
+        aria-label="PCA projection for comparison and the KL divergence curve"
+      ></canvas></figure
+  ></div>
+  <div class="howto"
+    ><div
+      ><h3>How it works, step by step</h3
+      ><ol id="ts-steps"
+        ><li
+          >In the original space, turn distances into probabilities: for each point, which others
+          are its neighbours? Perplexity sets about how many.</li
+        ><li>Drop all the points at random positions on the page.</li
+        ><li
+          >On the page, compute the same kind of neighbour probabilities, using a curve with heavier
+          tails.</li
+        ><li
+          >Move every point: toward those it should be near but is not, away from those it sits near
+          but should not.</li
+        ><li>Repeat steps 3 and 4 a few hundred times.</li></ol
+      ></div
+    ><div><h3>What just happened</h3><p class="live" id="ts-live" role="status"></p></div
+  ></div>
+  <div class="controls"
+    ><template data-label="Animation" data-control="group"
+      ><div class="row"
+        ><button class="btn go" id="ts-play" type="button">Run</button
+        ><button class="btn" id="ts-step" type="button">Ten iterations</button
+        ><button class="btn" id="ts-reset" type="button">Start over</button></div
+      ><template data-unit="iterations" data-id="ts" data-control="run-limit"></template
+    ></template>
+    <template data-label="The model" data-control="group"
+      ><template
+        data-value="15"
+        data-step="1"
+        data-max="45"
+        data-min="2"
+        data-label="Perplexity (roughly: neighbours per point)"
+        data-id="ts-perp"
+        data-control="slider"
+      ></template
+      ><template
+        data-value="40"
+        data-step="1"
+        data-max="150"
+        data-min="5"
+        data-label="Learning rate"
+        data-id="ts-lr"
+        data-control="slider"
+      ></template
+      ><label class="check"
+        ><input type="checkbox" id="ts-col" checked /> Show the true letter (the algorithm never
+        sees it)</label
+      ></template
+    >
+    <template data-label="The data" data-control="group"
+      ><template
+        data-value="0.06"
+        data-step="0.01"
+        data-max="0.25"
+        data-min="0"
+        data-label="Noise: chance that a pixel is flipped"
+        data-id="ts-flip"
+        data-control="slider"
+      ></template
+      ><div class="row"
+        ><button class="btn" id="ts-new" type="button">New random sample</button></div
+      ></template
+    ></div
+  >
+  <dl class="read"
+    ><template data-label="Iterations" data-key="it" data-control="readout"></template
+    ><template
+      data-class="hl"
+      data-label="Mismatch (KL divergence)"
+      data-key="kl"
+      data-control="readout"
+    ></template
+    ><template
+      data-class="hl3"
+      data-label="Neighbours kept by t-SNE"
+      data-key="nt"
+      data-control="readout"
+    ></template
+    ><template
+      data-class="hl2"
+      data-label="Neighbours kept by PCA"
+      data-key="np"
+      data-control="readout"
+    ></template
+    ><template data-label="Phase" data-key="ph" data-control="readout"></template></dl
+></template>
+
+<template data-part="tryit"
+  >Untick Show the True Letter, press Start over and run: the algorithm sees only grey dots, yet
+  groups appear. Tick it again to check them. Then set perplexity to 2 and to 45 and compare the
+  maps. Raise the pixel noise to 0.20: at what point do the groups dissolve? Run the same settings
+  twice: the groups survive, but where they sit on the page does not. What does that say about
+  reading distances between groups?</template
+>
+
+<template data-part="math"
+  ><h4>Step 1: neighbours in the original space</h4
+  ><p
+    >For each point \(i\), put a Gaussian on it and ask how much of its probability falls on each
+    other point \(j\):</p
+  >$$p_{j\mid i}=\frac{\exp\!\big(-\lVert\mathbf x_i-\mathbf
+  x_j\rVert^2/2\sigma_i^2\big)}{\sum_{k\ne i}\exp\!\big(-\lVert\mathbf x_i-\mathbf
+  x_k\rVert^2/2\sigma_i^2\big)},\qquad p_{ij}=\frac{p_{j\mid i}+p_{i\mid j}}{2n}.$$<p
+    >Each point gets its own width \(\sigma_i\), chosen so that the distribution \(p_{\cdot\mid i}\)
+    has a fixed <b>perplexity</b> \(2^{H(p_{\cdot\mid i})}\), where \(H\) is the entropy in bits.
+    Perplexity is the effective number of neighbours: in a dense region \(\sigma_i\) comes out
+    small, in a sparse one large, so every point ends up with about the same number of
+    neighbours.</p
+  >
+  <h4>Step 3: neighbours on the page</h4
+  ><p
+    >For the positions \(\mathbf y_i\) on the page the same idea is used with a Student-t curve with
+    one degree of freedom in place of the Gaussian:</p
+  >$$q_{ij}=\frac{\big(1+\lVert\mathbf y_i-\mathbf y_j\rVert^2\big)^{-1}}{\sum_{k\ne
+  l}\big(1+\lVert\mathbf y_k-\mathbf y_l\rVert^2\big)^{-1}} .$$<p
+    >The heavy tails are the important design choice. In 35 dimensions a point can have many
+    neighbours all at a moderate distance. On a flat page there is not enough room for that. With
+    heavy tails, a moderate distance in the original space is matched by a much larger distance on
+    the page, which gives the groups room to move apart instead of piling up in the middle (the
+    "crowding problem").</p
+  >
+  <h4>Step 4: what is minimised</h4
+  ><p
+    >The positions are chosen to make \(Q\) resemble \(P\), measured by the Kullback–Leibler
+    divergence</p
+  >$$C=\mathrm{KL}(P\,\Vert\,Q)=\sum_{i\ne j}p_{ij}\log\frac{p_{ij}}{q_{ij}},\qquad\frac{\partial
+  C}{\partial\mathbf y_i}=4\sum_{j}(p_{ij}-q_{ij})\,\frac{\mathbf y_i-\mathbf y_j}{1+\lVert\mathbf
+  y_i-\mathbf y_j\rVert^2}.$$<p
+    >Read the gradient as forces. If \(p_{ij}&gt;q_{ij}\) the two points are neighbours that sit too
+    far apart, and they attract. If \(p_{ij}&lt;q_{ij}\) they sit closer than they should, and they
+    repel. Because the cost weights each term by \(p_{ij}\), putting true neighbours far apart is
+    punished heavily, while putting strangers close costs little. t-SNE therefore protects local
+    structure first.</p
+  >
+  <h4>Early exaggeration</h4
+  ><p
+    >For the first iterations every \(p_{ij}\) is multiplied by a constant (4 on this page). The
+    attraction between neighbours is then far stronger than the repulsion, so tight clumps form
+    while the map is still small and the clumps can slide past each other into a good arrangement.
+    Then the factor is removed and the map relaxes.</p
+  >
+  <h4>How to read a t-SNE map</h4
+  ><ul
+    ><li><b>Trust:</b> which points are grouped together.</li
+    ><li
+      ><b>Do not trust:</b> the distance between groups, the size of a group, or its position. These
+      change from run to run and with perplexity.</li
+    ><li
+      ><b>Perplexity</b> between 5 and 50 is usual. Too small and the map shatters into fragments of
+      a few points. Too large and distinct groups blur together. It must be smaller than the number
+      of points.</li
+    ><li
+      >The cost is not convex, so different random starts give different maps. Run it more than
+      once.</li
+    ><li>There is no formula that places a new point on an existing map, unlike PCA.</li></ul
+  >
+  <h4>UMAP</h4
+  ><p
+    >UMAP follows the same plan with different ingredients: a nearest-neighbour graph in place of
+    the \(p_{ij}\), a different curve on the page, and a cost that is cheaper to optimise. It is
+    much faster on large data and tends to keep somewhat more of the large-scale arrangement, but
+    the same cautions about distances between groups apply.</p
+  ></template
+>
+
+<template data-part="question"
+  >On a t-SNE map, cluster A is twice as far from cluster B as from cluster C. Can you conclude that
+  A is more similar to C than to B?</template
+>
+
+<template data-part="answer"
+  >No. t-SNE is built to keep neighbours together and makes almost no attempt to preserve distances
+  between points that are not neighbours. The heavy-tailed curve on the page deliberately stretches
+  moderate distances by an amount that depends on local density, and the arrangement of groups
+  changes between runs. To compare groups, go back to the original distances or use a method that
+  preserves them, such as PCA.</template
+>

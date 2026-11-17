@@ -1,0 +1,151 @@
+<template data-part="lede"
+  >Some settings are not learned from data: you have to try values and see. A grid looks tidy, but
+  if only one setting really matters, a grid wastes most of its tries. Random search spends the same
+  budget and usually finds better.</template
+>
+
+<template data-part="intro"
+  ><p
+    >You are tuning a learning rate and a batch size, and you can afford 16 training runs. A 4 × 4
+    grid tries 4 learning rates, each with 4 batch sizes. If the batch size turns out to make almost
+    no difference, twelve of those sixteen runs told you nothing new: you learned about only 4
+    learning rates. Sixteen random points try 16 different learning rates. Same cost, four times the
+    information about the setting that counts. Since you rarely know in advance which setting
+    matters, random is the safer bet.</p
+  >
+</template>
+
+<template data-part="stage"
+  ><div class="stage" style="grid-template-columns:minmax(0,1.5fr) minmax(0,1fr)"
+    ><figure class="fig"
+      ><figcaption
+        >Validation score over two settings: grid search (left) and random search (right). Ticks
+        along the top = distinct values tried</figcaption
+      ><canvas
+        class="wide"
+        id="hs-c"
+        role="img"
+        aria-label="Two score maps with the trials of grid search and random search"
+      ></canvas
+    ></figure>
+    <figure class="fig"
+      ><figcaption>Best score found so far</figcaption
+      ><canvas
+        class="short"
+        id="hs-e"
+        role="img"
+        aria-label="Best score so far against number of trials"
+      ></canvas></figure
+  ></div>
+  <div class="controls"
+    ><template data-label="Animation" data-control="group"
+      ><div class="row"
+        ><button class="btn go" id="hs-play" type="button">Run the search</button
+        ><button class="btn" id="hs-new" type="button">New problem</button></div
+      ></template
+    >
+    <template data-label="The budget" data-control="group"
+      ><template
+        data-value="3"
+        data-step="1"
+        data-max="6"
+        data-min="0"
+        data-label="Number of models you can afford to train"
+        data-id="hs-b"
+        data-control="slider"
+      ></template></template
+    ><template data-label="The problem" data-control="group"
+      ><template
+        data-value="0.15"
+        data-step="0.05"
+        data-max="1"
+        data-min="0"
+        data-label="How much the second setting matters"
+        data-id="hs-imp"
+        data-control="slider"
+      ></template
+      ><template
+        data-value="0.09"
+        data-step="0.01"
+        data-max="0.4"
+        data-min="0.04"
+        data-label="Width of the good region"
+        data-id="hs-w"
+        data-control="slider"
+      ></template></template
+  ></div>
+  <dl class="read"
+    ><template
+      data-class="hl3"
+      data-label="Best score: grid"
+      data-key="g"
+      data-control="readout"
+    ></template
+    ><template
+      data-class="hl"
+      data-label="Best score: random"
+      data-key="r"
+      data-control="readout"
+    ></template
+    ><template
+      data-label="Values of setting 1 tried: grid"
+      data-key="dg"
+      data-control="readout"
+    ></template
+    ><template
+      data-label="Values of setting 1 tried: random"
+      data-key="dr"
+      data-control="readout"
+    ></template
+    ><template
+      data-class="hl2"
+      data-label="Random beats grid, over 400 problems"
+      data-key="win"
+      data-control="readout"
+    ></template></dl
+></template>
+
+<template data-part="tryit"
+  >With 16 trials, count the ticks along the top of each map. How many different values of the
+  important setting did each method try? Then raise “how much the second setting matters” to 1 and
+  see whether random search keeps its advantage.</template
+>
+
+<template data-part="math"
+  ><h4>Parameters and hyperparameters</h4
+  ><p
+    >Weights are learned by minimising the training loss. Hyperparameters, such as the learning
+    rate, the polynomial degree, \(\lambda\), or the number of layers, shape that minimisation from
+    outside and must be chosen by comparing validation scores.</p
+  >
+  <h4>Counting distinct values</h4
+  ><p>With a budget of \(B\) trials and \(d\) hyperparameters, a grid tests only</p>$$B^{1/d}\
+  \text{ distinct values of each setting,}$$<p
+    >while random search tests \(B\) distinct values of every setting. With \(d=6\) and \(B=729\) a
+    grid tries just 3 values per setting. If only a few settings matter (and in practice this is
+    usual), the grid's projection onto those few is very coarse and random search's is fine.</p
+  >
+  <h4>How likely is random search to succeed?</h4
+  ><p
+    >If the good region covers a fraction \(p\) of the search space, each random trial lands in it
+    with probability \(p\), independently:</p
+  >$$P(\text{at least one hit in }B\text{ trials})=1-(1-p)^{B}.$$<p
+    >For the best 5% of settings, 60 trials give \(1-0.95^{60}\approx95\%\), whatever the number of
+    hyperparameters.</p
+  >
+  <h4>Doing better than random</h4
+  ><p
+    >Random search ignores what earlier trials found. Bayesian optimisation fits a model, often a
+    Gaussian process, to the scores seen so far and picks the next trial where the model predicts a
+    good score or is very uncertain. Successive halving and Hyperband start many runs and stop the
+    poor ones early. All of them should search learning rates and penalties on a log scale.</p
+  ></template
+>
+
+<template data-part="question">When would grid search be the better choice?</template>
+
+<template data-part="answer"
+  >When there are only one or two hyperparameters and all of them matter, or when you need results
+  on exactly the same values to compare across experiments. With three or more hyperparameters, or
+  when you do not know which ones matter, random search or a smarter method is better.</template
+>

@@ -1,0 +1,222 @@
+<template data-part="lede"
+  >Two measurements that rise and fall together are partly saying the same thing twice. Principal
+  component analysis turns the axes to line up with the data, so that the first new axis carries as
+  much of the spread as one number can, and the rest can be dropped with the least possible
+  loss.</template
+>
+
+<template data-part="intro"
+  ><p
+    >Hold a pencil under a lamp and look at its shadow on the table. Pointed at the lamp, the shadow
+    is a dot and tells you nothing. Held sideways, the shadow shows the whole length. A shadow is a
+    projection: it flattens the object and loses one dimension, and how much it loses depends on the
+    direction. PCA asks for the direction of the lamp that keeps the longest shadow of the data. For
+    a cloud of points, "longest" means the largest variance of the shadows.</p
+  >
+</template>
+
+<template data-part="stage"
+  ><div class="stage"
+    ><figure class="fig"
+      ><figcaption
+        >The cloud, a line through its middle, and each point’s shadow on the line</figcaption
+      ><canvas
+        class="short"
+        id="pc-c"
+        role="img"
+        aria-label="Point cloud with a direction and the projections onto it"
+      ></canvas
+    ></figure>
+    <figure class="fig"
+      ><figcaption
+        >Top: spread kept and spread lost for every direction. Bottom: the data seen along the
+        current direction</figcaption
+      ><canvas
+        class="sq"
+        id="pc-r"
+        role="img"
+        aria-label="Variance against angle and the one-dimensional projection"
+      ></canvas></figure
+  ></div>
+  <div class="howto"
+    ><div
+      ><h3>How it works, step by step</h3
+      ><ol id="pc-steps"
+        ><li>Centre: subtract the mean of each column, so the cloud sits on the origin.</li
+        ><li
+          >Compute the covariance matrix: the spread of each column and how they move together.</li
+        ><li
+          >Find the direction with the most spread. Here: start with any direction, multiply it by
+          the covariance matrix, rescale, and repeat until it stops turning.</li
+        ><li>The second component is the direction of most spread at right angles to the first.</li
+        ><li
+          >Project: keep each point’s position along the first component and drop the rest.</li
+        ></ol
+      ></div
+    ><div><h3>What just happened</h3><p class="live" id="pc-live" role="status"></p></div
+  ></div>
+  <div class="controls"
+    ><template data-label="Animation" data-control="group"
+      ><div class="row"
+        ><button class="btn go" id="pc-play" type="button">Run</button
+        ><button class="btn" id="pc-step" type="button">One step</button
+        ><button class="btn" id="pc-reset" type="button">Start over</button></div
+      ></template
+    >
+    <template data-label="Try a direction yourself" data-control="group"
+      ><template
+        data-value="150"
+        data-step="1"
+        data-max="180"
+        data-min="0"
+        data-label="Angle of the line θ"
+        data-id="pc-th"
+        data-control="slider"
+      ></template
+      ><p class="status" id="pc-hint"
+        >Move the slider and watch the gold curve: can you find its peak by hand?</p
+      ></template
+    >
+    <template data-label="The data" data-control="group"
+      ><label class="ctl" for="pc-ds"
+        ><span>Data set</span
+        ><select id="pc-ds"
+          ><option value="corr" selected>Height and arm span (simulated)</option
+          ><option value="banana">A curved cloud</option
+          ><option value="twoc">Two separate groups</option
+          ><option value="round">A round cloud</option></select
+        ></label
+      ><template
+        data-value="160"
+        data-step="1"
+        data-max="400"
+        data-min="20"
+        data-label="Number of points"
+        data-id="pc-n"
+        data-control="slider"
+      ></template
+      ><template
+        data-value="0.8"
+        data-step="0.01"
+        data-max="0.97"
+        data-min="-0.97"
+        data-label="Correlation between the two columns"
+        data-id="pc-rho"
+        data-control="slider"
+      ></template
+      ><div class="row"
+        ><button class="btn" id="pc-new" type="button">New random sample</button
+        ><label class="btn file"
+          >Upload a CSV<input type="file" id="pc-file" accept=".csv,.txt,text/csv" /></label></div
+      ><p class="status" id="pc-st" role="status"></p></template
+  ></div>
+  <dl class="read"
+    ><template data-label="Angle of the line" data-key="th" data-control="readout"></template
+    ><template
+      data-class="hl"
+      data-label="Spread along the line (variance)"
+      data-key="va"
+      data-control="readout"
+    ></template
+    ><template
+      data-class="hl"
+      data-label="Share of the total spread kept"
+      data-key="sh"
+      data-control="readout"
+    ></template
+    ><template
+      data-class="hl2"
+      data-label="Spread lost (mean squared distance to the line)"
+      data-key="er"
+      data-control="readout"
+    ></template
+    ><template data-label="Eigenvalues λ₁, λ₂" data-key="l1" data-control="readout"></template
+    ><template
+      data-label="Angle of the first component"
+      data-key="a1"
+      data-control="readout"
+    ></template></dl
+></template>
+
+<template data-part="tryit"
+  >Before pressing anything, drag the angle slider and try to make the shadows as spread out as
+  possible. Note your angle, then press Start over and step through: how close were you? Set the
+  correlation to 0 and look at the two curves on the right. Why is there nothing for PCA to find?
+  Finally choose A Curved Cloud: PCA still gives an answer. What does it miss?</template
+>
+
+<template data-part="math"
+  ><h4>Setting it up</h4
+  ><p
+    >Let \(\mathbf x_1,\dots,\mathbf x_n\) be the points with their mean subtracted. The covariance
+    matrix is</p
+  >$$\mathbf S=\frac{1}{n-1}\sum_{i=1}^{n}\mathbf x_i\mathbf x_i^{\top}.$$<p
+    >Take a direction, a unit vector \(\mathbf w\). The shadow of \(\mathbf x_i\) on that direction
+    is the number \(z_i=\mathbf w^{\top}\mathbf x_i\), and the variance of the shadows is</p
+  >$$\operatorname{Var}(z)=\frac{1}{n-1}\sum_i(\mathbf w^{\top}\mathbf x_i)^2=\mathbf
+  w^{\top}\mathbf S\,\mathbf w .$$<p>This is the gold curve on the right, drawn for every angle.</p>
+  <h4>The first component</h4
+  ><p
+    >We want to maximise \(\mathbf w^{\top}\mathbf S\mathbf w\) subject to \(\mathbf w^{\top}\mathbf
+    w=1\). With a Lagrange multiplier \(\lambda\), setting the gradient of \(\mathbf w^{\top}\mathbf
+    S\mathbf w-\lambda(\mathbf w^{\top}\mathbf w-1)\) to zero gives</p
+  >$$\mathbf S\,\mathbf w=\lambda\,\mathbf w .$$<p
+    >So the best direction is an eigenvector of the covariance matrix, and the variance it captures
+    is \(\mathbf w^{\top}\mathbf S\mathbf w=\lambda\), its eigenvalue. The first principal component
+    is the eigenvector with the largest eigenvalue \(\lambda_1\). The second is the eigenvector with
+    the next largest, and because \(\mathbf S\) is symmetric it is automatically at right angles to
+    the first. In the Gaussian module these were the long and short axes of the covariance
+    ellipse.</p
+  >
+  <h4>The same answer from the other side</h4
+  ><p
+    >By Pythagoras, for each centred point, (length)² = (shadow)² + (distance to the line)². The
+    total of the left side is fixed by the data. So the direction that maximises the spread of the
+    shadows is exactly the direction that minimises the total squared distance from the points to
+    the line: the red curve is the gold curve turned upside down. PCA is at once "keep the most
+    variance" and "the best-fitting line", where distance is measured at right angles to the line,
+    not vertically as in regression.</p
+  >
+  <h4>How the direction is found</h4
+  ><p
+    >The animation uses <b>power iteration</b>. Start from any unit vector \(\mathbf w_0\) and
+    repeat</p
+  >$$\mathbf w_{t+1}=\frac{\mathbf S\,\mathbf w_t}{\lVert\mathbf S\,\mathbf w_t\rVert}.$$<p
+    >Write \(\mathbf w_0\) as a mix of the eigenvectors. Each multiplication by \(\mathbf S\)
+    stretches the part along the first eigenvector by \(\lambda_1\) and the rest by less, so after a
+    few rounds the first eigenvector dominates. The error shrinks by a factor
+    \(\lambda_2/\lambda_1\) every step: quickly for a long thin cloud, slowly for a nearly round
+    one. Libraries use the singular value decomposition of the data matrix instead, which gives all
+    components at once.</p
+  >
+  <h4>How much to keep</h4
+  ><p
+    >The total variance is \(\lambda_1+\lambda_2+\dots+\lambda_d\). Keeping the first \(m\)
+    components keeps the share</p
+  >$$\frac{\lambda_1+\dots+\lambda_m}{\lambda_1+\dots+\lambda_d},$$<p
+    >and the mean squared reconstruction error is the sum of the eigenvalues that were dropped. The
+    rebuilt point is \(\hat{\mathbf x}=\boldsymbol\mu+\sum_{k\le m}z_k\mathbf w_k\).</p
+  >
+  <h4>What PCA cannot see</h4
+  ><p
+    >PCA only looks at variances and covariances, so it only finds straight directions. On the
+    curved cloud the data really has one degree of freedom, position along the curve, but no
+    straight line captures it. PCA also knows nothing about labels: the direction of most spread
+    need not be the direction that separates two classes. And it depends on units, since a column
+    measured in millimetres has a thousand times the variance of the same column in metres. The next
+    tab deals with that.</p
+  ></template
+>
+
+<template data-part="question"
+  >Regression of y on x and the first principal component both draw a line through the cloud. Are
+  they the same line?</template
+>
+
+<template data-part="answer"
+  >No. Regression minimises the vertical distances from the points to the line, because it treats x
+  as given and y as the thing to predict. PCA minimises the perpendicular distances, treating both
+  columns alike. The PCA line is steeper than the regression line of y on x whenever the points do
+  not lie exactly on a line, and it lies between the regression of y on x and the regression of x on
+  y.</template
+>

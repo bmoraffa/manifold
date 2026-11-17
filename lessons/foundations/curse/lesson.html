@@ -1,0 +1,155 @@
+<template data-part="lede"
+  >In two or three dimensions, nearby points are common and space feels crowded. Add dimensions and
+  the room grows so fast that every point ends up alone, about equally far from all the others.
+  Raise the dimension and watch distance lose its meaning.</template
+>
+
+<template data-part="intro"
+  ><p
+    >Scatter 100 people along a 100-metre line and neighbours are a metre apart. Scatter them over a
+    100 × 100 metre field and each has about 10 metres to the next. In a 100-metre cube they are
+    over 20 metres apart. Each new dimension multiplies the room, while the number of points stays
+    the same. Carry on to hundreds of dimensions and the data is a few specks in a vast emptiness,
+    with no specks near any other. Methods that work by finding similar examples then have nothing
+    to work with.</p
+  >
+</template>
+
+<template data-part="stage"
+  ><div class="stage one" style="margin-bottom:28px"
+    ><figure class="fig"
+      ><figcaption
+        >The same 100 points with one, two and three coordinates. The gold box always holds 10% of
+        the space. Right: how wide that box must be in any dimension</figcaption
+      ><canvas
+        class="wide"
+        id="cd-v"
+        style="aspect-ratio:16/5.4"
+        role="img"
+        aria-label="One hundred points on a line, in a square and in a cube, with a box holding ten percent of the space, and a gauge for higher dimensions"
+      ></canvas></figure
+  ></div>
+  <div class="stage"
+    ><figure class="fig"
+      ><figcaption>Distances between 200 random points (each divided by the average)</figcaption
+      ><canvas
+        class="short"
+        id="cd-c"
+        role="img"
+        aria-label="Histogram of pairwise distances at the chosen dimension"
+      ></canvas
+    ></figure>
+    <figure class="fig"
+      ><figcaption>Three symptoms as the dimension grows</figcaption
+      ><canvas
+        class="short"
+        id="cd-e"
+        role="img"
+        aria-label="Three curves against dimension"
+      ></canvas></figure
+  ></div>
+  <div class="controls"
+    ><template data-label="Animation" data-control="group"
+      ><div class="row"
+        ><button class="btn go" id="cd-play" type="button">Raise the dimension</button></div
+      ></template
+    ><template data-label="The space" data-control="group"
+      ><template
+        data-value="3"
+        data-step="1"
+        data-max="10"
+        data-min="0"
+        data-label="Number of dimensions"
+        data-id="cd-d"
+        data-control="slider"
+      ></template></template
+  ></div>
+  <dl class="read"
+    ><template data-label="Dimensions" data-key="d" data-control="readout"></template
+    ><template
+      data-class="hl"
+      data-label="Nearest neighbour ÷ farthest neighbour"
+      data-key="nf"
+      data-control="readout"
+    ></template
+    ><template
+      data-class="hl2"
+      data-label="Share of the cube inside its largest ball"
+      data-key="ball"
+      data-control="readout"
+    ></template
+    ><template
+      data-class="hl3"
+      data-label="Share of the cube within 5% of its surface"
+      data-key="shell"
+      data-control="readout"
+    ></template
+    ><template
+      data-label="Points needed to keep neighbours 0.1 apart"
+      data-key="need"
+      data-control="readout"
+    ></template></dl
+></template>
+
+<template data-part="tryit"
+  >Look at the gold box in the top row: it always holds 10% of the space, but how wide does it have
+  to be? Move the slider to 10, then 100. Then look at the histogram below: at 2 dimensions some
+  pairs are close and some far. What has happened to “near” and “far” at 500?</template
+>
+
+<template data-part="math"
+  ><h4>The picture: a "local" box stops being local</h4
+  ><p
+    >Suppose a method predicts from the 10% of the data nearest to a query. If the points are spread
+    evenly, that neighbourhood must cover 10% of the volume. A box with a fraction \(r\) of the
+    volume of the unit cube has side</p
+  >$$e_d(r)=r^{1/d},\qquad e_1(0.1)=0.10,\quad e_2(0.1)=0.32,\quad e_3(0.1)=0.46,\quad
+  e_{10}(0.1)=0.79,\quad e_{100}(0.1)=0.98.$$<p
+    >In ten dimensions the "neighbourhood" already spans 79% of the range of every single feature.
+    It is not a neighbourhood in any useful sense. And if you insist on a small box, it is empty:
+    watch how the distance from the centre to the nearest of the same 100 points grows from the line
+    to the square to the cube.</p
+  >
+  <h4>Symptom 1: you need exponentially many points</h4
+  ><p
+    >To cover the unit cube with points spaced \(\epsilon\) apart takes about \((1/\epsilon)^d\)
+    points: 10 on a line, 100 in a square, \(10^{100}\) in a hundred dimensions.</p
+  >
+  <h4>Symptom 2: distances concentrate</h4
+  ><p
+    >The squared distance between two random points is a sum of \(d\) independent terms. Its mean
+    grows like \(d\) but its spread only like \(\sqrt d\), so relative to the mean the spread
+    shrinks like \(1/\sqrt d\):</p
+  >$$\frac{\operatorname{sd}(\text{distance})}{\text{mean distance}}\ \sim\ \frac{1}{\sqrt
+  d},\qquad\text{so}\qquad \frac{\text{nearest}}{\text{farthest}}\ \to\ 1.$$<p
+    >This is the central limit theorem at work, and it is why the histogram narrows to a spike. When
+    the nearest neighbour is barely nearer than the farthest, "nearest" carries little
+    information.</p
+  >
+  <h4>Symptom 3: the volume moves to the edges</h4
+  ><p>The ball that just fits inside the unit cube has volume</p
+  >$$V_d=\frac{\pi^{d/2}}{\Gamma\!\big(\tfrac d2+1\big)}\Big(\frac12\Big)^{d},$$<p
+    >which is 79% of the square, 52% of the cube, and essentially zero by \(d=20\): almost all of a
+    high-dimensional cube is in its corners. Likewise the share of the cube lying within 5% of its
+    surface is \(1-0.9^{d}\), which passes 99% by \(d=44\). Nearly every point is near a boundary,
+    so nearly every prediction is an extrapolation.</p
+  >
+  <h4>Why learning is still possible</h4
+  ><p
+    >Real data does not fill its space. Images, speech and text lie close to surfaces of far lower
+    dimension inside the huge space of all possible inputs. This is the manifold hypothesis, and it
+    is what PCA, autoencoders and deep networks rely on: find the few directions that matter and the
+    curse loses most of its force.</p
+  ></template
+>
+
+<template data-part="question"
+  >k-nearest neighbours works well with 5 features and badly with 500, on the same amount of data.
+  Why?</template
+>
+
+<template data-part="answer"
+  >With 500 features the nearest neighbours are almost as far away as every other point, so they are
+  no more similar to the query than a random point is. The method averages over points that are not
+  really neighbours. Reducing the dimension first, or using far more data, is needed.</template
+>

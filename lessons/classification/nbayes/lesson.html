@@ -1,0 +1,136 @@
+<template data-part="lede"
+  >Describe each class by a bell curve for each feature separately, and pretend the features have
+  nothing to do with each other. It is a crude picture of the data and it often classifies well
+  anyway. Make the features correlated and watch where the pretence starts to cost.</template
+>
+
+<template data-part="intro"
+  ><p
+    >A doctor reasons backwards: given these symptoms, which illness is likely? But what is easy to
+    learn from records runs forwards: given the illness, how common is each symptom? Bayes' rule
+    turns one into the other. The "naive" part is a shortcut: treat each symptom as if it told you
+    something independent of the others, so the evidence simply multiplies. That is rarely true, and
+    the method works surprisingly often regardless.</p
+  >
+</template>
+
+<template data-part="left-caption"
+  >The data, and what the model predicts everywhere (click to add a point, drag to move
+  one)</template
+>
+
+<template data-part="right-figure"
+  ><figure class="fig"
+    ><figcaption>What the model stores: one bell curve per feature, per class</figcaption
+    ><canvas
+      class="short"
+      id="nbayes-r"
+      role="img"
+      aria-label="What the model stores: one bell curve per feature, per class"
+    ></canvas></figure
+></template>
+
+<template data-part="steps"
+  ><li>Split the training points by class.</li
+  ><li
+    >For each class and each feature, compute the mean and the variance. That gives one bell curve
+    per feature.</li
+  ><li>Record what share of the points each class has (the prior).</li
+  ><li
+    >To predict: for each class, multiply the prior by the heights of its bell curves at the new
+    point. The larger product wins.</li
+  ></template
+>
+
+<template data-part="animation-controls"
+  ><div class="row"
+    ><button class="btn go" id="nbayes-play" type="button">Sweep the correlation</button
+    ><button class="btn" id="nbayes-reset" type="button">Start over</button></div
+  ><p class="status" id="nbayes-note" role="status"></p
+></template>
+
+<template data-part="model-controls"
+  ><p style="margin:0;font-size:.9rem;color:var(--muted)"
+    >Nothing to tune. The model is four means, four variances and the two class shares.</p
+  ></template
+>
+
+<template data-part="datasets"
+  ><option value="blobs">Two clouds</option><option value="overlap">Two overlapping clouds</option
+  ><option value="moons">Two moons</option></template
+>
+
+<template data-part="point-count"
+  ><template
+    data-value="120"
+    data-step="2"
+    data-max="300"
+    data-min="20"
+    data-label="Number of points"
+    data-id="nbayes-n"
+    data-control="slider"
+  ></template
+></template>
+
+<template data-part="dataset-extra"
+  ><template
+    data-value="0"
+    data-step="0.01"
+    data-max="0.92"
+    data-min="-0.92"
+    data-label="How strongly the two features move together"
+    data-id="nbayes-corr"
+    data-control="slider"
+  ></template
+></template>
+
+<template data-part="readouts"
+  ><div><dt>Test accuracy if the correlation were modelled</dt><dd data-r="q">–</dd></div
+  ><div><dt>Share of class B (the prior)</dt><dd data-r="pr">–</dd></div></template
+>
+
+<template data-part="tryit"
+  >With the correlation at 0 the dashed ellipses match the clouds. Slide it to 0.9: the clouds tilt
+  but the ellipses cannot. Compare the test accuracy with the one from a model that does allow for
+  correlation.</template
+>
+
+<template data-part="math"
+  ><h4>Bayes' rule for classes</h4>$$P(c\mid\mathbf x)=\frac{P(c)\,p(\mathbf x\mid
+  c)}{\sum_{c'}P(c')\,p(\mathbf x\mid c')}$$<p
+    >\(P(c)\) is the prior, the share of each class. \(p(\mathbf x\mid c)\) says what the features
+    of class \(c\) look like. A classifier built this way is called <b>generative</b>: it models how
+    each class produces data. Logistic regression is <b>discriminative</b>: it models only the
+    boundary.</p
+  >
+  <h4>The naive assumption</h4>$$p(\mathbf x\mid c)=\prod_{j=1}^{d}p(x_j\mid c)$$<p
+    >Within a class, the features are taken to be independent. With Gaussian features each factor is
+    a one-dimensional bell curve, the four curves on the right:</p
+  >$$p(x_j\mid c)=N\big(x_j;\ \mu_{jc},\ \sigma^2_{jc}\big).$$<p
+    >In terms of the Gaussian module this is a diagonal covariance matrix per class: ellipses that
+    can stretch along the axes but never tilt.</p
+  >
+  <h4>Why make such an assumption</h4
+  ><p
+    >A full description of \(d\) features needs on the order of \(d^2\) numbers per class; the naive
+    one needs \(2d\), each estimated from a one-dimensional histogram. With thousands of features
+    and little data (words in an email, say) the full model cannot be estimated at all and the naive
+    one can. Training is a single pass of counting.</p
+  >
+  <h4>What goes wrong</h4
+  ><p
+    >Correlated features are counted as separate pieces of evidence when they are really the same
+    evidence twice. The probabilities become overconfident, pushed toward 0 and 1. The decision
+    often stays right even so, because only the ranking of the classes matters for the decision.</p
+  ></template
+>
+
+<template data-part="question"
+  >Naive Bayes says 99.9% for a spam email. Should you believe the number?</template
+>
+
+<template data-part="answer"
+  >Believe the decision more than the number. When features are correlated the same evidence is
+  multiplied in several times, so the probabilities are pushed to the extremes. The email is
+  probably spam, but the true probability is likely well below 99.9%.</template
+>

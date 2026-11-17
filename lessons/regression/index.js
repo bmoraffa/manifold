@@ -1,0 +1,77 @@
+/* Manifold. © 2026 Bahman Moraffah. All rights reserved. */
+export default {
+  id: 'regression',
+  t: 'Regression',
+  lessons: [
+    {
+      id: 'simple',
+      tab: 'Simple linear regression',
+      title: 'A line through a cloud',
+      viewUrl: new URL('./simple/lesson.html', import.meta.url),
+      load: () => import('./simple/lesson.js'),
+    },
+    {
+      id: 'multiple',
+      tab: 'Multiple linear regression',
+      title: 'Two inputs make a plane',
+      viewUrl: new URL('./multiple/lesson.html', import.meta.url),
+      load: () => import('./multiple/lesson.js'),
+    },
+    {
+      id: 'poly',
+      tab: 'Polynomial regression',
+      title: 'Bending the line',
+      viewUrl: new URL('./poly/lesson.html', import.meta.url),
+      load: () => import('./poly/lesson.js'),
+    },
+    {
+      id: 'splines',
+      tab: 'Splines',
+      title: 'Many small curves, joined smoothly',
+      viewUrl: new URL('./splines/lesson.html', import.meta.url),
+      load: () => import('./splines/lesson.js'),
+    },
+    {
+      id: 'additive',
+      tab: 'Additive models',
+      title: 'One smooth curve per input',
+      viewUrl: new URL('./additive/lesson.html', import.meta.url),
+      load: () => import('./additive/lesson.js'),
+    },
+    {
+      id: 'regularize',
+      tab: 'Ridge, Lasso and Elastic Net',
+      title: 'Keeping the coefficients small',
+      viewUrl: new URL('./regularize/lesson.html', import.meta.url),
+      load: () => import('./regularize/lesson.js'),
+    },
+    {
+      id: 'local',
+      tab: 'Kernel and local regression',
+      title: 'Let the neighbours vote',
+      viewUrl: new URL('./local/lesson.html', import.meta.url),
+      load: () => import('./local/lesson.js'),
+    },
+    {
+      id: 'gp-regression',
+      tab: 'Gaussian process regression',
+      title: 'Gaussian process regression: a belief about whole curves',
+      viewUrl: new URL('./gp-regression/lesson.html', import.meta.url),
+      load: () => import('./gp-regression/lesson.js'),
+    },
+    {
+      id: 'glm',
+      tab: 'Generalized linear models',
+      title: 'Generalized linear models: straight lines for data that cannot be straight',
+      viewUrl: new URL('./glm/lesson.html', import.meta.url),
+      load: () => import('./glm/lesson.js'),
+    },
+    {
+      id: 'robust-regression',
+      tab: 'Robust regression',
+      title: 'Robust regression: do not let one bad point steer the line',
+      viewUrl: new URL('./robust-regression/lesson.html', import.meta.url),
+      load: () => import('./robust-regression/lesson.js'),
+    },
+  ],
+};

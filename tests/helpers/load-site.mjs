@@ -1,25 +1,79 @@
-import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
+import { readFile } from 'node:fs/promises';
+import { parseHTML } from 'linkedom';
+import { TOPICS } from '../../js/app/catalog.js';
+import { renderLesson } from '../../js/app/lesson-view.js';
+import { createLessonLoader } from '../../js/app/loader.js';
+import {
+  $,
+  Anim,
+  RM,
+  clamp,
+  escapeHTML,
+  f2,
+  f3,
+  lgam,
+  letterData,
+  playBtn,
+  randnFrom,
+  rng,
+  runCtl,
+} from '../../js/core/shared.js';
+import { UC, uView, uFrame, uData, jacobi } from '../../lessons/unsupervised/shared.js';
+import { parseXY } from '../../lessons/regression/shared.js';
+import { parseXgbCSV, pct, xgbBuildTree } from '../../lessons/ensembles/shared.js';
 
-export function loadSite({ reducedMotion = false, globals = {} } = {}) {
-  const root = new URL('../../', import.meta.url);
+const entries = TOPICS.flatMap((topic) => topic.lessons);
+const lessons = await Promise.all(
+  entries.map(async ({ id, load }) => ({ id, ...(await load()).default })),
+);
+
+export async function renderSite() {
+  const { document } = parseHTML('<html><body></body></html>');
+  const loader = createLessonLoader({ fetchText: (url) => readFile(url, 'utf8') });
+  return Promise.all(
+    TOPICS.flatMap(({ lessons }) =>
+      lessons.map(async (entry, i) => ({
+        id: entry.id,
+        root: await renderLesson(await loader.load(entry), {
+          document,
+          nextEntry: lessons[i + 1],
+          loadText: loader.loadText,
+        }),
+      })),
+    ),
+  );
+}
+
+// A small VM isolates the original frame-callback probes and their fake scheduler.
+export function loadSite({ reducedMotion = RM, globals = {} } = {}) {
   const context = vm.createContext({
-    matchMedia: () => ({ matches: reducedMotion }),
+    $,
+    clamp,
+    escapeHTML,
+    f2,
+    f3,
+    lgam,
+    letterData,
+    playBtn,
+    randnFrom,
+    rng,
+    runCtl,
+    parseXY,
+    parseXgbCSV,
+    pct,
+    xgbBuildTree,
+    UC,
+    uView,
+    uFrame,
+    uData,
+    jacobi,
+    RM: reducedMotion,
+    Anim: (tick) => Anim(tick, globals),
     document: {},
     window: {},
     performance,
     ...globals,
   });
-  const html = readFileSync(new URL('index.html', root), 'utf8');
-  for (const [, src] of html.matchAll(/<script[^>]+src="(js\/[^"]+)"/g)) {
-    if (src === 'js/app.js') continue;
-    vm.runInContext(readFileSync(new URL(src, root), 'utf8'), context, { filename: src });
-  }
-  const evaluate = (source) => vm.runInContext(source, context);
-  return {
-    evaluate,
-    lessons: evaluate(
-      '[...LESSONS,...REG,...FND,...CLF,...ENS,...UNS,...NNL,...DLL,...GEN,...LML,...RLL,...PML,...ABOUT]',
-    ),
-  };
+  return { lessons, evaluate: (source) => vm.runInContext(source, context) };
 }

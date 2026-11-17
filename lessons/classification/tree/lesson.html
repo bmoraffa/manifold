@@ -1,0 +1,195 @@
+<template data-part="lede"
+  >Ask one yes-or-no question about one feature, the question that best sorts the classes. Then ask
+  the best question inside each half, and again. Every question cuts a region in two with a
+  straight, axis-parallel line.</template
+>
+
+<template data-part="intro"
+  ><p
+    >In the game of twenty questions a good player does not ask "is it a giraffe?" first. They ask
+    the question that splits the remaining possibilities most evenly into those it rules in and
+    those it rules out. A decision tree plays this game with data: at each step it searches every
+    feature and every cut point for the single question whose two answers are each as pure in one
+    class as possible. The result reads like a flowchart, which is why trees are the easiest model
+    to explain to someone else.</p
+  >
+</template>
+
+<template data-part="left-caption"
+  >The data, and what the model predicts everywhere (click to add a point, drag to move
+  one)</template
+>
+
+<template data-part="right-figure"
+  ><figure class="fig"
+    ><figcaption>The questions, in the order they were asked</figcaption
+    ><canvas
+      class="short"
+      id="tree-r"
+      role="img"
+      aria-label="The questions, in the order they were asked"
+    ></canvas></figure
+></template>
+
+<template data-part="steps"
+  ><li>Put all training points in one region.</li
+  ><li
+    >For each region, try every feature and every cut point, and measure how much each cut lowers
+    the impurity.</li
+  ><li>Make the best cut. The region becomes two.</li
+  ><li
+    >Repeat inside each new region, until the depth limit or the minimum region size is reached.</li
+  ><li>To predict, follow the questions down to a region and answer with its majority class.</li
+  ><li
+    >Then prune. Find the question whose removal adds the fewest training mistakes per region saved,
+    and remove it with everything below it.</li
+  ><li
+    >Keep pruning one question at a time. Choose the size that does best on held-out data.</li
+  ></template
+>
+
+<template data-part="animation-controls"
+  ><div class="row"
+    ><button class="btn go" id="tree-play" type="button">Grow the tree</button
+    ><button class="btn" id="tree-step" type="button">One step</button
+    ><button class="btn" id="tree-reset" type="button">Start over</button></div
+  ><p class="status" id="tree-note" role="status"></p
+></template>
+
+<template data-part="model-controls"
+  ><template
+    data-value="6"
+    data-step="1"
+    data-max="7"
+    data-min="1"
+    data-label="Deepest chain of questions allowed"
+    data-id="tree-depth"
+    data-control="slider"
+  ></template
+  ><template
+    data-value="1"
+    data-step="1"
+    data-max="30"
+    data-min="1"
+    data-label="Fewest points allowed in a region"
+    data-id="tree-minleaf"
+    data-control="slider"
+  ></template
+  ><div class="row"
+    ><button class="btn" id="tree-prune" type="button">Prune One Step</button
+    ><button class="btn" id="tree-full" type="button">Show the Full Tree</button></div
+  ></template
+>
+
+<template data-part="datasets"
+  ><option value="moons">Two moons</option><option value="blobs">Two clouds</option
+  ><option value="overlap">Two overlapping clouds</option
+  ><option value="circles">Ring around a core</option
+  ><option value="xor">Checkerboard (XOR)</option></template
+>
+
+<template data-part="point-count"
+  ><template
+    data-value="160"
+    data-step="2"
+    data-max="300"
+    data-min="20"
+    data-label="Number of points"
+    data-id="tree-n"
+    data-control="slider"
+  ></template
+></template>
+
+<template data-part="readouts"
+  ><template
+    data-class="hl"
+    data-label="Questions asked so far"
+    data-key="sp"
+    data-control="readout"
+  ></template
+  ><div><dt>Regions (leaves) now</dt><dd data-r="lv">–</dd></div
+  ><div><dt>Depth with the lowest test error</dt><dd data-r="bd">–</dd></div
+  ><template
+    data-class="hl2"
+    data-label="Leaves at the best test accuracy while pruning"
+    data-key="bp"
+    data-control="readout"
+  ></template
+></template>
+
+<template data-part="tryit"
+  >Step through the first three questions and find each one as a line on the left. Let the tree grow
+  to depth 6 and look for tiny regions around single points. Then press “Prune One Step” repeatedly
+  and watch the test accuracy: at how many regions is it best? Try the checkerboard: can a depth-1
+  tree do anything with it?</template
+>
+
+<template data-part="math"
+  ><h4>Measuring impurity</h4
+  ><p>For a region where a fraction \(p\) of the points is class B:</p>$$\text{Gini}=2p(1-p),\qquad
+  \text{entropy}=-p\log_2p-(1-p)\log_2(1-p)$$<p
+    >Both are zero when the region is pure (\(p=0\) or \(1\)) and largest when it is evenly mixed
+    (\(p=\tfrac12\)). Gini is the chance that two points drawn from the region have different
+    labels.</p
+  >
+  <h4>Choosing a split</h4
+  ><p
+    >A split "\(x_j\le s\)" sends \(n_L\) points left and \(n_R\) right. Its quality is the drop in
+    weighted impurity:</p
+  >$$\Delta=I(\text{parent})-\frac{n_L}{n}I(\text{left})-\frac{n_R}{n}I(\text{right})$$<p
+    >Try every feature \(j\) and every threshold \(s\) between neighbouring data values, and take
+    the largest \(\Delta\). Then repeat inside each child. This is a greedy search: each question is
+    the best one right now, with no looking ahead. That is why a depth-1 tree fails on the
+    checkerboard, where no single question helps and two together are perfect.</p
+  >
+  <h4>Predicting</h4
+  ><p
+    >Follow the questions down to a leaf and answer with the majority class there; the class share
+    in the leaf is the predicted probability. The model is a piecewise-constant function on
+    boxes.</p
+  >
+  <h4>Stopping</h4
+  ><p
+    >Left alone, the tree keeps splitting until every leaf is pure: zero training error and a region
+    for every noisy point. Limits on depth and on the number of points per leaf are the
+    regularisation; alternatively grow fully and prune back using a penalty on the number of
+    leaves.</p
+  >
+  <h4>Pruning</h4
+  ><p
+    >A better strategy than stopping early is to grow a large tree and then cut it back. Stopping
+    early can miss a weak-looking question that opens the way to a very good one below it. For
+    pruning, define the cost of a tree \(T\) as its training mistakes plus a charge for every
+    leaf:</p
+  >$$R_\alpha(T)=R(T)+\alpha\,|T|$$<p
+    >where \(R(T)\) is the number of misclassified training points and \(|T|\) the number of leaves.
+    For any internal node \(t\), collapsing the subtree \(T_t\) below it into a single leaf adds
+    \(R(t)-R(T_t)\) mistakes and saves \(|T_t|-1\) leaves. The ratio</p
+  >$$g(t)=\frac{R(t)-R(T_t)}{|T_t|-1}$$<p
+    >is the number of extra mistakes per leaf saved: the price of keeping that branch.
+    <b>Weakest-link pruning</b> repeatedly removes the node with the smallest \(g(t)\). This
+    produces a nested sequence of smaller and smaller trees, one for each range of \(\alpha\),
+    ending at the root alone. Training accuracy can only fall along the way. Test accuracy typically
+    rises first, as branches that fitted noise are removed, and then falls as real structure goes.
+    Choose the tree in the sequence that does best on held-out data or in cross-validation.</p
+  >
+  <h4>Strengths and weaknesses</h4
+  ><p
+    >No feature scaling needed, handles mixed feature types, finds interactions on its own, easy to
+    read. But boundaries are staircases, so a diagonal edge takes many splits; and trees are
+    unstable: a small change in the data can change the first question and with it everything below.
+    Averaging many trees fixes the instability, which is the idea of random forests and boosting.</p
+  ></template
+>
+
+<template data-part="question"
+  >A tree splits first on x at 0.4. You add three new data points and now it splits first on y. What
+  does this tell you?</template
+>
+
+<template data-part="answer"
+  >Trees have high variance. Two different first questions were nearly equally good, and a small
+  change in the data tipped the choice, which changes the whole tree below it. Predictions may be
+  similar, but the structure is not stable. Averaging many trees grown on resampled data removes
+  most of this.</template
+>

@@ -1,0 +1,233 @@
+<template data-part="lede"
+  >Ten people have rated some of ten films, each from 1 to 5. Most of the table is empty, because
+  nobody has seen everything. A recommender has to guess the empty cells: would Ben like a film he
+  has never seen? The idea that won a famous million-dollar prize is to describe every person and
+  every film by a few hidden numbers, such as “how much action” and “how much romance”, learned only
+  from the ratings that exist. Add your own ratings in the bottom row and get
+  recommendations.</template
+>
+
+<template data-part="intro"
+  ><p
+    >You ask a well-read friend for a book. She does not look up statistics. She has a rough picture
+    of your taste, "likes slow novels, dislikes violence", and a rough picture of each book along
+    the same lines, and she looks for a match. Nobody ever filled in a questionnaire to produce
+    those pictures. She formed them from the handful of books she knows you loved or hated. Matrix
+    factorisation gives a computer the same two sets of pictures, as short lists of numbers, and
+    learns both at once from the ratings alone.</p
+  >
+</template>
+
+<template data-part="stage"
+  ><div class="stage"
+    ><figure class="fig"
+      ><figcaption
+        >The ratings table. Bold numbers are real ratings. Faint numbers are the model’s guesses for
+        empty cells. The bottom row is yours: click its cells to rate films from 1 to 5</figcaption
+      ><canvas
+        class="short"
+        id="rc-c"
+        role="img"
+        aria-label="Ratings matrix with observed ratings and predictions"
+      ></canvas
+    ></figure>
+    <figure class="fig"
+      ><figcaption
+        >Top: every person (circle) and film (square) placed by their first two hidden numbers.
+        People sit near the films they like. Bottom: the model’s error on ratings it trains on, and
+        on ratings hidden from it</figcaption
+      ><canvas
+        class="short"
+        id="rc-r"
+        role="img"
+        aria-label="Latent factor map and training and held-out error"
+      ></canvas></figure
+  ></div>
+  <figure class="fig" style="margin-top:18px"
+    ><figcaption>One update, worked out</figcaption
+    ><div class="eq" id="rc-eq" aria-live="polite" style="min-height:9.5em;margin-top:6px"></div
+  ></figure>
+  <div class="howto"
+    ><div
+      ><h3>How it works, step by step</h3
+      ><ol id="rc-steps"
+        ><li
+          >Give every person and every film K hidden numbers, small and random at first. Set a few
+          real ratings aside to test on later.</li
+        ><li
+          >Predict a rating: the overall average, plus how generous this person is, plus how well
+          liked this film is, plus the match between the person’s numbers and the film’s.</li
+        ><li>Take one real rating. Compare it with the prediction: the difference is the error.</li
+        ><li
+          >Nudge the person’s numbers toward the film’s, and the film’s toward the person’s, in
+          proportion to the error. Shrink everything slightly so that nothing grows without
+          need.</li
+        ><li
+          >Do this for every real rating: one pass. Repeat passes until the error on the hidden
+          ratings stops falling.</li
+        ><li
+          >Fill every empty cell with its prediction, and recommend each person their highest unseen
+          films.</li
+        ></ol
+      ></div
+    ><div><h3>What just happened</h3><p class="live" id="rc-live" role="status"></p></div
+  ></div>
+  <div class="controls"
+    ><template data-label="Animation" data-control="group"
+      ><div class="row"
+        ><button class="btn go" id="rc-play" type="button">Run</button
+        ><button class="btn" id="rc-step" type="button">One pass</button
+        ><button class="btn" id="rc-reset" type="button">Start over</button></div
+      ><template data-unit="passes" data-id="rc" data-control="run-limit"></template
+    ></template>
+    <template data-label="The model" data-control="group"
+      ><template
+        data-value="2"
+        data-step="1"
+        data-max="4"
+        data-min="1"
+        data-label="Hidden numbers per person and per film, K"
+        data-id="rc-k"
+        data-control="slider"
+      ></template
+      ><template
+        data-value="0.15"
+        data-step="0.01"
+        data-max="0.3"
+        data-min="0"
+        data-label="Shrinkage λ: resistance to large numbers"
+        data-id="rc-l"
+        data-control="slider"
+      ></template
+    ></template>
+    <template data-label="The data" data-control="group"
+      ><div class="row"
+        ><button class="btn" id="rc-new" type="button">New Ratings Table</button
+        ><button class="btn" id="rc-clr" type="button">Clear My Ratings</button></div
+      ><p class="tpout" id="rc-tpo" role="status"></p></template
+  ></div>
+  <dl class="read"
+    ><template data-label="Passes so far" data-key="ep" data-control="readout"></template
+    ><template
+      data-class="hl2"
+      data-label="Error on the ratings it trains on"
+      data-key="tr"
+      data-control="readout"
+    ></template
+    ><template
+      data-class="hl"
+      data-label="Error on the hidden ratings"
+      data-key="te"
+      data-control="readout"
+    ></template
+    ><template
+      data-label="Error of always guessing the film’s average"
+      data-key="bl"
+      data-control="readout"
+    ></template
+    ><template
+      data-label="Real ratings: used for training / hidden for testing"
+      data-key="nr"
+      data-control="readout"
+    ></template
+    ><template
+      data-label="Numbers the model learns"
+      data-key="np"
+      data-control="readout"
+    ></template></dl
+></template>
+
+<template data-part="tryit"
+  >Press Run and watch the faint numbers settle. In the top-right map, the films separate into
+  groups without anyone telling the model their genres. Which films are close together? Which people
+  sit near which films? Now rate four or five films in the bottom row, giving the action films 5 and
+  the romances 1, or the other way round, and press Run again. Where do you land on the map, and
+  what does it recommend? Then set K to 4 and λ to 0 and start over. Watch the two error curves: the
+  error on the training ratings falls almost to zero. Does the error on the hidden ratings follow it
+  down? With a table this small the answer varies from table to table, so press New Ratings Table a
+  few times before you decide which settings are best.</template
+>
+
+<template data-part="math"
+  ><h4>The table and the model</h4
+  ><p
+    >Let \(r_{ui}\) be the rating person \(u\) gave film \(i\), known only for some pairs. Each
+    person gets a vector \(\mathbf p_u\in\mathbb R^K\) and each film a vector \(\mathbf
+    q_i\in\mathbb R^K\). The predicted rating is</p
+  >$$\hat r_{ui}=\mu+b_u+b_i+\mathbf p_u^{\top}\mathbf q_i .$$<p
+    >\(\mu\) is the average of all ratings, \(b_u\) says whether this person rates high or low in
+    general, \(b_i\) whether the film is generally liked, and the dot product is large when the
+    person's tastes and the film's qualities point the same way. Stacking the vectors gives two thin
+    matrices whose product approximates the whole table, which is where the name comes from.</p
+  >
+  <h4>What is minimised</h4
+  ><p>Only the known ratings enter the loss, with a penalty that keeps the numbers small:</p
+  >$$\min_{b,\mathbf p,\mathbf q}\ \sum_{(u,i)\ \text{known}}\big(r_{ui}-\hat
+  r_{ui}\big)^2+\lambda\big(\lVert\mathbf p_u\rVert^2+\lVert\mathbf
+  q_i\rVert^2+b_u^2+b_i^2\big).$$<p
+    >The empty cells are not treated as zeros. They are simply left out, and that is what
+    distinguishes this from ordinary matrix decompositions such as PCA.</p
+  >
+  <h4>One update</h4
+  ><p
+    >Stochastic gradient descent visits the known ratings one at a time. With error
+    \(e_{ui}=r_{ui}-\hat r_{ui}\) and step size \(\eta\),</p
+  >$$\mathbf p_u\leftarrow\mathbf p_u+\eta\,(e_{ui}\,\mathbf q_i-\lambda\,\mathbf p_u),\qquad
+  \mathbf q_i\leftarrow\mathbf q_i+\eta\,(e_{ui}\,\mathbf p_u-\lambda\,\mathbf q_i),$$<p
+    >and similarly for the two biases. If the person liked the film more than predicted, their
+    vector moves toward the film's and the film's toward theirs, so the next prediction is higher.
+    This is the approach Simon Funk published during the Netflix Prize, later refined by Koren, Bell
+    and Volinsky (2009).</p
+  >
+  <h4>Why it can guess a cell it has never seen</h4
+  ><p
+    >Ana and Ben have both rated several films, and where they overlap they agree. Their vectors
+    therefore end up close together. Ana has also rated a film that Ben has not. The film's vector
+    was shaped by Ana's rating, and since Ben's vector resembles Ana's, the dot product gives Ben a
+    similar prediction. Information flows from person to person through the films they share, and
+    from film to film through the people who rated both. This is called
+    <b>collaborative filtering</b>: nothing about the content of the films is used.</p
+  >
+  <h4>Choosing K and λ</h4
+  ><p
+    >More hidden numbers can describe taste more finely, and can also memorise the training ratings,
+    noise included. The honest test is the error on ratings the model never saw. With a table this
+    small, a large \(K\) with no shrinkage drives the training error toward zero while the
+    hidden-rating error stays far above it: the model has memorised its training ratings, which is
+    overfitting, exactly as in the Foundations module. \(\lambda\) pulls the vectors toward zero and
+    guards against it. In repeated tests on this page a larger \(\lambda\) gave the lower
+    hidden-rating error more often than not, and with only about twenty hidden ratings any single
+    table can go either way.</p
+  >
+  <h4>What it cannot do</h4
+  ><p
+    >A new person or a new film with no ratings has no vector worth the name: the
+    <b>cold start</b> problem. Real systems fall back on content, such as genre or description, or
+    on popularity, until ratings arrive. Most real feedback is also not a rating at all but a click,
+    a purchase or a watch, where "no data" may mean "did not like" or "never saw". And a recommender
+    that only reinforces what people already chose narrows what they see.</p
+  >
+  <h4>What this page runs</h4
+  ><p
+    >Ten people, ten invented films of three kinds, and a table with roughly 75% of the ratings
+    present, generated from hidden tastes plus noise. About one rating in four is set aside for
+    testing. Training runs for at least 80 passes and stops when the error on those has not improved
+    for 40 passes, or after 400. Your own ratings are visited four times in every pass, so that a
+    handful of them is enough to place you on the map. The error shown is the root-mean-square
+    difference in rating points.</p
+  ></template
+>
+
+<template data-part="question"
+  >A new film is added to the table with no ratings at all. What rating does the model predict for
+  it, for every person, and why is that the best it can do?</template
+>
+
+<template data-part="answer"
+  >It predicts each person’s usual level: the overall average plus that person’s own bias. The
+  film’s bias and its hidden numbers have never been updated, because updates happen only when a
+  rating for that film is visited, and with shrinkage they stay at or near zero. Nothing in the
+  ratings table says anything about this film, so nothing better is available from ratings alone. To
+  do better the system needs information from outside the table, such as the film’s genre, cast or
+  description.</template
+>

@@ -1,0 +1,148 @@
+<template data-part="lede"
+  >Many lines separate two clouds. The support vector machine picks the one in the middle of the
+  widest possible street between them. Only the points on the kerbs of the street matter: move any
+  other point and nothing changes.</template
+>
+
+<template data-part="intro"
+  ><p
+    >The perceptron stops at any line that separates the classes. But a line that scrapes past a
+    training point leaves no room for error: a new point slightly different from that one lands on
+    the wrong side. Better to leave as much room as possible on both sides. Picture the boundary as
+    the centre line of a street and widen the street until its kerbs touch the nearest points of
+    each class. Those touching points hold the street in place, like supports; every other point
+    could be removed without changing anything.</p
+  >
+</template>
+
+<template data-part="left-caption"
+  >The data, and what the model predicts everywhere (click to add a point, drag to move
+  one)</template
+>
+
+<template data-part="right-figure"
+  ><figure class="fig"
+    ><figcaption>How far each point is on the correct side, and what it costs</figcaption
+    ><canvas
+      class="short"
+      id="svm-r"
+      role="img"
+      aria-label="How far each point is on the correct side, and what it costs"
+    ></canvas></figure
+></template>
+
+<template data-part="steps"
+  ><li>Start with a flat score, so the street is infinitely wide.</li
+  ><li>Find every point that is inside the street or on the wrong side (y·f(x) &lt; 1).</li
+  ><li>Pull the line toward classifying those points better, by C × each of them.</li
+  ><li>At the same time shrink the weights slightly, which widens the street.</li
+  ><li>Repeat with smaller and smaller steps until the pull and the shrink balance.</li></template
+>
+
+<template data-part="animation-controls"
+  ><div class="row"
+    ><button class="btn go" id="svm-play" type="button">Train</button
+    ><button class="btn" id="svm-step" type="button">One step</button
+    ><button class="btn" id="svm-reset" type="button">Start over</button></div
+  ><p class="status" id="svm-note" role="status"></p
+  ><template data-unit="iterations" data-id="svm" data-control="run-limit"></template
+></template>
+
+<template data-part="model-controls"
+  ><template
+    data-value="0"
+    data-step="0.05"
+    data-max="2"
+    data-min="-2"
+    data-label="Cost of a violation, C (log scale)"
+    data-id="svm-cost"
+    data-control="slider"
+  ></template
+></template>
+
+<template data-part="datasets"
+  ><option value="blobs">Two clouds</option><option value="overlap">Two overlapping clouds</option
+  ><option value="moons">Two moons</option></template
+>
+
+<template data-part="point-count"
+  ><template
+    data-value="80"
+    data-step="2"
+    data-max="300"
+    data-min="20"
+    data-label="Number of points"
+    data-id="svm-n"
+    data-control="slider"
+  ></template
+></template>
+
+<template data-part="readouts"
+  ><template
+    data-class="hl"
+    data-label="Width of the street"
+    data-key="mw"
+    data-control="readout"
+  ></template
+  ><template
+    data-class="hl2"
+    data-label="Support vectors (ringed)"
+    data-key="sv"
+    data-control="readout"
+  ></template
+  ><div><dt>Total hinge loss</dt><dd data-r="hl">–</dd></div></template
+>
+
+<template data-part="tryit"
+  >Drag a point that is far from the street: does the line move? Now drag one of the ringed points.
+  Then lower C to 0.01 and raise it to 100 on the overlapping clouds: what happens to the width of
+  the street and to the number of ringed points?</template
+>
+
+<template data-part="math"
+  ><h4>The margin</h4
+  ><p
+    >With labels \(y_i=\pm1\) and \(f(\mathbf x)=\mathbf w^{\top}\mathbf x+b\), scale the weights so
+    the kerbs are at \(f=\pm1\). The distance from the centre line to a kerb is \(1/\lVert\mathbf
+    w\rVert\), so</p
+  >$$\text{street width}=\frac{2}{\lVert\mathbf w\rVert}.$$<p
+    >Widening the street means shrinking \(\lVert\mathbf w\rVert\).</p
+  >
+  <h4>Hard margin</h4>$$\min_{\mathbf w,b}\ \tfrac12\lVert\mathbf w\rVert^2\quad\text{subject
+  to}\quad y_i\,f(\mathbf x_i)\ge1\ \text{ for all }i$$<p
+    >Every point must be on its own side, outside the street. Possible only when the classes are
+    separable.</p
+  >
+  <h4>Soft margin</h4>$$\min_{\mathbf w,b}\ \tfrac12\lVert\mathbf
+  w\rVert^2+C\sum_{i=1}^n\max\big(0,\ 1-y_i\,f(\mathbf x_i)\big)$$<p
+    >Allow points inside the street or on the wrong side, at a price. The price is the
+    <b>hinge loss</b> on the right: zero for a point at or beyond its kerb (\(y_if\ge1\)), then
+    rising in a straight line. \(C\) sets the exchange rate. Large \(C\): violations are expensive,
+    the street is narrow and follows the data closely. Small \(C\): a wide street with many points
+    inside it, a smoother and steadier boundary. \(1/C\) plays the role of \(\lambda\) in ridge
+    regression.</p
+  >
+  <h4>Support vectors</h4
+  ><p
+    >The solution has the form \(\mathbf w=\sum_i\alpha_iy_i\mathbf x_i\) with \(\alpha_i>0\) only
+    for points on or inside the street. Points safely beyond their kerb have zero hinge loss and
+    zero gradient: the model does not know they exist. Compare logistic regression, where every
+    point always pulls a little.</p
+  >
+  <h4>What comes next</h4
+  ><p
+    >The solution depends on the data only through inner products \(\mathbf x_i^{\top}\mathbf x_j\).
+    Replacing those with a kernel gives curved boundaries at no extra cost. That is the next
+    lesson.</p
+  ></template
+>
+
+<template data-part="question"
+  >You delete half the training points, none of them support vectors. What happens to the
+  boundary?</template
+>
+
+<template data-part="answer"
+  >Nothing. Points beyond the kerbs have zero hinge loss and contribute nothing to the solution, so
+  removing them leaves the same optimum. Only the support vectors determine the line.</template
+>

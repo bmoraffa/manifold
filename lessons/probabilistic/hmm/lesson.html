@@ -1,0 +1,232 @@
+<template data-part="lede"
+  >A friend who lives far away tells you every evening what she did that day: went for a walk, went
+  shopping, or stayed in and cleaned. She never mentions the weather. Can you work out, day by day,
+  whether it was sunny or rainy there? You know two things: weather tends to last, and she walks
+  more in the sun. A hidden Markov model turns those two facts into a calculation. The same
+  calculation recognises speech from sound, finds genes in DNA and follows a phone’s position
+  between GPS fixes.</template
+>
+
+<template data-part="intro"
+  ><p
+    >You are in a room with no windows, and every so often a colleague walks in. Sometimes they
+    carry a wet umbrella. One wet umbrella makes rain likely. A dry colleague five minutes later
+    does not make you think the rain has stopped, because rain rarely stops that quickly and not
+    everyone carries an umbrella. You are combining two kinds of knowledge without noticing: how the
+    hidden thing behaves over time, and how it shows itself. A hidden Markov model writes both down
+    as tables and does the combining exactly.</p
+  >
+</template>
+
+<template data-part="stage"
+  ><div class="row seg" id="hm-v" role="group" aria-label="Which question"
+    ><button class="btn" type="button" data-v="fwd">Belief Day by Day (Forward Algorithm)</button
+    ><button class="btn" type="button" data-v="vit">The Single Best Story (Viterbi)</button></div
+  >
+  <div class="stage"
+    ><figure class="fig"
+      ><figcaption
+        >Top row: what she did each day. Click a day to change it. Then two rows of circles, sunny
+        and rainy: the fuller the circle, the more the model believes it. The gold line is the
+        model’s answer</figcaption
+      ><canvas
+        class="short"
+        id="hm-c"
+        role="img"
+        aria-label="Observations and the belief in each hidden state over time"
+      ></canvas
+    ></figure>
+    <figure class="fig"
+      ><figcaption
+        >Top: the probability of rain on each day, as judged on the day itself and as judged
+        afterwards with all the evidence. Bottom: the two tables the model uses</figcaption
+      ><canvas
+        class="short"
+        id="hm-r"
+        role="img"
+        aria-label="Probability of rain over time and the model's transition and emission tables"
+      ></canvas></figure
+  ></div>
+  <figure class="fig" style="margin-top:18px"
+    ><figcaption>The calculation for the current day</figcaption
+    ><div class="eq" id="hm-eq" aria-live="polite" style="min-height:9.5em;margin-top:6px"></div
+  ></figure>
+  <div class="howto"
+    ><div
+      ><h3>How it works, step by step</h3
+      ><ol id="hm-steps"
+        ><li
+          >Day 1: start from even odds for sun and rain, and weigh each by how likely today’s
+          activity is in that weather.</li
+        ><li
+          >Each later day, first predict: push yesterday’s belief through the “weather tends to
+          last” table. This is the belief before hearing from her.</li
+        ><li
+          >Then update: multiply the belief in each weather by how likely her activity is in that
+          weather, and rescale so the two add up to 1.</li
+        ><li>Repeat to the last day. These are the day-by-day beliefs.</li
+        ><li
+          >Viterbi instead keeps, for each weather on each day, the single most probable story that
+          ends there, and remembers which weather it came from.</li
+        ><li
+          >At the last day, pick the better ending and trace the remembered links backwards. That is
+          the single best story.</li
+        ></ol
+      ></div
+    ><div><h3>What just happened</h3><p class="live" id="hm-live" role="status"></p></div
+  ></div>
+  <div class="controls"
+    ><template data-label="Animation" data-control="group"
+      ><div class="row"
+        ><button class="btn go" id="hm-play" type="button">Run</button
+        ><button class="btn" id="hm-step" type="button">One day</button
+        ><button class="btn" id="hm-reset" type="button">Start over</button></div
+      ></template
+    >
+    <template data-label="The model" data-control="group"
+      ><template
+        data-value="0.8"
+        data-step="0.01"
+        data-max="0.98"
+        data-min="0.5"
+        data-label="Weather tends to last: chance tomorrow is the same as today"
+        data-id="hm-st"
+        data-control="slider"
+      ></template
+      ><template
+        data-value="1"
+        data-step="0.05"
+        data-max="1"
+        data-min="0"
+        data-label="How strongly the weather shows in what she does"
+        data-id="hm-em"
+        data-control="slider"
+      ></template
+    ></template>
+    <template data-label="The data" data-control="group"
+      ><div class="row"
+        ><button class="btn" id="hm-new" type="button">A New Fortnight</button
+        ><button class="btn" id="hm-tr" type="button">Show the True Weather</button></div
+      ></template
+    ></div
+  >
+  <dl class="read"
+    ><template data-label="Day" data-key="d" data-control="readout"></template
+    ><template
+      data-class="hl"
+      data-label="Belief today: sunny / rainy"
+      data-key="b"
+      data-control="readout"
+    ></template
+    ><template
+      data-label="Days guessed right, judging each day as it comes"
+      data-key="af"
+      data-control="readout"
+    ></template
+    ><template
+      data-class="hl2"
+      data-label="Days guessed right, judging afterwards with all the evidence"
+      data-key="as"
+      data-control="readout"
+    ></template
+    ><template
+      data-label="Days guessed right by the single best story"
+      data-key="av"
+      data-control="readout"
+    ></template
+    ><template
+      data-label="Probability of the whole fortnight of activities under the model"
+      data-key="lk"
+      data-control="readout"
+    ></template></dl
+></template>
+
+<template data-part="tryit"
+  >Press One day and read the calculation: predict, then update. Find a day where she went shopping,
+  which she does equally often in any weather. What does the belief do on such a day? Press Run to
+  the end, then press Show the True Weather. Compare the two lines on the right: on which days does
+  hindsight change the answer, and why can a later walk change your mind about an earlier day? Click
+  days in the top row to make her clean on a single day in the middle of a sunny spell: is one day
+  enough to convince the model it rained? Lower the first slider to 0.5 and try again. Switch to The
+  Single Best Story and compare its answer with the day-by-day one.</template
+>
+
+<template data-part="math"
+  ><h4>The model</h4
+  ><p
+    >There is a hidden state \(z_t\) for each day, here sunny or rainy, and an observation \(x_t\),
+    here walk, shop or clean. Two assumptions make the model tractable. The state depends only on
+    yesterday's state, through a <b>transition</b> table \(A_{ij}=P(z_t=j\mid z_{t-1}=i)\). The
+    observation depends only on today's state, through an <b>emission</b> table \(B_j(x)=P(x_t=x\mid
+    z_t=j)\). With a starting distribution \(\pi\), the probability of a whole hidden story together
+    with the observations is</p
+  >$$P(z_{1:T},x_{1:T})=\pi_{z_1}B_{z_1}(x_1)\prod_{t=2}^{T}A_{z_{t-1}z_t}\,B_{z_t}(x_t).$$
+  <h4>The forward algorithm: belief day by day</h4
+  ><p
+    >Let \(\alpha_t(j)=P(z_t=j\mid x_{1:t})\) be the belief on day \(t\) given everything heard so
+    far. It is computed from yesterday's belief in two moves:</p
+  >$$\text{predict:}\quad \bar\alpha_t(j)=\sum_i\alpha_{t-1}(i)\,A_{ij},\qquad\text{update:}\quad
+  \alpha_t(j)=\frac{\bar\alpha_t(j)\,B_j(x_t)}{\sum_k\bar\alpha_t(k)\,B_k(x_t)}.$$<p
+    >Predict blurs the belief a little, because the weather might have changed overnight. Update
+    sharpens it with today's evidence. This is Bayes' rule applied once per day, with yesterday's
+    posterior serving as today's prior. The cost is proportional to the number of days, although the
+    number of possible stories doubles with every day. The normalising sums, multiplied together,
+    give \(P(x_{1:T})\), the probability of all the observations, shown in the last readout.</p
+  >
+  <h4>Hindsight: smoothing</h4
+  ><p
+    >Once the fortnight is over, earlier days can be judged again using what came after. A second
+    pass runs backwards, \(\beta_t(i)=\sum_jA_{ij}B_j(x_{t+1})\beta_{t+1}(j)\), and the two are
+    combined:</p
+  >$$P(z_t=j\mid x_{1:T})\propto\alpha_t(j)\,\beta_t(j).$$<p
+    >This is the forward-backward algorithm, and it is the second line in the top-right chart. It is
+    never less informed than the day-by-day belief, and it is usually right more often.</p
+  >
+  <h4>Viterbi: the single best story</h4
+  ><p
+    >The most probable whole sequence is a different question, and choosing the most probable state
+    on each day separately does not answer it: the separate choices might string together into a
+    story the model considers nearly impossible. Viterbi (1967) keeps, for each state on each day,
+    the probability of the best story ending there,</p
+  >$$\delta_t(j)=\max_i\ \delta_{t-1}(i)\,A_{ij}\,B_j(x_t),$$<p
+    >and remembers which \(i\) achieved the maximum. At the end it takes the larger \(\delta_T\) and
+    follows the remembered links back to day 1. It is the forward algorithm with a maximum in place
+    of a sum.</p
+  >
+  <h4>What the two sliders do</h4
+  ><p
+    >When the weather is very persistent, one odd activity is explained away as an off day, and the
+    belief hardly moves. When persistence is 0.5 the weather has no memory, and each day is judged
+    by its own activity alone. When the second slider is at 0 her activities say nothing about the
+    weather, and the belief stays at even odds whatever she does. The model is only as informative
+    as its two tables.</p
+  >
+  <h4>Where the tables come from</h4
+  ><p
+    >Here they are given. In practice they are learned from sequences of observations alone with the
+    Baum-Welch algorithm, a form of the expectation-maximisation method from the Gaussian Mixtures
+    tab: guess the tables, use forward-backward to estimate the hidden states, re-estimate the
+    tables from those, and repeat.</p
+  >
+  <h4>What this page runs</h4
+  ><p
+    >Fourteen days. The true weather is drawn from the model itself, then her activities from the
+    weather. In sunny weather she walks 60% of the time, shops 30% and cleans 10%, and in rain the
+    reverse, when the second slider is at 1. All probabilities are computed exactly.</p
+  ></template
+>
+
+<template data-part="question"
+  >On day 6 the day-by-day belief said 70% sunny. After the fortnight is over, the hindsight line
+  says day 6 was 75% rainy. Nothing about day 6 itself has changed. Where did the new information
+  come from?</template
+>
+
+<template data-part="answer"
+  >From days 7 onward. Weather tends to last, so what happened after day 6 is evidence about day 6
+  itself. If she cleaned on days 7, 8 and 9, those days were very probably rainy, and a rainy spell
+  probably did not begin exactly on day 7: it is quite likely to have started a day earlier, with
+  day 6 being a rainy day on which she happened to shop or walk. The forward pass could not know
+  this on day 6. The backward pass carries the later evidence back through the “weather tends to
+  last” table.</template
+>

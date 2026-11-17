@@ -1,0 +1,157 @@
+<template data-part="lede"
+  >Raise the degree and the curve bends to follow the points. A little bending finds the pattern. A
+  lot of bending memorises the noise: training error keeps falling while test error turns back
+  up.</template
+>
+
+<template data-part="intro"
+  ><p
+    >A straight line can only tilt. Give the model powers of \(x\) and it can bend, once for each
+    extra degree. With enough bends it can pass through every training point exactly, and that is
+    the trap: the points contain noise, and a curve that chases the noise is wrong everywhere
+    between the points. The fit that looks best on the data it has seen is no longer the fit that
+    predicts best.</p
+  >
+</template>
+
+<template data-part="stage"
+  ><div class="stage"
+    ><figure class="fig"
+      ><figcaption>The data and the fitted curve</figcaption
+      ><canvas
+        class="short"
+        id="pr-c"
+        role="img"
+        aria-label="Scatter plot with a polynomial fit"
+      ></canvas
+    ></figure>
+    <figure class="fig"
+      ><figcaption>Error against degree (log scale)</figcaption
+      ><canvas
+        class="short"
+        id="pr-e"
+        role="img"
+        aria-label="Training and test error for each polynomial degree"
+      ></canvas></figure
+  ></div>
+  <div class="controls"
+    ><template data-label="Animation" data-control="group"
+      ><div class="row"
+        ><button class="btn go" id="pr-play" type="button">Sweep the degree</button
+        ><button class="btn" id="pr-new" type="button">New random sample</button></div
+      ></template
+    >
+    <template data-label="The model" data-control="group"
+      ><template
+        data-value="3"
+        data-step="1"
+        data-max="14"
+        data-min="1"
+        data-label="Polynomial degree"
+        data-id="pr-d"
+        data-control="slider"
+      ></template
+    ></template>
+    <template data-label="The data" data-control="group"
+      ><label class="ctl" for="pr-f"
+        ><span>True curve</span
+        ><select id="pr-f"
+          ><option value="sine">Sine wave</option
+          ><option value="cubic">Cubic</option
+          ><option value="bump">Single bump</option
+          ><option value="line">Straight line</option></select
+        ></label
+      ><template
+        data-value="0.25"
+        data-step="0.01"
+        data-max="0.8"
+        data-min="0"
+        data-label="Noise σ"
+        data-id="pr-s"
+        data-control="slider"
+      ></template
+      ><template
+        data-value="30"
+        data-step="1"
+        data-max="150"
+        data-min="10"
+        data-label="Number of points"
+        data-id="pr-n"
+        data-control="slider"
+      ></template></template
+  ></div>
+  <dl class="read"
+    ><template
+      data-label="Degree, and number of coefficients"
+      data-key="d"
+      data-control="readout"
+    ></template
+    ><template
+      data-class="hl3"
+      data-label="Train error (MSE)"
+      data-key="tr"
+      data-control="readout"
+    ></template
+    ><template
+      data-class="hl2"
+      data-label="Test error (MSE)"
+      data-key="te"
+      data-control="readout"
+    ></template
+    ><template
+      data-class="hl"
+      data-label="Degree with the lowest test error"
+      data-key="best"
+      data-control="readout"
+    ></template></dl
+></template>
+
+<template data-part="tryit"
+  >Watch the two error curves as the degree climbs. Where do they part ways? Then raise the number
+  of points to 150: does degree 14 still overfit? Try the straight line as the truth with degree
+  10.</template
+>
+
+<template data-part="math"
+  ><h4>Still a linear model</h4>$$\hat
+  y=\beta_0+\beta_1x+\beta_2x^2+\dots+\beta_dx^d=\boldsymbol\beta^{\top}\boldsymbol\phi(x),\qquad
+  \boldsymbol\phi(x)=(1,x,x^2,\dots,x^d)$$<p
+    >The curve is not linear in \(x\), but it is linear in the coefficients. So nothing new is
+    needed to fit it: build a matrix \(\Phi\) whose columns are the powers of \(x\) and solve the
+    same normal equations as before,
+    \(\hat{\boldsymbol\beta}=(\Phi^{\top}\Phi)^{-1}\Phi^{\top}\mathbf y\). Swapping raw inputs for
+    features \(\boldsymbol\phi(x)\) is the idea behind kernels and, later, behind the hidden layers
+    of a neural network.</p
+  >
+  <h4>Bias and variance</h4
+  ><p
+    >Average over many possible training sets, and the expected test error at a point splits into
+    three parts:</p
+  >$$\mathbb E\big[(y-\hat f(x))^2\big]=\underbrace{\big(\mathbb E[\hat
+  f(x)]-f(x)\big)^2}_{\text{bias}^2}+\underbrace{\operatorname{Var}\big(\hat
+  f(x)\big)}_{\text{variance}}+\underbrace{\sigma^2}_{\text{noise}}$$<p
+    >Low degree: the model cannot take the right shape, so bias is high (underfitting). High degree:
+    the model changes wildly from sample to sample, so variance is high (overfitting). Press “New
+    random sample” at degree 2 and at degree 12 to see the two cases. Test error is lowest where the
+    sum of the two is smallest.</p
+  >
+  <h4>Why training error cannot be trusted</h4
+  ><p
+    >Every polynomial of degree \(d\) is also a polynomial of degree \(d+1\) with the last
+    coefficient zero. So the best degree-\((d+1)\) fit is never worse on the training data: training
+    error can only go down. With \(d=n-1\) it reaches zero. Only held-out data can tell you when to
+    stop, which is what validation sets and cross-validation are for.</p
+  >
+  <p
+    >The fit here uses Legendre polynomials in place of raw powers. They span the same curves but
+    keep the arithmetic stable at high degree.</p
+  ></template
+>
+
+<template data-part="question">More data or a lower degree: which fixes overfitting?</template>
+
+<template data-part="answer"
+  >Both. A lower degree removes the flexibility that chases noise. More data pins the flexible curve
+  down so it has less freedom to wiggle. With 150 points a degree-14 curve behaves far better than
+  with 20.</template
+>

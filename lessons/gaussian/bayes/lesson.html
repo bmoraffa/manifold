@@ -1,0 +1,200 @@
+<template data-part="lede"
+  >MLE trusts only the data. MAP starts from a prior guess and lets the data pull it away. The
+  Bayesian view keeps every Gaussian that is still plausible. Look at them one at a time, then
+  together.</template
+>
+
+<template data-part="intro"
+  ><p
+    >Three attitudes to the same data. <b>MLE</b>: believe only what you have seen. <b>MAP</b>:
+    start with a guess, and move away from it only as far as the evidence pushes you.
+    <b>Bayesian</b>: never commit to a single answer; keep every Gaussian that could plausibly have
+    produced the data, weighted by how plausible it is. With little data these differ a lot. With
+    plenty they agree.</p
+  >
+</template>
+
+<template data-part="stage"
+  ><div class="row seg" id="by-mode" role="group" aria-label="What to show"
+    ><button class="btn" type="button" data-m="mle">MLE</button
+    ><button class="btn" type="button" data-m="map">MAP</button
+    ><button class="btn" type="button" data-m="bayes">Bayesian</button
+    ><button class="btn" type="button" data-m="all">All three</button></div
+  >
+  <p class="cap" id="by-cap" role="status"></p>
+  <div class="stage"
+    ><figure class="fig"
+      ><figcaption>The data and the fitted Gaussians (2σ outlines)</figcaption
+      ><canvas
+        class="short"
+        id="by-c"
+        style="touch-action:none;cursor:move"
+        role="img"
+        aria-label="Data points with prior, MLE, MAP and Bayesian estimates"
+      ></canvas
+    ></figure>
+    <figure class="fig"
+      ><figcaption>Belief about the mean, along x</figcaption
+      ><canvas
+        class="short"
+        id="by-c2"
+        role="img"
+        aria-label="Prior, data and posterior curves for the mean"
+      ></canvas></figure
+  ></div>
+  <div class="controls"
+    ><template data-label="Animation" data-control="group"
+      ><div class="row"
+        ><button class="btn go" id="by-play" type="button">Play</button
+        ><button class="btn" id="by-step" type="button">Add one point</button
+        ><button class="btn" id="by-reset" type="button">Reset</button></div
+      ></template
+    >
+    <template data-label="The prior (drag its mean on the picture)" data-control="group"
+      ><template
+        data-value="6"
+        data-step="0.1"
+        data-max="40"
+        data-min="0.1"
+        data-label="Trust in the prior mean, κ₀"
+        data-id="by-k"
+        data-control="slider"
+      ></template
+      ><template
+        data-value="10"
+        data-step="1"
+        data-max="60"
+        data-min="4"
+        data-label="Trust in the prior shape, ν₀"
+        data-id="by-v"
+        data-control="slider"
+      ></template
+      ><template
+        data-value="1.3"
+        data-step="0.05"
+        data-max="2.2"
+        data-min="0.4"
+        data-label="Prior guess of the spread"
+        data-id="by-s"
+        data-control="slider"
+      ></template
+    ></template>
+    <template data-label="The data" data-control="group"
+      ><template
+        data-value="1"
+        data-step="0.05"
+        data-max="1.6"
+        data-min="0.4"
+        data-label="True spread"
+        data-id="by-ds"
+        data-control="slider"
+      ></template
+      ><template
+        data-value="0.6"
+        data-step="0.01"
+        data-max="0.9"
+        data-min="-0.9"
+        data-label="True correlation ρ"
+        data-id="by-dr"
+        data-control="slider"
+      ></template
+      ><div class="row"
+        ><button class="btn" id="by-new" type="button">New random data</button></div
+      ></template
+    ></div
+  >
+  <dl class="read"
+    ><template data-label="Data points" data-key="n" data-control="readout"></template
+    ><template
+      data-class="hl2"
+      data-label="MLE mean"
+      data-key="mle"
+      data-control="readout"
+    ></template
+    ><template
+      data-class="hl"
+      data-label="MAP mean"
+      data-key="map"
+      data-control="readout"
+    ></template
+    ><template
+      data-label="Share of the vote held by the data"
+      data-key="w"
+      data-control="readout"
+    ></template
+    ><template data-label="Prior mean" data-key="pm" data-control="readout"></template></dl
+></template>
+
+<template data-part="tryit"
+  >Reset and stay on MAP. Add points one at a time and watch the gold dot slide along the dotted
+  line from the prior toward the data. Then drag the prior far away and raise κ₀: how many points
+  until the data wins? Switch to Bayesian and watch the bundle tighten.</template
+>
+
+<template data-part="math"
+  ><h4>Bayes' rule for parameters</h4>$$\underbrace{p(\boldsymbol\mu,\Sigma\mid\mathcal
+  D)}_{\text{posterior}}\ \propto\ \underbrace{p(\mathcal
+  D\mid\boldsymbol\mu,\Sigma)}_{\text{likelihood}}\ \times\
+  \underbrace{p(\boldsymbol\mu,\Sigma)}_{\text{prior}}$$<p
+    >The right-hand picture is this line for the mean: the grey prior curve times the burgundy data
+    curve gives the gold posterior curve. MLE is the peak of the data curve. MAP is the peak of the
+    posterior curve. The Bayesian view keeps the whole gold curve, width included.</p
+  >
+  <h4>The Normal-Inverse-Wishart prior</h4>$$\Sigma\sim\mathcal{IW}(\Lambda_0,\nu_0),\qquad
+  \boldsymbol\mu\mid\Sigma\sim N\!\big(\boldsymbol\mu_0,\ \Sigma/\kappa_0\big)$$
+  <p
+    >This is the conjugate prior for a Gaussian with unknown mean and covariance, meaning the
+    posterior has the same form. Think of it as imaginary data you saw before the experiment:
+    \(\boldsymbol\mu_0\) is where you believe the mean is and \(\kappa_0\) is how many observations
+    that belief is worth; \(\Lambda_0\) encodes the shape you expect and \(\nu_0\) how many
+    observations that is worth. Here \(\Lambda_0=\nu_0\,s^2 I\) for the spread \(s\) you set, an
+    isotropic guess.</p
+  >
+  <h4>The update</h4
+  ><p
+    >After \(n\) points with mean \(\bar{\mathbf x}\) and scatter \(S=\sum_i(\mathbf
+    x_i-\bar{\mathbf x})(\mathbf x_i-\bar{\mathbf x})^{\top}\):</p
+  >$$\kappa_n=\kappa_0+n,\qquad \nu_n=\nu_0+n,\qquad
+  \boldsymbol\mu_n=\frac{\kappa_0\,\boldsymbol\mu_0+n\,\bar{\mathbf
+  x}}{\kappa_0+n}$$$$\Lambda_n=\Lambda_0+S+\frac{\kappa_0\,n}{\kappa_0+n}\,(\bar{\mathbf
+  x}-\boldsymbol\mu_0)(\bar{\mathbf x}-\boldsymbol\mu_0)^{\top}$$
+  <p
+    >Real and imaginary observations are simply added. The posterior mean is a weighted average: the
+    data holds a share \(n/(\kappa_0+n)\) of the vote, which is the bar above the curves. The last
+    term of \(\Lambda_n\) adds extra spread when the data disagrees with the prior mean.</p
+  >
+  <h4>The three estimates</h4>$$\text{MLE: }\ \hat{\boldsymbol\mu}=\bar{\mathbf x},\ \
+  \hat\Sigma=\frac{S}{n}\qquad\qquad \text{MAP: }\ \hat{\boldsymbol\mu}=\boldsymbol\mu_n,\ \
+  \hat\Sigma=\frac{\Lambda_n}{\nu_n+d+2}\quad(d=2)$$
+  <p
+    >MAP is MLE with a pull toward the prior. This pull is regularisation: the MAP estimate for a
+    regression weight under a Gaussian prior is ridge regression. As \(\kappa_0,\nu_0\to0\) the pull
+    vanishes and MAP becomes MLE.</p
+  >
+  <h4>The Bayesian answer</h4
+  ><p
+    >The uncertainty about the mean, with \(\Sigma\) integrated out, is a Student-t (the gold curve
+    and the shaded patch):</p
+  >$$\boldsymbol\mu\mid\mathcal D\ \sim\ t_{\nu_n-d+1}\!\left(\boldsymbol\mu_n,\
+  \frac{\Lambda_n}{\kappa_n(\nu_n-d+1)}\right)$$<p
+    >and the prediction for a new point averages over every plausible Gaussian (the thin
+    ellipses):</p
+  >$$p(\mathbf x_{\text{new}}\mid\mathcal D)=\int p(\mathbf
+  x_{\text{new}}\mid\boldsymbol\mu,\Sigma)\,p(\boldsymbol\mu,\Sigma\mid\mathcal
+  D)\,d\boldsymbol\mu\,d\Sigma=t_{\nu_n-d+1}\!\left(\boldsymbol\mu_n,\
+  \frac{(\kappa_n+1)\,\Lambda_n}{\kappa_n(\nu_n-d+1)}\right)$$
+  <p
+    >It has heavier tails than any single Gaussian. The extra width is the model saying "I am not
+    yet sure of my own parameters", and it fades as \(n\) grows.</p
+  ></template
+>
+
+<template data-part="question"
+  >With only two data points, which estimate would you trust, and why?</template
+>
+
+<template data-part="answer"
+  >Not MLE: with two points its covariance is a flat line and it claims certainty it does not have.
+  MAP gives a usable ellipse because the prior fills in what the data cannot yet say, and the
+  Bayesian picture shows how unsure the estimate still is.</template
+>

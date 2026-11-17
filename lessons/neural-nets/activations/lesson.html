@@ -1,0 +1,190 @@
+<template data-part="lede"
+  >After a neuron adds up its inputs, it passes the total through a small curve called the
+  activation function. That curve is what lets a network learn anything other than straight lines.
+  Its slope also decides how well the learning signal survives the trip back through many layers.
+  Send the signal back and watch what each curve does to it.</template
+>
+
+<template data-part="intro"
+  ><p
+    >Photocopy a page, then photocopy the copy, and keep going. If each copy keeps only a quarter of
+    the ink, the tenth copy is blank. If each keeps all of it, the tenth is as sharp as the first.
+    Training a deep network sends a learning signal backward through every layer, and at each layer
+    the signal is multiplied by the slope of the activation function. A curve whose slope is always
+    small is a bad photocopier.</p
+  >
+</template>
+
+<template data-part="stage"
+  ><div class="row seg" id="af-act" role="group" aria-label="Activation function"
+    ><button class="btn" type="button" data-v="sigmoid">Sigmoid</button
+    ><button class="btn" type="button" data-v="tanh">tanh</button
+    ><button class="btn" type="button" data-v="relu">ReLU</button
+    ><button class="btn" type="button" data-v="leaky">Leaky ReLU</button></div
+  >
+  <div class="stage"
+    ><figure class="fig"
+      ><figcaption
+        >The curve (green) and its slope (red). The dot slides along: the slope is how much of the
+        learning signal gets through at that point</figcaption
+      ><canvas
+        class="short"
+        id="af-c"
+        role="img"
+        aria-label="Activation function and its derivative"
+      ></canvas
+    ></figure>
+    <figure class="fig"
+      ><figcaption
+        >The learning signal travelling backward through a deep network. Each bar is its strength on
+        arriving at that layer, compared with where it started</figcaption
+      ><canvas
+        class="short"
+        id="af-r"
+        role="img"
+        aria-label="Gradient strength by layer"
+      ></canvas></figure
+  ></div>
+  <div class="howto"
+    ><div
+      ><h3>How it works, step by step</h3
+      ><ol id="af-steps"
+        ><li
+          >Build a deep stack of layers with random weights and this activation, and send data
+          forward through it.</li
+        ><li>Start the learning signal (the gradient) at the last layer with strength 1.</li
+        ><li
+          >Step back one layer: the signal is multiplied by the weights and by the slope of the
+          activation at every neuron.</li
+        ><li>Keep stepping back. Slopes below 1 shrink it every time.</li
+        ><li
+          >Read the strength that reaches the first layer. That is how fast the first layer can
+          learn.</li
+        ></ol
+      ></div
+    ><div><h3>What just happened</h3><p class="live" id="af-live" role="status"></p></div
+  ></div>
+  <div class="controls"
+    ><template data-label="Animation" data-control="group"
+      ><div class="row"
+        ><button class="btn go" id="af-play" type="button">Send the signal back</button
+        ><button class="btn" id="af-step" type="button">One layer</button
+        ><button class="btn" id="af-reset" type="button">Start over</button></div
+      ></template
+    >
+    <template data-label="The network" data-control="group"
+      ><template
+        data-value="12"
+        data-step="1"
+        data-max="24"
+        data-min="3"
+        data-label="Number of layers"
+        data-id="af-d"
+        data-control="slider"
+      ></template
+      ><template
+        data-value="1"
+        data-step="0.05"
+        data-max="2.5"
+        data-min="0.4"
+        data-label="Size of the weights (1 = standard)"
+        data-id="af-w"
+        data-control="slider"
+      ></template></template
+  ></div>
+  <dl class="read"
+    ><template data-label="Curve at the dot" data-key="f" data-control="readout"></template
+    ><template
+      data-class="hl2"
+      data-label="Slope at the dot"
+      data-key="s"
+      data-control="readout"
+    ></template
+    ><template
+      data-label="Largest slope this curve ever has"
+      data-key="mx"
+      data-control="readout"
+    ></template
+    ><template
+      data-class="hl"
+      data-label="Signal reaching the first layer"
+      data-key="g1"
+      data-control="readout"
+    ></template
+    ><template
+      data-label="Average change per layer"
+      data-key="pl"
+      data-control="readout"
+    ></template></dl
+></template>
+
+<template data-part="tryit"
+  >Choose Sigmoid with 12 layers and send the signal back. How much of it reaches the first layer?
+  Try tanh, then ReLU. Now make the network 24 layers deep and compare again. Finally, with Sigmoid,
+  raise the size of the weights to 2.5: does that rescue it? Look at where the dot spends its time
+  on the left picture to see why not.</template
+>
+
+<template data-part="math"
+  ><h4>The four curves</h4
+  >$$\sigma(z)=\frac{1}{1+e^{-z}},\qquad\tanh(z)=\frac{e^{z}-e^{-z}}{e^{z}+e^{-z}},\qquad\mathrm{ReLU}(z)=\max(0,z),\qquad\mathrm{LeakyReLU}(z)=\max(0.1z,\;z).$$<p
+    >Their slopes are</p
+  >$$\sigma'(z)=\sigma(z)\big(1-\sigma(z)\big)\le\tfrac14,\qquad\tanh'(z)=1-\tanh^2(z)\le1,\qquad\mathrm{ReLU}'(z)=\begin{cases}1&z>0\\0&z\le0\end{cases},\qquad\mathrm{LeakyReLU}'(z)=\begin{cases}1&z>0\\0.1&z\le0.\end{cases}$$
+  <h4>Why the slope matters</h4
+  ><p>Backpropagation gives the blame at layer \(l\) as</p>$$\boldsymbol\delta^{(l)}=\big(\mathbf
+  W^{(l+1)\top}\boldsymbol\delta^{(l+1)}\big)\odot\phi'\big(\mathbf z^{(l)}\big).$$<p
+    >Going back through \(k\) layers multiplies by \(k\) weight matrices and \(k\) sets of slopes.
+    With the sigmoid every slope is at most \(\tfrac14\), so unless the weights are large the signal
+    shrinks geometrically: this is the <b>vanishing gradient</b>. The first layers then learn
+    thousands of times more slowly than the last, and a deep sigmoid network barely trains. Making
+    the weights larger does not help, because large inputs push the sigmoid into its flat ends,
+    where the slope is nearly zero (<b>saturation</b>).</p
+  >
+  <h4>Why ReLU changed things</h4
+  ><p
+    >For positive inputs ReLU has slope exactly 1, so the signal passes through unchanged, and
+    nothing saturates on that side. About half the neurons are off for any given input, and those
+    pass nothing, but the paths that remain open carry the signal at full strength. With suitably
+    scaled weights the overall strength stays roughly constant however deep the network. ReLU is
+    also cheap to compute. Its weakness is the <b>dead neuron</b>: one whose input is negative for
+    every training example has slope 0 everywhere and never updates again. Leaky ReLU keeps a small
+    slope on the negative side so that such a neuron can recover.</p
+  >
+  <h4>Choosing one</h4
+  ><ul
+    ><li><b>Hidden layers:</b> ReLU or a close relative (Leaky ReLU, GELU, SiLU) by default.</li
+    ><li
+      ><b>tanh:</b> still used where outputs centred on zero matter, as in recurrent networks. It is
+      better than the sigmoid for hidden layers because its slope reaches 1 and its output averages
+      near zero.</li
+    ><li
+      ><b>Sigmoid:</b> for an output that must be a probability, and for gates. Avoid it in deep
+      hidden layers.</li
+    ><li
+      ><b>Output layer:</b> chosen by the task, not by the trainability of the network: sigmoid for
+      yes or no, softmax for one of many, none for a number.</li
+    ></ul
+  >
+  <h4>What this page computes</h4
+  ><p
+    >The right-hand picture is a real calculation: a stack of layers 40 neurons wide with random
+    weights of variance (size)²/40, fifty random inputs sent forward, and a random signal sent
+    backward by the formula above. Each bar is the root-mean-square size of the signal at that
+    layer. The Weight Initialization tab shows how the size of the weights should be chosen for each
+    activation.</p
+  ></template
+>
+
+<template data-part="question"
+  >With the sigmoid, the gradient shrinks by roughly a factor of four or more per layer. A colleague
+  suggests multiplying the learning rate of the early layers by a large number to compensate. What
+  is wrong with that?</template
+>
+
+<template data-part="answer"
+  >The factor differs from layer to layer, from weight to weight and from one moment in training to
+  the next, so no fixed multiplier is right for long. A gradient that has shrunk by a factor of a
+  million has also lost its information to rounding and noise. Fixing the cause works better: use an
+  activation whose slope is 1 over much of its range, initialise the weights to preserve the signal,
+  and add skip connections or normalisation in very deep networks.</template
+>

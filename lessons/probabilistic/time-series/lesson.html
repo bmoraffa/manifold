@@ -1,0 +1,232 @@
+<template data-part="lede"
+  >An ice-cream shop has eight years of monthly sales. Sales climb a little every year and swing up
+  every summer. Next month’s stock has to be ordered now. Forecasting from a series like this
+  differs from everything else in this course in one way: the order of the data is the information.
+  Four forecasters, from the laziest possible to a proper statistical model, are tested the only
+  honest way, by walking through history and predicting each month before it is revealed.</template
+>
+
+<template data-part="intro"
+  ><p
+    >A sailor forecasts the tide without any physics. Today's tide will be much like the one twelve
+    and a half hours ago, a little like yesterday's at the same hour, and shaped by where we are in
+    the month. A good forecast leans on the regular patterns in the past: the slow drift, the
+    repeating cycle, and the fact that things do not usually jump. What is left over after those is
+    noise, and no method can forecast noise. The skill is in telling which is which.</p
+  >
+</template>
+
+<template data-part="stage"
+  ><div class="row seg" id="ts-m" role="group" aria-label="Which forecaster to watch"
+    ><button class="btn" type="button" data-v="0">Last Value</button
+    ><button class="btn" type="button" data-v="1">Same Season Last Cycle</button
+    ><button class="btn" type="button" data-v="2">Holt-Winters Smoothing</button
+    ><button class="btn" type="button" data-v="3">Autoregression</button></div
+  >
+  <div class="stage"
+    ><figure class="fig"
+      ><figcaption
+        >The series. Dark: what has been revealed so far. Faint: still hidden. Gold dots: the
+        watched forecaster’s predictions, each made before that point was revealed. After the walk:
+        its forecast for the future, with a rough range</figcaption
+      ><canvas
+        class="short"
+        id="ts-c"
+        role="img"
+        aria-label="Time series, one-step forecasts and the final forecast"
+      ></canvas
+    ></figure>
+    <figure class="fig"
+      ><figcaption
+        >Top: how strongly each value resembles the value a given number of steps earlier. Bottom:
+        the average miss of each forecaster so far</figcaption
+      ><canvas
+        class="short"
+        id="ts-r"
+        role="img"
+        aria-label="Autocorrelation by lag and running error of four forecasting methods"
+      ></canvas></figure
+  ></div>
+  <figure class="fig" style="margin-top:18px"
+    ><figcaption>The watched forecaster’s calculation for this step</figcaption
+    ><div class="eq" id="ts-eq" aria-live="polite" style="min-height:8.5em;margin-top:6px"></div
+  ></figure>
+  <div class="howto"
+    ><div
+      ><h3>How it works, step by step</h3
+      ><ol id="ts-steps"
+        ><li>Hide everything after the first stretch of history.</li
+        ><li>Each forecaster predicts the next value, using only what has been revealed.</li
+        ><li>Reveal the true value. Record how far off each forecast was.</li
+        ><li>Let each forecaster learn from the new value, then move one step forward.</li
+        ><li
+          >Repeat to the end of the data. The forecaster with the smallest average miss has earned
+          the most trust.</li
+        ><li
+          >Now forecast the real future, as far ahead as needed. The further ahead, the wider the
+          range of what could happen.</li
+        ></ol
+      ></div
+    ><div><h3>What just happened</h3><p class="live" id="ts-live" role="status"></p></div
+  ></div>
+  <div class="controls"
+    ><template data-label="Animation" data-control="group"
+      ><div class="row"
+        ><button class="btn go" id="ts-play" type="button">Run</button
+        ><button class="btn" id="ts-step" type="button">One step</button
+        ><button class="btn" id="ts-reset" type="button">Start over</button></div
+      ></template
+    >
+    <template data-label="The forecasters" data-control="group"
+      ><template
+        data-value="12"
+        data-step="1"
+        data-max="24"
+        data-min="2"
+        data-label="Length of one cycle (12 for monthly data with a yearly pattern)"
+        data-id="ts-s"
+        data-control="slider"
+      ></template
+      ><template
+        data-value="0.3"
+        data-step="0.05"
+        data-max="1"
+        data-min="0.05"
+        data-label="Holt-Winters: weight on the newest value, α"
+        data-id="ts-a"
+        data-control="slider"
+      ></template
+      ><template
+        data-value="13"
+        data-step="1"
+        data-max="24"
+        data-min="1"
+        data-label="Autoregression: how many past values it uses, p"
+        data-id="ts-p"
+        data-control="slider"
+      ></template
+    ></template>
+    <template data-label="The data" data-control="group"
+      ><label class="ctl" for="ts-d"
+        ><span>Series</span
+        ><select id="ts-d"
+          ><option value="ice">Ice-cream sales: rising, with a yearly swing</option
+          ><option value="temp">Temperature: a yearly swing only</option
+          ><option value="walk">A share price: a random walk</option
+          ><option value="traffic">Website visits: a weekly rhythm (cycle of 7)</option></select
+        ></label
+      ><div class="row"
+        ><label class="btn file"
+          >Upload a CSV<input type="file" id="ts-file" accept=".csv,.txt,text/csv" /></label></div
+      ><p class="status" id="ts-st" role="status"></p></template
+  ></div>
+  <dl class="read"
+    ><template data-label="Points revealed" data-key="t" data-control="readout"></template
+    ><template
+      data-class="hl"
+      data-label="Forecast for the next point"
+      data-key="f"
+      data-control="readout"
+    ></template
+    ><template data-label="Average miss: Last Value" data-key="e0" data-control="readout"></template
+    ><template
+      data-label="Average miss: Same Season Last Cycle"
+      data-key="e1"
+      data-control="readout"
+    ></template
+    ><template
+      data-class="hl2"
+      data-label="Average miss: Holt-Winters"
+      data-key="e2"
+      data-control="readout"
+    ></template
+    ><template
+      data-class="hl3"
+      data-label="Average miss: Autoregression"
+      data-key="e3"
+      data-control="readout"
+    ></template></dl
+></template>
+
+<template data-part="tryit"
+  >Press Run on the ice-cream data and watch the four error lines. Which forecaster is worst, and
+  why is Last Value so bad on data with seasons? Look at the top-right bars: at which gap do values
+  most resemble each other? Switch the watched forecaster between the four during the walk. Now
+  choose the share price and run again. Which forecaster wins? What does that tell you about
+  predicting share prices from their own past? Choose the website visits and set the cycle length to
+  12, the wrong value: see what the seasonal methods do. Set it to 7. Finally type a number of steps
+  ahead in the box and read the forecast and its range.</template
+>
+
+<template data-part="math"
+  ><h4>What a series is made of</h4
+  ><p>A useful way to think of a series \(y_t\) is as a sum of three parts:</p
+  >$$y_t=\underbrace{T_t}_{\text{trend}}+\underbrace{S_t}_{\text{season}}+\underbrace{\varepsilon_t}_{\text{noise}},$$<p
+    >where the season repeats with period \(m\): \(S_t=S_{t-m}\). The <b>autocorrelation</b> at lag
+    \(k\) measures how alike \(y_t\) and \(y_{t-k}\) are, on a scale from \(-1\) to \(1\). The bars
+    at the top right show it for every lag. A peak at lag 12 says the series repeats every 12 steps.
+    Bars that fade slowly from lag 1 say the series drifts.</p
+  >
+  <h4>Two benchmarks</h4
+  ><p
+    ><b>Last value</b>: \(\hat y_{t+1}=y_t\). <b>Seasonal naive</b>: \(\hat y_{t+1}=y_{t+1-m}\), the
+    value one cycle ago. Neither has anything to learn. Any serious method must beat both, and
+    surprisingly often it does not. For a random walk, where each value is the last one plus pure
+    noise, the last value is the best possible forecast.</p
+  >
+  <h4>Holt-Winters exponential smoothing</h4
+  ><p
+    >Keep three running estimates: a level \(\ell\), a slope \(b\) and one seasonal offset \(s\) for
+    each position in the cycle. Each new value updates them by a weighted average of "what the new
+    value says" and "what I thought before":</p
+  >$$\ell_t=\alpha\,(y_t-s_{t-m})+(1-\alpha)(\ell_{t-1}+b_{t-1}),\quad
+  b_t=\beta\,(\ell_t-\ell_{t-1})+(1-\beta)\,b_{t-1},\quad
+  s_t=\gamma\,(y_t-\ell_t)+(1-\gamma)\,s_{t-m},$$$$\hat y_{t+h}=\ell_t+h\,b_t+s_{t+h-m}.$$<p
+    >With \(\alpha\) near 1 the level chases every wobble. Near 0 it barely moves. Old data is never
+    thrown away, only given exponentially less weight, which is where the name comes from (Holt,
+    1957; Winters, 1960).</p
+  >
+  <h4>Autoregression</h4
+  ><p>An AR(\(p\)) model predicts the next value as a weighted sum of the last \(p\):</p>$$\hat
+  y_{t+1}=c+\phi_1y_t+\phi_2y_{t-1}+\dots+\phi_py_{t-p+1}.$$<p
+    >The weights are found by least squares, exactly as in the Regression module, with the past
+    values as the features. If \(p\) reaches back a whole cycle, the model can learn the seasonal
+    pattern by itself, as a large weight near lag \(m\). ARIMA models extend this by first
+    differencing the series to remove trend and by adding terms for past forecast errors.</p
+  >
+  <h4>Testing honestly: walking forward</h4
+  ><p
+    >Shuffling the data into random training and test sets, as elsewhere in this course, would let
+    the model see the future. The honest test respects time: at each step fit on the past only,
+    forecast one step, then reveal it. The average absolute miss over the walk,</p
+  >$$\mathrm{MAE}=\frac1n\sum_t\big|y_t-\hat y_t\big|,$$<p>is what the bottom chart tracks.</p>
+  <h4>Forecasting further ahead</h4
+  ><p
+    >For \(h\) steps ahead, Holt-Winters extends its line and repeats its seasonal offsets, and the
+    autoregression feeds its own forecasts back in as if they were data. Errors accumulate, so the
+    range of plausible outcomes widens with \(h\). The range drawn on this page is a rough one: plus
+    or minus twice the method's typical one-step miss, multiplied by \(\sqrt h\). It is right for a
+    random walk and a cautious overestimate for strongly seasonal data.</p
+  >
+  <h4>What this page runs</h4
+  ><p
+    >The walk starts after the first 40% of the series, or after three full cycles if that is
+    longer. Holt-Winters uses your \(\alpha\) with \(\beta=0.05\) and \(\gamma=0.25\). The
+    autoregression is refitted at every step on everything revealed so far. An uploaded file should
+    have one number per line, or its first numeric column is used.</p
+  ></template
+>
+
+<template data-part="question"
+  >On the share-price series, the sophisticated autoregression does no better than simply repeating
+  the last value. Does that mean the autoregression is badly built?</template
+>
+
+<template data-part="answer"
+  >No. It means there is nothing in the past of that series for any method to exploit. In a random
+  walk each change is independent of everything before it, so the best forecast of the next value is
+  the current one, and every extra weight the autoregression estimates is fitting noise. It ends up
+  with a weight close to 1 on the last value and weights near 0 on the rest, which is the Last Value
+  forecaster with some added jitter. A benchmark that cannot be beaten is informative: it tells you
+  the series has no usable memory beyond its last value.</template
+>

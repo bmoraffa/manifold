@@ -1,0 +1,224 @@
+<template data-part="lede"
+  >A model that was expensive to train can be taught something new by continuing its training on new
+  examples. That is fine-tuning. Changing every weight works, but it produces a complete second copy
+  of the model for every new task. LoRA freezes the original weights and learns a small correction
+  beside them, built from two thin matrices. Here a network first learns one task, then is adapted
+  to a second in three different ways, and you can see what each way changes and what it
+  costs.</template
+>
+
+<template data-part="intro"
+  ><p
+    >A concert pianist is asked to play one piece in a new style. One option is to retrain from the
+    beginning, changing every habit: it works, it takes long, and the old style suffers. Another is
+    to keep the technique exactly as it is and clip a short page of adjustments to the score: "here
+    a little slower, there a little softer". The page is tiny compared with years of training.
+    Remove it and the old playing is back, untouched. Keep a different page for every style and
+    switch between them in a second. LoRA is that page of adjustments.</p
+  >
+</template>
+
+<template data-part="stage"
+  ><div class="row seg" id="lo-m" role="group" aria-label="How to adapt"
+    ><button class="btn" type="button" data-v="full">Full Fine-Tuning: Change Every Weight</button
+    ><button class="btn" type="button" data-v="lora"
+      >LoRA: Freeze, and Learn a Small Correction</button
+    ><button class="btn" type="button" data-v="last">Last Layer Only</button></div
+  >
+  <div class="stage"
+    ><figure class="fig"
+      ><figcaption
+        >The task being learned right now. Dots are the examples, in two classes. The shading is the
+        network’s current answer everywhere</figcaption
+      ><canvas
+        class="short"
+        id="lo-c"
+        role="img"
+        aria-label="Data for the current task and the network's decision regions"
+      ></canvas
+    ></figure>
+    <figure class="fig"
+      ><figcaption
+        >Top, from the left: the old task as the adapted network now sees it; the change made to the
+        middle weight matrix; how many independent directions that change uses. Bottom: accuracy on
+        both tasks</figcaption
+      ><canvas
+        class="short"
+        id="lo-r"
+        role="img"
+        aria-label="Old task, the weight change, its singular values and accuracy curves"
+      ></canvas></figure
+  ></div>
+  <div class="howto"
+    ><div
+      ><h3>How it works, step by step</h3
+      ><ol id="lo-steps"
+        ><li
+          >Pretrain: the network learns the old task from scratch. All 1,218 weights are trained.
+          Keep a copy of the result.</li
+        ><li>Switch to the new task. Decide which numbers are allowed to change.</li
+        ><li
+          >Full fine-tuning: every weight may change. LoRA: the weights are frozen and each weight
+          matrix W gets a correction A × B made of two thin matrices, and only those are trained.
+          Last layer: only the final layer changes.</li
+        ><li>Train on the new task until the accuracy stops improving.</li
+        ><li
+          >Compare: accuracy on the new task, what happened to the old task, and how many numbers
+          had to be stored.</li
+        ></ol
+      ></div
+    ><div><h3>What just happened</h3><p class="live" id="lo-live" role="status"></p></div
+  ></div>
+  <div class="controls"
+    ><template data-label="Animation" data-control="group"
+      ><div class="row"
+        ><button class="btn go" id="lo-play" type="button">Run</button
+        ><button class="btn" id="lo-step" type="button">One step</button
+        ><button class="btn" id="lo-reset" type="button">Start over</button></div
+      ><template data-unit="adaptation steps" data-id="lo" data-control="run-limit"></template
+    ></template>
+    <template data-label="LoRA" data-control="group"
+      ><template
+        data-value="2"
+        data-step="1"
+        data-max="8"
+        data-min="1"
+        data-label="Rank r: the width of the thin matrices"
+        data-id="lo-rank"
+        data-control="slider"
+      ></template
+    ></template>
+    <template data-label="The new task" data-control="group"
+      ><label class="ctl" for="lo-task"
+        ><span>What the network must learn next</span
+        ><select id="lo-task"
+          ><option value="spiral">The two arms of a spiral</option
+          ><option value="stripes">Diagonal stripes</option
+          ><option value="ring">A blob inside a ring</option></select
+        ></label
+      ></template
+    ></div
+  >
+  <dl class="read"
+    ><template data-label="Stage" data-key="ph" data-control="readout"></template
+    ><template data-label="Adaptation steps" data-key="st" data-control="readout"></template
+    ><template
+      data-class="hl2"
+      data-label="Numbers being trained"
+      data-key="tp"
+      data-control="readout"
+    ></template
+    ><template
+      data-class="hl"
+      data-label="Accuracy on the new task"
+      data-key="an"
+      data-control="readout"
+    ></template
+    ><template
+      data-label="Accuracy on the old task, after adapting"
+      data-key="ao"
+      data-control="readout"
+    ></template
+    ><template
+      data-label="Accuracy on the old task with the original weights put back"
+      data-key="au"
+      data-control="readout"
+    ></template
+    ><template
+      data-label="Share of the weight change in its two strongest directions"
+      data-key="sv"
+      data-control="readout"
+    ></template></dl
+></template>
+
+<template data-part="tryit"
+  >Let it pretrain, then watch Full Fine-Tuning learn the new task. Look at the third small picture:
+  the change to the weight matrix could use 32 independent directions. How many does it really use?
+  That observation is the whole idea behind LoRA. Now press LoRA with rank 2. How does its accuracy
+  compare with full fine-tuning, and how many numbers did it train? Then press Last Layer Only: why
+  is it so much worse on the spiral? Switch the new task to Diagonal Stripes and try LoRA at rank 1,
+  2, 4 and 8: on this task the rank matters more. Switch to A Blob Inside a Ring: here even the last
+  layer alone copes. What does that tell you about the three tasks? Finally look at the old-task
+  accuracy for each method. All of them forget. Which of them can get the old skill back exactly,
+  and at what cost?</template
+>
+
+<template data-part="math"
+  ><h4>Full fine-tuning</h4
+  ><p
+    >Start from the pretrained weights \(\theta_0\) and continue gradient descent on the loss of the
+    new task. Every weight moves: \(\theta=\theta_0+\Delta\theta\). The result is as large as the
+    original model, so serving ten tasks means storing ten full models. And since nothing holds the
+    weights near \(\theta_0\), the old task is usually damaged, which is called catastrophic
+    forgetting.</p
+  >
+  <h4>The observation behind LoRA</h4
+  ><p
+    >Look at the change \(\Delta W=W-W_0\) that full fine-tuning makes to one weight matrix. A
+    \(32\times32\) matrix can change in 32 independent directions. Its singular values say how much
+    of the change lies along each. In practice a few are large and the rest are small: the change
+    has low <b>rank</b>. The third small picture shows this for the network on this page. If the
+    change is nearly rank 2, there is no need to train 1,024 numbers to describe it.</p
+  >
+  <h4>LoRA</h4
+  ><p>Hu and others (2021) freeze \(W_0\) and write the change as a product of two thin matrices:</p
+  >$$W=W_0+\Delta W,\qquad \Delta W=A\,B,\qquad A\in\mathbb R^{d_{\text{in}}\times r},\quad
+  B\in\mathbb R^{r\times d_{\text{out}}} .$$<p
+    >Only \(A\) and \(B\) are trained. \(B\) starts at zero, so at the first step \(\Delta W=0\) and
+    the network is exactly the pretrained one. The product \(AB\) can never have rank above \(r\),
+    which is the restriction, and it has</p
+  >$$r\,(d_{\text{in}}+d_{\text{out}})\quad\text{numbers in place of}\quad d_{\text{in}}\times
+  d_{\text{out}} .$$<p
+    >For the \(32\times32\) matrix here and \(r=2\), that is 128 in place of 1,024. In a large
+    language model \(d\) is in the thousands and \(r\) is typically 4 to 64, so the trained part is
+    often well under one percent of the model.</p
+  >
+  <h4>What you gain</h4
+  ><p
+    ><b>Size</b>: an adapter is megabytes where the model is gigabytes. <b>Swapping</b>: one copy of
+    the base model can serve many tasks, each with its own adapter. <b>Reversibility</b>: remove
+    \(AB\) and the original model is back, bit for bit, which is why the old-task accuracy "with the
+    original weights put back" is the same for every method on this page but only LoRA and Last
+    Layer keep those weights around for free. <b>No extra cost when running</b>: \(W_0+AB\) can be
+    added up once and used as an ordinary matrix.</p
+  >
+  <h4>What you give up</h4
+  ><p
+    >If the new task needs a change of higher rank than \(r\), LoRA cannot express it, and accuracy
+    falls short of full fine-tuning. Raising \(r\) closes the gap and costs more. How much rank is
+    needed depends on the task. On the spiral a rank of 1 is usually enough here. On the diagonal
+    stripes rank 1 typically ends clearly below full fine-tuning, and rank 4 catches up. LoRA also
+    still forgets the old task while the adapter is attached, as the readout shows. It does not
+    prevent forgetting. It makes forgetting undoable.</p
+  >
+  <h4>Training only the last layer</h4
+  ><p
+    >The cheapest option keeps every layer but the last frozen. It works when the features computed
+    by the earlier layers are already the right ones for the new task, which is the situation in the
+    Transfer Learning tab. The spiral and the stripes need different features, so retraining only
+    the final layer falls well short on them. The blob inside a ring is simple enough that the old
+    features will do. LoRA is the middle road: every layer can adjust, each only a little.</p
+  >
+  <h4>What this page trains</h4
+  ><p
+    >A network with 2 inputs, two hidden layers of 32 neurons and 2 outputs, 1,218 weights in all.
+    The old task is to tell two interleaved moons apart. There are three new tasks to choose from.
+    With LoRA, each of the three weight matrices gets its own \(A\) and \(B\) and the biases stay
+    frozen, for \(132\,r\) trained numbers. Adaptation stops when the accuracy on the new task has
+    not improved for 200 steps, or after 1,200 steps.</p
+  ></template
+>
+
+<template data-part="question"
+  >With LoRA at rank 2 the adapted network scores well on the new task and poorly on the old one,
+  exactly like full fine-tuning. So in what sense is LoRA “safer” for the old task?</template
+>
+
+<template data-part="answer"
+  >While the adapter is attached, the network computes with W₀ + AB, and that sum has been pulled
+  toward the new task just as fully fine-tuned weights would be, so the old task suffers. The
+  difference is in what is stored. With LoRA the original W₀ was never altered: detach A and B and
+  the old network is back exactly, with its old accuracy. With full fine-tuning the original weights
+  have been overwritten, and the only way back is to have kept a complete second copy of the model.
+  LoRA does not stop forgetting. It keeps the forgotten skill one subtraction away.</template
+>

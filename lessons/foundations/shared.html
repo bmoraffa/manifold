@@ -1,0 +1,39 @@
+<div class="row seg" data-id-suffix="-dim" role="group" aria-label="How to draw the loss"
+  ><template data-slot="dimensions"></template
+></div>
+<div class="stage" style="margin-top:12px"
+  ><figure class="fig"
+    ><figcaption data-id-suffix="-fc">The loss</figcaption
+    ><canvas
+      class="sq"
+      data-id-suffix="-c"
+      style="cursor:crosshair;touch-action:none"
+      role="img"
+      aria-label="The loss with optimiser paths"
+    ></canvas
+  ></figure>
+  <figure class="fig"
+    ><figcaption><template data-slot="loss-caption"></template></figcaption
+    ><canvas class="short" data-id-suffix="-l" role="img" aria-label="Loss against step"></canvas
+    ><p
+      class="status"
+      data-id-suffix="-note"
+      role="status"
+      style="color:var(--ink);margin-top:8px"
+    ></p></figure
+></div>
+<div class="controls"
+  ><fieldset class="grp"
+    ><legend>Animation</legend
+    ><div class="row"
+      ><button class="btn go" data-id-suffix="-play" type="button">Run</button
+      ><button class="btn" data-id-suffix="-step" type="button">One step</button
+      ><button class="btn" data-id-suffix="-again" type="button">New start</button></div
+    ><template data-control="run-limit" data-lesson-id data-unit="steps"></template></fieldset
+  ><template data-slot="controls"></template
+></div>
+<dl class="read"
+  ><div><dt>Steps taken</dt><dd data-r="k">–</dd></div
+  ><template data-slot="readouts"></template
+  ><div><dt>Lowest possible loss</dt><dd data-r="lo">–</dd></div></dl
+>

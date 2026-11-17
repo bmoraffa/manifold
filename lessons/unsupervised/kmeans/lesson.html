@@ -1,0 +1,224 @@
+<template data-part="lede"
+  >Give the computer a cloud of points and a number K, and it finds K groups with no labels to learn
+  from. The whole algorithm is two steps repeated. Where it starts decides where it ends, which is
+  why the starting rule called k-means++ matters so much.</template
+>
+
+<template data-part="intro"
+  ><p
+    >Imagine a city that wants to open K post offices so that people walk as little as possible. If
+    the offices were already built, each household would simply use its nearest one. If the
+    households were already split into K districts, the best place for each office would be the
+    centre of its district. k-means does not know either answer, so it guesses the offices and then
+    alternates: send everyone to the nearest office, move each office to the middle of the people it
+    serves, and again. Each of the two moves can only shorten the total walk, so the process must
+    settle. What it settles on depends on the first guess.</p
+  >
+</template>
+
+<template data-part="stage"
+  ><div class="stage"
+    ><figure class="fig"
+      ><figcaption
+        >The points, the centres (squares) and each centre’s territory. The lines trace where each
+        centre has been. Drag a centre to move it</figcaption
+      ><canvas
+        class="short"
+        id="km-c"
+        role="img"
+        aria-label="Points coloured by cluster with the cluster centres"
+      ></canvas
+    ></figure>
+    <figure class="fig"
+      ><figcaption
+        >Top: this run, step by step. Middle: 150 runs from each kind of start. Bottom: the best
+        result for each K</figcaption
+      ><canvas
+        class="sq"
+        id="km-r"
+        role="img"
+        aria-label="Sum of squares by step, a comparison of random and k-means++ starts, and the elbow curve"
+      ></canvas></figure
+  ></div>
+  <figure class="fig" style="margin-top:20px"
+    ><figcaption>Where every centroid is after each round, and how far it moved</figcaption
+    ><div class="ctab" id="km-tab"></div
+  ></figure>
+  <div class="howto"
+    ><div
+      ><h3>How it works, step by step</h3
+      ><ol id="km-steps"
+        ><li>Choose K. Place K starting centres: all at random, or one at a time with k-means++.</li
+        ><li>Assign: colour every point by its nearest centre.</li
+        ><li>Move: shift each centre to the average of the points that carry its colour.</li
+        ><li>Repeat steps 2 and 3 until no point changes colour.</li></ol
+      ></div
+    ><div><h3>What just happened</h3><p class="live" id="km-live" role="status"></p></div
+  ></div>
+  <div class="controls"
+    ><template data-label="Animation" data-control="group"
+      ><div class="row"
+        ><button class="btn go" id="km-play" type="button">Run</button
+        ><button class="btn" id="km-step" type="button">One step</button
+        ><button class="btn" id="km-reset" type="button">Start over</button></div
+      ><template data-unit="rounds" data-id="km" data-control="run-limit"></template
+    ></template>
+    <template data-label="The model" data-control="group"
+      ><template
+        data-value="5"
+        data-step="1"
+        data-max="9"
+        data-min="1"
+        data-label="Number of clusters K"
+        data-id="km-K"
+        data-control="slider"
+      ></template
+      ><div class="row seg" id="km-init" role="group" aria-label="Starting rule"
+        ><button class="btn" type="button" data-v="rand">Random Start</button
+        ><button class="btn" type="button" data-v="pp">k-means++ Start</button
+        ><button class="btn" type="button" data-v="own">Your Own Start</button></div
+      ></template
+    >
+    <template data-label="The data" data-control="group"
+      ><label class="ctl" for="km-ds"
+        ><span>Data set</span
+        ><select id="km-ds"
+          ><option value="five" selected>Five groups</option
+          ><option value="shop">Shop customers (simulated)</option
+          ><option value="blobs">Three round groups</option
+          ><option value="uneven">Groups of unequal size</option
+          ><option value="long">Three stretched groups</option
+          ><option value="moons">Two moons</option
+          ><option value="none">No groups at all</option></select
+        ></label
+      ><template
+        data-value="250"
+        data-step="1"
+        data-max="600"
+        data-min="30"
+        data-label="Number of points"
+        data-id="km-n"
+        data-control="slider"
+      ></template
+      ><div class="row"
+        ><button class="btn" id="km-new" type="button">New random sample</button
+        ><label class="btn file"
+          >Upload a CSV<input type="file" id="km-file" accept=".csv,.txt,text/csv" /></label></div
+      ><p class="status" id="km-st" role="status"></p></template
+  ></div>
+  <dl class="read"
+    ><template data-label="Rounds so far" data-key="ph" data-control="readout"></template
+    ><template
+      data-class="hl"
+      data-label="Sum of squared distances"
+      data-key="J"
+      data-control="readout"
+    ></template
+    ><template data-label="Best known for this K" data-key="best" data-control="readout"></template
+    ><template
+      data-class="hl2"
+      data-label="Random start: runs that reach the best"
+      data-key="ra"
+      data-control="readout"
+    ></template
+    ><template
+      data-class="hl3"
+      data-label="k-means++: runs that reach the best"
+      data-key="rp"
+      data-control="readout"
+    ></template
+    ><template
+      data-label="Rounds needed, random / k-means++"
+      data-key="ia"
+      data-control="readout"
+    ></template></dl
+></template>
+
+<template data-part="tryit"
+  >Read the table under the pictures as you step: each row is one round, and the moves shrink toward
+  zero. Choose Your Own Start and click all the centres into one group: can the algorithm recover?
+  With Five Groups and Random Start, press Start over a few times and step through. How often do two
+  centres begin in the same group, and can they ever leave it? Switch to k-means++ and step through
+  the seeding: watch which dots grow before each pick. Then compare the two rows of bars in the
+  middle picture. Finally choose Two Moons with K = 2: no starting rule can rescue that one.
+  Why?</template
+>
+
+<template data-part="math"
+  ><h4>What it minimises</h4
+  ><p
+    >Let \(\mu_1,\dots,\mu_K\) be the centres and \(c(i)\) the cluster of point \(x_i\). k-means
+    minimises the within-cluster sum of squares (also called inertia or distortion):</p
+  >$$J=\sum_{i=1}^{n}\lVert x_i-\mu_{c(i)}\rVert^2 .$$
+  <p
+    ><b>Assign</b> holds the centres fixed and picks the best \(c(i)\) for each point:
+    \(c(i)=\arg\min_k\lVert x_i-\mu_k\rVert^2\). <b>Move</b> holds the assignments fixed and picks
+    the best centres. Setting \(\partial J/\partial\mu_k=0\) gives</p
+  >$$\mu_k=\frac{1}{n_k}\sum_{i:\,c(i)=k}x_i ,$$<p
+    >the plain average, which is where the name comes from. Neither step can raise \(J\), and there
+    are only finitely many ways to split \(n\) points into \(K\) groups, so the algorithm stops
+    after a finite number of rounds. The top-right picture shows \(J\) falling at every step.</p
+  >
+  <h4>Why the start matters</h4
+  ><p
+    >\(J\) is not convex. It has many local minima, and the two steps only ever go downhill, so
+    k-means lands in whichever valley the start belongs to. The classic failure: two starting
+    centres fall inside one true group and none in another. The two centres split their group
+    between them, a single centre elsewhere is left covering two groups, and no assign or move step
+    can carry a centre across the gap, because every step is locally an improvement.</p
+  >
+  <h4>k-means++</h4><p>k-means++ changes only how the K starting centres are chosen:</p
+  ><ol
+    ><li>Pick the first centre uniformly at random from the data points.</li
+    ><li
+      >For every point compute \(D(x)^2\), its squared distance to the nearest centre chosen so
+      far.</li
+    ><li
+      >Pick the next centre from the data points with probability
+      \(\dfrac{D(x)^2}{\sum_{x'}D(x')^2}\).</li
+    ><li>Repeat steps 2 and 3 until there are K centres, then run ordinary k-means.</li></ol
+  >
+  <p
+    >A point sitting next to an existing centre has \(D^2\approx 0\) and is almost never picked. A
+    whole group with no centre yet holds most of the total \(D^2\), so the next centre very probably
+    lands there. The choice is random rather than "always the farthest point" on purpose: the
+    farthest point is often an outlier, while sampling in proportion to \(D^2\) favours far regions
+    that contain many points.</p
+  >
+  <p
+    >Arthur and Vassilvitskii (2007) proved that this start alone, before any assign or move step,
+    already gives \(\mathbb{E}[J]\le 8(\ln K+2)\,J_{\text{opt}}\). Random starts carry no such
+    guarantee and can be arbitrarily bad. The cost is K passes over the data, repaid by fewer rounds
+    afterwards. In practice both are also restarted several times and the run with the lowest \(J\)
+    is kept.</p
+  >
+  <h4>Choosing K</h4
+  ><p
+    >\(J\) always falls when K grows, reaching zero at \(K=n\), so the lowest \(J\) cannot choose K.
+    The usual tools are the <b>elbow</b>, the K after which the curve in the bottom picture
+    flattens, and the <b>silhouette</b>, which compares each point's distance to its own cluster
+    with its distance to the next nearest one. Neither is a proof. With the No Groups data set the
+    elbow curve is smooth, which is the honest answer.</p
+  >
+  <h4>What it assumes</h4
+  ><p
+    >Because \(J\) uses plain squared distance, k-means prefers round groups of similar size and
+    spread. It cuts long thin groups across the middle, splits a large group to tidy up two small
+    ones, and cannot follow curved shapes at all. Rescaling one column changes the answer, so
+    standardise features first. Gaussian mixtures relax the "round and equal" assumption, and DBSCAN
+    drops the idea of a centre altogether.</p
+  ></template
+>
+
+<template data-part="question"
+  >k-means++ picks centres far from the existing ones. Why not simply always pick the single
+  farthest point?</template
+>
+
+<template data-part="answer"
+  >The farthest point from the current centres is very often an outlier: one stray point at the edge
+  of the data. A centre placed on it is wasted. Sampling with probability proportional to squared
+  distance means a far region with two hundred points is two hundred times more likely to receive
+  the centre than one lonely point at the same distance. It is also what makes the proof of the 8(ln
+  K + 2) guarantee work.</template
+>

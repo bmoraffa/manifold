@@ -21,27 +21,7 @@ the same idea. Favor clarity for learners and maintainers over architectural nov
 
 ## Architecture status
 
-Distinguish the current implementation from the architectural direction below. Inspect the
-checkout before assuming a proposed module, directory, or command exists, and keep this
-guidance accurate as the architecture evolves.
-
-### Current implementation
-
-- `index.html` loads classic scripts in a specific order.
-- `js/core.js` owns shared drawing, controls, animation, and mathematical helpers.
-- Topic files such as `js/gaussian.js` and `js/classification.js` contain lesson arrays,
-  HTML strings, simulations, and some topic-level helpers.
-- `js/extra-lessons.js` appends lessons to topics and changes their final ordering.
-- `js/app.js` owns the topic catalog, home animation, page rendering, menu, and hash routing.
-- `js/about.js` contains the four About pages and citation behavior.
-- `css/style.css` owns the existing visual identity and both themes.
-- Tests currently use `tests/helpers/load-site.mjs` to load classic scripts into a Node VM.
-  `eslint.config.mjs` records ownership of cross-script globals.
-
-Until a caller has migrated, preserve its script-order dependencies and existing helper
-interface. Do not remove a classic source file merely because a replacement exists.
-
-### Approved target
+Manifold now uses native ES modules and separately authored lesson HTML.
 
 ```text
 index.html                         SPA shell and native-module entry
@@ -71,9 +51,7 @@ must not import or initialize all simulations. Use `new URL(relativePath, import
 for assets. GitHub Pages serves this project beneath `/manifold/`; origin-root paths and
 fetch destinations constructed from arbitrary hash values are incorrect.
 
-The proposed local preview uses a static HTTP server because modules and HTML loading require
-HTTP. This is a development command, not a build or deployment service. Direct `file://`
-opening works in the current implementation but is not a target requirement.
+Run `npm run dev` to serve the application locally under `/manifold/`.
 
 ## Lesson and shell responsibilities
 

@@ -1,0 +1,81 @@
+<template data-part="lede"
+  >Almost every later topic leans on one of the pictures you just played with.</template
+>
+
+<template data-part="stage"
+  ><dl class="links">
+    <div
+      ><dt><small>Regression</small>Noise around a line</dt
+      ><dd
+        >Least squares is maximum likelihood when the errors are Gaussian. The slice picture, a mean
+        that moves in a straight line, is linear regression. Ridge regression is its MAP
+        version.</dd
+      ></div
+    >
+    <div
+      ><dt><small>Classification</small>One hill per class</dt
+      ><dd
+        >Fit a Gaussian to each class and compare heights. Equal covariances give a straight
+        boundary (LDA), different ones a curved boundary (QDA).</dd
+      ></div
+    >
+    <div
+      ><dt><small>Unsupervised learning</small>Several hills at once</dt
+      ><dd
+        >A mixture of Gaussians fixes the two-clumps failure. PCA is the long and short axes of the
+        covariance ellipse.</dd
+      ></div
+    >
+    <div
+      ><dt><small>Regression</small>Gaussian processes</dt
+      ><dd
+        >Slicing a Gaussian in many dimensions gives a prediction with an uncertainty band. It is
+        the conditional formula, used on functions.</dd
+      ></div
+    >
+    <div
+      ><dt><small>Neural networks</small>Starting weights</dt
+      ><dd
+        >Weights are usually drawn from a Gaussian. Its spread decides whether signals die out or
+        blow up as they pass through layers.</dd
+      ></div
+    >
+    <div
+      ><dt><small>Generative AI</small>VAEs and diffusion</dt
+      ><dd
+        >A VAE squeezes data toward an isotropic Gaussian. Diffusion adds Gaussian noise step by
+        step until only an isotropic Gaussian is left, then learns to walk back.</dd
+      ></div
+    >
+  </dl></template
+>
+
+<template data-part="tryit"
+  >Go back to “Marginals and conditionals” and set ρ to 0.9. The centre of the slice traces a line
+  as the cut slides. That line is the regression line.</template
+>
+
+<template data-part="math"
+  ><h4>Three facts worth remembering</h4
+  ><p
+    ><b>Sums stay Gaussian.</b> Adding independent Gaussians gives a Gaussian, and adding almost
+    anything else tends toward one (Galton board, central limit theorem).</p
+  ><p
+    ><b>Slices and shadows stay Gaussian.</b> Conditioning and marginalising never leave the family,
+    so inference can be done with matrix algebra instead of integrals.</p
+  ><p
+    ><b>Two objects describe everything.</b> A mean vector and a covariance matrix, both of which
+    can be estimated in closed form:</p
+  >$$\mathbf x\sim N(\boldsymbol\mu,\Sigma)\quad\Longrightarrow\quad A\mathbf x+\mathbf b\sim
+  N\big(A\boldsymbol\mu+\mathbf b,\ A\Sigma A^{\top}\big).$$<p
+    >That last line, a Gaussian pushed through a linear map stays Gaussian, is the single most used
+    identity in the topics that follow.</p
+  ></template
+>
+
+<template data-part="question">Which lesson showed the formula behind linear regression?</template>
+
+<template data-part="answer"
+  >Marginals and conditionals. The mean of y given x₀ is μᵧ + ρ (σᵧ/σₓ)(x₀ − μₓ), a straight line in
+  x₀ with slope ρ σᵧ/σₓ.</template
+>

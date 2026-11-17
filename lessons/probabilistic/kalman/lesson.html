@@ -1,0 +1,236 @@
+<template data-part="lede"
+  >A delivery drone flies along a street. Its GPS reports a position every second, and every report
+  is off by a few metres. Plotting the raw reports gives a jagged, jumping line. But the drone
+  cannot jump: it has a speed, and where it will be in a second is predictable. The Kalman filter
+  blends the two sources, the prediction from physics and the noisy reading, weighting each by how
+  much it can be trusted at that moment. It is the reason your phone’s blue dot moves smoothly, and
+  it flew to the Moon.</template
+>
+
+<template data-part="intro"
+  ><p
+    >You are a passenger on a train at night, trying to guess where you are. You know the train's
+    speed, so you can keep a running estimate: "ten minutes at this speed, so about twelve
+    kilometres from the last station". Your estimate drifts, because the speed varies a little. Now
+    and then a station sign flashes past, half-read. If your running estimate is fresh and the sign
+    was a blur, you mostly trust the estimate. If you have been guessing for an hour and the sign
+    was clear, you mostly trust the sign. Either way you end up more certain than either source
+    alone would make you. The Kalman filter is this weighing done optimally, every second.</p
+  >
+</template>
+
+<template data-part="stage"
+  ><div class="stage"
+    ><figure class="fig"
+      ><figcaption
+        >Position along the street over time. Thin line: where the drone really is. Dots: what the
+        GPS reports. Bold line: the filter’s estimate, with a band two standard deviations
+        wide</figcaption
+      ><canvas
+        class="short"
+        id="kf-c"
+        role="img"
+        aria-label="True position, noisy measurements and the filtered estimate with its uncertainty"
+      ></canvas
+    ></figure>
+    <figure class="fig"
+      ><figcaption
+        >Top: this second’s three bell curves over position: the prediction (dashed), the GPS
+        reading, and their blend. Bottom: how much weight the filter gives a new reading, second by
+        second</figcaption
+      ><canvas
+        class="short"
+        id="kf-r"
+        role="img"
+        aria-label="Prediction, measurement and posterior distributions, and the Kalman gain over time"
+      ></canvas></figure
+  ></div>
+  <figure class="fig" style="margin-top:18px"
+    ><figcaption>This second’s calculation</figcaption
+    ><div class="eq" id="kf-eq" aria-live="polite" style="min-height:10em;margin-top:6px"></div
+  ></figure>
+  <div class="howto"
+    ><div
+      ><h3>How it works, step by step</h3
+      ><ol id="kf-steps"
+        ><li
+          >Keep two things: a best estimate of position and speed, and a measure of how unsure you
+          are about each.</li
+        ><li
+          >Predict: move the position forward by one second of travel at the estimated speed. Become
+          a little less sure, because the speed may have changed.</li
+        ><li
+          >A GPS reading arrives. Compare it with the prediction: the difference is the
+          surprise.</li
+        ><li
+          >Work out the gain: the share of the surprise to believe. It is large when the prediction
+          is shaky and the sensor is good, and small the other way round.</li
+        ><li>Update: shift the estimate by gain × surprise, and become more sure.</li
+        ><li
+          >Repeat every second. With no reading, only predict, and watch the uncertainty grow.</li
+        ></ol
+      ></div
+    ><div><h3>What just happened</h3><p class="live" id="kf-live" role="status"></p></div
+  ></div>
+  <div class="controls"
+    ><template data-label="Animation" data-control="group"
+      ><div class="row"
+        ><button class="btn go" id="kf-play" type="button">Run</button
+        ><button class="btn" id="kf-step" type="button">One second</button
+        ><button class="btn" id="kf-reset" type="button">Start over</button></div
+      ></template
+    >
+    <template data-label="How much to trust each source" data-control="group"
+      ><template
+        data-value="4"
+        data-step="0.5"
+        data-max="12"
+        data-min="0.5"
+        data-label="GPS error, in metres"
+        data-id="kf-r2"
+        data-control="slider"
+      ></template
+      ><template
+        data-value="0.15"
+        data-step="0.01"
+        data-max="2"
+        data-min="0.01"
+        data-label="How much the drone’s speed is assumed to change"
+        data-id="kf-q"
+        data-control="slider"
+      ></template
+    ></template>
+    <template data-label="Make trouble" data-control="group"
+      ><div class="row"
+        ><button class="btn" id="kf-drop" type="button">Lose the Signal for 12 Seconds</button
+        ><button class="btn" id="kf-out" type="button">One Wild Reading</button
+        ><button class="btn" id="kf-new" type="button">A New Flight</button></div
+      ></template
+    ></div
+  >
+  <dl class="read"
+    ><template data-label="Second" data-key="t" data-control="readout"></template
+    ><template
+      data-class="hl2"
+      data-label="Gain: share of the surprise believed"
+      data-key="k"
+      data-control="readout"
+    ></template
+    ><template
+      data-label="Uncertainty in position, ± metres"
+      data-key="sg"
+      data-control="readout"
+    ></template
+    ><template
+      data-label="Estimated speed / true speed, m/s"
+      data-key="v"
+      data-control="readout"
+    ></template
+    ><template
+      data-class="hl3"
+      data-label="Typical error of the raw GPS"
+      data-key="er"
+      data-control="readout"
+    ></template
+    ><template
+      data-class="hl"
+      data-label="Typical error of the filter, on the seconds with a reading"
+      data-key="ef"
+      data-control="readout"
+    ></template></dl
+></template>
+
+<template data-part="tryit"
+  >Press One second a few times and read the calculation: predict, compare, weigh, update. Notice
+  the gain: it starts near 1, when the filter knows nothing, and settles to a steady value. Press
+  Run and compare the two error readouts. Then press Lose the Signal: the estimate coasts on at the
+  last known speed and the band widens. What happens to the gain on the first reading after the
+  signal returns? Press One Wild Reading and see how far the estimate is pulled. Now raise the GPS
+  error slider to 12 and start over: the filter leans on its prediction. Set the second slider to
+  its maximum: the filter believes the drone may change speed wildly, and follows every
+  reading.</template
+>
+
+<template data-part="math"
+  ><h4>The model</h4
+  ><p
+    >The hidden state is position and speed, \(\mathbf x_t=(p_t,v_t)\). It moves by simple physics
+    plus a random disturbance, and the sensor reports the position plus noise:</p
+  >$$\mathbf x_t=F\,\mathbf x_{t-1}+\mathbf w_t,\quad \mathbf w_t\sim\mathcal N(\mathbf 0,Q),\qquad
+  y_t=H\,\mathbf x_t+e_t,\quad e_t\sim\mathcal N(0,R),$$$$F=\begin{pmatrix}1&\Delta
+  t\\0&1\end{pmatrix},\qquad H=\begin{pmatrix}1&0\end{pmatrix}.$$<p
+    >This has the same shape as a hidden Markov model: a hidden state that evolves, and observations
+    that depend on it. The difference is that the state is continuous and everything is Gaussian.
+    Because Gaussians stay Gaussian under these operations, the belief is fully described by a mean
+    \(\hat{\mathbf x}\) and a covariance \(P\).</p
+  >
+  <h4>Predict</h4>$$\hat{\mathbf x}^-_t=F\,\hat{\mathbf x}_{t-1},\qquad P^-_t=F\,P_{t-1}F^{\top}+Q
+  .$$<p
+    >The estimate moves forward by one step of physics. The uncertainty grows: \(Q\) is how much the
+    world may have changed that we could not foresee.</p
+  >
+  <h4>Update</h4
+  ><p
+    >The reading \(y_t\) differs from what was predicted by the <b>innovation</b>, or surprise,
+    \(y_t-H\hat{\mathbf x}^-_t\). The <b>Kalman gain</b> decides how much of it to believe:</p
+  >$$K_t=P^-_tH^{\top}\big(HP^-_tH^{\top}+R\big)^{-1},\qquad \hat{\mathbf x}_t=\hat{\mathbf
+  x}^-_t+K_t\,\big(y_t-H\hat{\mathbf x}^-_t\big),\qquad P_t=(I-K_tH)\,P^-_t .$$<p
+    >For the position alone the gain is a single number,</p
+  >$$K=\frac{\sigma^2_{\text{prediction}}}{\sigma^2_{\text{prediction}}+\sigma^2_{\text{sensor}}},$$<p
+    >the share of the total uncertainty that belongs to the prediction. If the prediction is poor,
+    \(K\) is near 1 and the estimate jumps to the reading. If the sensor is poor, \(K\) is near 0
+    and the reading is nearly ignored. The top-right picture shows the same thing as curves:
+    multiplying the prediction bell by the reading bell gives a narrower bell between them, nearer
+    to the narrower of the two. This is Bayes' rule with a Gaussian prior and a Gaussian likelihood
+    (Kalman, 1960).</p
+  >
+  <h4>How it learns the speed without measuring it</h4
+  ><p
+    >The GPS reports position only. Yet \(P\) records that errors in position and in speed go
+    together: if the drone is further along than predicted, it was probably flying faster than
+    estimated. The gain has a second component that corrects the speed in proportion to the position
+    surprise. After a few seconds the filter knows the speed quite well.</p
+  >
+  <h4>When the signal drops</h4
+  ><p
+    >With no reading there is nothing to update, so only the predict step runs. The estimate coasts
+    in a straight line and \(P\) grows every second, which the widening band shows. When readings
+    return, the prediction is very uncertain, so the gain is high and the estimate snaps back.</p
+  >
+  <h4>The two settings are beliefs, not facts</h4
+  ><p
+    >\(R\) and \(Q\) say how much the filter trusts the sensor and the physics. Set \(R\) too low
+    and it chases every jitter. Set \(Q\) too low and it is over-confident in its straight line and
+    lags behind real turns. A single wild reading pulls the estimate by \(K\) times the error,
+    because a Gaussian model has no notion of an outlier: practical systems reject readings whose
+    surprise is implausibly large.</p
+  >
+  <h4>Beyond straight lines</h4
+  ><p
+    >When the physics or the sensor is not linear, the extended and unscented Kalman filters apply
+    the same two steps to a local approximation. When the belief is not bell-shaped at all, particle
+    filters carry a cloud of samples in place of a mean and covariance.</p
+  >
+  <h4>What this page runs</h4
+  ><p
+    >An 80-second flight with a speed that wanders slowly. The GPS error slider sets both the real
+    noise in the readings and the filter's \(R\). The second slider sets the filter's \(Q\) only.
+    The two "typical error" readouts are root-mean-square distances from the true position, over the
+    seconds on which a reading arrived.</p
+  ></template
+>
+
+<template data-part="question"
+  >After the signal has been lost for 12 seconds, the first reading that arrives moves the estimate
+  almost all the way to the reading. Ten seconds later, a reading that is just as far from the
+  estimate moves it only a little. The sensor has not changed. What has?</template
+>
+
+<template data-part="answer"
+  >The filter’s confidence in its own prediction. During the outage only the predict step ran, and
+  every second added uncertainty, so by the time the signal returned the prediction was far less
+  trustworthy than the sensor. The gain is the prediction’s share of the total uncertainty, so it
+  was close to 1 and the reading was believed almost entirely. Each reading after that shrank the
+  uncertainty again, the gain fell back to its steady value, and a surprise of the same size was
+  mostly attributed to sensor noise.</template
+>

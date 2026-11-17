@@ -1,0 +1,212 @@
+<template data-part="lede"
+  >UMAP has the same aim as t-SNE: a flat map on which neighbours stay neighbours. It gets there by
+  a different route. First it joins every point to its nearest neighbours to make a graph. Then it
+  lays that graph out on the page with springs: joined points pull together, and random pairs push
+  apart.</template
+>
+
+<template data-part="intro"
+  ><p
+    >Think of a class of students and who is friends with whom. You can draw that as a network: a
+    line between every pair of friends. To make the drawing readable you would put friends near each
+    other and keep people who are not friends from landing on top of one another. UMAP (uniform
+    manifold approximation and projection) does this with data. The "friendships" are nearest
+    neighbours in the original space, here the 35 pixels of each letter picture, and the drawing is
+    the map.</p
+  >
+</template>
+
+<template data-part="stage"
+  ><div class="stage"
+    ><figure class="fig"
+      ><figcaption
+        >The UMAP map taking shape. Each dot is one tiny picture of a letter, coloured by which
+        letter it is. The faint lines are the strongest links of the neighbour graph. Point at a dot
+        to see its picture</figcaption
+      ><canvas
+        class="short"
+        id="um-c"
+        role="img"
+        aria-label="UMAP embedding of the letter pictures"
+      ></canvas
+    ></figure>
+    <figure class="fig"
+      ><figcaption
+        >Top: how similar two points count as, by their distance on the page. Bottom: share of true
+        neighbours kept, by epoch</figcaption
+      ><canvas
+        class="sq"
+        id="um-r"
+        role="img"
+        aria-label="Similarity curve on the page and neighbours kept by epoch"
+      ></canvas></figure
+  ></div>
+  <div class="howto"
+    ><div
+      ><h3>How it works, step by step</h3
+      ><ol id="um-steps"
+        ><li>For each point, find its k nearest neighbours in the original space.</li
+        ><li
+          >Turn that into a weighted graph: the nearest neighbour gets weight 1, farther ones less,
+          and each point uses its own scale.</li
+        ><li>Drop all the points on the page.</li
+        ><li
+          >One epoch: pull together the two ends of each link, and for each pull push a few randomly
+          chosen points away.</li
+        ><li
+          >Repeat step 4 with a step size that shrinks to zero. When it reaches zero the layout
+          stops.</li
+        ></ol
+      ></div
+    ><div><h3>What just happened</h3><p class="live" id="um-live" role="status"></p></div
+  ></div>
+  <div class="controls"
+    ><template data-label="Animation" data-control="group"
+      ><div class="row"
+        ><button class="btn go" id="um-play" type="button">Run</button
+        ><button class="btn" id="um-step" type="button">Ten epochs</button
+        ><button class="btn" id="um-reset" type="button">Start over</button></div
+      ><template data-unit="epochs" data-id="um" data-control="run-limit"></template
+    ></template>
+    <template data-label="The model" data-control="group"
+      ><template
+        data-value="15"
+        data-step="1"
+        data-max="40"
+        data-min="3"
+        data-label="Neighbours per point (n_neighbors)"
+        data-id="um-k"
+        data-control="slider"
+      ></template
+      ><template
+        data-value="0.6"
+        data-step="0.01"
+        data-max="0.9"
+        data-min="0"
+        data-label="Minimum distance on the page (min_dist)"
+        data-id="um-md"
+        data-control="slider"
+      ></template
+      ><label class="check"
+        ><input type="checkbox" id="um-col" checked /> Show the true letter (the algorithm never
+        sees it)</label
+      ><label class="check"
+        ><input type="checkbox" id="um-ed" checked /> Show the neighbour graph</label
+      ></template
+    >
+    <template data-label="The data" data-control="group"
+      ><template
+        data-value="0.06"
+        data-step="0.01"
+        data-max="0.25"
+        data-min="0"
+        data-label="Noise: chance that a pixel is flipped"
+        data-id="um-flip"
+        data-control="slider"
+      ></template
+      ><div class="row"
+        ><button class="btn" id="um-new" type="button">New random sample</button></div
+      ></template
+    ></div
+  >
+  <dl class="read"
+    ><template data-label="Epochs" data-key="ep" data-control="readout"></template
+    ><template data-label="Step size now" data-key="lr" data-control="readout"></template
+    ><template
+      data-label="Links in the neighbour graph"
+      data-key="ed"
+      data-control="readout"
+    ></template
+    ><template
+      data-class="hl"
+      data-label="Neighbours kept"
+      data-key="nk"
+      data-control="readout"
+    ></template
+    ><template data-label="Curve constants a, b" data-key="ab" data-control="readout"></template
+    ><template data-label="Status" data-key="ph" data-control="readout"></template></dl
+></template>
+
+<template data-part="tryit"
+  >Press Start over and use Ten epochs a few times: the graph is fixed from the start, and only the
+  layout changes. Set the neighbours to 3 and run again: the map breaks into small pieces. Set it to
+  40: the groups hold together and start to merge. Then move the minimum distance from 0 to 0.9 and
+  watch how tightly each group is packed. Notice how small the groups are next to the gaps between
+  them: UMAP packs neighbours closely and leaves wide empty space, and the width of that space means
+  nothing. Compare the finished map with the t-SNE tab for the same letters.</template
+>
+
+<template data-part="math"
+  ><h4>Step 1 and 2: the weighted neighbour graph</h4
+  ><p
+    >For each point \(i\) take its \(k\) nearest neighbours. Let \(\rho_i\) be the distance to the
+    very nearest one. The link from \(i\) to a neighbour \(j\) gets the weight</p
+  >$$w_{j\mid i}=\exp\!\Big(-\frac{\max(0,\;d(\mathbf x_i,\mathbf x_j)-\rho_i)}{\sigma_i}\Big),$$<p
+    >so the nearest neighbour always has weight 1, and \(\sigma_i\) is chosen for each point so that
+    \(\sum_j w_{j\mid i}=\log_2 k\). A point in a sparse region gets a large \(\sigma_i\) and a
+    point in a crowd a small one, so every point is connected about equally strongly whatever the
+    local density. The two directions are then combined into one undirected weight,</p
+  >$$w_{ij}=w_{j\mid i}+w_{i\mid j}-w_{j\mid i}\,w_{i\mid j},$$<p
+    >the probability that at least one of the two directed links is present.</p
+  >
+  <h4>Step 4: similarity on the page</h4
+  ><p>On the page, two points at distance \(d\) are given the similarity</p
+  >$$q_{ij}=\frac{1}{1+a\,d^{\,2b}} .$$<p
+    >The constants \(a\) and \(b\) are fitted so that this curve stays close to 1 up to the distance
+    <b>min_dist</b> and then falls away, as in the top-right picture. With \(a=b=1\) it is exactly
+    the heavy-tailed curve of t-SNE.</p
+  >
+  <h4>What is minimised</h4
+  ><p
+    >UMAP makes the page similarities match the graph weights by minimising a cross-entropy over all
+    pairs:</p
+  >$$C=\sum_{i\ne
+  j}\Big[w_{ij}\log\frac{w_{ij}}{q_{ij}}+(1-w_{ij})\log\frac{1-w_{ij}}{1-q_{ij}}\Big].$$<p
+    >The first term pulls linked points together. The second pushes unlinked points apart; t-SNE has
+    no separate term of this kind. Computing the second term for all pairs would be slow, so UMAP
+    uses <b>negative sampling</b>: each time it pulls a link, it also picks a few points at random
+    and pushes them away. A random point is almost never a neighbour, so this approximates the
+    second term at a small fraction of the cost.</p
+  >
+  <h4>Step 5: when does it stop?</h4
+  ><p
+    >The layout is found by stochastic gradient descent with a step size that falls in a straight
+    line from its starting value to zero over a fixed number of epochs (300 here). UMAP does not
+    test for convergence: it stops when the step size reaches zero. That is why the Status readout
+    says "finished" and not "converged".</p
+  >
+  <h4>The two dials</h4
+  ><p
+    ><b>n_neighbors</b> sets the scale of structure that is kept. Small values look only at each
+    point's closest few neighbours and give many small fragments. Large values tie distant points
+    into the graph and show the broader arrangement, at the cost of fine detail.
+    <b>min_dist</b> affects only the look of the map: near 0 the points of a group are packed into a
+    tight clump, and larger values spread them out.</p
+  >
+  <h4>UMAP and t-SNE side by side</h4
+  ><ul
+    ><li
+      >Both keep local neighbourhoods and both distort distances between far-apart groups. The
+      cautions on the t-SNE tab apply here too.</li
+    ><li
+      >UMAP works on a sparse graph of \(n\times k\) links instead of all \(n^2\) pairs, so it is
+      much faster on large data.</li
+    ><li
+      >UMAP usually starts from a spectral layout of the graph instead of a random scatter, which
+      makes runs more alike. This page starts from a random scatter so that you can watch the map
+      form.</li
+    ><li>A fitted UMAP can place new points on an existing map. Standard t-SNE cannot.</li></ul
+  ></template
+>
+
+<template data-part="question"
+  >With n_neighbors = 3 the map of the letters breaks into more than six pieces. The data did not
+  change. What did?</template
+>
+
+<template data-part="answer"
+  >The graph. With only three neighbours per point, small groups of nearly identical pictures are
+  linked among themselves and have no links to the rest of their own letter. Nothing pulls those
+  fragments together, and the random pushes drive them apart. The map is a faithful drawing of a
+  graph that is too sparse to show the six letters as six connected groups.</template
+>

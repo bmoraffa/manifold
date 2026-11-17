@@ -1,0 +1,172 @@
+<template data-part="lede"
+  >All four optimisers follow the same noisy gradient. They differ in what they remember. SGD
+  remembers nothing. Momentum remembers its direction. RMSProp remembers how steep each weight has
+  been. Adam remembers both. Race them on the same surface, in one, two or three
+  dimensions.</template
+>
+
+<template data-part="intro"
+  ><p
+    >Plain gradient descent has two weaknesses. In a narrow valley it bounces between the walls
+    instead of running along the floor. And it takes steps in proportion to the slope, so where the
+    ground is nearly flat it barely moves, and where it is steep it leaps. Each optimiser below
+    fixes one or both. <b>Momentum</b> smooths the direction: a heavy ball that keeps rolling.
+    <b>RMSProp</b> evens out the step size: it divides each weight's step by how large that weight's
+    gradients have recently been, so every weight moves at a similar pace whatever its slope.
+    <b>Adam</b> does both.</p
+  >
+</template>
+
+<template data-part="dimensions"
+  ><button class="btn" type="button" data-d="1">1D: A Curve</button
+  ><button class="btn" type="button" data-d="2">2D: Contour Map</button
+  ><button class="btn" type="button" data-d="3">3D: Surface</button></template
+>
+
+<template data-part="loss-caption">Loss at each step</template>
+
+<template data-part="controls"
+  ><template data-label="The surface" data-control="group"
+    ><label class="ctl" for="optim-f"
+      ><span>Loss surface</span
+      ><select id="optim-f"
+        ><option value="bowl">Round bowl</option
+        ><option value="ravine" selected>Narrow valley</option
+        ><option value="banana">Curved valley</option
+        ><option value="two">Two valleys</option
+        ><option value="saddle">Saddle between two valleys</option
+        ><option value="bumpy">Bumpy bowl</option
+        ><option value="plateau">Flat plateau with one pit</option></select
+      ></label
+    ><template
+      data-value="0.3"
+      data-step="0.05"
+      data-max="2"
+      data-min="0"
+      data-label="Noise in each gradient (mini-batches)"
+      data-id="optim-no"
+      data-control="slider"
+    ></template></template
+  ><template data-label="The optimisers" data-control="group"
+    ><label class="check" for="optim-on-sgd"
+      ><input type="checkbox" id="optim-on-sgd" checked />SGD</label
+    ><label class="check" for="optim-on-mom"
+      ><input type="checkbox" id="optim-on-mom" checked />Momentum</label
+    ><label class="check" for="optim-on-rms"
+      ><input type="checkbox" id="optim-on-rms" checked />RMSProp</label
+    ><label class="check" for="optim-on-adam"
+      ><input type="checkbox" id="optim-on-adam" checked />Adam</label
+    ><template
+      data-value="0.1"
+      data-step="0.005"
+      data-max="0.9"
+      data-min="0.005"
+      data-label="Learning rate: SGD and Momentum"
+      data-id="optim-lr"
+      data-control="slider"
+    ></template
+    ><template
+      data-value="0.08"
+      data-step="0.005"
+      data-max="0.6"
+      data-min="0.005"
+      data-label="Learning rate: RMSProp and Adam"
+      data-id="optim-lr2"
+      data-control="slider"
+    ></template></template
+  ><template data-label="Cases that go wrong" data-control="group"
+    ><div class="row" id="optim-cases"
+      ><button class="btn" type="button" data-case="big">Step Too Large</button
+      ><button class="btn" type="button" data-case="saddle">Balanced on a Saddle</button
+      ><button class="btn" type="button" data-case="plateau">Lost on a Plateau</button
+      ><button class="btn" type="button" data-case="valley">The Wrong Valley</button
+      ><button class="btn" type="button" data-case="noise">Noise That Never Settles</button></div
+    ></template
+  ></template
+>
+
+<template data-part="readouts"
+  ><div><dt>Loss: SGD</dt><dd data-r="Lsgd">–</dd></div
+  ><template
+    data-class="hl3"
+    data-label="Loss: Momentum"
+    data-key="Lmom"
+    data-control="readout"
+  ></template
+  ><template
+    data-class="hl2"
+    data-label="Loss: RMSProp"
+    data-key="Lrms"
+    data-control="readout"
+  ></template
+  ><template
+    data-class="hl"
+    data-label="Loss: Adam"
+    data-key="Ladam"
+    data-control="readout"
+  ></template
+></template>
+
+<template data-part="tryit"
+  >On the narrow valley, which optimiser gets along the valley floor fastest? Press “Lost on a
+  Plateau”: which ones escape, and why can RMSProp and Adam move when the slope is nearly zero? Then
+  press “Balanced on a Saddle”, and after they all stall, add a little noise and run
+  again.</template
+>
+
+<template data-part="math"
+  ><h4>SGD</h4>$$\mathbf g_t=\nabla L_{\text{batch}}(\mathbf w_t),\qquad \mathbf w_{t+1}=\mathbf
+  w_t-\eta\,\mathbf g_t$$<p
+    >The gradient is estimated from a small random batch of data, so \(\mathbf g_t\) is the true
+    gradient plus noise. Each step is cheap and the average direction is right. With a fixed
+    \(\eta\) the noise never averages away, so SGD hovers around a minimum without settling.</p
+  >
+  <h4>Momentum</h4>$$\mathbf v_{t+1}=\beta\,\mathbf v_t-\eta\,\mathbf g_t,\qquad \mathbf
+  w_{t+1}=\mathbf w_t+\mathbf v_{t+1},\qquad \beta=0.9$$<p
+    >The velocity is a running sum of past gradients. Components that keep flipping sign cancel;
+    components that agree add up, to as much as \(1/(1-\beta)=10\) times a single step. It also
+    averages out noise. The price: it can overshoot and swing back.</p
+  >
+  <h4>RMSProp</h4>$$\mathbf s_{t+1}=\rho\,\mathbf s_t+(1-\rho)\,\mathbf g_t^{2},\qquad \mathbf
+  w_{t+1}=\mathbf w_t-\frac{\eta}{\sqrt{\mathbf s_{t+1}}+\epsilon}\,\mathbf g_t,\qquad \rho=0.9$$<p
+    >All operations are per weight. \(\mathbf s\) tracks the recent average of each weight's squared
+    gradient. Dividing by its square root gives every weight its own learning rate: small for
+    weights with steep, jumpy gradients, large for weights with gentle ones. On a plateau the
+    gradient is tiny but so is \(\sqrt{\mathbf s}\), and the ratio is close to \(\pm1\): it keeps
+    moving at a steady pace of about \(\eta\) per step.</p
+  >
+  <h4>Adam</h4>$$\mathbf m_{t+1}=\beta_1\mathbf m_t+(1-\beta_1)\mathbf g_t,\qquad \mathbf
+  s_{t+1}=\beta_2\mathbf s_t+(1-\beta_2)\mathbf g_t^{2}$$$$\hat{\mathbf m}=\frac{\mathbf
+  m_{t+1}}{1-\beta_1^{\,t+1}},\qquad \hat{\mathbf s}=\frac{\mathbf
+  s_{t+1}}{1-\beta_2^{\,t+1}},\qquad \mathbf w_{t+1}=\mathbf w_t-\eta\,\frac{\hat{\mathbf
+  m}}{\sqrt{\hat{\mathbf s}}+\epsilon}$$<p
+    >with \(\beta_1=0.9\), \(\beta_2=0.999\). Momentum's running mean on top, RMSProp's scaling
+    underneath. Both averages start at zero, so early values are too small; dividing by
+    \(1-\beta^{t}\) corrects that. Each step has size about \(\eta\) whatever the scale of the loss,
+    which is why one learning rate works across very different problems, and why Adam is the default
+    for deep networks.</p
+  >
+  <h4>When they fail</h4
+  ><p
+    ><b>Too large a step:</b> SGD and momentum diverge when \(\eta\) exceeds \(2/\lambda_{\max}\)
+    (momentum allows a little more). RMSProp and Adam cannot blow up this way, since their step is
+    capped near \(\eta\), but with a large \(\eta\) they circle the minimum without landing.
+    <b>Saddles and flat spots:</b> where the gradient is exactly zero, every one of them stops; only
+    noise gets them moving again, which is one benefit of mini-batches. <b>Plateaus:</b> SGD and
+    momentum crawl; the adaptive pair walk across. <b>Several valleys:</b> none of them knows about
+    a deeper valley elsewhere. <b>Noise:</b> with a constant learning rate none of them settles
+    exactly; that is what schedules are for.</p
+  ></template
+>
+
+<template data-part="question"
+  >Adam’s steps are about the same size whether the gradient is large or small. Why is that useful,
+  and when is it a problem?</template
+>
+
+<template data-part="answer"
+  >It is useful because the learning rate no longer has to be matched to the scale of the loss or to
+  each layer, and flat regions are crossed at a steady pace. It is a problem near the minimum: the
+  gradient shrinks but the step does not shrink with it until the running averages catch up, so Adam
+  can keep circling. Lowering the learning rate over time fixes this.</template
+>

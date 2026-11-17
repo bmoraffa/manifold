@@ -1,0 +1,257 @@
+<template data-part="lede"
+  >The same idea as gradient boosting, with three additions that made it the standard tool for
+  tables of data: it uses the curvature of the loss as well as the slope, it charges a price for
+  every leaf and for large leaf values, and it prunes away splits that do not earn their keep. Run
+  it on the built-in data or upload your own CSV.</template
+>
+
+<template data-part="intro"
+  ><p
+    >Plain gradient boosting fits each tree to the residuals and adds it on. That works, but it
+    leaves three questions open: how tall should each leaf's correction be, which splits are worth
+    making, and when is a tree too complicated? XGBoost answers all three from one formula. It
+    writes down the loss it wants to reduce, adds a charge for complexity, and then asks of every
+    possible split: by how much would this lower the total? If the answer is less than the price of
+    a new leaf, the split is cut off.</p
+  >
+</template>
+
+<template data-part="stage"
+  ><p class="cap" id="xgb-data" role="status" style="min-height:0"></p>
+  <div class="stage"
+    ><figure class="fig"
+      ><figcaption>Loss after each round: training rows and held-out rows</figcaption
+      ><canvas
+        class="short"
+        id="xgb-l"
+        role="img"
+        aria-label="Training and held-out loss by round"
+      ></canvas
+    ></figure>
+    <figure class="fig"
+      ><figcaption
+        >The tree added this round: gain at each question, value at each leaf, ✂ where a split was
+        pruned</figcaption
+      ><canvas
+        class="short"
+        id="xgb-t"
+        role="img"
+        aria-label="Diagram of the latest tree"
+      ></canvas></figure
+  ></div>
+  <div class="stage" style="margin-top:26px"
+    ><figure class="fig"
+      ><figcaption>Which features the trees relied on (share of total gain)</figcaption
+      ><canvas class="short" id="xgb-i" role="img" aria-label="Feature importance bars"></canvas
+    ></figure>
+    <figure class="fig"
+      ><figcaption>Held-out rows: what the model predicted against the truth</figcaption
+      ><canvas
+        class="short"
+        id="xgb-p"
+        role="img"
+        aria-label="Predicted against actual on held-out rows"
+      ></canvas></figure
+  ></div>
+  <div class="howto"
+    ><div
+      ><h3>How it learns, step by step</h3
+      ><ol id="xgb-steps"
+        ><li>Start by predicting the same value for every row: the average.</li
+        ><li
+          >For every row compute the gradient g (how wrong, and which way) and the hessian h (how
+          sharply the loss curves).</li
+        ><li
+          >Grow a tree to the depth limit. At each node pick the split with the largest gain,
+          computed from the sums of g and h on each side.</li
+        ><li>Prune: working up from the bottom, remove any split whose gain is below γ.</li
+        ><li>Give each leaf the value −G / (H + λ) and add η times the tree to the prediction.</li
+        ><li>Go back to step 2. Stop when the held-out loss stops falling.</li></ol
+      ></div
+    ><div><h3>What just happened</h3><p class="live" id="xgb-live" role="status"></p></div
+  ></div>
+  <div class="controls"
+    ><template data-label="Animation" data-control="group"
+      ><div class="row"
+        ><button class="btn go" id="xgb-play" type="button">Add trees</button
+        ><button class="btn" id="xgb-step" type="button">One round</button
+        ><button class="btn" id="xgb-reset" type="button">Start over</button></div
+      ><template
+        data-value="60"
+        data-step="5"
+        data-max="300"
+        data-min="5"
+        data-label="Number of rounds"
+        data-id="xgb-B"
+        data-control="slider"
+      ></template
+    ></template>
+    <template data-label="The model" data-control="group"
+      ><template
+        data-value="0.3"
+        data-step="0.01"
+        data-max="1"
+        data-min="0.02"
+        data-label="Learning rate η"
+        data-id="xgb-eta"
+        data-control="slider"
+      ></template
+      ><template
+        data-value="3"
+        data-step="1"
+        data-max="5"
+        data-min="1"
+        data-label="Maximum depth of each tree"
+        data-id="xgb-depth"
+        data-control="slider"
+      ></template
+      ><template
+        data-value="0.05"
+        data-step="0.01"
+        data-max="3"
+        data-min="0"
+        data-label="Pruning threshold γ (minimum gain to keep a split)"
+        data-id="xgb-gam"
+        data-control="slider"
+      ></template
+      ><template
+        data-value="1"
+        data-step="0.5"
+        data-max="20"
+        data-min="0"
+        data-label="Penalty on leaf values λ"
+        data-id="xgb-lam"
+        data-control="slider"
+      ></template
+      ><template
+        data-value="1"
+        data-step="0.05"
+        data-max="1"
+        data-min="0.3"
+        data-label="Share of rows each tree sees"
+        data-id="xgb-sub"
+        data-control="slider"
+      ></template
+    ></template>
+    <template data-label="The data" data-control="group"
+      ><label class="ctl" for="xgb-ds"
+        ><span>Data set</span
+        ><select id="xgb-ds"
+          ><option value="house">House prices (simulated, a number to predict)</option
+          ><option value="loan">Loan defaults (simulated, yes or no)</option></select
+        ></label
+      ><div class="row"
+        ><label class="btn file"
+          >Upload a CSV<input type="file" id="xgb-file" accept=".csv,.txt,text/csv" /></label></div
+      ><label class="ctl" for="xgb-target"
+        ><span>Column to predict</span
+        ><select id="xgb-target"></select></label
+      ><p class="status" id="xgb-status" role="status"></p
+    ></template>
+    <template data-label="Predict for your own row" data-control="group"
+      ><div id="xgb-tp" style="display:flex;flex-direction:column;gap:9px"></div
+      ><p class="tpout" id="xgb-tpo" role="status"></p></template
+  ></div>
+  <dl class="read"
+    ><template data-label="Rounds so far" data-key="k" data-control="readout"></template
+    ><template
+      data-class="hl3"
+      data-label="Training loss"
+      data-key="tr"
+      data-control="readout"
+    ></template
+    ><template
+      data-class="hl2"
+      data-label="Held-out loss"
+      data-key="te"
+      data-control="readout"
+    ></template
+    ><template
+      data-class="hl"
+      data-label="Round with the lowest held-out loss"
+      data-key="best"
+      data-control="readout"
+    ></template
+    ><template
+      data-label="Leaves in the latest tree"
+      data-key="lv"
+      data-control="readout"
+    ></template
+    ><template data-label="Splits pruned so far" data-key="pr" data-control="readout"></template
+    ><template data-label="Held-out accuracy" data-key="acc" data-control="readout"></template></dl
+></template>
+
+<template data-part="tryit"
+  >Take the first three rounds one at a time and read what each tree asked. Then set γ to 0 and to 3
+  and compare the latest tree: how many leaves survive? Set the learning rate to 1 and watch the
+  held-out loss. Finally upload a CSV of your own: which column matters most?</template
+>
+
+<template data-part="math"
+  ><h4>The objective</h4>$$\mathcal L=\sum_{i=1}^{n}\ell\big(y_i,\hat
+  y_i\big)+\sum_{m}\Omega(f_m),\qquad \Omega(f)=\gamma\,T+\tfrac12\,\lambda\sum_{j=1}^{T}w_j^2$$<p
+    >The first sum is the fit to the data. The second penalises each tree \(f_m\) for its number of
+    leaves \(T\) and the size of its leaf values \(w_j\). \(\gamma\) is the price of a leaf;
+    \(\lambda\) shrinks leaf values toward zero, like ridge regression.</p
+  >
+  <h4>Second-order approximation</h4
+  ><p
+    >When adding tree \(f\) at round \(m\), expand the loss to second order around the current
+    prediction:</p
+  >$$\ell\big(y_i,\hat y_i+f(\mathbf x_i)\big)\approx \ell(y_i,\hat y_i)+g_i\,f(\mathbf
+  x_i)+\tfrac12\,h_i\,f(\mathbf x_i)^2,\qquad g_i=\frac{\partial\ell}{\partial\hat y_i},\quad
+  h_i=\frac{\partial^2\ell}{\partial\hat y_i^{\,2}}.$$<p
+    >For squared error \(g_i=\hat y_i-y_i\) (minus the residual) and \(h_i=1\). For log loss
+    \(g_i=p_i-y_i\) and \(h_i=p_i(1-p_i)\). Using \(h\) as well as \(g\) is Newton's method in place
+    of gradient descent: it knows how far to step, not only which way.</p
+  >
+  <h4>The best value for a leaf</h4
+  ><p
+    >For the rows that land in one leaf, let \(G=\sum g_i\) and \(H=\sum h_i\). The contribution of
+    that leaf to the objective is \(Gw+\tfrac12(H+\lambda)w^2\), a parabola in \(w\) with minimum
+    at</p
+  >$$w^{*}=-\frac{G}{H+\lambda},\qquad\text{worth}\quad-\frac12\,\frac{G^2}{H+\lambda}.$$<p
+    >With squared error and \(\lambda=0\) this is the average residual in the leaf, as in plain
+    gradient boosting. \(\lambda\) pulls it toward zero, most strongly for leaves with few rows.</p
+  >
+  <h4>The gain of a split</h4
+  >$$\text{Gain}=\frac12\left[\frac{G_L^2}{H_L+\lambda}+\frac{G_R^2}{H_R+\lambda}-\frac{(G_L+G_R)^2}{H_L+H_R+\lambda}\right]-\gamma$$<p
+    >The bracket is how much better two leaves do than one. Subtract \(\gamma\), the price of the
+    extra leaf. Every candidate split is scored this way, which needs only the running sums of \(g\)
+    and \(h\) as the rows are scanned in sorted order.</p
+  >
+  <h4>Pruning</h4
+  ><p
+    >The tree is first grown to the depth limit, taking the best split at each node even if its gain
+    is small. Then it is pruned from the bottom up: a split whose gain is below \(\gamma\) is
+    removed, and its parent is then checked in turn. Growing first and pruning afterwards matters. A
+    split with little gain may open the way to a very good split beneath it, and a rule that stopped
+    early would never find it. The ✂ marks in the tree picture are splits removed this way.</p
+  >
+  <h4>The other safeguards</h4
+  ><p
+    ><b>Shrinkage:</b> add only \(\eta\) times each tree. <b>Row subsampling:</b> each tree sees a
+    random share of the rows, as in bagging. <b>Column subsampling:</b> as in random forests.
+    <b>Early stopping:</b> watch the held-out loss and keep the round where it is lowest. Together
+    with fast split-finding on sorted or histogrammed features, these make up XGBoost, LightGBM and
+    CatBoost.</p
+  >
+  <p
+    >The numbers on this page use a standardised target for regression, so γ and λ are on the same
+    scale whatever units your data is in; losses and predictions are reported in the original units.
+    An uploaded CSV needs a header row; only numeric columns are used, and a target with exactly two
+    values is treated as yes/no.</p
+  ></template
+>
+
+<template data-part="question"
+  >Why grow the tree fully and prune afterwards, when it would be cheaper to stop splitting as soon
+  as the gain drops below γ?</template
+>
+
+<template data-part="answer"
+  >Because gains are not always largest at the top. In a checkerboard pattern the first split gains
+  almost nothing, and the splits beneath it gain a great deal. Stopping early would never reach
+  them. Growing first lets the good deep splits be found, and pruning afterwards removes only the
+  branches that turned out not to pay.</template
+>

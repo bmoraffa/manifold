@@ -1,0 +1,113 @@
+<template data-part="lede"
+  >Start from something that is not bell-shaped at all. Average a few draws, and repeat. The
+  averages pile up into a bell curve.</template
+>
+
+<template data-part="intro"
+  ><p
+    >When you add independent random numbers, extreme totals need every term to be extreme in the
+    same direction, which is rare. Middling totals can happen in a great many ways. Adding smooths
+    out whatever shape you started with, and what is left after enough smoothing is always the same
+    curve.</p
+  >
+</template>
+
+<template data-part="stage"
+  ><div class="stage one"
+    ><figure class="fig"
+      ><canvas
+        class="wide"
+        id="clt-c"
+        role="img"
+        aria-label="Histogram of sample averages approaching a bell curve"
+      ></canvas></figure
+  ></div>
+  <div class="controls"
+    ><template data-label="Animation" data-control="group"
+      ><div class="row"
+        ><button class="btn go" id="clt-play" type="button">Play</button
+        ><button class="btn" id="clt-reset" type="button">Reset</button></div
+      ><template
+        data-value="10"
+        data-step="1"
+        data-max="100"
+        data-min="1"
+        data-label="Averages per frame"
+        data-id="clt-speed"
+        data-control="slider"
+      ></template
+    ></template>
+    <template data-label="The experiment" data-control="group"
+      ><label class="ctl" for="clt-src"
+        ><span>Each draw comes from</span
+        ><select id="clt-src"
+          ><option value="die">Rolling a die</option
+          ><option value="exp">Waiting times (skewed)</option
+          ><option value="two">Two separate bumps</option
+          ><option value="uni">A flat range</option></select
+        ></label
+      ><template
+        data-value="1"
+        data-step="1"
+        data-max="6"
+        data-min="0"
+        data-label="Draws averaged, n"
+        data-id="clt-n"
+        data-control="slider"
+      ></template></template
+  ></div>
+  <dl class="read"
+    ><template data-label="Averages collected" data-key="N" data-control="readout"></template
+    ><template
+      data-class="hl3"
+      data-label="Spread of the averages"
+      data-key="sd"
+      data-control="readout"
+    ></template
+    ><template
+      data-class="hl2"
+      data-label="Predicted σ / √n"
+      data-key="pred"
+      data-control="readout"
+    ></template></dl
+></template>
+
+<template data-part="tryit"
+  >Set n = 1: you just see the starting shape. Raise n to 2, then 5, then 30. At which n does the
+  skewed one start to look symmetric? Which starting shape needs the most draws?</template
+>
+
+<template data-part="math"
+  ><h4>The theorem</h4
+  ><p
+    >Let \(X_1,\dots,X_n\) be independent draws from any distribution with mean \(\mu\) and finite
+    variance \(\sigma^2\), and let \(\bar X_n\) be their average. Then</p
+  >$$\frac{\sqrt n\,(\bar X_n-\mu)}{\sigma}\ \xrightarrow{\ d\ }\ N(0,1)\qquad\text{so}\qquad \bar
+  X_n\approx N\!\left(\mu,\frac{\sigma^2}{n}\right).$$
+  <h4>Why the Gaussian and not something else</h4
+  ><p
+    >The density of a sum is the convolution of the densities. The Gaussian is the shape that
+    convolution leaves unchanged: a Gaussian plus a Gaussian is a Gaussian. Every other
+    finite-variance shape is pulled toward it. The mean and variance survive the averaging; all
+    other details of the starting shape are washed out.</p
+  >
+  <h4>How fast</h4
+  ><p
+    >The remaining error shrinks like \(1/\sqrt n\) and is proportional to how lopsided the start
+    was (the Berry–Esseen bound). Symmetric starts look Gaussian by \(n\approx 5\); the skewed one
+    needs closer to 30.</p
+  >
+  <h4>Why it matters</h4
+  ><p
+    >Measurement noise, the average loss over a mini-batch and the sum of many small effects in a
+    real system are all sums. That is the usual justification for assuming Gaussian noise.</p
+  ></template
+>
+
+<template data-part="question"
+  >The averages get narrower as n grows. By how much when n goes from 5 to 20?</template
+>
+
+<template data-part="answer"
+  >The spread is σ / √n. Going from 5 to 20 multiplies n by 4, so the spread halves.</template
+>

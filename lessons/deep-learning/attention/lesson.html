@@ -1,0 +1,213 @@
+<template data-part="lede"
+  >In “the cat sat on the mat because it was tired”, what does “it” mean? Change one word, “because
+  it was soft”, and the answer flips to the mat. Here a small attention layer learns that skill from
+  examples. Nobody tells it which words are animals or which adjectives suit them. Watch it work
+  that out, then build your own sentences, including ones it never saw in training.</template
+>
+
+<template data-part="intro"
+  ><p
+    >You are in a library with a question. Every book has a title on its spine. You compare your
+    question with each title, pull out the few that match, and read mostly from those. Your question
+    is the <b>query</b>, a title is a <b>key</b>, and what is inside the book is its <b>value</b>.
+    Attention does this softly: instead of choosing a few books it reads a little from every book,
+    in proportion to how well its title matched. In a sentence every word is at once a reader with a
+    question and a book with a title.</p
+  >
+</template>
+
+<template data-part="stage"
+  ><div class="row" style="gap:10px;margin-bottom:8px;flex-wrap:wrap"
+    ><label class="ctl" style="grid-template-columns:auto 120px" for="at-a"
+      ><span>Animal</span
+      ><select id="at-a"></select></label
+    ><label class="ctl" style="grid-template-columns:auto 120px" for="at-p"
+      ><span>Place</span
+      ><select id="at-p"></select></label
+    ><label class="ctl" style="grid-template-columns:auto 120px" for="at-j"
+      ><span>It was…</span
+      ><select id="at-j"></select></label
+    ><label class="ctl" style="grid-template-columns:auto 230px" for="at-o"
+      ><span>Word order</span
+      ><select id="at-o"
+        ><option value="0">the animal sat on the place</option
+        ><option value="1">on the place sat the animal</option></select
+      ></label
+    ></div
+  >
+  <div class="stage"
+    ><figure class="fig"
+      ><figcaption
+        >Your sentence. Arcs run from “it” to the words it listens to; thicker means more. Bars:
+        first the match score of every word, then the shares after softmax</figcaption
+      ><canvas
+        class="short"
+        id="at-c"
+        role="img"
+        aria-label="Sentence with learned attention from the word it"
+      ></canvas
+      ><div class="eq" id="at-eq" role="status"></div
+    ></figure>
+    <figure class="fig"
+      ><figcaption
+        >Top: the map the layer has learned. Every word has a key (dot). Every adjective has a
+        question (line from the centre). A question matches the keys that lie in its direction.
+        Bottom: error and accuracy on unseen sentences</figcaption
+      ><canvas
+        class="sq"
+        id="at-r"
+        role="img"
+        aria-label="Learned keys and queries, and the training curves"
+      ></canvas></figure
+  ></div>
+  <div class="howto"
+    ><div
+      ><h3>How it works, step by step</h3
+      ><ol id="at-steps"
+        ><li
+          >Give every word a random key and every adjective a random question (query): two numbers
+          each.</li
+        ><li
+          >Take a training sentence. The question comes from its last word; compare it with every
+          word’s key by a dot product.</li
+        ><li>Softmax turns the scores into shares. The share on the correct word should be high.</li
+        ><li
+          >It is not, at first. Nudge the question toward the key of the right word, and that key
+          toward the question; push the others away.</li
+        ><li
+          >Repeat over all training sentences until the error stops falling. Then try sentences it
+          has never seen.</li
+        ></ol
+      ></div
+    ><div><h3>What just happened</h3><p class="live" id="at-live" role="status"></p></div
+  ></div>
+  <div class="controls"
+    ><template data-label="Animation" data-control="group"
+      ><div class="row"
+        ><button class="btn go" id="at-play" type="button">Train</button
+        ><button class="btn" id="at-step" type="button">Five passes</button
+        ><button class="btn" id="at-reset" type="button">Start over</button></div
+      ><template data-unit="passes" data-id="at" data-control="run-limit"></template
+    ></template>
+    <template data-label="The model" data-control="group"
+      ><template
+        data-value="1"
+        data-step="0.05"
+        data-max="3"
+        data-min="0.2"
+        data-label="Sharpness at prediction: multiply the scores by"
+        data-id="at-tau"
+        data-control="slider"
+      ></template
+      ><div class="row"
+        ><button class="btn" id="at-exp" type="button"
+          >Explain This Sentence Step by Step</button
+        ></div
+      ></template
+    ></div
+  >
+  <dl class="read"
+    ><template
+      data-label="Passes over the training sentences"
+      data-key="ep"
+      data-control="readout"
+    ></template
+    ><template
+      data-class="hl2"
+      data-label="Training error"
+      data-key="L"
+      data-control="readout"
+    ></template
+    ><template
+      data-class="hl"
+      data-label="Unseen sentences answered correctly"
+      data-key="te"
+      data-control="readout"
+    ></template
+    ><template
+      data-class="hl3"
+      data-label="In your sentence, “it” is"
+      data-key="ans"
+      data-control="readout"
+    ></template
+    ><template
+      data-label="Was your sentence in the training set?"
+      data-key="seen"
+      data-control="readout"
+    ></template></dl
+></template>
+
+<template data-part="tryit"
+  >Press Start over and watch the map: at first the dots are a jumble and “it” spreads its attention
+  evenly. As training runs, animals drift one way and places the other, and each adjective’s line
+  swings toward its kind. When it stops, switch “tired” to “soft” and watch the arcs jump. Change
+  the word order: the answer follows the meaning, not the position. Find a sentence marked as never
+  seen in training: is it still right? Then press Explain This Sentence.</template
+>
+
+<template data-part="math"
+  ><h4>The calculation</h4
+  ><p
+    >Let word \(i\) have query \(\mathbf q_i\), and word \(j\) have key \(\mathbf k_j\) and value
+    \(\mathbf v_j\), all vectors of dimension \(d\). The match score, the share and the output
+    are</p
+  >$$s_{ij}=\frac{\mathbf q_i\cdot\mathbf k_j}{\sqrt
+  d},\qquad\alpha_{ij}=\frac{e^{s_{ij}}}{\sum_{m}e^{s_{im}}},\qquad\mathbf
+  o_i=\sum_j\alpha_{ij}\,\mathbf v_j .$$<p
+    >In matrix form, with the queries, keys and values stacked as rows of \(\mathbf Q,\mathbf
+    K,\mathbf V\),</p
+  >$$\operatorname{Attention}(\mathbf Q,\mathbf K,\mathbf
+  V)=\operatorname{softmax}\!\Big(\frac{\mathbf Q\mathbf K^{\top}}{\sqrt d}\Big)\mathbf V .$$<p
+    >On this page you see one row of it: the row for the word “it”.</p
+  >
+  <h4>Where queries, keys and values come from</h4
+  ><p
+    >In a real network each word starts as one embedding vector \(\mathbf x_j\), and three learned
+    matrices produce the three roles: \(\mathbf q_j=\mathbf W_Q\mathbf x_j\), \(\mathbf k_j=\mathbf
+    W_K\mathbf x_j\), \(\mathbf v_j=\mathbf W_V\mathbf x_j\). Training adjusts those matrices so
+    that useful words end up attending to each other. <b>On this page they are learned.</b> Every
+    word has a key of two numbers and every adjective a query of two numbers, all starting at
+    random, and gradient descent on the loss \(-\log\alpha_{\text{correct word}}\) moves them. Two
+    numbers are used so that the result can be drawn as a map. One simplification remains: the query
+    is read directly from the adjective at the end of the sentence. In a full Transformer the word
+    “it” would first gather that adjective through an earlier attention layer and then ask its
+    question.</p
+  >
+  <h4>Why divide by \(\sqrt d\), and what sharpness does</h4
+  ><p
+    >Dot products of long vectors are large, and large scores push the softmax to put everything on
+    one word, where its gradient is nearly zero. Dividing by \(\sqrt d\) keeps the scores at a
+    sensible size. The sharpness slider multiplies the scores before the softmax: small values
+    flatten the shares toward equal, large values approach picking the single best match.</p
+  >
+  <h4>Why attention replaced recurrence</h4
+  ><ul
+    ><li
+      ><b>Direct access.</b> Any word can read from any other in one step, however far apart. An RNN
+      has to carry the information through every step in between.</li
+    ><li><b>Parallel.</b> All words are processed at once, not one after another.</li
+    ><li
+      ><b>Readable.</b> The shares \(\alpha_{ij}\) can be inspected, as here, although in deep
+      models they are only a partial explanation of what the model does.</li
+    ></ul
+  >
+  <h4>What is still missing</h4
+  ><p
+    >Attention on its own ignores word order: shuffle the sentence and the shares are the same.
+    Transformers add position information to the embeddings. They also run several attentions side
+    by side (<b>multi-head attention</b>), each free to look for a different relationship, and stack
+    many layers with residual shortcuts between them.</p
+  ></template
+>
+
+<template data-part="question"
+  >If all the queries and keys were identical vectors, what would the attention shares be, and what
+  would each word’s output become?</template
+>
+
+<template data-part="answer"
+  >Every score would be the same number, so the softmax would give every word the same share, 1/n.
+  Each output would be the plain average of all the values: every word would receive the same
+  blurred summary of the sentence. Attention is useful only because different words ask different
+  questions and offer different keys.</template
+>

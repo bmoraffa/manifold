@@ -1,0 +1,190 @@
+<template data-part="lede"
+  >“The keys, which I left on the table next to the lamp, ___ missing.” To choose “are” you must
+  still remember “keys” ten words later, and not be thrown by “table” and “lamp”. A plain recurrent
+  network rewrites its whole memory at every word, so the trace fades. An LSTM puts the memory on a
+  conveyor belt with gates that decide what gets on and what is wiped. Follow one fact down
+  both.</template
+>
+
+<template data-part="intro"
+  ><p
+    >A plain recurrent network keeps its memory on a whiteboard that it wipes and rewrites, in
+    slightly smudged form, at every single word. After fifteen rewrites the first note is illegible.
+    An LSTM (long short-term memory) keeps a notebook instead. At each word it makes three small
+    decisions: which old lines to cross out, whether to write anything new, and which lines to read
+    aloud. If it decides "cross out nothing, write nothing", the note is exactly as it was.
+    Remembering becomes the default, and forgetting is a choice.</p
+  >
+</template>
+
+<template data-part="stage"
+  ><div class="stage one"
+    ><figure class="fig"
+      ><figcaption
+        >Top belt: a plain recurrent network. Bottom belt: an LSTM. The dot is the memory of “keys”
+        (plural); its size is how much is left. Gates are drawn open or shut at each
+        word</figcaption
+      ><canvas
+        class="tall"
+        id="ls-c"
+        style="aspect-ratio:16/6"
+        role="img"
+        aria-label="Memory of a fact carried through a sentence by an RNN and by an LSTM"
+      ></canvas
+      ><div class="eq" id="ls-eq" role="status"></div></figure
+  ></div>
+  <div class="stage" style="margin-top:18px"
+    ><figure class="fig"
+      ><figcaption>How much of “keys is plural” each network still holds, word by word</figcaption
+      ><canvas
+        class="tall"
+        id="ls-r"
+        role="img"
+        aria-label="Memory retained by step for RNN and LSTM"
+      ></canvas
+    ></figure>
+    <figure class="fig"
+      ><figcaption>Inside one LSTM step</figcaption
+      ><canvas
+        class="tall"
+        id="ls-d"
+        role="img"
+        aria-label="Diagram of an LSTM cell with its gates"
+      ></canvas></figure
+  ></div>
+  <div class="howto"
+    ><div
+      ><h3>How it works, step by step</h3
+      ><ol id="ls-steps"
+        ><li>Read “keys”. Both networks store the fact “the subject is plural” as +1.</li
+        ><li
+          >Plain network, next word: the whole memory is multiplied by a weight and squashed. A
+          little is lost every time.</li
+        ><li
+          >LSTM, next word: the forget gate decides how much of the old memory to keep (near 1 =
+          keep), and the input gate decides whether the new word may write (near 0 = no).</li
+        ><li
+          >A distracting word arrives (“table”, singular). The plain network must mix it in. The
+          LSTM keeps its input gate shut.</li
+        ><li>At the blank, read the memory: clearly positive means “are”.</li></ol
+      ></div
+    ><div><h3>What just happened</h3><p class="live" id="ls-live" role="status"></p></div
+  ></div>
+  <div class="controls"
+    ><template data-label="Animation" data-control="group"
+      ><div class="row"
+        ><button class="btn go" id="ls-play" type="button">Read the sentence</button
+        ><button class="btn" id="ls-step" type="button">One word</button
+        ><button class="btn" id="ls-reset" type="button">Start over</button></div
+      ></template
+    >
+    <template data-label="The gates" data-control="group"
+      ><template
+        data-value="0.98"
+        data-step="0.01"
+        data-max="1"
+        data-min="0"
+        data-label="LSTM forget gate: share of memory kept at each word"
+        data-id="ls-f"
+        data-control="slider"
+      ></template
+      ><template
+        data-value="0.03"
+        data-step="0.01"
+        data-max="1"
+        data-min="0"
+        data-label="LSTM input gate at the distracting words"
+        data-id="ls-i"
+        data-control="slider"
+      ></template
+      ><template
+        data-value="0.9"
+        data-step="0.01"
+        data-max="1.6"
+        data-min="0.2"
+        data-label="Plain network: weight on its own memory"
+        data-id="ls-w"
+        data-control="slider"
+      ></template></template
+  ></div>
+  <dl class="read"
+    ><template
+      data-class="hl2"
+      data-label="Plain network at the blank"
+      data-key="r"
+      data-control="readout"
+    ></template
+    ><template
+      data-class="hl3"
+      data-label="LSTM at the blank"
+      data-key="l"
+      data-control="readout"
+    ></template
+    ><template
+      data-label="Plain network: learning signal reaching “keys”"
+      data-key="rg"
+      data-control="readout"
+    ></template
+    ><template
+      data-label="LSTM: learning signal reaching “keys”"
+      data-key="lg"
+      data-control="readout"
+    ></template></dl
+></template>
+
+<template data-part="tryit"
+  >Read the sentence through and compare the two dots at the blank. Now drag the forget gate down to
+  0.7: the LSTM forgets too. Put it back and open the input gate at the distracting words to 1:
+  “table” and “lamp” overwrite the fact. So the LSTM is only as good as its gates, and the gates are
+  what training learns. Last, raise the plain network’s weight above 1.2: does that rescue
+  it?</template
+>
+
+<template data-part="math"
+  ><h4>The plain network</h4>$$h_t=\tanh\big(w\,h_{t-1}+u\,x_t\big),\qquad\frac{\partial
+  h_T}{\partial h_1}=\prod_{t=2}^{T}w\,\big(1-h_t^2\big).$$<p
+    >The memory passes through a multiplication and a squashing at every step, and the learning
+    signal back to the first word is a product of \(T-1\) factors. If they are below 1 it vanishes.
+    If \(w\) is made large to compensate, \(\tanh\) saturates and \(1-h^2\) goes to zero instead.</p
+  >
+  <h4>The LSTM</h4
+  ><p
+    >The LSTM has a separate cell state \(c_t\), the conveyor belt, and three gates, each a sigmoid
+    layer with outputs between 0 and 1:</p
+  >$$f_t=\sigma(\cdot)\ \text{forget},\quad i_t=\sigma(\cdot)\ \text{input},\quad o_t=\sigma(\cdot)\
+  \text{output},\qquad c_t=f_t\,c_{t-1}+i_t\,\tilde c_t,\qquad h_t=o_t\tanh(c_t),$$<p
+    >where \(\tilde c_t=\tanh(\cdot)\) is the candidate to be written and every \((\cdot)\) is a
+    weighted sum of \(x_t\) and \(h_{t-1}\). The key line is the update of \(c_t\): the old memory
+    is multiplied by \(f_t\) and added to, with no squashing. So</p
+  >$$\frac{\partial c_T}{\partial c_1}=\prod_{t=2}^{T}f_t ,$$<p
+    >and when the forget gates are near 1 the memory and its gradient pass through almost unchanged
+    for as long as needed. It is the same idea as a residual shortcut, applied through time.</p
+  >
+  <h4>The GRU</h4
+  ><p
+    >The gated recurrent unit merges the cell and hidden state and uses two gates. An update gate
+    \(z_t\) blends old and new, \(h_t=(1-z_t)\,h_{t-1}+z_t\,\tilde h_t\), and a reset gate controls
+    how much of the past feeds the candidate. It has fewer weights than an LSTM and usually performs
+    about as well.</p
+  >
+  <h4>What this page simplifies</h4
+  ><p
+    >In a real LSTM the gates are computed from the current word and the previous state by learned
+    weights. <b>Here the gates are set by you with sliders</b>, and each network holds a single
+    number, so that the effect of the gates can be seen in isolation: the forget gate is the same at
+    every word, and the input gate is open at "keys" and set by the slider at the distracting words.
+    The curves are exact for those settings.</p
+  ></template
+>
+
+<template data-part="question"
+  >With the forget gate at 0.98 the LSTM keeps about 75% of the fact after 14 words. Why does 0.98
+  matter so much more than, say, 0.90?</template
+>
+
+<template data-part="answer"
+  >The fact is multiplied by the forget gate at every word, so what remains is the gate value raised
+  to the number of words. 0.98 to the power 14 is about 0.75, while 0.90 to the power 14 is about
+  0.23. Small differences per step compound over long gaps, which is why LSTMs are often initialised
+  with the forget gate biased toward 1.</template
+>

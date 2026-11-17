@@ -1,0 +1,221 @@
+<template data-part="lede"
+  >Five food trucks park outside your office. Each has its own hidden chance of serving you a good
+  lunch, and you have 1,500 lunches to spend. Every day at the best truck you have found so far is a
+  day you learn nothing about the others. Every day spent testing another truck may be a wasted
+  lunch. This is the simplest problem in reinforcement learning, and the same dilemma sits inside
+  every harder one. Four strategies play it side by side here, and you can play against
+  them.</template
+>
+
+<template data-part="intro"
+  ><p
+    >You move to a new town with five restaurants on your street. On the first night you pick one at
+    random and it is good. On the second night, do you go back? If you always return to the best
+    place you know, you may eat for years at the third-best restaurant in town because of one lucky
+    evening. If you keep trying everything for ever, you keep eating bad dinners you could have
+    avoided. The sensible course is in between: try the others enough to be reasonably sure, and try
+    them less and less as the evidence comes in. The strategies on this page are different precise
+    versions of "enough".</p
+  >
+</template>
+
+<template data-part="stage"
+  ><div class="row seg" id="mb-s" role="group" aria-label="Whose choices to watch"
+    ><button class="btn" type="button" data-v="0">Watch: Greedy</button
+    ><button class="btn" type="button" data-v="1">Watch: ε-Greedy</button
+    ><button class="btn" type="button" data-v="2">Watch: UCB</button
+    ><button class="btn" type="button" data-v="3">Watch: Thompson Sampling</button
+    ><button class="btn" type="button" data-v="4">Play Yourself</button></div
+  >
+  <div class="stage"
+    ><figure class="fig"
+      ><figcaption
+        >The five trucks as the watched player sees them: its estimate of each truck’s success rate
+        (bar), how many times it has eaten there, and how unsure it still is. Gold frame: today’s
+        choice</figcaption
+      ><canvas
+        class="short"
+        id="mb-c"
+        role="img"
+        aria-label="Estimated success rate, count and uncertainty for each of five options"
+      ></canvas
+    ></figure>
+    <figure class="fig"
+      ><figcaption
+        >Top: regret, the good lunches each player has missed compared with always going to the best
+        truck. Lower is better. Bottom: how often each has chosen the best truck</figcaption
+      ><canvas
+        class="short"
+        id="mb-r"
+        role="img"
+        aria-label="Cumulative regret and share of best choices for each strategy"
+      ></canvas></figure
+  ></div>
+  <figure class="fig" style="margin-top:18px"
+    ><figcaption>How the watched player made today’s choice</figcaption
+    ><div class="eq" id="mb-eq" aria-live="polite" style="min-height:10em;margin-top:6px"></div
+  ></figure>
+  <div class="howto"
+    ><div
+      ><h3>How it works, step by step</h3
+      ><ol id="mb-steps"
+        ><li>Each truck has a fixed chance of a good lunch. Nobody knows the five chances.</li
+        ><li
+          >Each day every player picks one truck by its own rule, using only its own past
+          lunches.</li
+        ><li
+          >It gets a good lunch or a bad one, and updates its record for that truck: visits, and
+          good lunches.</li
+        ><li
+          >Greedy always picks the truck with the best record so far. ε-greedy does the same but
+          picks at random a share ε of the time.</li
+        ><li
+          >UCB adds a bonus to trucks it has rarely visited, and picks the highest total. Thompson
+          sampling draws a plausible success rate for every truck from what it knows, and picks the
+          highest draw.</li
+        ><li>After 1,500 days, compare how many good lunches each player missed.</li></ol
+      ></div
+    ><div><h3>What just happened</h3><p class="live" id="mb-live" role="status"></p></div
+  ></div>
+  <div class="controls"
+    ><template data-label="Animation" data-control="group"
+      ><div class="row"
+        ><button class="btn go" id="mb-play" type="button">Run</button
+        ><button class="btn" id="mb-step" type="button">One day</button
+        ><button class="btn" id="mb-reset" type="button">Start over</button></div
+      ><template data-unit="days" data-id="mb" data-control="run-limit"></template
+    ></template>
+    <template data-label="Settings" data-control="group"
+      ><template
+        data-value="0.1"
+        data-step="0.01"
+        data-max="0.5"
+        data-min="0"
+        data-label="ε for ε-greedy: share of random choices"
+        data-id="mb-e"
+        data-control="slider"
+      ></template
+      ><template
+        data-value="2"
+        data-step="1"
+        data-max="3"
+        data-min="1"
+        data-label="Speed"
+        data-id="mb-sp"
+        data-control="slider"
+      ></template
+      ><div class="row"
+        ><button class="btn" id="mb-rev" type="button">Reveal the True Chances</button></div
+      ></template
+    ></div
+  >
+  <dl class="read"
+    ><template data-label="Days so far" data-key="d" data-control="readout"></template
+    ><template data-label="Watched player" data-key="w" data-control="readout"></template
+    ><template data-label="Its good lunches" data-key="g" data-control="readout"></template
+    ><template
+      data-class="hl"
+      data-label="Its regret: good lunches missed"
+      data-key="rg"
+      data-control="readout"
+    ></template
+    ><template
+      data-class="hl2"
+      data-label="Share of its days at the best truck"
+      data-key="bs"
+      data-control="readout"
+    ></template
+    ><template
+      data-label="Truck it currently rates highest"
+      data-key="fav"
+      data-control="readout"
+    ></template></dl
+></template>
+
+<template data-part="tryit"
+  >First choose Play Yourself and click on trucks for 40 or 50 days. Which truck do you think is
+  best, and how sure are you? Press Reveal the True Chances to check. Now start over and press Run,
+  several times. Greedy is a gamble: in most runs it happens to settle on the best truck early and
+  looks unbeatable, and in the rest it locks on to a worse truck after one unlucky lunch and its
+  regret climbs in a straight line for good. ε-greedy never locks on, and never stops wasting a
+  fixed share of its days either. Watch UCB: which trucks get the large bonus, and what happens to
+  the bonus as the days pass? Watch Thompson sampling: the bell shapes narrow for the trucks it
+  visits. Which two strategies have a regret curve that bends over and flattens?</template
+>
+
+<template data-part="math"
+  ><h4>The problem</h4
+  ><p
+    >There are \(K\) options, called arms after the levers of slot machines. Arm \(k\) pays 1 with
+    unknown probability \(\mu_k\) and 0 otherwise. On each of \(T\) days you choose one arm \(a_t\)
+    and see only its result. The best arm has \(\mu^\star=\max_k\mu_k\). The <b>regret</b> after
+    \(T\) days is the expected reward given up by not always choosing it:</p
+  >$$\text{Regret}(T)=\sum_{t=1}^{T}\big(\mu^\star-\mu_{a_t}\big).$$<p
+    >A strategy that keeps choosing a worse arm a fixed share of the time has regret that grows in a
+    straight line. A good strategy has regret that grows more and more slowly, like \(\log T\),
+    which is the best that can be achieved.</p
+  >
+  <h4>Greedy and ε-greedy</h4
+  ><p
+    >Keep the average result \(\hat\mu_k\) of each arm and its number of pulls \(n_k\).
+    <b>Greedy</b> pulls \(\arg\max_k\hat\mu_k\). After trying each arm once it never explores again,
+    so an unlucky first result on the best arm can banish it for good. <b>ε-greedy</b> pulls a
+    uniformly random arm with probability \(\varepsilon\) and the greedy arm otherwise. It always
+    finds the best arm in the end, and it always goes on spending the share \(\varepsilon\) on
+    random pulls, most of them on arms it already knows are worse. Its regret is a straight line
+    with a smaller slope.</p
+  >
+  <h4>UCB: optimism in the face of uncertainty</h4
+  ><p
+    >The upper confidence bound rule (Auer and others, 2002) gives each arm a score: its average
+    plus a bonus that is large when the arm has been tried little,</p
+  >$$\text{score}_k=\hat\mu_k+\sqrt{\frac{\ln t}{2\,n_k}},$$<p
+    >and pulls the highest score. An arm is chosen either because it looks good or because too
+    little is known about it to rule it out. Each pull shrinks that arm's bonus. The \(\ln t\) makes
+    every bonus creep up slowly, so no arm is abandoned for ever, and it is revisited more and more
+    rarely. Exploration is directed at the arms where it can still change the decision. The original
+    UCB1 rule uses the larger bonus \(\sqrt{2\ln t/n_k}\), which is safer in theory and explores
+    noticeably more than is needed on a problem this small.</p
+  >
+  <h4>Thompson sampling: act on a plausible guess</h4
+  ><p
+    >Keep a full belief about each \(\mu_k\). Starting from "anything between 0 and 1 is equally
+    likely", after \(w_k\) good and \(l_k\) bad results the belief is a Beta distribution,</p
+  >$$\mu_k\sim\mathrm{Beta}(1+w_k,\ 1+l_k).$$<p
+    >Each day, draw one value from every arm's belief and pull the arm whose draw is highest
+    (Thompson, 1933). A rarely tried arm has a wide belief, so its draw is sometimes high and it
+    gets tried. A well-known poor arm has a narrow belief around a low value and almost never wins
+    the draw. The rule has no setting to tune, and it chooses each arm with exactly the probability
+    that the arm is the best one given the evidence.</p
+  >
+  <h4>Why this matters beyond lunch</h4
+  ><p
+    >Websites choose which headline or advert to show with these rules, clinical trials use them to
+    give fewer patients the worse treatment, and recommendation systems use them to try new items.
+    In the rest of this module the same tension returns as the ε in Q-learning: a robot that only
+    does what currently looks best never finds out that something else is better.</p
+  >
+  <h4>What this page runs</h4
+  ><p
+    >Five arms with success chances 0.20, 0.35, 0.50, 0.60 and 0.80, in a random order that is
+    hidden until you ask. All four strategies face the same five trucks for 1,500 days, each with
+    its own lunches. Regret is computed from the true chances, so it is exact and does not depend on
+    the luck of individual lunches. One run is one sample, so press Start over a few times. Averaged
+    over 300 runs of this exact setup, the regret after 1,500 days is about 99 for greedy (usually
+    under 5, occasionally over 300), 68 for ε-greedy with ε = 0.1, 33 for UCB and 22 for Thompson
+    sampling.</p
+  ></template
+>
+
+<template data-part="question"
+  >After 1,500 days ε-greedy with ε = 0.1 has found the best truck and rates it highest. Its regret
+  is still rising steadily. Why, and what simple change would fix it?</template
+>
+
+<template data-part="answer"
+  >It still chooses a random truck on one day in ten, and four times out of five that random truck
+  is not the best one. Those days are wasted for ever, however certain it has become, so its regret
+  rises by a fixed amount per day. The fix is to explore less as evidence accumulates, for example
+  by shrinking ε over time. UCB and Thompson sampling do this automatically: their exploration fades
+  exactly as fast as their uncertainty does.</template
+>

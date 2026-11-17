@@ -1,0 +1,218 @@
+<template data-part="lede"
+  >Stable Diffusion is three ideas bolted together. Compress pictures into a small code, so the hard
+  work happens on a few numbers instead of a million pixels. Run diffusion on that code. And steer
+  the diffusion with a prompt. This page builds all three for real, small enough to train in your
+  browser: choose a prompt, set how strongly to follow it, and watch eight pictures form.</template
+>
+
+<template data-part="intro"
+  ><p
+    >An architect does not design a building by placing bricks. She works on a small floor plan,
+    where moving a wall is one pencil stroke, and only at the end is the plan turned into a
+    building. And she works to a brief: "three bedrooms, lots of light". Stable Diffusion generates
+    pictures the same way. It does its diffusion on a small plan of the picture, called a latent,
+    steered by a brief, the prompt. Only at the very end does a decoder turn the finished latent
+    into pixels.</p
+  >
+</template>
+
+<template data-part="stage"
+  ><div class="row seg" id="sd-pr" role="group" aria-label="Prompt"></div>
+  <div class="stage one"
+    ><figure class="fig"
+      ><figcaption>The pipeline. The gold box is the part that is working right now</figcaption
+      ><canvas
+        class="tall"
+        id="sd-p"
+        style="aspect-ratio:16/2.5"
+        role="img"
+        aria-label="Stable Diffusion pipeline: prompt, text encoder, denoiser in latent space, decoder, picture"
+      ></canvas></figure
+  ></div>
+  <div class="stage" style="margin-top:14px"
+    ><figure class="fig"
+      ><figcaption
+        >The latent space: every picture compressed to two numbers. Letters mark where the training
+        pictures sit. Gold dots are the eight codes being generated; the line is the path of the
+        first one</figcaption
+      ><canvas
+        class="short"
+        id="sd-c"
+        role="img"
+        aria-label="Latent space with generated codes walking from noise to the prompted region"
+      ></canvas
+    ></figure>
+    <figure class="fig"
+      ><figcaption
+        >Top: the eight codes run through the decoder at this moment. A gold frame means it matches
+        the prompt. Bottom: the training error of the part being trained</figcaption
+      ><canvas
+        class="short"
+        id="sd-r"
+        role="img"
+        aria-label="Decoded pictures and training loss"
+      ></canvas></figure
+  ></div>
+  <div class="howto"
+    ><div
+      ><h3>How it works, step by step</h3
+      ><ol id="sd-steps"
+        ><li
+          >Train the compressor (a VAE): squeeze each 35-pixel picture to a code of 2 numbers and
+          back.</li
+        ><li
+          >Encode every training picture. From here on the pictures are put away: only their codes
+          and their captions are used.</li
+        ><li
+          >Train the denoiser on the codes: add noise to a code, show it the noisy code and the
+          caption, and ask what noise was added. One time in seven the caption is hidden.</li
+        ><li
+          >Generate: start eight codes as pure noise. At each step ask the denoiser twice, with the
+          prompt and without, and push the answer further in the direction the prompt suggests
+          (guidance).</li
+        ><li
+          >After 40 steps, run the finished codes through the decoder. Only now do pixels
+          appear.</li
+        ></ol
+      ></div
+    ><div><h3>What just happened</h3><p class="live" id="sd-live" role="status"></p></div
+  ></div>
+  <div class="controls"
+    ><template data-label="Animation" data-control="group"
+      ><div class="row"
+        ><button class="btn go" id="sd-play" type="button">Run</button
+        ><button class="btn" id="sd-step" type="button">One step</button
+        ><button class="btn" id="sd-reset" type="button">Start over</button></div
+      ><template data-unit="training steps" data-id="sd" data-control="run-limit"></template
+    ></template>
+    <template data-label="Generation" data-control="group"
+      ><template
+        data-value="3"
+        data-step="0.1"
+        data-max="8"
+        data-min="0"
+        data-label="Guidance: how strongly to follow the prompt"
+        data-id="sd-w"
+        data-control="slider"
+      ></template
+      ><div class="row"
+        ><button class="btn" id="sd-gen" type="button">Generate Again</button></div
+      ></template
+    ></div
+  >
+  <dl class="read"
+    ><template data-label="Stage" data-key="ph" data-control="readout"></template
+    ><template data-label="Prompt" data-key="pr" data-control="readout"></template
+    ><template
+      data-label="Noise level while generating"
+      data-key="lv"
+      data-control="readout"
+    ></template
+    ><template
+      data-class="hl"
+      data-label="Generated pictures that match the prompt"
+      data-key="ok"
+      data-control="readout"
+    ></template
+    ><template
+      data-label="Numbers the denoiser works on, per picture"
+      data-key="cmp"
+      data-control="readout"
+    ></template
+    ><template
+      data-class="hl2"
+      data-label="Training error now"
+      data-key="L"
+      data-control="readout"
+    ></template></dl
+></template>
+
+<template data-part="tryit"
+  >Let it train both parts and generate. Then press each prompt in turn: the gold dots walk to a
+  different region of the map each time, and a different letter comes out. Set guidance to 0 and
+  generate: the prompt is ignored and you get a random mix of letters. Raise it to 3, then 8: more
+  of the eight match, and they bunch tightly together. What is lost at very high guidance?</template
+>
+
+<template data-part="math"
+  ><h4>Part 1: compress (the VAE)</h4
+  ><p
+    >An autoencoder is trained first and then frozen. Its encoder \(\mathcal E\) maps a picture
+    \(\mathbf x\) to a latent \(\mathbf z=\mathcal E(\mathbf x)\), and its decoder \(\mathcal D\)
+    maps a latent back to a picture. In the real model a \(512\times512\times3\) picture (786,432
+    numbers) becomes a \(64\times64\times4\) latent (16,384 numbers), 48 times smaller. Diffusion in
+    that space is far cheaper than in pixels, which is what made the model usable on an ordinary
+    graphics card. Here 35 pixels become 2 numbers.</p
+  >
+  <h4>Part 2: diffuse in latent space</h4
+  ><p
+    >Everything from the DDPM tabs applies unchanged, with \(\mathbf z\) in place of the picture.
+    Noise is added to latents, \(\mathbf z_t=\sqrt{\bar\alpha_t}\,\mathbf
+    z_0+\sqrt{1-\bar\alpha_t}\,\boldsymbol\varepsilon\), and a denoiser is trained to predict it,
+    now with the caption \(c\) as an extra input:</p
+  >$$\mathcal L=\mathbb E\Big[\big\lVert\boldsymbol\varepsilon-\boldsymbol\varepsilon_\theta(\mathbf
+  z_t,\,t,\,c)\big\rVert^2\Big].$$<p
+    >In the real model the denoiser is a U-Net and the caption enters through attention layers:
+    every position in the latent attends to the words of the prompt (cross-attention).</p
+  >
+  <h4>Part 3: follow the prompt (classifier-free guidance)</h4
+  ><p
+    >During training the caption is replaced by an empty one a fraction of the time, so the same
+    network learns both "denoise toward this caption" and "denoise toward any picture". When
+    generating, both are computed, and the difference between them is exaggerated by a guidance
+    scale \(w\):</p
+  >$$\hat{\boldsymbol\varepsilon}=\boldsymbol\varepsilon_\theta(\mathbf
+  z_t,t,\varnothing)+w\,\Big[\boldsymbol\varepsilon_\theta(\mathbf
+  z_t,t,c)-\boldsymbol\varepsilon_\theta(\mathbf z_t,t,\varnothing)\Big].$$<p
+    >\(w=0\) ignores the prompt. \(w=1\) is the plain conditional model. \(w&gt;1\) pushes harder
+    toward what the prompt adds, which makes results match the prompt more reliably and makes them
+    less varied. Very large \(w\) gives over-saturated, distorted pictures; values around 7 are
+    typical for images.</p
+  >
+  <h4>The whole pipeline</h4
+  ><ol
+    ><li>The prompt is turned into vectors by a text encoder.</li
+    ><li>A latent is filled with random noise.</li
+    ><li
+      >For each step, the denoiser predicts the noise twice (with and without the prompt), guidance
+      combines them, and the sampler removes a little noise.</li
+    ><li>The decoder turns the final latent into a picture.</li></ol
+  >
+  <h4>This page beside the real thing</h4
+  ><table
+    ><thead
+      ><tr><th></th><th>Here</th><th>Stable Diffusion 1.5</th></tr></thead
+    ><tbody
+      ><tr
+        ><td>Picture</td><td>5 × 7 pixels, black and white</td><td>512 × 512 pixels, colour</td></tr
+      ><tr><td>Latent</td><td>2 numbers</td><td>64 × 64 × 4 = 16,384 numbers</td></tr
+      ><tr><td>Prompt</td><td>one of six fixed captions</td><td>any text, up to 77 tokens</td></tr
+      ><tr
+        ><td>Text encoder</td><td>a lookup: one switch per caption</td
+        ><td>CLIP, a Transformer (123 million weights)</td></tr
+      ><tr
+        ><td>Denoiser</td><td>a small network, about 5,400 weights</td
+        ><td>a U-Net with attention (860 million weights)</td></tr
+      ><tr><td>Sampling steps</td><td>40</td><td>20 to 50, with faster samplers</td></tr
+      ><tr
+        ><td>Training data</td><td>150 pictures</td><td>about two billion captioned images</td></tr
+      ></tbody
+    ></table
+  ><p
+    >The three parts and the way they connect are the same. What a model of this size cannot do is
+    combine ideas it has never seen together, which is where the scale of the real model matters.</p
+  ></template
+>
+
+<template data-part="question"
+  >Why is the caption hidden from the denoiser in a fraction of the training examples? It seems to
+  throw information away.</template
+>
+
+<template data-part="answer"
+  >So that one network learns two things: how to denoise given a caption, and how to denoise with no
+  caption at all. Guidance needs both at generation time, because it works by comparing the two
+  answers and exaggerating their difference. Without the caption-free examples the network would
+  have no sensible answer for an empty prompt, and there would be nothing to compare
+  against.</template
+>

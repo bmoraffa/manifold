@@ -1,0 +1,225 @@
+<template data-part="lede"
+  >A trained network is a long list of numbers, and each one is normally stored with 32 bits. A
+  large language model has billions of them, which is why it needs a data centre. Quantization
+  stores every weight with fewer bits by rounding it to the nearest value on a short list. The
+  surprise is how far this can go: at 8 bits almost nothing is lost, at 4 bits very little, and
+  then, quite suddenly, the network falls apart. Here a real letter-reading network is rounded while
+  you watch.</template
+>
+
+<template data-part="intro"
+  ><p
+    >Measure the height of everyone in a class to the nearest tenth of a millimetre and you have
+    recorded far more than anyone needs. To the nearest centimetre is plenty: the list is much
+    shorter to write down and nothing useful is lost. To the nearest half metre is too coarse:
+    almost everyone becomes "1.5" and the list is useless. Somewhere between lies the coarsest ruler
+    that still does the job. Quantization is the search for that ruler for the weights of a network.
+    It works as well as it does because a network's answer comes from adding up thousands of
+    weights, and small rounding errors in opposite directions largely cancel.</p
+  >
+</template>
+
+<template data-part="stage"
+  ><div class="stage"
+    ><figure class="fig"
+      ><figcaption
+        >Top: all the weights of the first layer, as a histogram. The gold lines are the only values
+        a weight is allowed to take. Bottom: what each of the 24 hidden neurons looks for, drawn
+        from its rounded weights</figcaption
+      ><canvas
+        class="short"
+        id="qz-c"
+        role="img"
+        aria-label="Histogram of weights with the allowed levels, and the rounded weights of each hidden neuron"
+      ></canvas
+    ></figure>
+    <figure class="fig"
+      ><figcaption
+        >Top: accuracy on 300 test pictures for every number of bits. Bottom: each weight before
+        rounding (across) against after rounding (up)</figcaption
+      ><canvas
+        class="short"
+        id="qz-r"
+        role="img"
+        aria-label="Accuracy against bits, and original weight against rounded weight"
+      ></canvas></figure
+  ></div>
+  <div class="eq" id="qz-eq" aria-live="polite"></div>
+  <div class="stage" style="margin-top:22px"
+    ><figure class="fig"
+      ><figcaption
+        >A test picture, and what the full-precision network (left bar of each pair) and the rounded
+        network (right bar, gold) each think it is</figcaption
+      ><canvas
+        class="wide"
+        id="qz-t"
+        role="img"
+        aria-label="A test picture and the class probabilities from both networks"
+      ></canvas
+    ></figure>
+    <div
+      ><div class="row seg" id="qz-let" role="group" aria-label="Letter to test"></div
+      ><div class="row" style="margin-top:10px"
+        ><button class="btn" id="qz-noise" type="button">Another Noisy Copy</button
+        ><button class="btn" id="qz-w" type="button">Follow Another Weight</button></div
+      ><p class="tpout" id="qz-tpo" role="status" style="margin-top:12px"></p></div
+  ></div>
+  <div class="howto"
+    ><div
+      ><h3>How it works, step by step</h3
+      ><ol id="qz-steps"
+        ><li>Train the network as usual, with 32-bit weights, and measure its accuracy.</li
+        ><li
+          >Choose a number of bits b. That allows 2 to the power b different values, fewer one to
+          keep them symmetric around zero.</li
+        ><li>Find the range of the weights and spread the allowed values evenly across it.</li
+        ><li
+          >Round every weight to the nearest allowed value. Store only which one it was: a small
+          whole number.</li
+        ><li>Run the network with the rounded weights and measure the accuracy again.</li></ol
+      ></div
+    ><div><h3>What just happened</h3><p class="live" id="qz-live" role="status"></p></div
+  ></div>
+  <div class="controls"
+    ><template data-label="Animation" data-control="group"
+      ><div class="row"
+        ><button class="btn go" id="qz-play" type="button">Run</button
+        ><button class="btn" id="qz-step" type="button">One step</button
+        ><button class="btn" id="qz-reset" type="button">Start over</button></div
+      ></template
+    >
+    <template data-label="Rounding" data-control="group"
+      ><template
+        data-value="8"
+        data-step="1"
+        data-max="8"
+        data-min="0"
+        data-label="Bits per weight"
+        data-id="qz-b"
+        data-control="slider"
+      ></template
+      ><div class="row seg" id="qz-clip" role="group" aria-label="Range"
+        ><button class="btn" type="button" data-v="full">Cover the Full Range</button
+        ><button class="btn" type="button" data-v="clip">Clip the Largest 1%</button></div
+      ></template
+    ></div
+  >
+  <dl class="read"
+    ><template data-label="Bits per weight" data-key="b" data-control="readout"></template
+    ><template
+      data-label="Different values a weight may take"
+      data-key="lv"
+      data-control="readout"
+    ></template
+    ><template
+      data-class="hl2"
+      data-label="Size of the 984 weights"
+      data-key="sz"
+      data-control="readout"
+    ></template
+    ><template
+      data-class="hl"
+      data-label="Accuracy with rounded weights"
+      data-key="acc"
+      data-control="readout"
+    ></template
+    ><template
+      data-label="Accuracy at full precision"
+      data-key="acc0"
+      data-control="readout"
+    ></template
+    ><template
+      data-label="Average rounding error, as a share of the weight range"
+      data-key="err"
+      data-control="readout"
+    ></template></dl
+></template>
+
+<template data-part="tryit"
+  >Press Run: the bits fall from 32 to 1 and everything on the page follows. At how many bits does
+  the accuracy first drop noticeably, and how much smaller is the model by then? Look at the 24
+  small pictures at 32 bits and at 2 bits: the neurons still look for roughly the same strokes. At 1
+  bit only the sign of each weight survives. Now compare the two range rules at 2 and 3 bits.
+  Clipping throws away accuracy on the few largest weights to buy finer steps for all the others:
+  does that trade pay here? Use the buttons under the test picture to find a letter that the rounded
+  network gets wrong and the original gets right.</template
+>
+
+<template data-part="math"
+  ><h4>Uniform quantization</h4
+  ><p
+    >Take the weights of one layer and let \(m\) be the largest size among them. With \(b\) bits,
+    use the whole numbers from \(-Q\) to \(Q\), where \(Q=2^{\,b-1}-1\), and a step</p
+  >$$\Delta=\frac{m}{Q}.$$<p
+    >Each weight \(w\) is replaced by a whole number \(q\), which is all that is stored, and is read
+    back as \(\hat w\):</p
+  >$$q=\operatorname{round}\!\Big(\frac{w}{\Delta}\Big),\qquad \hat w=q\,\Delta .$$<p
+    >The line of calculations under the pictures does this for one weight. For 8 bits \(q\) runs
+    from \(-127\) to \(127\). The layer also stores the single number \(\Delta\).</p
+  >
+  <h4>The error</h4
+  ><p
+    >Rounding moves a weight by at most half a step, \(|w-\hat w|\le\Delta/2\). If the errors are
+    spread evenly inside that interval, their typical size is</p
+  >$$\sqrt{\mathbb E\big[(w-\hat w)^2\big]}=\frac{\Delta}{\sqrt{12}} .$$<p
+    >Removing one bit doubles \(\Delta\) and so doubles the error, while the saving in size from
+    that bit gets smaller each time: from 8 to 7 bits saves an eighth, from 2 to 1 saves a half.
+    That is why the accuracy curve is flat for a long way and then falls off a cliff.</p
+  >
+  <h4>One bit</h4
+  ><p
+    >With a single bit there is no room for zero, so the rule changes: keep only the sign of each
+    weight and give all of them the same size, the average size in the layer,</p
+  >$$\hat w=\operatorname{sign}(w)\cdot\frac{1}{n}\sum_i|w_i| .$$<p
+    >That a network still works at all like this says how much of what it knows is carried by the
+    pattern of signs.</p
+  ><p
+    >On this page 2 bits can score lower than 1 bit. With 2 bits and the full range the three
+    allowed values are \(-m\), 0 and \(m\). Because \(m\) is set by the single largest weight, most
+    weights are closer to 0 than to \(\pm m\) and are rounded to exactly zero, which switches them
+    off. The 1-bit rule never produces a zero. Clipping the range, described next, repairs much of
+    the 2-bit case.</p
+  >
+  <h4>The range matters</h4
+  ><p
+    >The allowed values are spread across the whole range \([-m,m]\). If one weight is far larger
+    than the others, it stretches the range, the step \(\Delta\) grows, and all the ordinary weights
+    are rounded more coarsely to accommodate one outlier. <b>Clipping</b> sets \(m\) to a percentile
+    of the sizes, here the 99th, and squashes the few larger weights down to it. They are
+    represented badly and everything else is represented better. Whether that pays depends on the
+    layer, and choosing the range well is most of the craft in this simple form of quantization.</p
+  >
+  <h4>In large language models</h4
+  ><p
+    >A model with 7 billion weights takes 28 gigabytes at 32 bits, 14 at 16 bits, 7 at 8 bits and
+    3.5 at 4 bits. Four-bit versions of open models are what run on laptops and phones. Fewer bits
+    also make the arithmetic itself faster and cheaper in energy. Rounding a finished model, as this
+    page does, is called post-training quantization. When that loses too much, the model can be
+    trained with the rounding already in place so that it learns weights that survive it, which is
+    quantization-aware training. Practical schemes also use different steps for different groups of
+    weights, and spend more bits on the layers that turn out to be most sensitive.</p
+  >
+  <h4>What this page trains</h4
+  ><p
+    >A network that reads 5 by 7 pictures of six letters, with 35 inputs, 24 hidden neurons and 6
+    outputs. Its 984 weights are quantized, one scale per layer. The 30 biases are left at full
+    precision. The pictures have 12% of their squares flipped at random, which makes the task hard
+    enough for errors to show. Accuracy is measured on 300 pictures the network did not train on.</p
+  ></template
+>
+
+<template data-part="question"
+  >Going from 32 bits to 8 bits makes the model four times smaller and costs almost no accuracy.
+  Going from 2 bits to 1 bit makes it only twice smaller and destroys much of the accuracy. Why is
+  the trade so different at the two ends?</template
+>
+
+<template data-part="answer"
+  >Each bit removed doubles the size of the rounding step, and so doubles the error in every weight.
+  At 32 bits the error is so far below what the network can notice that doubling it twenty times
+  over still leaves it negligible: those bits were storing precision the network never used. At 2
+  bits the step is already about the size of a typical weight, so doubling it again erases the
+  differences between weights that the network depends on. The saving, meanwhile, is measured
+  against what is left, so the last bits removed save the fewest bytes in absolute terms and cost
+  the most.</template
+>

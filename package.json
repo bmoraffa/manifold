@@ -1,15 +1,17 @@
 {
   "name": "manifold",
   "private": true,
+  "type": "module",
   "description": "Development tooling for the Manifold static website",
   "engines": {
     "node": "^22.22.0 || >=24.8.0"
   },
   "scripts": {
+    "dev": "node scripts/serve.mjs",
     "lint": "npm run lint:js && npm run lint:css && npm run lint:html",
     "lint:js": "eslint .",
     "lint:css": "stylelint \"css/**/*.css\"",
-    "lint:html": "html-validate index.html",
+    "lint:html": "html-validate index.html && html-validate --config .htmlvalidate.fragments.json \"lessons/**/*.html\" \"pages/about/**/*.html\" \"js/ui/*.html\"",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "check": "npm run format:check && npm test && npm run lint",
@@ -20,6 +22,7 @@
     "eslint": "10.15.0",
     "globals": "17.14.0",
     "html-validate": "11.21.1",
+    "linkedom": "0.18.15",
     "prettier": "3.10.1",
     "stylelint": "17.16.0",
     "stylelint-config-recommended": "18.0.0"

@@ -1,0 +1,320 @@
+<template data-part="lede"
+  >Bayes’ rule often leaves you with a belief you can write down and cannot use: a formula for how
+  plausible each answer is, but no way to draw examples from it or average over it. Markov chain
+  Monte Carlo is the workaround. A walker wanders over the landscape of plausibility, and the places
+  it visits, counted up, turn out to be exactly a sample from the belief. Five walkers live on this
+  page, from the blind random stepper of 1953 to the No-U-Turn sampler that modern Bayesian software
+  runs. They differ in one thing only: how the next place is proposed.</template
+>
+
+<template data-part="intro"
+  ><p
+    >You are set down on a hilly island in thick fog and asked to draw a map showing how high the
+    ground is everywhere. You cannot see anything. All you have is an altimeter that tells you the
+    height where you stand. Here is a way to do it: wander about, and keep a diary of where you are
+    once a minute. Whenever you consider a step, check the altimeter there. If it is higher, take
+    the step. If it is lower, take it only sometimes, less often the bigger the drop. You will spend
+    most of your time on the high ground and visit the low ground occasionally, and in the long run
+    the number of diary entries in each place is proportional to its height. The diary is the map.
+    Nobody ever needed the total volume of the island. The better walkers on this page add one more
+    instrument: they can also feel which way the ground slopes, and use it to decide where to try
+    next.</p
+  >
+</template>
+
+<template data-part="stage"
+  ><div class="row seg" id="mc-al" role="group" aria-label="Sampler"
+    ><button class="btn" type="button" data-v="rw">Random-Walk Metropolis</button
+    ><button class="btn" type="button" data-v="mh">Metropolis-Hastings</button
+    ><button class="btn" type="button" data-v="lang">Langevin</button
+    ><button class="btn" type="button" data-v="hmc">Hamiltonian</button
+    ><button class="btn" type="button" data-v="nuts">No-U-Turn</button></div
+  >
+  <div
+    class="row seg"
+    id="mc-tg"
+    role="group"
+    aria-label="Target distribution"
+    style="margin-top:8px"
+    ><button class="btn" type="button" data-v="corr">A Slanted Bell</button
+    ><button class="btn" type="button" data-v="banana">A Banana</button
+    ><button class="btn" type="button" data-v="two">Two Islands</button></div
+  >
+  <div class="stage"
+    ><figure class="fig"
+      ><figcaption
+        >Shading: the target, darker where it is more probable. Dots: every place the walker has
+        stood. Thin line: its last 60 moves. Thick line: the move it has just proposed, with the
+        whole path it travelled for the Hamiltonian and No-U-Turn walkers. Click anywhere to put the
+        walker there</figcaption
+      ><canvas
+        class="short"
+        id="mc-c"
+        role="img"
+        aria-label="Target density, samples and the proposed move"
+      ></canvas
+    ></figure>
+    <figure class="fig"
+      ><figcaption
+        >Top: the walker’s left-to-right position over time. A healthy walk looks like a fuzzy band.
+        Bottom: how often it has stood at each left-to-right position (bars), against the true
+        answer (line)</figcaption
+      ><canvas
+        class="short"
+        id="mc-r"
+        role="img"
+        aria-label="Trace of the chain and histogram against the true marginal"
+      ></canvas></figure
+  ></div>
+  <figure class="fig" style="margin-top:18px"
+    ><figcaption>The last decision, worked out</figcaption
+    ><div class="eq" id="mc-eq" aria-live="polite" style="min-height:9.5em;margin-top:6px"></div
+  ></figure>
+  <div class="howto"
+    ><div><h3>How it works, step by step</h3><ol id="mc-steps"></ol></div
+    ><div><h3>What just happened</h3><p class="live" id="mc-live" role="status"></p></div
+  ></div>
+  <div class="controls"
+    ><template data-label="Animation" data-control="group"
+      ><div class="row"
+        ><button class="btn go" id="mc-play" type="button">Run</button
+        ><button class="btn" id="mc-step" type="button">One step</button
+        ><button class="btn" id="mc-reset" type="button">Start over</button></div
+      ><template data-unit="steps" data-id="mc" data-control="run-limit"></template
+    ></template>
+    <template data-label="The walker" data-control="group"
+      ><label class="ctl" for="mc-s"
+        ><span><span id="mc-sl">Stride</span></span
+        ><input type="range" id="mc-s" min="0.05" max="4" step="0.05" value="0.8" /><output
+          id="mc-s-o"
+          for="mc-s"
+        ></output></label
+      ><template
+        data-value="15"
+        data-step="1"
+        data-max="40"
+        data-min="1"
+        data-label="Leapfrog steps in one move (Hamiltonian only)"
+        data-id="mc-L"
+        data-control="slider"
+      ></template
+      ><label class="check" for="mc-cor"
+        ><input type="checkbox" id="mc-cor" checked /><span id="mc-corl"
+          >Apply the correction</span
+        ></label
+      ><template
+        data-value="2"
+        data-step="1"
+        data-max="3"
+        data-min="1"
+        data-label="Speed"
+        data-id="mc-sp"
+        data-control="slider"
+      ></template></template
+  ></div>
+  <dl class="read"
+    ><template data-label="Steps so far" data-key="n" data-control="readout"></template
+    ><template
+      data-class="hl2"
+      data-label="Share of proposals accepted"
+      data-key="acc"
+      data-control="readout"
+    ></template
+    ><template
+      data-label="Average position: walker / truth"
+      data-key="mx"
+      data-control="readout"
+    ></template
+    ><template
+      data-class="hl"
+      data-label="Worth this many independent samples"
+      data-key="ess"
+      data-control="readout"
+    ></template
+    ><template
+      data-label="Look-ups of height or slope used"
+      data-key="cost"
+      data-control="readout"
+    ></template
+    ><template
+      data-class="hl"
+      data-label="Independent samples per 1,000 look-ups"
+      data-key="eff"
+      data-control="readout"
+    ></template
+    ><template
+      data-label="Gap between the bars and the true line"
+      data-key="err"
+      data-control="readout"
+    ></template
+    ><template
+      data-label="Share of time on the right-hand side: walker / truth"
+      data-key="isl"
+      data-control="readout"
+    ></template></dl
+></template>
+
+<template data-part="tryit"
+  >Start with Random-Walk Metropolis. Press One step several times and read each decision. When is a
+  downhill move accepted? Run it on the Slanted Bell, then set the stride to 0.05 and to 4 and watch
+  the trace. Now switch to Langevin and press One step: the proposal leans uphill. Choose the
+  Banana, switch off the correction and raise the step size to 0.6. Do the bars still match the
+  line, however long you wait? Switch the correction back on. Choose Hamiltonian on the Banana and
+  step once: the thick line is the path of a ball rolled across the landscape. Raise the leapfrog
+  steps to 40 and watch some paths curl back to where they began. Then choose No-U-Turn and see
+  where each path is cut. Compare the last two readouts across all five walkers on the Banana.
+  Finally try every walker on Two Islands. Which one crosses, and why that one?</template
+>
+
+<template data-part="math"
+  ><h4>The problem</h4
+  ><p
+    >We want samples from a density \(\pi(\mathbf x)\) that we can only evaluate up to a constant:
+    \(\pi(\mathbf x)=\tilde\pi(\mathbf x)/Z\) with \(Z\) unknown. This is the usual position after
+    Bayes' rule, where \(\tilde\pi\) is prior times likelihood and \(Z\) is the awkward integral in
+    the denominator. With samples \(\mathbf x_1,\dots,\mathbf x_N\) any average can be estimated:</p
+  >$$\mathbb E_\pi[f(\mathbf x)]\approx\frac1N\sum_{i=1}^{N}f(\mathbf x_i).$$
+  <h4>Random-walk Metropolis</h4
+  ><p
+    >From the current point \(\mathbf x\), propose \(\mathbf x'=\mathbf
+    x+\sigma\,\boldsymbol\varepsilon\) with \(\boldsymbol\varepsilon\sim\mathcal N(\mathbf 0,\mathbf
+    I)\). Accept the proposal with probability</p
+  >$$A=\min\!\Big(1,\ \frac{\tilde\pi(\mathbf x')}{\tilde\pi(\mathbf x)}\Big).$$<p
+    >If it is accepted the walker moves to \(\mathbf x'\). If not, it stays at \(\mathbf x\), and
+    \(\mathbf x\) is recorded again. The unknown \(Z\) cancels in the ratio, which is the entire
+    trick (Metropolis and others, 1953).</p
+  >
+  <h4>Metropolis-Hastings</h4
+  ><p
+    >The random walk is fair: a step from \(\mathbf x\) to \(\mathbf x'\) is proposed exactly as
+    often as the step back. Hastings (1970) removed that restriction. Let \(q(\mathbf x'\mid\mathbf
+    x)\) be <i>any</i> rule for proposing, and accept with probability</p
+  >$$A=\min\!\Big(1,\ \frac{\tilde\pi(\mathbf x')}{\tilde\pi(\mathbf x)}\cdot\frac{q(\mathbf
+  x\mid\mathbf x')}{q(\mathbf x'\mid\mathbf x)}\Big).$$<p
+    >The second fraction is the <b>Hastings correction</b>. It asks how much easier it is to propose
+    the move than to propose its reverse, and cancels the unfairness. Every other sampler on this
+    page is Metropolis-Hastings with a cleverer \(q\). The Metropolis-Hastings button here uses the
+    simplest unfair proposal there is, an <b>independence sampler</b>: it ignores where the walker
+    stands and proposes from one fixed wide bell centred on the picture, \(q(\mathbf x')=\mathcal
+    N(\mathbf 0,s^2\mathbf I)\). The centre is proposed far more often than the edges, and the
+    correction \(q(\mathbf x)/q(\mathbf x')\) pays that back. Switch the correction off and the bars
+    pile up in the middle.</p
+  >
+  <h4>Langevin dynamics</h4
+  ><p
+    >A blind proposal wastes most of its tries. If the slope \(\nabla\log\tilde\pi\) is available,
+    lean the proposal uphill:</p
+  >$$\mathbf x'=\mathbf x+\frac{\epsilon^2}{2}\,\nabla\log\tilde\pi(\mathbf
+  x)+\epsilon\,\boldsymbol\xi,\qquad\boldsymbol\xi\sim\mathcal N(\mathbf 0,\mathbf I).$$<p
+    >This is one small time step of the Langevin diffusion \(d\mathbf
+    x=\tfrac12\nabla\log\pi\,dt+d\mathbf W\), a random motion whose long-run distribution is exactly
+    \(\pi\). Taken with a finite step and no check, it is the <b>unadjusted Langevin algorithm</b>:
+    simple, and slightly wrong, with an error that grows with \(\epsilon\). Push \(\epsilon\)
+    further and it becomes unstable: on a narrow ridge each drift overshoots the top by more than
+    the last, and the walker is thrown to the edge of the picture. Adding the Metropolis-Hastings
+    test, with \(q(\mathbf x'\mid\mathbf x)=\mathcal N\big(\mathbf
+    x+\tfrac{\epsilon^2}{2}\nabla\log\tilde\pi(\mathbf x),\,\epsilon^2\mathbf I\big)\), removes the
+    error. That is the <b>Metropolis-adjusted Langevin algorithm</b>, MALA. The same
+    uphill-plus-noise update, with a learned slope, is what generates pictures in the score-matching
+    lesson.</p
+  >
+  <h4>Hamiltonian Monte Carlo</h4
+  ><p
+    >Langevin takes one slope-guided step and then re-randomizes, so it still diffuses. Hamiltonian
+    Monte Carlo keeps going in the same direction. Think of the walker as a frictionless ball on the
+    surface \(U(\mathbf x)=-\log\tilde\pi(\mathbf x)\), a bowl whose bottom is the most probable
+    place. Give the ball a random kick \(\mathbf p\sim\mathcal N(\mathbf 0,\mathbf I)\) and let it
+    roll. Its total energy</p
+  >$$H(\mathbf x,\mathbf p)=U(\mathbf x)+\tfrac12\lVert\mathbf p\rVert^2$$<p
+    >stays constant along the true path. The path is computed with the <b>leapfrog</b> rule,
+    repeated \(L\) times:</p
+  >$$\mathbf p\leftarrow\mathbf p-\tfrac{\epsilon}{2}\nabla U(\mathbf x),\qquad\mathbf
+  x\leftarrow\mathbf x+\epsilon\,\mathbf p,\qquad\mathbf p\leftarrow\mathbf
+  p-\tfrac{\epsilon}{2}\nabla U(\mathbf x).$$<p
+    >Leapfrog is reversible and preserves volume, so the Hastings correction reduces to the change
+    in energy. The end of the path is accepted with probability</p
+  >$$A=\min\!\big(1,\ \exp(H_{\text{start}}-H_{\text{end}})\big).$$<p
+    >Because leapfrog nearly conserves energy, \(A\) is close to 1 even for a path that crosses the
+    whole distribution. That is the point: far-away proposals that are almost always accepted (Duane
+    and others, 1987; Neal, 2011).</p
+  >
+  <h4>The No-U-Turn sampler</h4
+  ><p
+    >Hamiltonian Monte Carlo has an awkward setting: the number of leapfrog steps. Too few and it
+    behaves like Langevin. Too many and the ball swings round and comes back, having paid for a long
+    path to end where it started. The No-U-Turn sampler (Hoffman and Gelman, 2014) chooses the
+    length afresh at every move. It grows the path forwards and backwards in time, doubling its
+    length each round, and stops as soon as the two ends begin to approach each other:</p
+  >$$(\mathbf x^{+}-\mathbf x^{-})\cdot\mathbf p^{-}&lt;0\quad\text{or}\quad(\mathbf x^{+}-\mathbf
+  x^{-})\cdot\mathbf p^{+}&lt;0.$$<p
+    >The new place is then drawn from the points on the path, each allowed with probability set by
+    its energy, in a way that keeps detailed balance. Growing in both directions is what makes the
+    move reversible. There is no accept or reject at the end and no path length to tune.</p
+  >
+  <h4>Why they all work</h4
+  ><p
+    >Each rule satisfies <b>detailed balance</b>: for any two points, the long-run flow of the
+    walker from \(\mathbf x\) to \(\mathbf x'\) equals the flow back,</p
+  >$$\pi(\mathbf x)\,P(\mathbf x\to\mathbf x')=\pi(\mathbf x')\,P(\mathbf x'\to\mathbf x).$$<p
+    >If the walker is already distributed like \(\pi\), one more step leaves it distributed like
+    \(\pi\). As long as it can eventually reach every region, it converges to that distribution from
+    any start. Recording the repeats when a proposal is rejected is essential: leave them out and
+    the high ground is under-counted.</p
+  >
+  <h4>How many samples do you really have?</h4
+  ><p
+    >The samples are not independent. The <b>effective sample size</b> says how many independent
+    samples would give the same accuracy as the \(N\) correlated ones:</p
+  >$$\mathrm{ESS}=\frac{N}{1+2\sum_{k\ge1}\rho_k},$$<p
+    >where \(\rho_k\) is the correlation between samples \(k\) steps apart. Steps are not equally
+    expensive, though. A random-walk step looks up the height once. A Hamiltonian move with 15
+    leapfrog steps looks up the slope 15 times. The honest comparison is effective samples per
+    look-up, which is the last-but-two readout. Run the five walkers on the Banana and compare. In
+    the two dimensions of this page the result is humbling: Hamiltonian Monte Carlo beats the random
+    walk by a factor of two or three, the No-U-Turn sampler roughly ties with it, and the
+    independence proposal beats everything, because the whole picture fits under one wide bell. None
+    of that survives in higher dimension. In hundreds of dimensions no fixed bell covers the target,
+    a random walk must shrink its stride towards nothing, and Hamiltonian paths still travel far.
+    That is where the gradient methods earn their cost. Note also what the effective sample size
+    does not measure: whether the walker is sampling the right landscape. With the correction
+    switched off a walker can move briskly and be wrong.</p
+  >
+  <h4>Separate islands</h4
+  ><p
+    >If the target has two regions separated by low ground, a local walker stays on the island where
+    it started for a very long time. Its samples look perfectly healthy and describe half of the
+    answer. Slopes do not help: they point back up the hill the walker is already on, and a rolling
+    ball needs a kick with enough energy to clear the gap, which is rare. On this page only the
+    independence proposal crosses freely, because it does not care where the walker stands, and it
+    works only because the picture is small enough for one wide bell to cover. Defences in real
+    problems include running several chains from different starts and checking that they agree.</p
+  >
+  <h4>What this page runs</h4
+  ><p
+    >All five samplers in two dimensions, with slopes computed by finite differences. The true
+    left-to-right distribution is known here, because in two dimensions it can be added up on a
+    grid, and it is used for the comparison line. A run stops when the bars are within 0.08 of that
+    line in total area, or after 8,000 steps. The No-U-Turn sampler is the slice-sampling version
+    from the original paper, with at most six doublings (64 leapfrog steps) and a fixed step size;
+    production software also tunes the step size during warm-up.</p
+  ></template
+>
+
+<template data-part="question"
+  >On the Banana, raising the Hamiltonian walker from 15 to 40 leapfrog steps makes every move
+  nearly three times as expensive, and the samples per 1,000 look-ups go down, not up. Where does
+  the extra work go? And what does the No-U-Turn walker do about it?</template
+>
+
+<template data-part="answer"
+  >A path of 15 steps already carries the ball most of the way across the Banana, so its end is
+  nearly independent of its start. The extra 25 steps cannot make the sample any more independent
+  than that. Often they do harm: the ball runs up the far side of the valley, turns round and rolls
+  back, and a long, costly path ends near its own beginning. The right length also differs from
+  place to place and from kick to kick, so no single setting is right everywhere. The No-U-Turn
+  walker watches the two ends of its path as it grows and stops when they begin to approach each
+  other, which is the moment more steps stop adding distance. It never has to be told a length. On
+  this small picture you can see what that convenience costs: it builds the path in both directions
+  and uses one point from it, so per look-up it does no better here than a well-chosen fixed length.
+  Its value is that in a real problem nobody knows the well-chosen length in advance.</template
+>

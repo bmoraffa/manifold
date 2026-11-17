@@ -1,0 +1,209 @@
+<template data-part="lede"
+  >Labels are expensive. A radiologist has to read the scan, a person has to listen to the
+  recording. Unlabelled examples are nearly free. Semi-supervised learning uses a handful of
+  labelled points together with a large pile of unlabelled ones, on the bet that the shape of the
+  unlabelled data says where the classes are. When the bet is right, six labels can do the work of
+  hundreds. This page also shows what happens when it is wrong.</template
+>
+
+<template data-part="intro"
+  ><p
+    >You arrive at a party where you know two people, one from the chess club and one from the
+    football team. Nobody else wears a badge. But people stand in groups, and you can see who is
+    talking to whom. It is a fair guess that those standing with the chess player are chess people,
+    and their neighbours too, and so on outwards until you meet the group spreading from the
+    footballer. You have labelled the whole room from two labels and the pattern of who stands near
+    whom. You will be wrong exactly when the pattern misleads: when the two clubs mingle, or when
+    one sociable person links both groups.</p
+  >
+</template>
+
+<template data-part="stage"
+  ><div class="row seg" id="ss-d" role="group" aria-label="Data"
+    ><button class="btn" type="button" data-v="moons">Two Crescents</button
+    ><button class="btn" type="button" data-v="blobs">Two Clouds</button
+    ><button class="btn" type="button" data-v="mixed">Overlapping Clouds</button></div
+  >
+  <div class="row seg" id="ss-m" role="group" aria-label="Method" style="margin-top:8px"
+    ><button class="btn" type="button" data-v="lp">Label Propagation</button
+    ><button class="btn" type="button" data-v="self">Self-Training</button></div
+  >
+  <div class="stage"
+    ><figure class="fig"
+      ><figcaption
+        >Ringed dots carry a real label. Every other dot is unlabelled and is coloured by the
+        method’s current belief: grey for undecided, strong colour for sure. Click any dot to pay
+        for its true label. The diamond is your own point</figcaption
+      ><canvas
+        class="short"
+        id="ss-c"
+        role="img"
+        aria-label="Semi-supervised labelling of the data"
+      ></canvas
+    ></figure>
+    <figure class="fig"
+      ><figcaption
+        >Top: what the labelled points alone would give you (each dot takes the label of its nearest
+        labelled point). Bottom: accuracy on the unlabelled points as the method runs, against that
+        labelled-only baseline (dashed)</figcaption
+      ><canvas
+        class="short"
+        id="ss-r"
+        role="img"
+        aria-label="Supervised-only baseline and accuracy over time"
+      ></canvas></figure
+  ></div>
+  <div class="howto"
+    ><div><h3>How it works, step by step</h3><ol id="ss-steps"></ol></div
+    ><div><h3>What just happened</h3><p class="live" id="ss-live" role="status"></p></div
+  ></div>
+  <div class="controls"
+    ><template data-label="Animation" data-control="group"
+      ><div class="row"
+        ><button class="btn go" id="ss-play" type="button">Run</button
+        ><button class="btn" id="ss-step" type="button">One step</button
+        ><button class="btn" id="ss-reset" type="button">Start over</button></div
+      ><template data-unit="steps" data-id="ss" data-control="run-limit"></template
+    ></template>
+    <template data-label="Labels" data-control="group"
+      ><template
+        data-value="3"
+        data-step="1"
+        data-max="10"
+        data-min="1"
+        data-label="Labelled points in each class"
+        data-id="ss-n"
+        data-control="slider"
+      ></template
+      ><template
+        data-value="7"
+        data-step="1"
+        data-max="15"
+        data-min="3"
+        data-label="Neighbours each point listens to"
+        data-id="ss-k"
+        data-control="slider"
+      ></template
+      ><div class="row"
+        ><button class="btn" id="ss-new" type="button">New data and labels</button></div
+      ></template
+    ></div
+  >
+  <dl class="read"
+    ><template data-label="Labelled / unlabelled" data-key="lab" data-control="readout"></template
+    ><template data-label="Steps so far" data-key="it" data-control="readout"></template
+    ><template
+      data-class="hl2"
+      data-label="Accuracy from the labels alone"
+      data-key="base"
+      data-control="readout"
+    ></template
+    ><template
+      data-class="hl"
+      data-label="Accuracy with the unlabelled data"
+      data-key="acc"
+      data-control="readout"
+    ></template
+    ><template
+      data-label="Unlabelled points still undecided"
+      data-key="und"
+      data-control="readout"
+    ></template></dl
+></template>
+
+<template data-part="tryit"
+  >On Two Crescents with three labels per class, compare the top-right picture with the left one
+  once the run has finished. Where does the labelled-only answer go wrong, and why does the other
+  not? Drop to one label per class and press New data and labels several times. How dependable is it
+  now? Go back to three labels and choose Overlapping Clouds: compare the two accuracies over a few
+  new data sets. What is different about this data? Switch to Self-Training on the crescents and
+  watch the labels grow outwards from each seed. Finally click a grey or wrongly coloured dot to buy
+  its label. Which single label helps most?</template
+>
+
+<template data-part="math"
+  ><h4>The setting</h4
+  ><p
+    >There are \(l\) labelled examples \((\mathbf x_i,y_i)\) and \(u\gg l\) unlabelled examples
+    \(\mathbf x_j\). The unlabelled points tell us about the density of \(\mathbf x\). That is
+    useful only under an assumption connecting density to labels:</p
+  ><p
+    ><b>Cluster assumption.</b> Points in the same cluster tend to share a label, so the boundary
+    between classes should run through regions where data are sparse.</p
+  ><p
+    ><b>Smoothness (manifold) assumption.</b> Points connected by a path through dense data tend to
+    share a label, even if they are far apart in a straight line.</p
+  >
+  <h4>Label propagation</h4
+  ><p
+    >Build a graph joining each point to its \(k\) nearest neighbours, with weights \(w_{ij}\) that
+    decay with distance, and normalize each row: \(P_{ij}=w_{ij}/\sum_k w_{ik}\). Give every point a
+    belief vector \(\mathbf f_i\) over the classes. Then repeat two steps (Zhu and Ghahramani,
+    2002):</p
+  >$$\mathbf f_i\leftarrow\sum_j P_{ij}\,\mathbf f_j\quad\text{for every point},\qquad\mathbf
+  f_i\leftarrow\text{its true label}\quad\text{for the labelled points}.$$<p
+    >Each point replaces its belief by the average belief of its neighbours, and the labelled points
+    are clamped back. Labels flow outwards along the graph like heat from fixed sources. The
+    iteration converges to the <b>harmonic</b> solution, in which every unlabelled point's belief
+    equals the weighted average of its neighbours':</p
+  >$$\mathbf F_u=(\mathbf I-\mathbf P_{uu})^{-1}\mathbf P_{ul}\mathbf Y_l.$$<p
+    >With very few labels the converged beliefs are nearly flat far from the labelled points, and
+    cutting them at one half is unreliable. So the cut is placed where it gives each class the same
+    share of the unlabelled points as it has among the labelled ones, a correction known as class
+    mass normalization. It assumes the labelled points reflect the true class sizes. The run stops
+    when no belief changes by more than 0.0001 in a step.</p
+  >
+  <h4>Self-training</h4
+  ><p
+    >Train any classifier on the labelled points. Use it to predict the unlabelled ones. Take the
+    predictions it is most confident about, treat them as if they were true labels, and retrain.
+    Repeat until everything is labelled (Yarowsky, 1995). Here the classifier is the simplest
+    possible, the label of the nearest labelled point, with confidence measured by how close that
+    point is, and five points are adopted per step. Self-training wraps around any model and is
+    simple. Its weakness is that it believes itself: a confident early mistake is never revisited
+    and is used to label its neighbours.</p
+  >
+  <h4>When it helps and when it hurts</h4
+  ><p
+    >On the crescents the classes are separated by a gap of empty space, and both assumptions hold.
+    With a single label per class the same data give an excellent answer for one choice of labelled
+    points and a poor one for another, because everything rests on where those two points happen to
+    sit. On overlapping clouds the boundary runs through dense data, the cluster assumption fails,
+    and the unlabelled points offer little: the two accuracies stay within a few points of each
+    other. In general, anything that links two classes through dense data, such as a chain of
+    intermediate examples, invites labels to flow across. Semi-supervised learning is not guaranteed
+    to beat supervised learning. It can do worse, and the only real check is a labelled validation
+    set, which is the very thing in short supply.</p
+  >
+  <h4>Which label to buy</h4
+  ><p
+    >Clicking a dot reveals its label. Choosing which labels to pay for is <b>active learning</b>.
+    Labels are worth most where the method is undecided or where two colours meet, and least deep
+    inside a region it already has right.</p
+  >
+  <h4>Modern forms</h4
+  ><p
+    >Deep semi-supervised methods use the same two ideas. <b>Pseudo-labelling</b> is self-training
+    with a neural network. <b>Consistency regularization</b> asks the network to give the same
+    answer for an unlabelled image and a distorted copy of it, which pushes the boundary away from
+    dense regions. Pretraining a large model on unlabelled data and fine-tuning it on a few labels
+    is the most successful version of the bet so far.</p
+  ></template
+>
+
+<template data-part="question"
+  >On Two Crescents, six labels plus the unlabelled points reach about 99%. On Overlapping Clouds
+  the same method with the same number of labels gains almost nothing over using the labels alone.
+  The algorithm did not change. What did?</template
+>
+
+<template data-part="answer"
+  >What changed is whether the shape of the data carries information about the labels. The crescents
+  are separated by a band of empty space, so "connected through dense data" and "same class" mean
+  nearly the same thing, and a label can safely travel along a whole crescent. In the overlapping
+  clouds there is no gap: the densest region is exactly where the two classes mix. Following the
+  density there tells you nothing about which class a point belongs to, so propagating labels
+  through it is no better than asking the nearest labelled point. Unlabelled data help only when
+  their structure lines up with the classes, and nothing in the unlabelled data can tell you whether
+  it does.</template
+>

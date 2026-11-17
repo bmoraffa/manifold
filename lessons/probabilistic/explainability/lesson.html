@@ -1,0 +1,268 @@
+<template data-part="lede"
+  >A neural network has learned to estimate house prices from five facts about a house. It prices
+  one particular house at well over 400 thousand. Why? “Because of 600 weights” is true and useless.
+  A useful answer splits the estimate into parts: so much because it is large, so much off because
+  it is old, so much because it is close to the centre. Shapley values are the one fair way to make
+  that split. Describe a house with the sliders and watch its price being explained.</template
+>
+
+<template data-part="intro"
+  ><p
+    >Four friends share a taxi home, each living further along the same road, and the fare comes to
+    40. How should they split it? Charging each the fare to their own door adds up to far more than
+    40. Splitting evenly is unfair to the one who gets out first. One fair scheme imagines the
+    friends joining the ride one at a time in some order, charges each the extra cost they add, and
+    then averages over every possible order of joining. A model's estimate is the fare, the features
+    are the passengers, and the Shapley value is each feature's fair share.</p
+  >
+</template>
+
+<template data-part="stage"
+  ><div class="stage"
+    ><figure class="fig"
+      ><figcaption
+        >Top: one order of revealing the house’s features to the model, from the average house to
+        this one. Bottom: each feature’s share of the price, averaged over all the orders tried so
+        far. The dark tick is the exact answer</figcaption
+      ><canvas
+        class="short"
+        id="xp-c"
+        role="img"
+        aria-label="One feature ordering as a waterfall, and the running Shapley value estimates"
+      ></canvas
+    ></figure>
+    <figure class="fig"
+      ><figcaption
+        >Top: which features matter most across 80 different houses. Bottom: how the estimate for
+        this house would change if one feature were different, and the same on average over many
+        houses</figcaption
+      ><canvas
+        class="short"
+        id="xp-r"
+        role="img"
+        aria-label="Global feature importance and a dependence curve for one feature"
+      ></canvas></figure
+  ></div>
+  <figure class="fig" style="margin-top:18px"
+    ><figcaption>The last order tried, worked out</figcaption
+    ><div class="eq" id="xp-eq" aria-live="polite" style="min-height:10em;margin-top:6px"></div
+  ></figure>
+  <div class="howto"
+    ><div
+      ><h3>How it works, step by step</h3
+      ><ol id="xp-steps"
+        ><li
+          >Start from the model’s estimate for an average house: nothing about this house is known
+          yet.</li
+        ><li
+          >Pick a random order for the five features. Reveal the first one: replace the average
+          house’s value with this house’s, and see how the estimate moves.</li
+        ><li
+          >Reveal the next feature, and the next, noting each move. After the fifth, the estimate is
+          the one for this house.</li
+        ><li
+          >That was one order. A feature’s effect depends on which others were already revealed, so
+          try another order.</li
+        ><li
+          >Average each feature’s moves over all the orders tried. That average is its Shapley
+          value.</li
+        ><li
+          >Stop when the averages have settled. They add up exactly to the difference between this
+          house and the average house.</li
+        ></ol
+      ></div
+    ><div><h3>What just happened</h3><p class="live" id="xp-live" role="status"></p></div
+  ></div>
+  <div class="controls"
+    ><template data-label="Animation" data-control="group"
+      ><div class="row"
+        ><button class="btn go" id="xp-play" type="button">Run</button
+        ><button class="btn" id="xp-step" type="button">One order</button
+        ><button class="btn" id="xp-reset" type="button">Start over</button></div
+      ><template data-unit="orders" data-id="xp" data-control="run-limit"></template
+    ></template>
+    <template data-label="Describe the house" data-control="group"
+      ><template
+        data-value="150"
+        data-step="5"
+        data-max="220"
+        data-min="40"
+        data-label="Floor area, m²"
+        data-id="xp-f0"
+        data-control="slider"
+      ></template
+      ><template
+        data-value="12"
+        data-step="1"
+        data-max="90"
+        data-min="0"
+        data-label="Age, years"
+        data-id="xp-f1"
+        data-control="slider"
+      ></template
+      ><template
+        data-value="4"
+        data-step="0.5"
+        data-max="30"
+        data-min="0"
+        data-label="Distance to the centre, km"
+        data-id="xp-f2"
+        data-control="slider"
+      ></template
+      ><template
+        data-value="4"
+        data-step="1"
+        data-max="6"
+        data-min="1"
+        data-label="Bedrooms"
+        data-id="xp-f3"
+        data-control="slider"
+      ></template
+      ><template
+        data-value="1"
+        data-step="1"
+        data-max="1"
+        data-min="0"
+        data-label="Garden (0 = no, 1 = yes)"
+        data-id="xp-f4"
+        data-control="slider"
+      ></template
+    ></template>
+    <template data-label="The curve at the bottom right" data-control="group"
+      ><label class="ctl" for="xp-ft"
+        ><span>Feature to vary</span
+        ><select id="xp-ft"
+          ><option value="0">Floor area</option
+          ><option value="1">Age</option
+          ><option value="2">Distance to the centre</option
+          ><option value="3">Bedrooms</option
+          ><option value="4">Garden</option></select
+        ></label
+      ></template
+    ></div
+  >
+  <dl class="read"
+    ><template
+      data-class="hl"
+      data-label="The model’s estimate for this house"
+      data-key="pr"
+      data-control="readout"
+    ></template
+    ><template
+      data-label="Its estimate for the average house"
+      data-key="ba"
+      data-control="readout"
+    ></template
+    ><template data-label="Orders tried" data-key="n" data-control="readout"></template
+    ><template
+      data-label="Feature that adds the most"
+      data-key="top"
+      data-control="readout"
+    ></template
+    ><template
+      data-label="Feature that takes away the most"
+      data-key="bot"
+      data-control="readout"
+    ></template
+    ><template
+      data-class="hl2"
+      data-label="Largest gap between the running averages and the exact values"
+      data-key="gap"
+      data-control="readout"
+    ></template></dl
+></template>
+
+<template data-part="tryit"
+  >Press One order several times. Floor area appears in a different position each time: is its
+  contribution the same every time? That variation is why one order is not an explanation. Press Run
+  and watch the bars settle onto the dark ticks. Check the arithmetic: the average house’s estimate
+  plus the five bars equals this house’s estimate. Now move the garden slider to 0 and back. Then
+  set the distance to 25 km and compare the garden’s share with before. In this model a garden is
+  worth more close to the centre. Can a single “importance of the garden” number be right for every
+  house? Look at the top-right chart for the answer the model gives on average.</template
+>
+
+<template data-part="math"
+  ><h4>What is being explained</h4
+  ><p
+    >Take a trained model \(f\) and one input \(\mathbf x\), here a house with five features. The
+    <b>base value</b> is the average prediction over typical houses, \(\phi_0=\mathbb E[f(\mathbf
+    X)]\). An explanation is a set of numbers \(\phi_1,\dots,\phi_d\), one per feature, that account
+    for the difference:</p
+  >$$f(\mathbf x)=\phi_0+\sum_{j=1}^{d}\phi_j .$$ <h4>The value of knowing some features</h4
+  ><p
+    >For a subset \(S\) of features, let \(v(S)\) be the model's average prediction when the
+    features in \(S\) are fixed to this house's values and the others are drawn from typical
+    houses:</p
+  >$$v(S)=\mathbb E\big[f(\mathbf x_S,\mathbf X_{\bar S})\big].$$<p
+    >So \(v(\varnothing)=\phi_0\) and \(v(\text{all})=f(\mathbf x)\). Revealing feature \(j\) after
+    the set \(S\) changes the prediction by \(v(S\cup\{j\})-v(S)\).</p
+  >
+  <h4>The Shapley value</h4
+  ><p
+    >That change depends on \(S\). The Shapley value (Shapley, 1953) averages it over every order in
+    which the features could be revealed:</p
+  >$$\phi_j=\sum_{S\subseteq\{1..d\}\setminus\{j\}}\frac{|S|!\,(d-|S|-1)!}{d!}\,\big[v(S\cup\{j\})-v(S)\big].$$<p
+    >The weight is the share of orderings in which exactly the features in \(S\) come before \(j\).
+    With 5 features there are 32 subsets and the sum can be computed exactly, which gives the dark
+    ticks. With hundreds of features it cannot, and the practical method is the one animated here:
+    sample random orders and average. Lundberg and Lee (2017) made this the basis of the SHAP
+    library.</p
+  >
+  <h4>Why this split and no other</h4
+  ><p
+    >It is the only attribution that satisfies four reasonable demands at once. <b>Efficiency</b>:
+    the shares add up to the difference from the base value. <b>Symmetry</b>: two features that
+    always contribute equally get equal shares. <b>Dummy</b>: a feature that never changes the
+    prediction gets zero. <b>Additivity</b>: the explanation of a sum of models is the sum of their
+    explanations.</p
+  >
+  <h4>Interactions</h4
+  ><p
+    >If the model were a plain weighted sum of the features, every order would give the same moves,
+    and one order would be enough. The moves differ between orders because features interact: in
+    this model a garden adds more to a large house near the centre than to a small one far out. The
+    Shapley value shares each interaction equally among the features involved. That is fair, and it
+    also means the garden's number is specific to this house.</p
+  >
+  <h4>Local and global</h4
+  ><p
+    >A Shapley explanation is <b>local</b>: it is about one house. Averaging the sizes \(|\phi_j|\)
+    over many houses gives a <b>global</b> ranking of features, the top-right chart. The curve at
+    the bottom right is a different tool. The line for "this house" changes one feature and holds
+    the others at this house's values. The line for "on average" does the same for many houses and
+    averages, which is called a partial dependence plot.</p
+  >
+  <h4>What an explanation is not</h4
+  ><p
+    >These numbers explain the <b>model</b>, not the world. If the model has learned that houses
+    with gardens cost more, the garden gets a positive share, whether or not building a garden would
+    raise a price. They are not causes. When features are strongly related, such as floor area and
+    bedrooms, replacing one while keeping the other creates houses that do not exist, and the credit
+    between the two is divided somewhat arbitrarily. And a faithful explanation of a wrong model is
+    still an explanation of something wrong.</p
+  >
+  <h4>What this page runs</h4
+  ><p
+    >A network with two hidden layers of 24 neurons, trained when the page opens on 700 invented
+    houses whose prices follow a formula with interactions and some noise. "Typical houses" are a
+    fixed sample of 60 of them. The run stops when no running average has moved by more than 0.3
+    thousand over 60 orders, or after 1,500 orders.</p
+  ></template
+>
+
+<template data-part="question"
+  >In one order, floor area is revealed first and moves the estimate by +70. In another it is
+  revealed last and moves it by +95. Which number is the true effect of floor area for this
+  house?</template
+>
+
+<template data-part="answer"
+  >Neither, and both. Each is the correct answer to a slightly different question: “how much does
+  knowing the area change the estimate when nothing else is known?” and “how much does it change
+  when everything else is already known?”. They differ because area interacts with the other
+  features. A large house close to the centre gains more from its size than a house whose location
+  is still treated as average. There is no single order that is the right one, which is why the
+  Shapley value averages over all of them. The average is a fair summary, and the spread between
+  orders is itself a sign of how strongly the feature interacts.</template
+>

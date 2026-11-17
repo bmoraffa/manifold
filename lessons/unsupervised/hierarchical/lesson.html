@@ -1,0 +1,184 @@
+<template data-part="lede"
+  >There is no need to choose the number of clusters in advance. Start with every point alone, join
+  the two closest clusters, and repeat until one remains. The record of who joined whom, and at what
+  distance, is a tree called a dendrogram. Cutting it at any height gives a clustering.</template
+>
+
+<template data-part="intro"
+  ><p
+    >Biologists do not sort animals into one fixed set of groups. They build a tree: house cats and
+    lions join early, then cats with dogs, then all mammals, then mammals with birds. The tree holds
+    every level of grouping at once, and you choose the level that suits your question. Hierarchical
+    clustering builds the same kind of tree for any data, using nothing but the distances between
+    points.</p
+  >
+</template>
+
+<template data-part="stage"
+  ><div class="stage"
+    ><figure class="fig"
+      ><figcaption
+        >The points. Lines join each point to the centre of its cluster. The thick line is the
+        latest merge</figcaption
+      ><canvas class="short" id="hc-c" role="img" aria-label="Points joined into clusters"></canvas
+    ></figure>
+    <figure class="fig"
+      ><figcaption>The dendrogram: each join is drawn at the distance where it happened</figcaption
+      ><canvas class="short" id="hc-r" role="img" aria-label="Dendrogram"></canvas></figure
+  ></div>
+  <div class="howto"
+    ><div
+      ><h3>How it works, step by step</h3
+      ><ol id="hc-steps"
+        ><li>Start with every point as its own cluster.</li
+        ><li>Measure the distance between every pair of clusters, using the linkage rule.</li
+        ><li>Merge the closest pair, and draw the join on the tree at that distance.</li
+        ><li>Repeat steps 2 and 3 until a single cluster is left.</li
+        ><li>Cut the tree at any height: the branches below the cut are the clusters.</li></ol
+      ></div
+    ><div><h3>What just happened</h3><p class="live" id="hc-live" role="status"></p></div
+  ></div>
+  <div class="controls"
+    ><template data-label="Animation" data-control="group"
+      ><div class="row"
+        ><button class="btn go" id="hc-play" type="button">Merge</button
+        ><button class="btn" id="hc-step" type="button">One merge</button
+        ><button class="btn" id="hc-reset" type="button">Start over</button></div
+      ></template
+    >
+    <template data-label="The model" data-control="group"
+      ><label class="ctl" for="hc-link"
+        ><span>Distance between two clusters (linkage)</span
+        ><select id="hc-link"
+          ><option value="single">Single: their two closest points</option
+          ><option value="complete">Complete: their two farthest points</option
+          ><option value="average" selected>Average: mean over all pairs</option
+          ><option value="ward">Ward: growth in within-cluster spread</option></select
+        ></label
+      ><template
+        data-value="3"
+        data-step="1"
+        data-max="10"
+        data-min="1"
+        data-label="Cut the finished tree into this many clusters"
+        data-id="hc-K"
+        data-control="slider"
+      ></template
+      ><div class="row"
+        ><button class="btn" id="hc-fin" type="button">Finish the Tree</button></div
+      ></template
+    >
+    <template data-label="The data" data-control="group"
+      ><label class="ctl" for="hc-ds"
+        ><span>Data set</span
+        ><select id="hc-ds"
+          ><option value="blobs" selected>Three round groups</option
+          ><option value="moons">Two moons</option
+          ><option value="long">Three stretched groups</option
+          ><option value="uneven">Groups of unequal size</option
+          ><option value="shop">Shop customers (simulated)</option
+          ><option value="none">No groups at all</option></select
+        ></label
+      ><template
+        data-value="36"
+        data-step="1"
+        data-max="70"
+        data-min="8"
+        data-label="Number of points"
+        data-id="hc-n"
+        data-control="slider"
+      ></template
+      ><div class="row"
+        ><button class="btn" id="hc-new" type="button">New random sample</button
+        ><label class="btn file"
+          >Upload a CSV<input type="file" id="hc-file" accept=".csv,.txt,text/csv" /></label></div
+      ><p class="status" id="hc-st" role="status"></p></template
+  ></div>
+  <dl class="read"
+    ><template
+      data-class="hl"
+      data-label="Clusters right now"
+      data-key="cl"
+      data-control="readout"
+    ></template
+    ><template data-label="Merges done" data-key="mg" data-control="readout"></template
+    ><template
+      data-label="Distance of the latest merge"
+      data-key="ht"
+      data-control="readout"
+    ></template
+    ><template
+      data-class="hl2"
+      data-label="Largest jump in merge distance suggests"
+      data-key="gap"
+      data-control="readout"
+    ></template></dl
+></template>
+
+<template data-part="tryit"
+  >Step through the first ten merges on Three Round Groups: the early joins are tiny, and the last
+  two are huge. That jump is how the tree tells you there are three groups. Then choose Two Moons
+  with 40 or more points, finish the tree and cut it into 2, first with Single linkage and then with
+  Complete. Only one of them follows the moons. Which, and why?</template
+>
+
+<template data-part="math"
+  ><h4>The agglomerative algorithm</h4
+  ><p
+    >Begin with \(n\) clusters, each holding one point. At every step find the two clusters \(A\)
+    and \(B\) with the smallest distance \(d(A,B)\), merge them, and record the merge at height
+    \(d(A,B)\). After \(n-1\) merges everything is in one cluster. Unlike k-means there is no random
+    start: the same data and the same linkage always give the same tree.</p
+  >
+  <h4>Linkage: the distance between two clusters</h4
+  ><p
+    >Distance between two points is clear. Distance between two groups of points needs a rule, and
+    the choice changes the result:</p
+  >
+  $$d_{\text{single}}(A,B)=\min_{a\in A,\,b\in B}\lVert a-b\rVert,\qquad
+  d_{\text{complete}}(A,B)=\max_{a\in A,\,b\in B}\lVert
+  a-b\rVert,$$$$d_{\text{average}}(A,B)=\frac{1}{|A|\,|B|}\sum_{a\in A}\sum_{b\in B}\lVert
+  a-b\rVert,\qquad d_{\text{Ward}}(A,B)=\frac{|A|\,|B|}{|A|+|B|}\,\lVert\bar a-\bar b\rVert^2 .$$
+  <p
+    ><b>Single</b> linkage joins clusters that touch anywhere, so it can follow long curved chains,
+    and for the same reason one stray point between two groups can bridge them.
+    <b>Complete</b> linkage keeps every cluster compact and tends to break large groups.
+    <b>Average</b> sits between the two. <b>Ward</b> merges the pair whose union adds least to the
+    within-cluster sum of squares, the same quantity k-means minimises, and so gives round, even
+    clusters.</p
+  >
+  <h4>Reading the dendrogram</h4
+  ><p
+    >Leaves along the bottom are the points. Each ∩-shaped join is one merge, and its height is the
+    distance at which it happened. Short joins near the bottom connect near-identical points. A tall
+    stretch of the tree with no joins means the clusters below it are far apart compared with their
+    own size. Cutting there, with a horizontal line, gives a natural number of clusters: the number
+    of vertical lines the cut crosses. The order of leaves left to right is partly arbitrary, since
+    any join can be flipped, so only the heights carry meaning.</p
+  >
+  <h4>Cost</h4
+  ><p
+    >The method needs all \(\tfrac12 n(n-1)\) pairwise distances, so memory grows as \(n^2\) and a
+    plain implementation takes about \(n^3\) time. It suits hundreds or a few thousand points, not
+    millions. A merge can never be undone: an early mistake stays in the tree.</p
+  >
+  <h4>When to use it</h4
+  ><p
+    >When the number of clusters is unknown, when you want groups at several levels at once, or when
+    you only have distances and no coordinates (for example edit distances between gene sequences).
+    The dendrogram is itself a useful picture of the data.</p
+  ></template
+>
+
+<template data-part="question"
+  >On the two moons, single linkage recovers the two moons but average linkage does not. Explain in
+  one sentence each.</template
+>
+
+<template data-part="answer"
+  >Single linkage measures the gap between the nearest members of two clusters, and along each moon
+  neighbouring points are closer to each other than to anything in the other moon, so each moon is
+  chained together before the two ever join. Average linkage looks at all pairs of points, and the
+  two halves of one moon are far apart on average, farther than half of one moon is from the nearby
+  half of the other, so it merges pieces across moons.</template
+>

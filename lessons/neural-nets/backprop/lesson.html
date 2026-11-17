@@ -1,0 +1,207 @@
+<template data-part="lede"
+  >Training a network means answering one question for every weight: if I nudge this weight up a
+  little, does the error go up or down, and by how much? Backpropagation answers it for all weights
+  in one backward sweep. Here a tiny network decides whether to take an umbrella, and every number
+  is on the screen.</template
+>
+
+<template data-part="intro"
+  ><p
+    >A restaurant serves a dish that is too salty. The head chef does not retrain the whole kitchen.
+    She asks who added salt, and how much each contributed. The cook who made the sauce is mostly
+    responsible; the one who salted the pasta water, a little. Each of them then asks the same of
+    whoever supplied their ingredients. Blame is passed backward along the same routes the
+    ingredients travelled forward, shared out in proportion to how much each route mattered. That is
+    backpropagation. The dish is the output, the saltiness is the error, and the routes are the
+    weights.</p
+  >
+</template>
+
+<template data-part="stage"
+  ><div class="stage"
+    ><figure class="fig"
+      ><figcaption
+        >The network. Numbers in the circles are values, numbers on the lines are weights. Gold
+        packets carry values forward; red packets carry blame backward</figcaption
+      ><canvas
+        class="short"
+        id="bp-c"
+        role="img"
+        aria-label="A two-input, two-hidden-neuron network with values, weights and gradients"
+      ></canvas>
+      <div class="eq" id="bp-eq" role="status" aria-label="The calculation for this step"></div
+    ></figure>
+    <figure class="fig"
+      ><figcaption
+        >Top: the answer against the truth. Then: the gradient of every weight as it becomes known,
+        the error after each update, and the path of every weight</figcaption
+      ><canvas
+        class="sq"
+        id="bp-r"
+        role="img"
+        aria-label="Prediction, gradients, loss curve and weight paths"
+      ></canvas></figure
+  ></div>
+  <figure class="fig" style="margin-top:20px"
+    ><figcaption
+      >All nine numbers the network can change: where each stands, which way it should move, and
+      where it moves to</figcaption
+    ><div class="ctab" id="bp-tab"></div
+  ></figure>
+  <div class="howto"
+    ><div
+      ><h3>How it works, step by step</h3
+      ><ol id="bp-steps"
+        ><li>Put the inputs in.</li
+        ><li
+          >Forward: hidden neuron 1 takes a weighted sum of the inputs and squashes it. Then hidden
+          neuron 2 does the same.</li
+        ><li
+          >Forward: the output neuron does the same with the two hidden values. That is the
+          network’s answer.</li
+        ><li>Compare the answer with what really happened: the loss.</li
+        ><li>Backward: how much is the output neuron to blame?</li
+        ><li>Backward: so how should each weight into the output change?</li
+        ><li
+          >Backward: pass the blame to hidden neuron 1, then to hidden neuron 2, along the weights
+          that connect them.</li
+        ><li>Backward: so how should each weight into the hidden neurons change?</li
+        ><li>Update: move every weight a small step against its gradient. Then start again.</li></ol
+      ></div
+    ><div><h3>What just happened</h3><p class="live" id="bp-live" role="status"></p></div
+  ></div>
+  <div class="controls"
+    ><template data-label="Animation" data-control="group"
+      ><div class="row"
+        ><button class="btn go" id="bp-play" type="button">Run</button
+        ><button class="btn" id="bp-step" type="button">One step</button
+        ><button class="btn" id="bp-reset" type="button">Start over</button></div
+      ><template data-unit="updates" data-id="bp" data-control="run-limit"></template
+    ></template>
+    <template data-label="The example" data-control="group"
+      ><template
+        data-value="0.8"
+        data-step="0.01"
+        data-max="1"
+        data-min="0"
+        data-label="Cloud cover (0 = clear, 1 = overcast)"
+        data-id="bp-x1"
+        data-control="slider"
+      ></template
+      ><template
+        data-value="0.6"
+        data-step="0.01"
+        data-max="1"
+        data-min="0"
+        data-label="Humidity (0 = dry, 1 = damp)"
+        data-id="bp-x2"
+        data-control="slider"
+      ></template
+      ><div class="row seg" id="bp-y" role="group" aria-label="What really happened"
+        ><button class="btn" type="button" data-v="1">It Rained</button
+        ><button class="btn" type="button" data-v="0">It Stayed Dry</button></div
+      ></template
+    >
+    <template data-label="The model" data-control="group"
+      ><template
+        data-value="1.5"
+        data-step="0.1"
+        data-max="4"
+        data-min="0.1"
+        data-label="Learning rate"
+        data-id="bp-lr"
+        data-control="slider"
+      ></template
+      ><label class="check"
+        ><input type="checkbox" id="bp-slow" checked /> Show every calculation for the first two
+        updates, then speed up</label
+      ></template
+    ></div
+  >
+  <dl class="read"
+    ><template
+      data-class="hl"
+      data-label="Network’s answer: chance of rain"
+      data-key="o"
+      data-control="readout"
+    ></template
+    ><template data-label="What really happened" data-key="y" data-control="readout"></template
+    ><template
+      data-class="hl2"
+      data-label="Loss ½(answer − truth)²"
+      data-key="L"
+      data-control="readout"
+    ></template
+    ><template data-label="Updates so far" data-key="u" data-control="readout"></template
+    ><template data-label="Status" data-key="st" data-control="readout"></template></dl
+></template>
+
+<template data-part="tryit"
+  >Press Start over and use One step. Each press does one small calculation: watch the packets
+  travel, then read the lines that appear under the picture, where the formula is filled in with the
+  numbers from the picture. Twelve presses make one full update. Then press Run. After two full
+  updates it speeds up, and you can watch the loss fall and the nine weights drift until it
+  converges. Switch to It Stayed Dry: which weights reverse direction?</template
+>
+
+<template data-part="math"
+  ><h4>The forward pass</h4
+  ><p
+    >This network has inputs \(x_1,x_2\), two hidden neurons with \(\tanh\), and one sigmoid
+    output:</p
+  >$$z_j=w_{j1}x_1+w_{j2}x_2+b_j,\quad h_j=\tanh z_j,\qquad z_o=v_1h_1+v_2h_2+c,\quad\hat
+  y=\sigma(z_o),\qquad L=\tfrac12(\hat y-y)^2 .$$ <h4>The backward pass is the chain rule</h4
+  ><p
+    >We want \(\partial L/\partial\) (every weight). Define the "blame" of a neuron as the
+    derivative of the loss with respect to its total input, \(\delta=\partial L/\partial z\). For
+    the output neuron,</p
+  >$$\delta_o=\frac{\partial L}{\partial\hat y}\cdot\frac{\partial\hat y}{\partial z_o}=(\hat
+  y-y)\;\hat y(1-\hat y).$$<p
+    >A weight's gradient is the blame of the neuron it feeds, times the value that travelled along
+    it:</p
+  >$$\frac{\partial L}{\partial v_j}=\delta_o\,h_j,\qquad\frac{\partial L}{\partial c}=\delta_o
+  .$$<p
+    >The blame of a hidden neuron is the output's blame, carried back along the connecting weight
+    and multiplied by the slope of the hidden neuron's own activation:</p
+  >$$\delta_j=\delta_o\,v_j\,\big(1-h_j^2\big),\qquad\frac{\partial L}{\partial
+  w_{ji}}=\delta_j\,x_i,\qquad\frac{\partial L}{\partial b_j}=\delta_j .$$ <h4>The general rule</h4
+  ><p>For any layered network the same two lines repeat from the last layer to the first:</p
+  >$$\boldsymbol\delta^{(l)}=\big(\mathbf
+  W^{(l+1)\top}\boldsymbol\delta^{(l+1)}\big)\odot\phi'\big(\mathbf
+  z^{(l)}\big),\qquad\frac{\partial L}{\partial\mathbf W^{(l)}}=\boldsymbol\delta^{(l)}\,\mathbf
+  a^{(l-1)\top}.$$<p
+    >One forward pass stores the values, one backward pass reuses them, and the cost of getting
+    every gradient is about the same as computing the output once. Without this, each weight would
+    need its own forward pass, which for a network with a million weights would be a million times
+    slower.</p
+  >
+  <h4>The update</h4
+  ><p
+    >Every parameter then takes a step against its gradient, \(\theta\leftarrow\theta-\eta\,\partial
+    L/\partial\theta\), with learning rate \(\eta\). The table lists all nine. On this page the loop
+    stops when the loss is below 0.0005, where the answer is within about three percentage points of
+    the truth.</p
+  >
+  <h4>What to notice</h4
+  ><p
+    >The gradient of a weight is a product of three kinds of factor: an error, some weights along
+    the way, and slopes of activations. If the output is saturated, \(\hat y(1-\hat y)\) is near
+    zero and everything behind it learns slowly even when the answer is badly wrong. If an input is
+    0, the weights leaving it get zero gradient and do not move. And a neuron connected to the
+    output by a large weight receives a large share of the blame. The Activation Functions tab shows
+    what these products do in a deep network.</p
+  ></template
+>
+
+<template data-part="question"
+  >Set cloud cover to 0 and step through. The two weights leaving that input have gradient exactly
+  0, whatever the error. Why, and is that a problem?</template
+>
+
+<template data-part="answer"
+  >The gradient of a weight is the blame of the neuron it feeds times the value carried along it,
+  and that value is 0. Changing the weight would change nothing about this prediction, so this
+  example gives no information about it. It is not a problem in practice: other training examples
+  have non-zero cloud cover and will move those weights. It is one reason inputs are usually centred
+  so that they are not stuck at zero.</template
+>

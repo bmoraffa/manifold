@@ -1,0 +1,114 @@
+<template data-part="lede"
+  >Measure one feature in millimetres and another in kilometres, and the loss surface becomes a long
+  thin trench that gradient descent can barely get along. Rescale the features and the trench
+  becomes a round bowl.</template
+>
+
+<template data-part="intro"
+  ><p
+    >Suppose a house-price model uses floor area in square metres (values around 100) and number of
+    bedrooms (values around 3). A small change in the weight on area changes the predictions thirty
+    times more than the same change in the weight on bedrooms. The loss is therefore extremely
+    sensitive to one weight and sluggish in the other: a trench. The learning rate must be tiny to
+    survive the steep walls, and at that rate the walk along the trench floor takes forever. The
+    model has not changed, only the units, yet training is many times slower.</p
+  >
+</template>
+
+<template data-part="dimensions"
+  ><button class="btn" type="button" data-d="2">2D: Contour Map</button
+  ><button class="btn" type="button" data-d="3">3D: Surface</button></template
+>
+
+<template data-part="loss-caption">Loss at each step</template>
+
+<template data-part="controls"
+  ><template data-label="The features" data-control="group"
+    ><template
+      data-value="4"
+      data-step="0.1"
+      data-max="6"
+      data-min="1"
+      data-label="How different the two feature scales are"
+      data-id="scaling-s"
+      data-control="slider"
+    ></template
+    ><label class="check" for="scaling-std"
+      ><input type="checkbox" id="scaling-std" />Standardise the features first</label
+    ></template
+  ><template data-label="The optimiser" data-control="group"
+    ><template
+      data-value="0.25"
+      data-step="0.005"
+      data-max="0.9"
+      data-min="0.005"
+      data-label="Learning rate η"
+      data-id="scaling-lr"
+      data-control="slider"
+    ></template></template
+></template>
+
+<template data-part="readouts"
+  ><template
+    data-class="hl"
+    data-label="Loss: Gradient descent"
+    data-key="Lgd"
+    data-control="readout"
+  ></template
+  ><template
+    data-class="hl3"
+    data-label="Condition number κ"
+    data-key="kap"
+    data-control="readout"
+  ></template
+  ><template
+    data-class="hl2"
+    data-label="Largest stable learning rate"
+    data-key="mx"
+    data-control="readout"
+  ></template
+></template>
+
+<template data-part="tryit"
+  >Set the scale difference to 6 and run. Count the steps. Now tick “Standardise the features first”
+  and run again with the same learning rate. Then, without standardising, raise the learning rate to
+  the “largest stable” value and just past it.</template
+>
+
+<template data-part="math"
+  ><h4>The condition number</h4
+  ><p
+    >For a linear model the curvature of the loss in each weight direction is set by the size of
+    that feature: the Hessian is \(H=\tfrac2nX^{\top}X\). Its largest and smallest eigenvalues give
+    the condition number</p
+  >$$\kappa=\frac{\lambda_{\max}}{\lambda_{\min}}.$$<p
+    >If one feature is \(r\) times larger than another, \(\kappa\approx r^2\). Gradient descent
+    needs \(\eta&lt;2/\lambda_{\max}\), and with the best fixed rate the error shrinks per step by
+    only</p
+  >$$\frac{\kappa-1}{\kappa+1},$$<p
+    >so the number of steps grows in proportion to \(\kappa\). A scale ratio of 6 means roughly 36
+    times more steps.</p
+  >
+  <h4>Standardising</h4>$$z_j=\frac{x_j-\mu_j}{\sigma_j}$$<p
+    >Subtract each feature's mean and divide by its standard deviation, using values computed on the
+    training set only. Every feature then has mean 0 and spread 1, the bowl is round (\(\kappa\)
+    near 1 when features are uncorrelated), and one learning rate suits every direction.</p
+  >
+  <h4>Where else it matters</h4
+  ><p
+    >Any method that measures distance (k-nearest neighbours, k-means, kernels, SVMs) is dominated
+    by the feature with the largest numbers unless features are scaled. Ridge and lasso penalise all
+    coefficients equally, which is only fair on a common scale. Trees are the main exception: they
+    only compare values within one feature, so units do not matter.</p
+  ></template
+>
+
+<template data-part="question"
+  >Should the test set be standardised with its own mean and standard deviation?</template
+>
+
+<template data-part="answer"
+  >No. Use the mean and standard deviation computed on the training set. The scaling is part of the
+  model, and anything computed from the test set leaks information about it. It also keeps a test
+  point’s features on exactly the scale the model was trained on.</template
+>

@@ -1,0 +1,111 @@
+<template data-part="lede"
+  >The mean μ slides the curve left and right. The standard deviation σ makes it wide and low or
+  narrow and tall. The area under it is always 1.</template
+>
+
+<template data-part="intro"
+  ><p
+    >The Gaussian says: values near the mean are common, and they get rare very quickly as you move
+    away. How quickly is set by \(\sigma\), which acts as the unit of distance. A value two
+    \(\sigma\) away is equally surprising whether \(\sigma\) is 0.1 or 100.</p
+  >
+</template>
+
+<template data-part="stage"
+  ><div class="stage one"
+    ><figure class="fig"
+      ><canvas
+        class="wide"
+        id="bell-c"
+        role="img"
+        aria-label="Bell curve with shaded area"
+      ></canvas></figure
+  ></div>
+  <div class="controls"
+    ><template data-label="Animation" data-control="group"
+      ><div class="row"
+        ><button class="btn go" id="bell-play" type="button">Animate σ</button></div
+      ></template
+    >
+    <template data-label="The curve" data-control="group"
+      ><template
+        data-value="0"
+        data-step="0.1"
+        data-max="4"
+        data-min="-4"
+        data-label="Mean μ"
+        data-id="bell-mu"
+        data-control="slider"
+      ></template
+      ><template
+        data-value="1"
+        data-step="0.05"
+        data-max="3"
+        data-min="0.4"
+        data-label="Standard deviation σ"
+        data-id="bell-sig"
+        data-control="slider"
+      ></template></template
+    ><template data-label="Shaded band" data-control="group"
+      ><template
+        data-value="1"
+        data-step="0.1"
+        data-max="3.5"
+        data-min="0.1"
+        data-label="Width, in units of σ"
+        data-id="bell-k"
+        data-control="slider"
+      ></template></template
+  ></div>
+  <dl class="read"
+    ><template
+      data-class="hl2"
+      data-label="Area inside the shaded band"
+      data-key="p"
+      data-control="readout"
+    ></template
+    ><template data-label="Shaded interval" data-key="int" data-control="readout"></template
+    ><template data-label="Variance σ²" data-key="var" data-control="readout"></template
+    ><template
+      data-class="hl3"
+      data-label="Peak height"
+      data-key="peak"
+      data-control="readout"
+    ></template></dl
+></template>
+
+<template data-part="tryit"
+  >Before you move anything: if you double σ, what happens to the peak height? Then set the band to
+  1, 2 and 3 and read the shaded area each time.</template
+>
+
+<template data-part="math"
+  ><h4>The formula</h4
+  >$$p(x)=\frac{1}{\sigma\sqrt{2\pi}}\,\exp\!\left(-\frac{(x-\mu)^2}{2\sigma^2}\right)$$
+  <p
+    >Read it from the inside out. \(z=(x-\mu)/\sigma\) is the distance from the mean in units of
+    \(\sigma\). Squaring makes left and right the same. The exponential \(e^{-z^2/2}\) turns
+    distance into rarity. The factor in front only fixes the total area at 1.</p
+  >
+  <h4>Why the peak drops when σ grows</h4
+  ><p
+    >The area must stay 1. Stretching the curve sideways by a factor of 2 would double its area, so
+    the height has to halve: the peak is \(1/(\sigma\sqrt{2\pi})\). The curve changes from bending
+    down to bending up exactly at \(\mu\pm\sigma\), which is where the little bar marked σ ends.</p
+  >
+  <h4>The 68–95–99.7 rule</h4
+  >$$P\big(|X-\mu|&lt;k\sigma\big)=\operatorname{erf}\!\left(\frac{k}{\sqrt2}\right)\quad\Rightarrow\quad
+  68.3\%,\;95.4\%,\;99.7\%\ \text{for }k=1,2,3.$$<p
+    >These numbers do not depend on \(\mu\) or \(\sigma\), because every Gaussian is the standard
+    one, \(N(0,1)\), shifted and stretched.</p
+  ></template
+>
+
+<template data-part="question"
+  >A value sits 2.5σ above the mean. Roughly how unusual is that?</template
+>
+
+<template data-part="answer"
+  >Set the band to 2.5: about 98.8% of the area is inside, so about 1.2% is outside, split between
+  two tails. Roughly 0.6% of values land that far above the mean.</template
+>

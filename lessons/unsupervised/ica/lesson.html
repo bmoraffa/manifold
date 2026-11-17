@@ -1,0 +1,201 @@
+<template data-part="lede"
+  >Two people talk at once in a room with two microphones. Each microphone records a different blend
+  of the two voices. Nobody tells you what either voice sounds like or how they were blended.
+  Independent component analysis recovers both voices anyway, from one assumption: the two sources
+  have nothing to do with each other, and neither is plain Gaussian noise.</template
+>
+
+<template data-part="intro"
+  ><p
+    >Mix two paints and you get a colour that looks more like mud than either original. Mixing
+    independent signals does something similar: a blend of several independent things looks more
+    like a bell curve than any one of them, which is the central limit theorem at work. So run the
+    film backwards. Search for the two ways of combining the microphone recordings that look
+    <i>least</i> like a bell curve. Those combinations must be the originals, because any leftover
+    mixing would have made them more bell-shaped.</p
+  >
+</template>
+
+<template data-part="stage"
+  ><div class="row seg" id="ic-d" role="group" aria-label="Sources"
+    ><button class="btn" type="button" data-v="wave">A Hum and a Sawtooth</button
+    ><button class="btn" type="button" data-v="talk">Bursty Speech and a Square Wave</button
+    ><button class="btn" type="button" data-v="gauss">Two Gaussian Noises</button></div
+  >
+  <div class="stage"
+    ><figure class="fig"
+      ><figcaption
+        >Every moment in time is one dot: microphone 1 across, microphone 2 up. The method first
+        rescales the cloud until it is round (whitening), then turns it. Gold lines: the two
+        directions currently being read off as sources</figcaption
+      ><canvas
+        class="short"
+        id="ic-c"
+        role="img"
+        aria-label="Scatter of the two signals with unmixing directions"
+      ></canvas
+    ></figure>
+    <figure class="fig"
+      ><figcaption
+        >From the top: the two true sources (hidden from the method), the two microphone recordings,
+        and the two signals recovered so far. Bottom: how un-Gaussian the outputs are at every
+        possible turning angle, with the current angle marked</figcaption
+      ><canvas
+        class="short"
+        id="ic-r"
+        role="img"
+        aria-label="Waveforms and the contrast function"
+      ></canvas></figure
+  ></div>
+  <div class="howto"
+    ><div
+      ><h3>How it works, step by step</h3
+      ><ol id="ic-steps"
+        ><li
+          >Record the two mixtures. In the scatter plot they form a slanted parallelogram or
+          blob.</li
+        ><li
+          >Centre the data and whiten it: rotate and rescale so that the cloud is round, with no
+          correlation left.</li
+        ><li>After whitening, the only freedom left is a rotation. Pick a starting angle.</li
+        ><li>Measure how far from Gaussian each of the two outputs is, using kurtosis.</li
+        ><li>Turn a little in the direction that makes the outputs less Gaussian.</li
+        ><li>Stop when turning no longer helps. The two axes are now the sources.</li></ol
+      ></div
+    ><div><h3>What just happened</h3><p class="live" id="ic-live" role="status"></p></div
+  ></div>
+  <div class="controls"
+    ><template data-label="Animation" data-control="group"
+      ><div class="row"
+        ><button class="btn go" id="ic-play" type="button">Run</button
+        ><button class="btn" id="ic-step" type="button">One step</button
+        ><button class="btn" id="ic-reset" type="button">Start over</button></div
+      ><template data-unit="steps" data-id="ic" data-control="run-limit"></template
+    ></template>
+    <template data-label="The room" data-control="group"
+      ><template
+        data-value="0.6"
+        data-step="0.05"
+        data-max="0.95"
+        data-min="0"
+        data-label="How strongly voice 2 leaks into microphone 1"
+        data-id="ic-a"
+        data-control="slider"
+      ></template
+      ><template
+        data-value="0.45"
+        data-step="0.05"
+        data-max="0.95"
+        data-min="0"
+        data-label="How strongly voice 1 leaks into microphone 2"
+        data-id="ic-b"
+        data-control="slider"
+      ></template
+      ><div class="row"
+        ><button class="btn" id="ic-new" type="button">New recording</button></div
+      ></template
+    ></div
+  >
+  <dl class="read"
+    ><template data-label="Steps so far" data-key="it" data-control="readout"></template
+    ><template data-label="Turning angle" data-key="ang" data-control="readout"></template
+    ><template
+      data-label="Kurtosis of the two outputs"
+      data-key="kur"
+      data-control="readout"
+    ></template
+    ><template
+      data-class="hl"
+      data-label="Match with the true sources"
+      data-key="m"
+      data-control="readout"
+    ></template
+    ><template
+      data-class="hl2"
+      data-label="Match after whitening only (what PCA gives)"
+      data-key="mw"
+      data-control="readout"
+    ></template
+    ><template
+      data-label="Match of the raw microphones"
+      data-key="mm"
+      data-control="readout"
+    ></template></dl
+></template>
+
+<template data-part="tryit"
+  >Press Run and watch three things: the cloud becoming round, then turning, and the bottom two
+  traces on the right snapping into a clean hum and a clean sawtooth. Compare the last three
+  readouts. Whitening alone is what PCA would give you. Is that enough? Slide the leak sliders to
+  change the room and run again. Then choose Two Gaussian Noises. Look at the curve at the bottom
+  right: where is its peak? What does the method do, and why can it not succeed here whatever the
+  algorithm?</template
+>
+
+<template data-part="math"
+  ><h4>The model</h4
+  ><p
+    >Sources \(\mathbf s(t)\in\mathbb R^2\) with independent components are mixed by an unknown
+    matrix:</p
+  >$$\mathbf x(t)=\mathbf A\,\mathbf s(t).$$<p
+    >We observe only \(\mathbf x\) and want an unmixing matrix \(\mathbf W\) with \(\mathbf
+    y=\mathbf W\mathbf x\approx\mathbf s\). The order and scale of the sources can never be
+    recovered, since any such change can be absorbed into \(\mathbf A\).</p
+  >
+  <h4>Step one: whitening</h4
+  ><p>Subtract the mean and transform so that the covariance is the identity:</p>$$\mathbf z=\mathbf
+  D^{-1/2}\mathbf E^{\top}(\mathbf x-\bar{\mathbf x}),\qquad\operatorname{Cov}(\mathbf x)=\mathbf
+  E\mathbf D\mathbf E^{\top}.$$<p
+    >This is PCA followed by rescaling. It removes all correlation, and it does half the job: the
+    sources themselves are uncorrelated with unit variance, so they must be a <i>rotation</i> of
+    \(\mathbf z\). Uncorrelated is weaker than independent, though, and any rotation of \(\mathbf
+    z\) is still uncorrelated. Second-order statistics cannot pick the right one.</p
+  >
+  <h4>Step two: the rotation</h4
+  ><p>In two dimensions a rotation is one angle \(\theta\):</p>$$\mathbf
+  y=\begin{pmatrix}\cos\theta&\sin\theta\\-\sin\theta&\cos\theta\end{pmatrix}\mathbf z.$$<p
+    >Choose the angle that makes the outputs as non-Gaussian as possible. This page measures that
+    with the excess <b>kurtosis</b>, which is zero for a Gaussian:</p
+  >$$\operatorname{kurt}(y)=\mathbb E[y^4]-3\quad(\text{for unit variance}),\qquad
+  J(\theta)=\operatorname{kurt}(y_1)^2+\operatorname{kurt}(y_2)^2.$$<p
+    >The curve at the bottom right is \(J(\theta)\). The run climbs it by gradient ascent and stops
+    when the angle changes by less than \(10^{-4}\) radians. The curve repeats every 90°, because
+    turning by a quarter-turn only swaps the outputs and flips a sign.</p
+  >
+  <h4>Why Gaussian sources cannot be separated</h4
+  ><p
+    >A whitened pair of independent Gaussians has a perfectly round distribution. Rotate it by any
+    angle and it looks exactly the same. Every angle gives independent Gaussian outputs, the
+    contrast \(J(\theta)\) is flat apart from sampling noise, and there is nothing to find. ICA can
+    tolerate at most one Gaussian source.</p
+  >
+  <h4>Compared with PCA</h4
+  ><p
+    >PCA finds uncorrelated directions ordered by variance. ICA finds independent directions, which
+    need not be at right angles in the original space and have no natural order. PCA uses the
+    covariance only. ICA needs higher-order statistics, which is why it needs non-Gaussian data.</p
+  >
+  <h4>Beyond this page</h4
+  ><p
+    >The standard algorithm is FastICA (Hyvärinen and Oja, 2000), a fixed-point iteration that works
+    in any number of dimensions and offers more robust measures of non-Gaussianity than kurtosis,
+    which is sensitive to outliers. Real rooms add echoes and delays, so real audio needs
+    convolutive versions of the model. ICA is routinely used to remove eye-blink artefacts from
+    brain recordings and to find independent spatial patterns in brain imaging.</p
+  ></template
+>
+
+<template data-part="question"
+  >After whitening, the two signals are uncorrelated. Why is that not the same as having separated
+  the sources?</template
+>
+
+<template data-part="answer"
+  >Uncorrelated only means there is no straight-line relationship between the two signals.
+  Independent means that knowing one tells you nothing at all about the other. Every rotation of a
+  whitened cloud is still uncorrelated, so whitening leaves a whole circle of candidate answers, and
+  only one orientation (up to swaps and signs) makes the outputs independent. You can see it in the
+  scatter plot: after whitening the cloud is round overall but its sharp edges are tilted. Turning
+  until the edges line up with the axes is the step that correlation cannot do and higher-order
+  statistics can.</template
+>

@@ -1,0 +1,204 @@
+<template data-part="lede"
+  >Ordinary PCA finds the straight direction along which the data vary most. That is no help when
+  the structure is a ring inside a ring, or two interlocked crescents: no straight line tells the
+  groups apart. Kernel PCA first measures how similar every point is to every other, and then runs
+  PCA on the similarities. In effect it bends the space until the structure lies along straight
+  axes.</template
+>
+
+<template data-part="intro"
+  ><p
+    >Draw a small circle and a large circle around it on a sheet of rubber. No straight cut
+    separates them. Now push the centre of the sheet up into a dome. The small circle rides up near
+    the top and the large one stays low, and a horizontal slice separates them at once. Nothing
+    about the points changed except the space they sit in. Kernel PCA never builds the dome
+    explicitly. It only needs to know, for every pair of points, how similar they are, and that
+    turns out to be enough to do PCA in the bent space.</p
+  >
+</template>
+
+<template data-part="stage"
+  ><div class="row seg" id="kp-d" role="group" aria-label="Data"
+    ><button class="btn" type="button" data-v="rings">A Ring Inside a Ring</button
+    ><button class="btn" type="button" data-v="moons">Two Crescents</button
+    ><button class="btn" type="button" data-v="blobs">Two Plain Clouds</button></div
+  >
+  <div class="stage"
+    ><figure class="fig"
+      ><figcaption
+        >The data where they live. Background shading: the value of the chosen component at every
+        place, light for low and dark for high. Curves are places with the same value. The diamond
+        is your own point</figcaption
+      ><canvas
+        class="short"
+        id="kp-c"
+        role="img"
+        aria-label="Data in the input space with the component as a field"
+      ></canvas
+    ></figure>
+    <figure class="fig"
+      ><figcaption
+        >The same points after the change of coordinates: first component across, second component
+        up. Run slides each point from where it started to where it ends up</figcaption
+      ><canvas
+        class="short"
+        id="kp-r"
+        role="img"
+        aria-label="Data in the space of the first two components"
+      ></canvas></figure
+  ></div>
+  <div class="howto"
+    ><div
+      ><h3>How it works, step by step</h3
+      ><ol id="kp-steps"
+        ><li>Choose a kernel: a rule that scores how similar two points are.</li
+        ><li
+          >Compute the similarity of every pair of points. With n points that is an n by n
+          table.</li
+        ><li
+          >Centre the table, so that the cloud of points in the new space has its mean at the
+          origin.</li
+        ><li
+          >Find the leading eigenvectors of the table. Each one assigns a number to every data
+          point.</li
+        ><li>Those numbers are the new coordinates: component 1, component 2, and so on.</li
+        ><li>A new point is placed by comparing it with every data point.</li></ol
+      ></div
+    ><div><h3>What just happened</h3><p class="live" id="kp-live" role="status"></p></div
+  ></div>
+  <div class="controls"
+    ><template data-label="Animation" data-control="group"
+      ><div class="row"
+        ><button class="btn go" id="kp-play" type="button">Run</button
+        ><button class="btn" id="kp-step" type="button">Flip the view</button
+        ><button class="btn" id="kp-reset" type="button">Start over</button></div
+      ></template
+    >
+    <template data-label="The kernel" data-control="group"
+      ><div class="row seg" id="kp-k" role="group" aria-label="Kernel"
+        ><button class="btn" type="button" data-v="rbf">Nearness (RBF)</button
+        ><button class="btn" type="button" data-v="poly">Polynomial, degree 2</button
+        ><button class="btn" type="button" data-v="lin">Plain (ordinary PCA)</button></div
+      ><template
+        data-value="0.8"
+        data-step="0.05"
+        data-max="3"
+        data-min="0.15"
+        data-label="Reach of the nearness kernel: small = only close neighbours count"
+        data-id="kp-g"
+        data-control="slider"
+      ></template
+      ><div
+        class="row seg"
+        id="kp-q"
+        role="group"
+        aria-label="Component to shade"
+        style="margin-top:6px"
+        ><button class="btn" type="button" data-v="0">Shade Component 1</button
+        ><button class="btn" type="button" data-v="1">Shade Component 2</button
+        ><button class="btn" type="button" data-v="2">Shade Component 3</button></div
+      ></template
+    >
+    <template data-label="Data" data-control="group"
+      ><div class="row"><button class="btn" id="kp-new" type="button">New data</button></div
+      ><template data-id="kp" data-control="xy-upload"></template></template
+  ></div>
+  <dl class="read"
+    ><template
+      data-label="Variance in components 1 and 2 (of the bent space)"
+      data-key="var"
+      data-control="readout"
+    ></template
+    ><template
+      data-label="A cut on component 1 alone gets right"
+      data-key="s1"
+      data-control="readout"
+    ></template
+    ><template
+      data-class="hl"
+      data-label="Best straight cut using components 1 and 2"
+      data-key="s12"
+      data-control="readout"
+    ></template
+    ><template
+      data-class="hl2"
+      data-label="Best straight cut in the original picture"
+      data-key="lin"
+      data-control="readout"
+    ></template></dl
+></template>
+
+<template data-part="tryit"
+  >On A Ring Inside a Ring, look at the shading for the nearness kernel: which component is high on
+  one ring and low on the other? Press Run and watch the rings pull apart on the right. Switch the
+  kernel to Plain. Can any cut along one axis separate the rings now? Go back to the nearness kernel
+  and drag the reach down to 0.2 and up to 3. Where does the separation break down, and why at both
+  ends? Try Polynomial on the rings. The squared terms a circle needs are inside that kernel, and
+  still no straight cut on the first two components works. Why not? Then choose Two Crescents and
+  hunt for a reach that separates them: there is a narrow window near 0.35, and it does not survive
+  every new sample. Finally type your own point and see where it lands.</template
+>
+
+<template data-part="math"
+  ><h4>PCA written with inner products</h4
+  ><p
+    >Map each point to a new space, \(\mathbf x\mapsto\phi(\mathbf x)\), and do ordinary PCA there.
+    Every principal direction is a combination of the mapped data points, \(\mathbf
+    v=\sum_i\alpha_i\,\phi(\mathbf x_i)\), so everything can be written using only the inner
+    products</p
+  >$$K_{ij}=\phi(\mathbf x_i)^{\top}\phi(\mathbf x_j)=k(\mathbf x_i,\mathbf x_j).$$<p
+    >The function \(k\) is the <b>kernel</b>. If we can compute \(k\) directly, we never need
+    \(\phi\). This is the kernel trick (Schölkopf, Smola and Müller, 1998).</p
+  >
+  <h4>Kernels on this page</h4>$$k_{\text{RBF}}(\mathbf x,\mathbf z)=\exp\!\Big(-\frac{\lVert\mathbf
+  x-\mathbf z\rVert^2}{2s^2}\Big),\qquad k_{\text{poly}}(\mathbf x,\mathbf z)=(1+\mathbf
+  x^{\top}\mathbf z)^2,\qquad k_{\text{plain}}(\mathbf x,\mathbf z)=\mathbf x^{\top}\mathbf z.$$<p
+    >The slider is the reach \(s\). With the plain kernel the method is exactly ordinary PCA.</p
+  >
+  <h4>The algorithm</h4
+  ><p>Centre the kernel matrix, which is the same as subtracting the mean in the new space:</p
+  >$$\tilde{\mathbf K}=\mathbf K-\mathbf 1\mathbf K-\mathbf K\mathbf 1+\mathbf 1\mathbf K\mathbf
+  1,\qquad\mathbf 1_{ij}=\tfrac1n.$$<p
+    >Solve the eigenproblem \(\tilde{\mathbf K}\boldsymbol\alpha_m=\lambda_m\boldsymbol\alpha_m\)
+    and scale each \(\boldsymbol\alpha_m\) to length \(1/\sqrt{\lambda_m}\). The coordinate of any
+    point \(\mathbf x\) on component \(m\) is then</p
+  >$$z_m(\mathbf x)=\sum_{i=1}^{n}\alpha_{m,i}\,\tilde k(\mathbf x,\mathbf x_i),$$<p
+    >where \(\tilde k\) is the kernel centred in the same way. That formula works for points that
+    were not in the data, which is how the shading and your own point are computed.</p
+  >
+  <h4>Choosing the reach</h4
+  ><p
+    >If the reach is very small, each point is similar only to itself. The kernel matrix is close to
+    the identity, every direction is as good as any other, and the components pick out individual
+    points. If the reach is very large, the kernel is nearly constant over the data and the method
+    drifts back towards ordinary PCA. Useful structure appears when the reach is comparable to the
+    distance between neighbouring points within a group and smaller than the distance between
+    groups.</p
+  >
+  <h4>Cost and caveats</h4
+  ><p
+    >The eigenproblem is \(n\times n\), so the method costs \(O(n^3)\) and needs all the data kept
+    in memory to place a new point. Unlike PCA, there is in general no way to map a point in the new
+    space back to the original one. And the method is unsupervised: it does not know the groups. It
+    keeps the directions of greatest variance in the bent space, which need not be the directions
+    that separate anything. With the polynomial kernel on the rings, the squared radius is one of
+    the available directions, but the first components are still dominated by plain \(x\) and \(y\),
+    which vary more. On the crescents the nearness kernel separates the groups only for a narrow
+    range of reach. The coloured dots and the "best single cut" readouts are there only so that you
+    can judge the result.</p
+  ></template
+>
+
+<template data-part="question"
+  >With the nearness kernel and a reach of 3, the rings stop separating. The reach of 3 is larger
+  than the whole data set. What has the kernel turned into?</template
+>
+
+<template data-part="answer"
+  >When the reach is much larger than every distance in the data, the exponent is small everywhere
+  and the kernel is approximately 1 minus the squared distance over 2s². After centring, the
+  constant drops out and what remains behaves like the plain inner product of the points. So kernel
+  PCA with a very long reach is close to ordinary PCA, and ordinary PCA cannot separate concentric
+  rings because both rings have the same mean and vary equally in every straight
+  direction.</template
+>

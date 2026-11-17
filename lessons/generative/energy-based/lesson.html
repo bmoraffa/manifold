@@ -1,0 +1,222 @@
+<template data-part="lede"
+  >Give every possible point a single number, its energy, and agree that low energy means “this
+  looks like data”. The model is then a landscape: valleys under the data, high ground everywhere
+  else. Nothing forces the numbers to add up to one, which makes the model very free and also makes
+  it awkward to train. Watch the landscape being carved, then drop marbles on it and let them
+  roll.</template
+>
+
+<template data-part="intro"
+  ><p
+    >Lay a rubber sheet over a table and decide that marbles should collect where the data is. You
+    are allowed two moves. Press the sheet down wherever a real data point sits. Then release a
+    handful of marbles, see where they roll to, and pull the sheet up at those places. If the
+    marbles rolled onto the data, the press and the pull cancel and nothing changes. If they rolled
+    somewhere wrong, that wrong valley is filled in. Repeat until marbles only ever come to rest on
+    data.</p
+  >
+</template>
+
+<template data-part="stage"
+  ><div class="stage"
+    ><figure class="fig"
+      ><figcaption
+        >Shading: the energy landscape, darker for lower energy (the higher half of the picture is
+        left blank). Faint dots: the real data. Small dots: the model’s own points during training.
+        Gold dots: points being generated</figcaption
+      ><canvas
+        class="short"
+        id="eb-c"
+        role="img"
+        aria-label="Energy landscape with data, the model's points and generated points"
+      ></canvas
+    ></figure>
+    <figure class="fig"
+      ><figcaption
+        >Top: the height of the landscape along the dashed line. Bottom: energy at the model’s own
+        points minus energy at the real data. It is below zero while the model’s points keep finding
+        valleys that hold no data</figcaption
+      ><canvas
+        class="short"
+        id="eb-r"
+        role="img"
+        aria-label="A slice through the energy landscape and the energy gap during training"
+      ></canvas></figure
+  ></div>
+  <div class="howto"
+    ><div
+      ><h3>How it works, step by step</h3
+      ><ol id="eb-steps"
+        ><li
+          >Keep 96 points that belong to the model: its current idea of what data looks like. They
+          start scattered at random.</li
+        ><li
+          >Let those points roll downhill on the energy landscape for five small steps, with a
+          little jitter.</li
+        ><li
+          >Take 96 real points. Lower the landscape under the real points and raise it under the
+          model’s points.</li
+        ><li
+          >Repeat. Where the model’s points already sit on the data the two pushes cancel, and the
+          landscape stops changing there.</li
+        ><li
+          >Generate: scatter new points at random and let them roll downhill, with jitter, for 200
+          steps.</li
+        ><li
+          >Switch the jitter off for a few last steps so that each point settles in its valley.</li
+        ></ol
+      ></div
+    ><div><h3>What just happened</h3><p class="live" id="eb-live" role="status"></p></div
+  ></div>
+  <div class="controls"
+    ><template data-label="Animation" data-control="group"
+      ><div class="row"
+        ><button class="btn go" id="eb-play" type="button">Run</button
+        ><button class="btn" id="eb-step" type="button">One step</button
+        ><button class="btn" id="eb-reset" type="button">Start over</button></div
+      ><template data-unit="training steps" data-id="eb" data-control="run-limit"></template
+    ></template>
+    <template data-label="Looking at the landscape" data-control="group"
+      ><template
+        data-value="0.25"
+        data-step="0.05"
+        data-max="1.5"
+        data-min="-1.5"
+        data-label="Height of the dashed line"
+        data-id="eb-sl"
+        data-control="slider"
+      ></template
+      ><div class="row"
+        ><button class="btn" id="eb-gen" type="button">Generate Again</button></div
+      ></template
+    >
+    <template data-label="The data" data-control="group"
+      ><label class="ctl" for="eb-ds"
+        ><span>Shape to learn</span
+        ><select id="eb-ds"
+          ><option value="moons" selected>Two moons</option
+          ><option value="ring">A ring</option
+          ><option value="spiral">A spiral</option
+          ><option value="blobs">Three blobs</option></select
+        ></label
+      ></template
+    ></div
+  >
+  <dl class="read"
+    ><template data-label="Stage" data-key="ph" data-control="readout"></template
+    ><template data-label="Training steps" data-key="ts" data-control="readout"></template
+    ><template
+      data-label="Average energy at real points"
+      data-key="ed"
+      data-control="readout"
+    ></template
+    ><template
+      data-label="Average energy at the model’s own points"
+      data-key="es"
+      data-control="readout"
+    ></template
+    ><template
+      data-label="Rolling steps while generating"
+      data-key="gs"
+      data-control="readout"
+    ></template
+    ><template
+      data-class="hl"
+      data-label="Generated points that land on the shape"
+      data-key="near"
+      data-control="readout"
+    ></template></dl
+></template>
+
+<template data-part="tryit"
+  >During training, watch the small dots: they are the model’s own guesses, and they chase the data.
+  Every place they visit that holds no data gets pushed up, which is how the high ground is built.
+  Move the dashed line so that it crosses the data and look at the slice: how many valleys does it
+  show? After training, press Generate Again and watch the gold points roll. Do any get caught in a
+  dip that is not on the data? Then type in your own point, once on the shape and once far away, and
+  compare the two energies.</template
+>
+
+<template data-part="math"
+  ><h4>From energy to probability</h4
+  ><p
+    >An energy-based model is any function \(E_\theta(\mathbf x)\) that returns one number. It
+    defines a density through</p
+  >$$p_\theta(\mathbf x)=\frac{e^{-E_\theta(\mathbf x)}}{Z_\theta},\qquad Z_\theta=\int
+  e^{-E_\theta(\mathbf x)}\,d\mathbf x .$$<p
+    >Lower energy means higher probability. The constant \(Z_\theta\) makes the total equal one. It
+    is an integral over every possible input, which for images cannot be computed. Every difficulty
+    with these models comes from \(Z_\theta\), and every training method is a way of avoiding it.</p
+  >
+  <h4>The gradient of the likelihood</h4
+  ><p>Maximising the log-likelihood of the data gives a gradient with two parts:</p
+  >$$\nabla_\theta\,\mathbb E_{\text{data}}\big[\log p_\theta(\mathbf x)\big]=-\,\mathbb
+  E_{\text{data}}\big[\nabla_\theta E_\theta(\mathbf x)\big]+\mathbb E_{\mathbf x\sim
+  p_\theta}\big[\nabla_\theta E_\theta(\mathbf x)\big].$$<p
+    >The first part lowers the energy at real data. The second, which comes from differentiating
+    \(\log Z_\theta\), raises the energy at samples from the model itself. So the loss that is
+    actually minimised is</p
+  >$$\mathcal L=\mathbb E_{\text{data}}\big[E_\theta(\mathbf x)\big]-\mathbb
+  E_{\text{model}}\big[E_\theta(\mathbf x)\big].$$<p
+    >The bottom-right chart plots the negative of this, the gap between the two averages. When the
+    model's samples cannot be told from data, the two averages are equal, the gap is zero and the
+    gradient vanishes.</p
+  >
+  <h4>Where the model's samples come from</h4
+  ><p
+    >The second part needs samples from \(p_\theta\). These come from Langevin dynamics, which needs
+    only the slope of the energy and never \(Z_\theta\):</p
+  >$$\mathbf x\leftarrow\mathbf x-\frac{\alpha}{2}\,\nabla_{\mathbf x}E_\theta(\mathbf
+  x)+\sqrt{\alpha}\,\mathbf z .$$<p
+    >Roll downhill, jitter, repeat. The downhill direction \(-\nabla_{\mathbf x}E_\theta\) is the
+    score from the Score Matching tab: an energy-based model is a score model whose arrows are
+    guaranteed to be the slope of one surface. Running the chain until it forgets its start would
+    take far too long, so this page uses <b>persistent contrastive divergence</b> (Tieleman, 2008):
+    the 96 points are kept from one training step to the next and moved only five steps each time.
+    One in twenty is thrown back to a random place so that distant regions keep being checked.</p
+  >
+  <h4>Keeping it stable</h4
+  ><p
+    >The loss only cares about differences in energy, so nothing stops both averages from drifting
+    off to large values. A small penalty on the squared energies, \(0.1\,(\mathbb
+    E_{\text{data}}[E^2]+\mathbb E_{\text{model}}[E^2])\), holds them near zero. That is why the
+    energies shown stay small. The step size and jitter used here are chosen to look clear and train
+    quickly. They are not matched as the formula above requires, so the points settle a little more
+    tightly than the exact density would.</p
+  >
+  <h4>What the freedom buys</h4
+  ><p
+    >Any network can be an energy. There is no decoder, no invertibility requirement and no fixed
+    order of variables. Energies combine by addition: the sum of two energies is low only where both
+    are low, which gives a model of "satisfies both". The energy itself is a ready-made measure of
+    how unusual an input is. The price is that both training and sampling need a slow inner loop of
+    Langevin steps, and that the result is sensitive to the settings of that loop.</p
+  >
+  <h4>How it connects to the rest of the module</h4
+  ><p
+    >The critic of a GAN is close to an energy, with a generator network standing in for the
+    Langevin sampler. A diffusion model learns the slope \(-\nabla E\) directly at many noise levels
+    and never needs the inner loop during training, which is the main reason diffusion models
+    displaced energy-based models for images. Boltzmann machines and Hopfield networks are
+    energy-based models with particular forms for \(E\).</p
+  >
+  <h4>What this page trains</h4
+  ><p
+    >A network with two inputs, two hidden layers of 48 neurons and one output, trained with Adam
+    for 800 steps. The landscape is drawn by evaluating that network on a grid.</p
+  ></template
+>
+
+<template data-part="question"
+  >Training lowers the energy at real data. Why is that alone not enough? What would the landscape
+  look like if the second half of the update, raising the energy at the model’s own points, were
+  left out?</template
+>
+
+<template data-part="answer"
+  >Lowering the energy at data says nothing about anywhere else. The cheapest way to do it is to
+  lower the energy everywhere: a flat landscape, or one that slopes away to minus infinity, gives
+  low energy at the data and equally low energy at every other point, so it has learned nothing. A
+  valley only exists relative to higher ground around it. The second half builds that higher ground,
+  and it does so precisely where the model currently and wrongly believes data might be.</template
+>

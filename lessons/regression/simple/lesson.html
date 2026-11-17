@@ -1,0 +1,208 @@
+<template data-part="lede"
+  >Every possible line has a score: the average squared miss. Gradient descent walks downhill on
+  that score until the line fits. Drag any point, or click the loss map to start from a different
+  line.</template
+>
+
+<template data-part="intro"
+  ><p
+    >A line is two numbers, an intercept and a slope. For any choice of the two, measure how far
+    each point is above or below the line, square those misses and average them. That average is a
+    single number, the loss, and it is small only when the line passes close to the points. The
+    right-hand picture shows the loss for every line at once: it is a bowl, and fitting means
+    finding its lowest point.</p
+  >
+</template>
+
+<template data-part="stage"
+  ><div class="stage"
+    ><figure class="fig"
+      ><figcaption>The data and the current line (drag points, click to add)</figcaption
+      ><canvas
+        class="short"
+        id="sr-c"
+        style="touch-action:none;cursor:crosshair"
+        role="img"
+        aria-label="Scatter plot with a fitted line and residuals"
+      ></canvas
+    ></figure>
+    <figure class="fig"
+      ><figcaption>The loss for every possible line (click to start there)</figcaption
+      ><canvas
+        class="short"
+        id="sr-l"
+        style="cursor:crosshair"
+        role="img"
+        aria-label="Map of the loss over slope and intercept with the gradient descent path"
+      ></canvas></figure
+  ></div>
+  <div class="controls"
+    ><template data-label="Animation" data-control="group"
+      ><div class="row"
+        ><button class="btn go" id="sr-play" type="button">Run gradient descent</button
+        ><button class="btn" id="sr-step" type="button">One step</button
+        ><button class="btn" id="sr-jump" type="button">Jump to the best fit</button></div
+      ><template data-unit="steps" data-id="sr" data-control="run-limit"></template
+      ><template
+        data-value="0.08"
+        data-step="0.01"
+        data-max="0.45"
+        data-min="0.01"
+        data-label="Learning rate"
+        data-id="sr-lr"
+        data-control="slider"
+      ></template
+      ><label class="check" for="sr-res"
+        ><input type="checkbox" id="sr-res" checked />Show the misses (residuals)</label
+      ><label class="check" for="sr-sq"
+        ><input type="checkbox" id="sr-sq" />Show them as squares</label
+      ><p class="status" id="sr-note" role="status"></p
+    ></template>
+    <template data-label="The true relationship" data-control="group"
+      ><template
+        data-value="0.8"
+        data-step="0.05"
+        data-max="2"
+        data-min="-2"
+        data-label="True slope"
+        data-id="sr-m"
+        data-control="slider"
+      ></template
+      ><template
+        data-value="0.5"
+        data-step="0.05"
+        data-max="2"
+        data-min="-2"
+        data-label="True intercept"
+        data-id="sr-b"
+        data-control="slider"
+      ></template
+      ><template
+        data-value="1"
+        data-step="0.05"
+        data-max="3"
+        data-min="0"
+        data-label="Noise σ"
+        data-id="sr-s"
+        data-control="slider"
+      ></template
+    ></template>
+    <template data-label="The data" data-control="group"
+      ><template
+        data-value="40"
+        data-step="1"
+        data-max="120"
+        data-min="8"
+        data-label="Number of points"
+        data-id="sr-n"
+        data-control="slider"
+      ></template
+      ><div class="row"
+        ><button class="btn" id="sr-new" type="button">New random sample</button
+        ><label class="btn file"
+          >Upload a CSV<input type="file" id="sr-file" accept=".csv,.txt,text/csv" /></label></div
+      ><p class="status" id="sr-status" role="status"></p></template
+  ></div>
+  <dl class="read"
+    ><template data-label="Steps taken" data-key="k" data-control="readout"></template
+    ><template
+      data-class="hl"
+      data-label="Current line: intercept, slope"
+      data-key="cur"
+      data-control="readout"
+    ></template
+    ><template
+      data-class="hl3"
+      data-label="Train error (MSE)"
+      data-key="tr"
+      data-control="readout"
+    ></template
+    ><template
+      data-class="hl2"
+      data-label="Test error (MSE)"
+      data-key="te"
+      data-control="readout"
+    ></template
+  ></dl>
+  <dl class="read"
+    ><template
+      data-label="Best fit: intercept, slope"
+      data-key="best"
+      data-control="readout"
+    ></template
+    ><template data-label="R²" data-key="r2" data-control="readout"></template
+    ><template
+      data-label="Standard error of the slope"
+      data-key="se"
+      data-control="readout"
+    ></template
+    ><template data-label="t statistic" data-key="t" data-control="readout"></template
+    ><template
+      data-class="hl2"
+      data-label="p-value (slope = 0?)"
+      data-key="p"
+      data-control="readout"
+    ></template
+    ><template
+      data-class="hl"
+      data-label="95% interval for the slope"
+      data-key="ci"
+      data-control="readout"
+    ></template></dl
+></template>
+
+<template data-part="tryit"
+  >Raise the learning rate to 0.4 and run again: what happens to the path on the loss map? Then set
+  the noise to 3 and the true slope to 0.2, and press “New random sample” several times while
+  watching the p-value and the interval.</template
+>
+
+<template data-part="math"
+  ><h4>The model and the loss</h4>$$\hat y_i=\beta_0+\beta_1x_i,\qquad
+  L(\beta_0,\beta_1)=\frac1n\sum_{i=1}^n\big(y_i-\beta_0-\beta_1x_i\big)^2$$<p
+    >Squaring makes the loss smooth, punishes large misses much more than small ones, and gives a
+    bowl with exactly one minimum. The contours of the bowl are ellipses, the same shape as the
+    Gaussian contours, and that is no accident: least squares is maximum likelihood when the noise
+    is Gaussian.</p
+  >
+  <h4>Gradient descent</h4>$$\frac{\partial L}{\partial\beta_0}=-\frac2n\sum_i r_i,\qquad
+  \frac{\partial L}{\partial\beta_1}=-\frac2n\sum_i r_i\,x_i,\qquad
+  \boldsymbol\beta\leftarrow\boldsymbol\beta-\eta\,\nabla L$$<p
+    >where \(r_i=y_i-\hat y_i\) is the residual. The gradient points uphill, so each step goes the
+    other way, with length set by the learning rate \(\eta\). Too small and it crawls. Too large and
+    each step overshoots the valley and the loss grows: the path zig-zags and flies off the map.</p
+  >
+  <h4>The exact answer</h4
+  ><p>Setting both derivatives to zero gives the minimum in closed form:</p
+  >$$\hat\beta_1=\frac{\sum_i(x_i-\bar x)(y_i-\bar y)}{\sum_i(x_i-\bar
+  x)^2}=\rho\,\frac{\sigma_y}{\sigma_x},\qquad \hat\beta_0=\bar y-\hat\beta_1\bar x.$$<p
+    >The slope is the one you met in the Gaussian module when slicing the hill.</p
+  >
+  <h4>How good is the fit</h4>$$R^2=1-\frac{\sum_i r_i^2}{\sum_i(y_i-\bar y)^2}$$<p
+    >the share of the variance of \(y\) that the line explains. Test error is the same loss measured
+    on points the fit never saw.</p
+  >
+  <h4>Is the slope real?</h4
+  ><p
+    >A different sample would give a different slope. Its standard error estimates how much it would
+    wobble:</p
+  >$$\operatorname{SE}(\hat\beta_1)=\sqrt{\frac{s^2}{\sum_i(x_i-\bar x)^2}},\qquad s^2=\frac{\sum_i
+  r_i^2}{n-2},\qquad t=\frac{\hat\beta_1}{\operatorname{SE}(\hat\beta_1)}\sim t_{n-2}\ \text{ if the
+  true slope is }0.$$<p
+    >The p-value is the chance of a \(|t|\) this large when there is no relationship at all. The 95%
+    interval is \(\hat\beta_1\pm t^{*}_{n-2}\operatorname{SE}\). More points, less noise, or a wider
+    spread of \(x\) all shrink it.</p
+  >
+  <p
+    >An uploaded CSV uses its first two numeric columns, rescaled to fit the plot. \(R^2\), \(t\)
+    and the p-value are unaffected by the rescaling.</p
+  ></template
+>
+
+<template data-part="question">The p-value is 0.30. Does that prove x has no effect on y?</template>
+
+<template data-part="answer"
+  >No. It means this sample cannot tell a slope of that size apart from zero. The interval for the
+  slope will be wide and include both zero and values far from it. More data or less noise might
+  reveal an effect.</template
+>

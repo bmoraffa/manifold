@@ -1,0 +1,150 @@
+<template data-part="lede"
+  >No straight line separates a ring from its core. But add a third coordinate, the distance from
+  the centre, and the core sinks below the ring. Now a flat plane slices them apart. Seen from
+  above, that flat cut is a circle.</template
+>
+
+<template data-part="intro"
+  ><p
+    >Lay a red napkin flat on a table and scatter blue beads around it. No straight ruler laid on
+    the table separates red from blue. Now pinch the napkin in the middle and lift: the red rises,
+    the blue stays down, and a sheet of card slid in horizontally separates them perfectly. Nothing
+    about the data changed. You gave it one more dimension to move in, and in the bigger space a
+    simple flat cut was enough.</p
+  >
+</template>
+
+<template data-part="left-caption"
+  >From above: the flat cut in 3D becomes a curved boundary in 2D</template
+>
+
+<template data-part="right-figure"
+  ><figure class="fig"
+    ><figcaption>The same points with a third coordinate added (drag to rotate)</figcaption
+    ><canvas
+      class="d3"
+      id="kernel-r"
+      role="img"
+      aria-label="The same points with a third coordinate added (drag to rotate)"
+    ></canvas
+    ><template data-control="rotation"></template></figure
+></template>
+
+<template data-part="steps"
+  ><li>Compute the new coordinate z for every training point.</li
+  ><li>Fit a linear classifier in the lifted space (x, y, z): a flat plane.</li
+  ><li
+    >To predict for a new point, compute its z the same way and see which side of the plane it is
+    on.</li
+  ><li>Seen from above, the plane’s edge is the curved boundary.</li></template
+>
+
+<template data-part="animation-controls"
+  ><div class="row"
+    ><button class="btn go" id="kernel-play" type="button">Lift</button
+    ><button class="btn" id="kernel-reset" type="button">Start over</button></div
+  ><p class="status" id="kernel-note" role="status"></p
+></template>
+
+<template data-part="model-controls"
+  ><label class="ctl" for="kernel-lift"
+    ><span>Third coordinate</span
+    ><select id="kernel-lift"
+      ><option value="none">None: stay flat</option
+      ><option value="r2" selected>z = x² + y²</option
+      ><option value="xy">z = x · y</option
+      ><option value="bump">z = a bump at the centre</option
+      ><option value="kern">RBF kernel: a bump at every point</option></select
+    ></label
+  ><template
+    data-value="0"
+    data-step="0.02"
+    data-max="1.3"
+    data-min="-1"
+    data-label="Width setting γ (RBF kernel only)"
+    data-id="kernel-gam"
+    data-control="slider"
+  ></template
+></template>
+
+<template data-part="datasets"
+  ><option value="circles">Ring around a core</option><option value="xor">Checkerboard (XOR)</option
+  ><option value="moons">Two moons</option><option value="blobs">Two clouds</option></template
+>
+
+<template data-part="point-count"
+  ><template
+    data-value="140"
+    data-step="2"
+    data-max="300"
+    data-min="20"
+    data-label="Number of points"
+    data-id="kernel-n"
+    data-control="slider"
+  ></template
+></template>
+
+<template data-part="readouts"
+  ><div><dt>Test accuracy of a straight line, no lift</dt><dd data-r="lin">–</dd></div
+  ><template
+    data-class="hl"
+    data-label="What separates the classes"
+    data-key="what"
+    data-control="readout"
+  ></template
+></template>
+
+<template data-part="tryit"
+  >Start with “None: stay flat” on the ring data and read the accuracy. Then choose z = x² + y² and
+  watch the points rise. Rotate until you look along the plane. Switch to the checkerboard: which
+  lift works there? Finally choose the RBF kernel and raise γ until the boundary wraps single
+  points.</template
+>
+
+<template data-part="math"
+  ><h4>Lifting by hand</h4>$$\phi(x_1,x_2)=\big(x_1,\ x_2,\ x_1^2+x_2^2\big)$$<p
+    >In the lifted space fit an ordinary linear classifier, a plane \(w_0+w_1x_1+w_2x_2+w_3z=0\).
+    Back on the table that plane is the set where \(w_0+w_1x_1+w_2x_2+w_3(x_1^2+x_2^2)=0\): a
+    circle. A linear method plus a nonlinear lift gives a nonlinear boundary. For the checkerboard,
+    the right lift is \(z=x_1x_2\), positive in two opposite quadrants and negative in the other
+    two.</p
+  >
+  <h4>The problem with lifting by hand</h4
+  ><p
+    >You have to know which lift to use. You could add every product of features up to some degree,
+    but the number of new coordinates explodes: degree 5 on 100 features is nearly a hundred
+    million.</p
+  >
+  <h4>The trick</h4
+  ><p
+    >Many linear methods (SVMs, ridge regression, PCA) only ever use the data through inner products
+    \(\mathbf x_i^{\top}\mathbf x_j\). After lifting they would need \(\phi(\mathbf
+    x_i)^{\top}\phi(\mathbf x_j)\). A <b>kernel</b> is a function that returns that number directly
+    from the original points, without ever computing \(\phi\):</p
+  >$$k(\mathbf a,\mathbf b)=\phi(\mathbf a)^{\top}\phi(\mathbf b)$$$$\text{polynomial: }\ k(\mathbf
+  a,\mathbf b)=(1+\mathbf a^{\top}\mathbf b)^p\qquad\qquad \text{RBF: }\ k(\mathbf a,\mathbf
+  b)=\exp\!\big(-\gamma\lVert\mathbf a-\mathbf b\rVert^2\big)$$<p
+    >The polynomial kernel corresponds to all products of features up to degree \(p\), computed at
+    the cost of one inner product. The RBF kernel corresponds to a lift into infinitely many
+    dimensions.</p
+  >
+  <h4>What the model looks like</h4>$$f(\mathbf x)=\sum_{i=1}^n\alpha_i\,k(\mathbf x_i,\mathbf
+  x)+b$$<p
+    >A weighted sum of bumps, one centred on each training point (for an SVM, only on the support
+    vectors). The last option draws this \(f\) as a surface: hills over one class, hollows over the
+    other, and the boundary where it crosses zero. \(\gamma\) sets the width of each bump: small
+    \(\gamma\) gives broad bumps and a smooth boundary, large \(\gamma\) gives narrow spikes and a
+    boundary that wraps each point, which is overfitting.</p
+  ></template
+>
+
+<template data-part="question"
+  >The RBF kernel lifts the data into infinitely many dimensions. Why does that not overfit
+  hopelessly?</template
+>
+
+<template data-part="answer"
+  >Because the fit is regularised. The margin of an SVM, or the penalty in kernel ridge, limits how
+  much the function may wiggle regardless of how many dimensions it lives in. The flexibility that
+  matters is set by γ and the penalty, not by the dimension of the lifted space.</template
+>

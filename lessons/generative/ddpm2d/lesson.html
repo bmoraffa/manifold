@@ -1,0 +1,177 @@
+<template data-part="lede"
+  >The previous tab used an ideal denoiser. Here a real network learns the job from scratch. The
+  “pictures” are single points in a plane, arranged in a shape, so that you can see everything at
+  once. The network is shown noisy points and asked what noise was added. Once it can answer, hand
+  it a cloud of pure noise and watch 400 points walk back into the shape.</template
+>
+
+<template data-part="intro"
+  ><p
+    >Hide a friend's sketch under a thin sheet of tracing paper covered in random speckles and ask
+    someone to remove the speckles. With one sheet it is easy. Stack forty sheets and the sketch is
+    invisible, but the job can still be done one sheet at a time, as long as the person has learned
+    what sketches look like and so can tell speckle from line. Training a diffusion model is
+    practising that single-sheet job at every thickness of the stack. Generating is starting with
+    forty sheets of speckle and nothing underneath, and peeling.</p
+  >
+</template>
+
+<template data-part="stage"
+  ><div class="stage"
+    ><figure class="fig"
+      ><figcaption
+        >Faint dots: the real data. Gold dots: points being generated. Arrows: which way the network
+        says “less noisy” is, at the current noise level</figcaption
+      ><canvas
+        class="short"
+        id="d2-c"
+        role="img"
+        aria-label="Data, generated samples and the learned denoising field"
+      ></canvas
+    ></figure>
+    <figure class="fig"
+      ><figcaption
+        >Top: the real data at four noise levels, which is what the network is trained on. Bottom:
+        its error at guessing the noise</figcaption
+      ><canvas
+        class="short"
+        id="d2-r"
+        role="img"
+        aria-label="Noised data at several steps and the training loss"
+      ></canvas></figure
+  ></div>
+  <div class="howto"
+    ><div
+      ><h3>How it works, step by step</h3
+      ><ol id="d2-steps"
+        ><li
+          >Take a batch of real points. Give each a random noise level t and add that much
+          noise.</li
+        ><li
+          >Ask the network: “this noisy point, at level t: what noise was added?” Compare with the
+          truth and backpropagate.</li
+        ><li>Repeat for three thousand batches.</li
+        ><li>Generate: start 400 points as pure noise at the highest level.</li
+        ><li
+          >At each level, the network estimates the noise in every point, a little of it is removed,
+          and a little fresh noise is added. After 40 levels the points form the shape.</li
+        ></ol
+      ></div
+    ><div><h3>What just happened</h3><p class="live" id="d2-live" role="status"></p></div
+  ></div>
+  <div class="controls"
+    ><template data-label="Animation" data-control="group"
+      ><div class="row"
+        ><button class="btn go" id="d2-play" type="button">Run</button
+        ><button class="btn" id="d2-step" type="button">One step</button
+        ><button class="btn" id="d2-reset" type="button">Start over</button></div
+      ><template data-unit="training steps" data-id="d2" data-control="run-limit"></template
+    ></template>
+    <template data-label="The data" data-control="group"
+      ><label class="ctl" for="d2-ds"
+        ><span>Shape to learn</span
+        ><select id="d2-ds"
+          ><option value="moons">Two moons</option
+          ><option value="ring">A ring</option
+          ><option value="spiral">A spiral</option
+          ><option value="blobs">Three blobs</option></select
+        ></label
+      ><div class="row"
+        ><button class="btn" id="d2-gen" type="button">Generate Again</button></div
+      ></template
+    ></div
+  >
+  <dl class="read"
+    ><template data-label="Stage" data-key="ph" data-control="readout"></template
+    ><template data-label="Training steps" data-key="ts" data-control="readout"></template
+    ><template
+      data-class="hl2"
+      data-label="Error at guessing the noise"
+      data-key="L"
+      data-control="readout"
+    ></template
+    ><template
+      data-label="Noise level while generating"
+      data-key="lv"
+      data-control="readout"
+    ></template
+    ><template
+      data-class="hl"
+      data-label="Generated points that land on the shape"
+      data-key="near"
+      data-control="readout"
+    ></template></dl
+></template>
+
+<template data-part="tryit"
+  >Let it train and generate, then press Generate Again a few times: new points each time, always
+  forming the shape. Now switch to the spiral and press Start over, and during training press One
+  step to move 50 steps at a time, generating at 100, 500 and 3000 steps by pressing Generate Again.
+  How does the quality of the generated shape track the error curve? Watch the arrows during
+  generation: far from the data they all point inward; near the end they point at the nearest part
+  of the shape.</template
+>
+
+<template data-part="math"
+  ><h4>Training</h4
+  ><p
+    >Pick a real point \(\mathbf x_0\), a level \(t\) uniformly from \(1,\dots,T\), and noise
+    \(\boldsymbol\varepsilon\sim\mathcal N(\mathbf 0,\mathbf I)\). Form the noisy point in one jump,
+    \(\mathbf x_t=\sqrt{\bar\alpha_t}\,\mathbf x_0+\sqrt{1-\bar\alpha_t}\,\boldsymbol\varepsilon\),
+    and train the network to recover the noise:</p
+  >$$\mathcal L=\big\lVert\boldsymbol\varepsilon-\boldsymbol\varepsilon_\theta(\mathbf
+  x_t,t)\big\rVert^2 .$$<p
+    >That is the entire training loop. No adversary, no encoder: plain regression with a target that
+    is known exactly, because we added the noise ourselves. This is why diffusion models train so
+    stably.</p
+  >
+  <h4>Why the error never reaches zero</h4
+  ><p
+    >Many different clean points and noises give the same noisy point, so the noise cannot be known
+    exactly. The best possible answer is the average over all the ways \(\mathbf x_t\) could have
+    arisen, and the remaining error is irreducible, as in the Bias and Variance lesson. A loss that
+    flattens at a value well above zero is what success looks like here. This page trains for a
+    fixed 3,000 steps, by which time it has flattened.</p
+  >
+  <h4>What the network has really learned</h4
+  ><p
+    >The predicted noise points away from the data. Its negative, scaled, is the <b>score</b>, the
+    direction in which the probability of the noisy data rises fastest:</p
+  >$$\nabla_{\mathbf x}\log p_t(\mathbf x)\approx-\frac{\boldsymbol\varepsilon_\theta(\mathbf
+  x,t)}{\sqrt{1-\bar\alpha_t}} .$$<p
+    >The arrows in the picture are this field. At high noise it is simple and points toward the
+    middle of the data. At low noise it is detailed and points at the nearest part of the shape.
+    Learning one field per noise level, from coarse to fine, is what lets generation start from
+    anywhere.</p
+  >
+  <h4>Generating</h4
+  ><p
+    >Start from \(\mathbf x_T\sim\mathcal N(\mathbf 0,\mathbf I)\) and apply, for
+    \(t=T,\dots,1\),</p
+  >$$\mathbf x_{t-1}=\frac{1}{\sqrt{1-\beta_t}}\Big(\mathbf
+  x_t-\frac{\beta_t}{\sqrt{1-\bar\alpha_t}}\,\boldsymbol\varepsilon_\theta(\mathbf
+  x_t,t)\Big)+\sqrt{\beta_t}\,\mathbf z .$$<p
+    >Each point follows the arrows a short way and is jostled by fresh noise \(\mathbf z\). The
+    jostling matters: without it the points would bunch up along the centre of the shape.</p
+  >
+  <h4>What this page trains</h4
+  ><p
+    >A real network with two hidden layers of 64 neurons. Its input is the two coordinates of the
+    noisy point and eight numbers that encode the noise level as sine and cosine waves. It is
+    trained with Adam on batches of 128, with \(T=40\) levels. Image models do the same with a U-Net
+    in place of this small network and a picture in place of the point.</p
+  ></template
+>
+
+<template data-part="question"
+  >After training, the error at guessing the noise is about 0.3, not 0. Yet the generated points
+  land on the shape. How can a network that is “30% wrong” generate well?</template
+>
+
+<template data-part="answer"
+  >The error is an average over all noise levels, and at high noise the question has no exact
+  answer: the same noisy point could have come from many clean points, so even a perfect network
+  must be wrong by a fixed amount. What matters for generation is that the network’s answer is the
+  correct average, which gives the right direction to move in at every level. Following correct
+  average directions for forty small steps leads onto the data.</template
+>
