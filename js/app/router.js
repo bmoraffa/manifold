@@ -45,10 +45,14 @@ export function mountApp({
   }
 
   const brand = button(SITE, 'home', 'brand');
+  brand.setAttribute('data-theme-anchor', '');
+  const brandRow = document.createElement('div');
+  brandRow.className = 'brand-row';
+  brandRow.append(brand);
   const brandTagline = document.createElement('p');
   brandTagline.className = 'brand-sub';
   brandTagline.textContent = 'Machine learning you can see move';
-  sidebar.replaceChildren(brand, brandTagline);
+  sidebar.replaceChildren(brandRow, brandTagline);
   const aboutLinks = document.createElement('div');
   aboutLinks.className = 'side-about';
   for (const topic of catalog) {

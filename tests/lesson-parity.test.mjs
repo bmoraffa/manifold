@@ -38,8 +38,13 @@ function structure(parent) {
 test('all 119 native entries preserve catalog metadata and generated HTML', async () => {
   const { document } = parseHTML('<html><body></body></html>');
   const loader = createLessonLoader({ fetchText: (url) => readFile(url, 'utf8') });
+  // Contact Us was added after the migration baseline and has its own test.
+  const legacyTopics = TOPICS.map((topic) => ({
+    ...topic,
+    lessons: topic.lessons.filter(({ id }) => id !== 'contact-us'),
+  }));
   assert.deepEqual(
-    TOPICS.map(({ id, title, isAbout, lessons }) => ({
+    legacyTopics.map(({ id, title, isAbout, lessons }) => ({
       id,
       t: title,
       ...(isAbout ? { about: isAbout } : {}),
@@ -59,7 +64,7 @@ test('all 119 native entries preserve catalog metadata and generated HTML', asyn
     }
     if (actual !== expected) return [path, actual, expected];
   }
-  for (const topic of TOPICS) {
+  for (const topic of legacyTopics) {
     for (const [i, entry] of topic.lessons.entries()) {
       const original = baseline.entries.find((l) => l.id === entry.id);
       assert.deepEqual(

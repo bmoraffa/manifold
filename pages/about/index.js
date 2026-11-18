@@ -37,5 +37,13 @@ export default {
       viewUrl: new URL('./cite/page.html', import.meta.url),
       load: () => import('./cite/page.js'),
     },
+    {
+      id: 'contact-us',
+      tab: 'Contact Us',
+      title: 'Contact Us',
+      isAboutPage: true,
+      viewUrl: new URL('./contact-us/page.html', import.meta.url),
+      load: () => import('./contact-us/page.js'),
+    },
   ],
 };

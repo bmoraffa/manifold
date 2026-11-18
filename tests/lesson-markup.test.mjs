@@ -3,8 +3,8 @@ import assert from 'node:assert/strict';
 import { renderSite } from './helpers/load-site.mjs';
 test('lesson controls have unique IDs and the repaired sliders have matching labels', async () => {
   const lessons = await renderSite();
-  assert.equal(lessons.length, 119);
-  assert.equal(new Set(lessons.map((l) => l.id)).size, 119);
+  assert.equal(lessons.length, 120);
+  assert.equal(new Set(lessons.map((l) => l.id)).size, lessons.length);
   const controls = new Map([
     ['svm-cost', '0'],
     ['rs-depth', '20'],
