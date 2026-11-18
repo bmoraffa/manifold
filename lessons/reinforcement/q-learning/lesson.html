@@ -1,0 +1,277 @@
+<template data-part="lede"
+  >A robot is dropped into a room it has never seen. Nobody tells it where the goal is, where the
+  pit is, or what its moves do. All it gets is a number after every step: −1 for an ordinary step,
+  +10 for reaching the goal, −10 for falling into the pit. Q-learning turns that trickle of numbers
+  into a table that says, for every square and every move, how good that move is. On this page you
+  can watch every single entry of the table being computed, with the arithmetic written
+  out.</template
+>
+
+<template data-part="intro"
+  ><p
+    >Imagine learning your way round a new city with no map, by keeping a notebook. On each page is
+    one street corner, and on that page four numbers: how good it has turned out to be to go north,
+    east, south or west from there. At first every number is zero. You walk. Each time you take a
+    step you look at the page for the corner you have just arrived at, find its best number, and use
+    it to correct the number for the step you just took: "going east from the bakery got me to the
+    fountain, and the fountain is a good place to be, so east from the bakery is good too". You
+    never need to know the whole route. Good news spreads backwards through the notebook, one corner
+    at a time, from the places where something actually happened.</p
+  >
+</template>
+
+<template data-part="stage"
+  ><div class="row seg" id="ql-w" role="group" aria-label="Which world"
+    ><button class="btn" type="button" data-v="hall">The Hallway: 5 Squares in a Row</button
+    ><button class="btn" type="button" data-v="room">The Room with a Pit</button
+    ><button class="btn" type="button" data-v="maze">The Maze</button></div
+  >
+  <div class="stage"
+    ><figure class="fig"
+      ><figcaption
+        >The world. The dot is the robot. Every square is cut into four triangles, one for each
+        move, holding the current value of making that move from that square. The best move is in
+        bold. Click any square to ask the table about it</figcaption
+      ><canvas
+        class="short"
+        id="ql-c"
+        role="img"
+        aria-label="Grid world with the value of each move in each square"
+      ></canvas
+    ></figure>
+    <figure class="fig"
+      ><figcaption
+        >The Q-table: one row for every square, one column for every move. The gold cell was just
+        updated. Bold is the best move in that row</figcaption
+      ><div class="ctab qtab" id="ql-tab"></div></figure
+  ></div>
+  <figure class="fig" style="margin-top:18px"
+    ><figcaption>The last update, worked out in full</figcaption
+    ><div class="eq" id="ql-eq" aria-live="polite" style="min-height:11.5em;margin-top:6px"></div
+  ></figure>
+  <div class="stage" style="margin-top:22px"
+    ><figure class="fig"
+      ><figcaption
+        >Left: the total reward collected in each episode. Right: how far the table still is from
+        the true values, on average</figcaption
+      ><canvas
+        class="wide"
+        id="ql-r"
+        role="img"
+        aria-label="Reward per episode and distance of the table from the true values"
+      ></canvas
+    ></figure>
+    <div><p class="tpout" id="ql-tpo" role="status" style="margin-top:26px"></p></div
+  ></div>
+  <div class="howto"
+    ><div
+      ><h3>How it works, step by step</h3
+      ><ol id="ql-steps"
+        ><li>Start with a table of zeros: the robot knows nothing. Put it on the start square.</li
+        ><li
+          >Choose a move. Most of the time take the move with the highest value in the current row.
+          With probability ε pick a random move instead, to explore.</li
+        ><li>Make the move. See which square you land in and what reward you get.</li
+        ><li
+          >Look along the row of the new square and take its highest value: the best that can be
+          expected from there.</li
+        ><li
+          >Target = reward + γ × that best value. Move the old table entry a fraction α of the way
+          toward the target.</li
+        ><li
+          >If the episode has ended, go back to the start square. Repeat from step 2 until the table
+          stops changing.</li
+        ></ol
+      ></div
+    ><div><h3>What just happened</h3><p class="live" id="ql-live" role="status"></p></div
+  ></div>
+  <div class="controls"
+    ><template data-label="Animation" data-control="group"
+      ><div class="row"
+        ><button class="btn go" id="ql-play" type="button">Run</button
+        ><button class="btn" id="ql-step" type="button">One step</button
+        ><button class="btn" id="ql-reset" type="button">Start over</button></div
+      ><template data-unit="episodes" data-id="ql" data-control="run-limit"></template
+    ></template>
+    <template data-label="Speed and episodes" data-control="group"
+      ><template
+        data-value="2"
+        data-step="1"
+        data-max="4"
+        data-min="1"
+        data-label="Speed"
+        data-id="ql-sp"
+        data-control="slider"
+      ></template
+      ><div class="row"
+        ><button class="btn" id="ql-ep" type="button">Finish This Episode</button></div
+      ></template
+    >
+    <template data-label="Learning" data-control="group"
+      ><template
+        data-value="0.5"
+        data-step="0.05"
+        data-max="1"
+        data-min="0.05"
+        data-label="Learning rate α: how far to move toward the target"
+        data-id="ql-al"
+        data-control="slider"
+      ></template
+      ><template
+        data-value="0.9"
+        data-step="0.05"
+        data-max="1"
+        data-min="0"
+        data-label="Discount γ: how much the future counts"
+        data-id="ql-ga"
+        data-control="slider"
+      ></template
+      ><template
+        data-value="0.2"
+        data-step="0.05"
+        data-max="1"
+        data-min="0"
+        data-label="Exploration ε: share of random moves"
+        data-id="ql-ep2"
+        data-control="slider"
+      ></template
+    ></template>
+    <template data-label="The floor" data-control="group"
+      ><div class="row seg" id="ql-sl" role="group" aria-label="Floor"
+        ><button class="btn" type="button" data-v="0">Firm: Moves Always Work</button
+        ><button class="btn" type="button" data-v="0.2"
+          >Slippery: 1 Move in 5 Slides Sideways</button
+        ></div
+      ></template
+    ></div
+  >
+  <dl class="read"
+    ><template data-label="Episodes finished" data-key="ep" data-control="readout"></template
+    ><template data-label="Steps in this episode" data-key="st" data-control="readout"></template
+    ><template
+      data-label="Reward of the last finished episode"
+      data-key="lr"
+      data-control="readout"
+    ></template
+    ><template
+      data-class="hl"
+      data-label="Best route from the start, according to the table"
+      data-key="rt"
+      data-control="readout"
+    ></template
+    ><template
+      data-class="hl2"
+      data-label="Entries within 0.1 of their true value"
+      data-key="ok"
+      data-control="readout"
+    ></template
+    ><template
+      data-label="Largest change in the table over the last 25 episodes"
+      data-key="dm"
+      data-control="readout"
+    ></template></dl
+></template>
+
+<template data-part="tryit"
+  >Start with The Hallway and press One step again and again, reading the worked update each time.
+  The first time the robot reaches the goal, exactly one entry becomes positive. Which one? In the
+  next episode, watch that value leak one square further back. That backward leak is the whole
+  algorithm. Now choose The Room with a Pit and press Run. When it stops, click squares to ask the
+  table for the best route. Then experiment: set ε to 0 and start over. Does the robot still find
+  the best route, and why might it not? Set γ to 0: what can the robot no longer see? Set α to 1 on
+  the slippery floor and watch the values refuse to settle.</template
+>
+
+<template data-part="math"
+  ><h4>What the table means</h4
+  ><p
+    >\(Q(s,a)\) is an estimate of the total reward the robot will collect from now on if it is in
+    square \(s\), makes move \(a\), and behaves as well as possible afterwards. Rewards further in
+    the future are counted a little less, by a factor \(\gamma\) for each step of delay:</p
+  >$$Q^\star(s,a)=\mathbb E\big[r_1+\gamma r_2+\gamma^2r_3+\dots\ \big|\ s,a,\ \text{then act
+  optimally}\big].$$<p
+    >If the table were correct, behaving well would be easy: in every square, make the move with the
+    highest value. Learning the table is the whole problem.</p
+  >
+  <h4>The update</h4
+  ><p
+    >The robot is in \(s\), makes move \(a\), receives reward \(r\) and lands in \(s'\). It then
+    changes one entry of the table:</p
+  >$$Q(s,a)\ \leftarrow\
+  Q(s,a)+\alpha\Big[\underbrace{r+\gamma\max_{a'}Q(s',a')}_{\text{target}}-Q(s,a)\Big].$$<p
+    >The <b>target</b> is a better guess of what \(Q(s,a)\) should be, made one step later: the
+    reward that actually arrived plus the best value the table currently offers from the new square.
+    The bracket is the <b>temporal-difference error</b>: how much better or worse things turned out
+    than the table said. The learning rate \(\alpha\) decides how far to move: with \(\alpha=1\) the
+    old value is thrown away, with \(\alpha=0.1\) it moves a tenth of the way. If \(s'\) ends the
+    episode there is no future, and the target is \(r\) alone. The panel under the pictures writes
+    these lines out with the numbers of the step just taken (Watkins, 1989).</p
+  >
+  <h4>A worked example</h4
+  ><p
+    >In the hallway with \(\alpha=0.5\) and \(\gamma=0.9\), suppose the robot stands on the square
+    next to the goal, with the whole table at zero, and steps right. It reaches the goal and
+    receives \(+10\). The goal ends the episode, so</p
+  >$$Q(\text{A4},\rightarrow)\leftarrow0+0.5\,[\,10-0\,]=5 .$$<p
+    >In a later episode it steps right from A3 into A4, with reward \(-1\). The best value now on
+    offer in A4 is 5, so</p
+  >$$Q(\text{A3},\rightarrow)\leftarrow0+0.5\,[\,-1+0.9\times5-0\,]=1.75 .$$<p
+    >The reward at the goal has reached a square from which the goal cannot be seen. After enough
+    visits the values settle at \(10\), \(8\), \(6.2\), \(4.58\) going back from the goal: each is
+    \(-1+0.9\times\) the one in front of it.</p
+  >
+  <h4>Explore or exploit</h4
+  ><p
+    >Always taking the move that looks best is called exploiting. A robot that only exploits never
+    tries the moves it wrongly believes are bad, so it can settle on a poor route for ever. With
+    <b>ε-greedy</b> behaviour it makes a random move with probability \(\varepsilon\) and the
+    best-looking move otherwise. Every entry of the table then keeps being tested.</p
+  >
+  <h4>Why it learns the best behaviour while behaving imperfectly</h4
+  ><p
+    >The target uses \(\max_{a'}Q(s',a')\), the value of the best next move, whatever move the robot
+    actually makes next. So the table describes the best possible behaviour even while the robot is
+    stumbling around at random one step in five. This is called <b>off-policy</b> learning, and it
+    is the difference from SARSA in the next tab. Provided every square and move keeps being visited
+    and \(\alpha\) is reduced gradually, the table is guaranteed to converge to \(Q^\star\).</p
+  >
+  <h4>The three settings</h4
+  ><p
+    ><b>\(\alpha\)</b>: large values learn fast and are thrown about by luck when the floor is
+    slippery. Small values are steady and slow. <b>\(\gamma\)</b>: at 0 only the immediate reward
+    counts, and since every ordinary step pays \(-1\), the robot cannot tell a step toward the goal
+    from a step away. Near 1, distant rewards count almost fully. <b>\(\varepsilon\)</b>: at 0
+    nothing is explored. At 1 the robot moves at random, which still fills in the table correctly
+    but collects very little reward on the way.</p
+  >
+  <h4>How this page decides it has finished</h4
+  ><p
+    >The true values are known here, because the page also solves the world exactly with the method
+    of the Value and Policy Iteration tab. They are used only to draw the right-hand chart. Learning
+    stops when no entry has changed by more than 0.01 during 25 episodes in a row, or after 400
+    episodes. On the slippery floor with a fixed \(\alpha\) the entries never stop jiggling, so the
+    limit is what ends the run.</p
+  >
+  <h4>Where the table stops being enough</h4
+  ><p
+    >A table needs one row for every situation. A 3 by 4 room has 11. Chess has more positions than
+    there are atoms in the Earth. For such problems the table is replaced by a neural network that
+    takes the situation as input and outputs the values of the moves, trained on the same target.
+    That is the deep Q-network in the last tab of this module.</p
+  ></template
+>
+
+<template data-part="question"
+  >After the very first episode in The Room with a Pit, almost every entry the robot touched is
+  negative, even on squares that lie on the best route. Why, and why does that not ruin the
+  learning?</template
+>
+
+<template data-part="answer"
+  >During the first episode nothing in the table knows about the goal yet, so every ordinary step is
+  updated toward a target of −1 plus γ times zero. The squares along the route are therefore marked
+  as slightly bad. Only the very last step, into the goal, gets a positive value. In later episodes
+  that positive value is passed back one square per visit, and it soon outweighs the small negative
+  numbers. The early negative values even help: they make squares the robot has already tried look
+  slightly worse than squares it has not, which pushes it to try new moves.</template
+>

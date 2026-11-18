@@ -1,44 +1,146 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Manifold</title>
-<meta name="author" content="Bahman Moraffah">
-<meta name="description" content="Manifold: machine learning you can see move. Interactive, animated lessons on machine learning, deep learning and generative AI, by Bahman Moraffah.">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;1,500&family=Hanken+Grotesk:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="css/style.css">
-<script>window.MathJax={tex:{inlineMath:[['\\(','\\)']],displayMath:[['$$','$$']]},svg:{fontCache:'global'},startup:{typeset:false}};</script>
-<script src="https://cdn.jsdelivr.net/npm/mathjax@3.2.2/es5/tex-svg-full.js" async></script>
-</head>
-<body>
-<div class="topbar"><button class="brand" type="button" data-go="home">Manifold</button><button class="btn" type="button" id="menu-b" aria-expanded="false">Menu</button></div>
-<div class="app">
-  <aside class="side" id="side" aria-label="Topics"></aside>
-  <main>
-    <section id="home"><canvas id="hero-c" role="img" aria-label="Particles that form the word Manifold, then rearrange into data sets and a loss landscape"></canvas><footer class="home-foot">© Bahman Moraffah. All rights reserved. Please reference this site when you use it: <button type="button" class="foot-link" data-go="cite">how to cite</button></footer></section>
-    <header class="modbar" id="modbar" hidden><div class="modbar-top"><button class="brand" type="button" data-go="home">Manifold</button><span class="mod-name" id="mod-name"></span><button class="link" type="button" data-go="home">← All topics</button></div><nav class="ltabs" id="ltabs" role="tablist" aria-label="In this topic"></nav></header>
-    <section class="page" id="lesson" hidden></section>
-  </main>
-</div>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Manifold</title>
+    <meta name="author" content="Bahman Moraffah" />
+    <meta
+      name="description"
+      content="Manifold: machine learning you can see move. Interactive, animated lessons on machine learning, deep learning and generative AI, by Bahman Moraffah."
+    />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;1,500&family=Hanken+Grotesk:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="css/style.css" />
+    <script>
+      window.MathJax={tex:{inlineMath:[['\\(','\\)']],displayMath:[['$$','$$']]},svg:{fontCache:'global'},startup:{typeset:false}};
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@3.2.2/es5/tex-svg-full.js" async></script>
+  </head>
+  <body>
+    <div class="topbar"
+      ><div class="brand-row"
+        ><button class="brand" type="button" data-go="home" data-theme-anchor>Manifold</button></div
+      >
+      ><button class="btn" type="button" id="menu-b" aria-expanded="false">Menu</button></div
+    >
+    <div class="app">
+      <aside class="side" id="side" aria-label="Topics"></aside>
+      <main>
+        <section id="home"
+          ><canvas
+            id="hero-c"
+            role="img"
+            aria-label="Particles that form the word Manifold, then rearrange into data sets and a loss landscape"
+          ></canvas
+          ><footer class="home-foot"
+            >© Bahman Moraffah. All rights reserved. Please reference this site when you use it:
+            <button type="button" class="foot-link" data-go="cite">how to cite</button></footer
+          ></section
+        >
+        <header class="modbar" id="modbar" hidden
+          ><div class="modbar-top"
+            ><button class="brand" type="button" data-go="home">Manifold</button
+            ><span class="mod-name" id="mod-name" data-theme-anchor></span
+            ><button class="link" type="button" data-go="home">← All topics</button></div
+          ><nav class="ltabs" id="ltabs" role="tablist" aria-label="In this topic"></nav
+        ></header>
+        <section class="page" id="lesson" hidden></section>
+      </main>
+    </div>
 
-<script src="js/core.js"></script>
-<script src="js/gaussian.js"></script>
-<script src="js/regression.js"></script>
-<script src="js/foundations.js"></script>
-<script src="js/classification.js"></script>
-<script src="js/ensembles.js"></script>
-<script src="js/unsupervised.js"></script>
-<script src="js/neural-networks.js"></script>
-<script src="js/deep-learning.js"></script>
-<script src="js/generative.js"></script>
-<script src="js/language-models.js"></script>
-<script src="js/reinforcement.js"></script>
-<script src="js/probabilistic.js"></script>
-<script src="js/extra-lessons.js"></script>
-<script src="js/about.js"></script>
-<script src="js/app.js"></script>
-</body>
+    <button
+      class="btn contact-trigger"
+      id="contact-trigger"
+      type="button"
+      aria-label="Contact Us"
+      aria-haspopup="dialog"
+      aria-controls="contact-dialog"
+      title="Contact Us"
+    >
+      <svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true">
+        <rect
+          x="3"
+          y="5"
+          width="18"
+          height="14"
+          rx="3"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.6"
+        />
+        <path
+          d="m4 7 6.8 5.1a2 2 0 0 0 2.4 0L20 7"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.6"
+          stroke-linecap="round"
+        />
+      </svg>
+    </button>
+
+    <dialog class="contact-dialog" id="contact-dialog" aria-labelledby="contact-dialog-title">
+      <div class="contact-dialog-heading">
+        <h2 id="contact-dialog-title">Contact Us</h2>
+        <button class="btn" type="button" data-close-contact>Close</button>
+      </div>
+      <div data-contact-form></div>
+    </dialog>
+
+    <template id="contact-form">
+      <p class="contact-feedback">
+        <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true">
+          <path
+            d="M9 18h6m-5 3h4m-5-5c0-.6-.3-1.1-.9-1.6a6 6 0 1 1 7.8 0c-.6.5-.9 1-.9 1.6Z"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.6"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          />
+        </svg>
+        <span>
+          <strong>We’d really appreciate your feedback.</strong> If you have a moment, please tell
+          us what worked for you and what we could improve in our
+          <a
+            href="https://docs.google.com/forms/d/e/1FAIpQLScH9mwrNkUZqgA8CaJogIVm6H_CHn90Mvqp3FkKILPEv247yA/viewform"
+            target="_blank"
+            rel="noopener"
+            >feedback form</a
+          >. Thanks for helping us make Manifold better.
+        </span>
+      </p>
+      <p class="contact-email">
+        To contact us, use the form below or
+        <a href="mailto:manifold.ai.tool@gmail.com">email us</a>.
+      </p>
+      <form class="contact-form" action="https://api.web3forms.com/submit" method="post">
+        <input type="hidden" name="access_key" value="a054bff1-084f-4e63-95e3-20cfb67a6682" />
+        <fieldset>
+          <legend>Message details</legend>
+          <label>Name <input type="text" name="name" autocomplete="name" required /></label>
+          <label>Email <input type="email" name="email" autocomplete="email" required /></label>
+          <label>Message <textarea name="message" rows="5" required></textarea></label>
+          <button class="btn go contact-send" type="submit">Send message</button>
+        </fieldset>
+        <p role="status"></p>
+      </form>
+    </template>
+
+    <template id="theme-switch">
+      <button
+        class="theme-switch"
+        type="button"
+        aria-label="Dark mode"
+        aria-pressed="false"
+        title="Dark mode"
+        ><span class="theme-moon" aria-hidden="true">☾</span
+        ><span class="theme-sun" aria-hidden="true">☀</span></button
+      >
+    </template>
+    <script type="module" src="js/app.js"></script>
+  </body>
 </html>
-

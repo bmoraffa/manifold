@@ -1,0 +1,143 @@
+<template data-part="lede"
+  >Draw a line through the plane. Far on one side the model is sure of class B, far on the other
+  sure of class A, and near the line it is unsure. Training tilts and slides the line until the
+  probabilities match the data.</template
+>
+
+<template data-part="intro"
+  ><p
+    >Linear regression draws a line through the points. For classification we want a line
+    <em>between</em> the two groups, and more than a yes or no: we want to know how sure the model
+    is. So compute a score that says how far a point is from the line and on which side, then squash
+    that score into a number between 0 and 1. Points far on the B side get a probability near 1,
+    points far on the A side near 0, and points on the line exactly one half.</p
+  >
+</template>
+
+<template data-part="left-caption"
+  >The data, and what the model predicts everywhere (click to add a point, drag to move
+  one)</template
+>
+
+<template data-part="right-figure"
+  ><figure class="fig"
+    ><figcaption>Each point’s score, squashed into a probability</figcaption
+    ><canvas
+      class="short"
+      id="logistic-r"
+      role="img"
+      aria-label="Each point’s score, squashed into a probability"
+    ></canvas></figure
+></template>
+
+<template data-part="steps"
+  ><li>Start with a random line.</li
+  ><li>For every training point, compute its score z and probability p = σ(z).</li
+  ><li>Compare p with the true label (0 for A, 1 for B). The gap p − y is the error.</li
+  ><li>Move each weight a small step against the average of error × input.</li
+  ><li>Repeat until the loss stops falling.</li></template
+>
+
+<template data-part="animation-controls"
+  ><div class="row"
+    ><button class="btn go" id="logistic-play" type="button">Train</button
+    ><button class="btn" id="logistic-step" type="button">One step</button
+    ><button class="btn" id="logistic-reset" type="button">Start over</button></div
+  ><p class="status" id="logistic-note" role="status"></p
+  ><template data-unit="steps" data-id="logistic" data-control="run-limit"></template
+></template>
+
+<template data-part="model-controls"
+  ><template
+    data-value="0.5"
+    data-step="0.02"
+    data-max="3"
+    data-min="0.02"
+    data-label="Learning rate η"
+    data-id="logistic-lr"
+    data-control="slider"
+  ></template
+  ><template
+    data-value="0"
+    data-step="0.005"
+    data-max="0.5"
+    data-min="0"
+    data-label="Penalty on large weights λ"
+    data-id="logistic-lam"
+    data-control="slider"
+  ></template
+  ><label class="check" for="logistic-quad"
+    ><input type="checkbox" id="logistic-quad" />Add squared features (x², xy, y²)</label
+  ></template
+>
+
+<template data-part="datasets"
+  ><option value="blobs">Two clouds</option><option value="overlap">Two overlapping clouds</option
+  ><option value="moons">Two moons</option><option value="circles">Ring around a core</option
+  ><option value="xor">Checkerboard (XOR)</option></template
+>
+
+<template data-part="point-count"
+  ><template
+    data-value="120"
+    data-step="2"
+    data-max="300"
+    data-min="20"
+    data-label="Number of points"
+    data-id="logistic-n"
+    data-control="slider"
+  ></template
+></template>
+
+<template data-part="readouts"
+  ><template data-class="hl" data-label="Log loss" data-key="ll" data-control="readout"></template
+  ><div><dt>Steps taken</dt><dd data-r="k">–</dd></div
+  ><div><dt>Weights</dt><dd data-r="w">–</dd></div></template
+>
+
+<template data-part="tryit"
+  >Watch the line swing into place on the two clouds. Then choose the ring around a core: what
+  accuracy can a straight line reach? Tick “Add squared features” and train again. Finally, on
+  well-separated clouds with no penalty, watch the weights keep growing.</template
+>
+
+<template data-part="math"
+  ><h4>The model</h4>$$z=w_0+w_1x_1+w_2x_2,\qquad p=\sigma(z)=\frac{1}{1+e^{-z}}$$<p
+    >\(z\) is the score, proportional to the signed distance from the line \(z=0\). The sigmoid
+    \(\sigma\) is the S-shaped curve on the right. Rearranged, \(z=\ln\frac{p}{1-p}\): the model is
+    linear in the log-odds. Each unit of \(x_1\) multiplies the odds of class B by \(e^{w_1}\).</p
+  >
+  <h4>The loss</h4
+  ><p
+    >Choose the weights that make the observed labels most probable. The negative log of that
+    probability, averaged, is the log loss (cross-entropy):</p
+  >$$L(\mathbf w)=-\frac1n\sum_{i=1}^n\Big[y_i\ln p_i+(1-y_i)\ln(1-p_i)\Big]$$<p
+    >A confident correct answer costs almost nothing. A confident wrong answer costs a great deal,
+    and the cost grows without limit as \(p\to0\) for a true B. This is maximum likelihood under a
+    Bernoulli model, exactly as least squares was under a Gaussian one.</p
+  >
+  <h4>The gradient</h4>$$\nabla L=\frac1n\sum_i(p_i-y_i)\,\mathbf x_i$$<p
+    >The same form as linear regression: prediction minus target, times the input. There is no
+    closed-form solution, so it is trained by gradient descent, but the loss is convex, so there is
+    one minimum and descent finds it.</p
+  >
+  <h4>Three things to notice</h4
+  ><p
+    ><b>The boundary is always straight</b> in the features you give it. Adding squared features
+    lets it draw circles and ellipses, the same trick as polynomial regression.
+    <b>On perfectly separable data the weights grow without bound:</b> a steeper sigmoid always fits
+    a little better, so there is no finite best. A penalty \(\lambda\lVert\mathbf w\rVert^2\) stops
+    that. <b>The output is a probability</b>, so you can move the threshold away from 0.5 when the
+    two kinds of mistake have different costs.</p
+  ></template
+>
+
+<template data-part="question"
+  >Why not fit a straight line to the 0/1 labels with least squares instead?</template
+>
+
+<template data-part="answer"
+  >Its outputs are not probabilities: they run below 0 and above 1. And squared error punishes
+  points that are very confidently correct, far from the boundary, which drags the line toward them.
+  Log loss does not care how far beyond the boundary a correctly classified point is.</template
+>

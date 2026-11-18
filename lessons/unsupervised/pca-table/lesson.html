@@ -1,0 +1,197 @@
+<template data-part="lede"
+  >With two columns you can look at the cloud. With six or twelve you cannot, and that is where PCA
+  earns its place: it finds the few combinations of columns that carry most of the variation, so a
+  wide table can be drawn on one page. Use the built-in tables or upload your own.</template
+>
+
+<template data-part="intro"
+  ><p
+    >A school report lists six marks for each student. If you had to describe a student with only
+    two numbers, you would not pick two of the six subjects and discard the rest. You would say
+    something like "overall, strong" and "better at sciences than at languages". Those are not
+    columns of the table. They are combinations of columns, and they summarise the table well
+    because the subjects are correlated. PCA finds such combinations automatically and tells you how
+    much each one explains.</p
+  >
+</template>
+
+<template data-part="stage"
+  ><div class="stage"
+    ><figure class="fig"
+      ><figcaption id="pt-hcap">The table</figcaption
+      ><canvas
+        class="short"
+        id="pt-h"
+        role="img"
+        aria-label="First rows of the table, then the correlation matrix"
+      ></canvas
+    ></figure>
+    <figure class="fig"
+      ><figcaption
+        >Scree plot: share of the total spread carried by each component, and the running
+        total</figcaption
+      ><canvas class="short" id="pt-s" role="img" aria-label="Scree plot"></canvas></figure
+  ></div>
+  <div class="stage" style="margin-top:22px"
+    ><figure class="fig"
+      ><figcaption
+        >Every row as a point on the first two components. Arrows show which way each column
+        pulls</figcaption
+      ><canvas
+        class="short"
+        id="pt-b"
+        role="img"
+        aria-label="Rows plotted on the first two components with column arrows"
+      ></canvas
+    ></figure>
+    <figure class="fig"
+      ><figcaption id="pt-lcap">Weights of the component</figcaption
+      ><canvas
+        class="short"
+        id="pt-l"
+        role="img"
+        aria-label="Weights of one component on each column"
+      ></canvas></figure
+  ></div>
+  <div class="howto"
+    ><div
+      ><h3>How it works, step by step</h3
+      ><ol id="pt-steps"
+        ><li
+          >Centre each column, and divide by its standard deviation so that units do not matter.</li
+        ><li>Compute the correlation matrix: one number for every pair of columns.</li
+        ><li
+          >Find its eigenvectors, largest eigenvalue first. Each is a component: a recipe that mixes
+          the columns.</li
+        ><li>Read the scree plot and decide how many components to keep.</li
+        ><li>Project: replace every row by its scores on the components you kept.</li></ol
+      ></div
+    ><div><h3>What just happened</h3><p class="live" id="pt-live" role="status"></p></div
+  ></div>
+  <div class="controls"
+    ><template data-label="Animation" data-control="group"
+      ><div class="row"
+        ><button class="btn go" id="pt-play" type="button">Run</button
+        ><button class="btn" id="pt-step" type="button">One step</button
+        ><button class="btn" id="pt-reset" type="button">Start over</button></div
+      ></template
+    >
+    <template data-label="The model" data-control="group"
+      ><label class="check"
+        ><input type="checkbox" id="pt-std" checked /> Standardise the columns first</label
+      ><template
+        data-value="1"
+        data-step="1"
+        data-max="12"
+        data-min="1"
+        data-label="Component to inspect"
+        data-id="pt-k"
+        data-control="slider"
+      ></template
+    ></template>
+    <template data-label="The data" data-control="group"
+      ><label class="ctl" for="pt-ds"
+        ><span>Table</span
+        ><select id="pt-ds"
+          ><option value="exam">Exam marks in six subjects (simulated)</option
+          ><option value="body">Body measurements (simulated)</option></select
+        ></label
+      ><div class="row"
+        ><label class="btn file"
+          >Upload a CSV<input type="file" id="pt-file" accept=".csv,.txt,text/csv" /></label></div
+      ><p class="status" id="pt-st" role="status"></p></template
+  ></div>
+  <dl class="read"
+    ><template data-label="Rows" data-key="n" data-control="readout"></template
+    ><template data-label="Columns" data-key="d" data-control="readout"></template
+    ><template
+      data-class="hl"
+      data-label="Spread carried by component 1"
+      data-key="p1"
+      data-control="readout"
+    ></template
+    ><template
+      data-class="hl"
+      data-label="By components 1 and 2 together"
+      data-key="p2"
+      data-control="readout"
+    ></template
+    ><template
+      data-class="hl2"
+      data-label="Components needed for 90%"
+      data-key="k90"
+      data-control="readout"
+    ></template></dl
+></template>
+
+<template data-part="tryit"
+  >On the exam marks, step through and read the weights of component 1 and then component 2. One is
+  "good at everything" and the other is "numbers against words": the table of six subjects is mostly
+  two ideas. Now switch to Body Measurements and untick Standardise. Which column takes over
+  component 1, and why? Then upload a table of your own with a header row.</template
+>
+
+<template data-part="math"
+  ><h4>From the table to the components</h4
+  ><p
+    >Let \(\mathbf X\) be the table with \(n\) rows and \(d\) columns. Standardise each column:
+    \(z_{ij}=(x_{ij}-\bar x_j)/s_j\). The correlation matrix is</p
+  >$$\mathbf R=\frac{1}{n-1}\mathbf Z^{\top}\mathbf Z,$$<p
+    >a \(d\times d\) table whose entry \((j,k)\) is the correlation between columns \(j\) and \(k\).
+    Its eigenvectors \(\mathbf w_1,\dots,\mathbf w_d\), ordered by eigenvalue
+    \(\lambda_1\ge\dots\ge\lambda_d\), are the principal components. The entries of \(\mathbf w_k\)
+    are called <b>weights</b> or <b>loadings</b>: how much of each column goes into component
+    \(k\).</p
+  >
+  <h4>Scores</h4
+  ><p
+    >The score of row \(i\) on component \(k\) is \(t_{ik}=\mathbf w_k^{\top}\mathbf z_i\): multiply
+    each standardised entry by its weight and add. The lower-left picture plots \((t_{i1},t_{i2})\)
+    for every row. Two rows that are close in that picture are similar across all \(d\) columns, to
+    the extent that two components capture the table.</p
+  >
+  <h4>The scree plot</h4
+  ><p
+    >With standardised columns each has variance 1, so the total is \(d\) and \(\sum_k\lambda_k=d\).
+    Component \(k\) carries the share \(\lambda_k/d\). Plotting these shares in order gives the
+    scree plot. Common rules for how many to keep: enough to reach 80 or 90% of the total; the
+    components before the curve flattens; or those with \(\lambda_k&gt;1\), meaning they carry more
+    than one original column's worth. None is a law, and the right number depends on what the
+    components are for.</p
+  >
+  <h4>Why standardise</h4
+  ><p
+    >Without it PCA uses the covariance matrix, and a column with large numbers dominates purely
+    because of its units. Weight in kilograms with a standard deviation of 12 has a variance of 144;
+    shoe size with a standard deviation of 2 has a variance of 4. Component 1 would be almost
+    entirely weight. Standardise unless all columns share one unit and their differences in spread
+    are meaningful.</p
+  >
+  <h4>Reading the arrows</h4
+  ><p
+    >In the lower-left picture each column is an arrow from the origin to its pair of weights on
+    components 1 and 2. Arrows pointing the same way belong to columns that rise together. Arrows at
+    right angles are unrelated, and opposite arrows are columns that trade off. A row lying far out
+    along an arrow scores high on that column.</p
+  >
+  <h4>Cautions</h4
+  ><p
+    >Components are defined only up to sign: flipping all the weights of one component changes
+    nothing. They are forced to be at right angles, which real underlying causes need not be, so the
+    interpretation of a component is a suggestion and not a discovery. And a component with a small
+    eigenvalue is not necessarily unimportant for a later prediction task: PCA never looked at any
+    target.</p
+  ></template
+>
+
+<template data-part="question"
+  >A table has 10 columns and the first two components carry 95% of the spread. What does that tell
+  you about the 10 columns?</template
+>
+
+<template data-part="answer"
+  >That they are highly redundant. The rows lie very close to a flat two-dimensional sheet inside
+  the ten-dimensional space, so the ten measurements are close to being ten different mixtures of
+  only two underlying quantities plus a little noise. You could store two numbers per row and
+  rebuild all ten columns with an error of 5% of the total variance.</template
+>

@@ -1,0 +1,260 @@
+<template data-part="lede"
+  >In a deep network each layer feeds the next. If the numbers leaving one layer are a little too
+  small, they shrink again at the next layer and fade to nothing. If they are a little too large,
+  the units saturate. Either way learning stalls. Batch normalization puts a small correction after
+  every layer: shift and rescale its outputs so that, over the current batch, they have mean 0 and
+  spread 1. Two identical networks train side by side here, one with the correction and one
+  without.</template
+>
+
+<template data-part="intro"
+  ><p
+    >Picture a line of people passing a message by whispering. If each person speaks slightly too
+    loudly, a few places down the line everyone is shouting and the words are lost. If each speaks
+    slightly too softly, the message fades to nothing. A deep network has the same problem with
+    numbers, and tanh units make it concrete: feed them values far from zero and they answer +1 or
+    −1 whatever the input, with a slope of almost nothing, so no learning signal gets back through
+    them. Batch normalization gives every person in the line a volume control that is reset at each
+    step: whatever arrives, it is brought back to a standard level before being passed on.</p
+  >
+</template>
+
+<template data-part="stage"
+  ><div class="row seg" id="bn-d" role="group" aria-label="Data"
+    ><button class="btn" type="button" data-v="spiral">Two Spirals</button
+    ><button class="btn" type="button" data-v="rings">A Ring Inside a Ring</button
+    ><button class="btn" type="button" data-v="moons">Two Crescents</button></div
+  >
+  <div class="stage"
+    ><figure class="fig"
+      ><figcaption
+        >The two networks’ current answers. Left half: the plain network. Right half: the same
+        network with batch normalization. Shading is the predicted class; dots are the training
+        data</figcaption
+      ><canvas
+        class="short"
+        id="bn-c"
+        role="img"
+        aria-label="Decision regions of the two networks"
+      ></canvas
+    ></figure>
+    <figure class="fig"
+      ><figcaption
+        >Top: training loss of both networks. Bottom: what goes into the activation function at each
+        hidden layer, shown as the range holding the middle 90% of values. A bar that has shrunk to
+        a sliver means the signal has faded away. A bar reaching far beyond the dashed lines means
+        the tanh units are saturated</figcaption
+      ><canvas
+        class="short"
+        id="bn-r"
+        role="img"
+        aria-label="Loss curves and pre-activation ranges by layer"
+      ></canvas></figure
+  ></div>
+  <figure class="fig" style="margin-top:18px"
+    ><figcaption
+      >One unit, one batch, worked out (first hidden layer of the normalized network)</figcaption
+    ><div class="eq" id="bn-eq" aria-live="polite" style="min-height:8em;margin-top:6px"></div
+  ></figure>
+  <div class="howto"
+    ><div
+      ><h3>How it works, step by step</h3
+      ><ol id="bn-steps"
+        ><li>Take a small batch of training examples and pass it through a layer.</li
+        ><li
+          >For each unit, compute the mean and the standard deviation of its values over the
+          batch.</li
+        ><li
+          >Subtract the mean and divide by the standard deviation. The unit’s values now have mean 0
+          and spread 1.</li
+        ><li
+          >Multiply by a learned scale γ and add a learned shift β, so the network can undo the step
+          if that is better.</li
+        ><li
+          >Apply the activation function and move to the next layer. Gradients flow back through all
+          of this.</li
+        ><li
+          >At test time there is no batch, so use running averages of the means and spreads
+          collected during training.</li
+        ></ol
+      ></div
+    ><div><h3>What just happened</h3><p class="live" id="bn-live" role="status"></p></div
+  ></div>
+  <div class="controls"
+    ><template data-label="Animation" data-control="group"
+      ><div class="row"
+        ><button class="btn go" id="bn-play" type="button">Run</button
+        ><button class="btn" id="bn-step" type="button">One pass</button
+        ><button class="btn" id="bn-reset" type="button">Start over</button></div
+      ><template
+        data-unit="passes through the data"
+        data-id="bn"
+        data-control="run-limit"
+      ></template
+    ></template>
+    <template data-label="What makes training hard" data-control="group"
+      ><template
+        data-value="0.3"
+        data-step="0.1"
+        data-max="5"
+        data-min="0.1"
+        data-label="Size of the starting weights (1 = the careful choice)"
+        data-id="bn-w"
+        data-control="slider"
+      ></template
+      ><template
+        data-value="0.1"
+        data-step="0.01"
+        data-max="0.5"
+        data-min="0.01"
+        data-label="Learning rate"
+        data-id="bn-lr"
+        data-control="slider"
+      ></template
+      ><template
+        data-value="16"
+        data-step="2"
+        data-max="64"
+        data-min="2"
+        data-label="Batch size"
+        data-id="bn-b"
+        data-control="slider"
+      ></template
+      ><template
+        data-value="6"
+        data-step="1"
+        data-max="8"
+        data-min="2"
+        data-label="Hidden layers"
+        data-id="bn-L"
+        data-control="slider"
+      ></template
+    ></template>
+    <template data-label="Data" data-control="group"
+      ><div class="row"
+        ><button class="btn" id="bn-new" type="button">New starting weights</button></div
+      ></template
+    ></div
+  >
+  <dl class="read"
+    ><template data-label="Passes through the data" data-key="ep" data-control="readout"></template
+    ><template
+      data-class="hl2"
+      data-label="Loss: plain network"
+      data-key="lp"
+      data-control="readout"
+    ></template
+    ><template
+      data-class="hl"
+      data-label="Loss: with batch normalization"
+      data-key="lb"
+      data-control="readout"
+    ></template
+    ><template data-label="Training accuracy: plain" data-key="ap" data-control="readout"></template
+    ><template
+      data-label="Training accuracy: with batch normalization"
+      data-key="ab"
+      data-control="readout"
+    ></template
+    ><template
+      data-label="Typical size of what enters the last hidden layer: plain / normalized"
+      data-key="sat"
+      data-control="readout"
+    ></template></dl
+></template>
+
+<template data-part="tryit"
+  >Let it run with the default starting weights, which are a third of the careful size. Watch the
+  bottom-right chart: what happens to the plain network’s bars from layer 1 to layer 6, and what
+  does its loss do? Now set the weight size to 1 and start over. Which network ends with the lower
+  training loss this time? Set the weight size to 4 with 8 hidden layers: the bars now overflow
+  instead of vanishing. Across all three settings, which network did not care? Finally go back to
+  weight size 1 and set the batch size to 2. Why would a tiny batch hurt the method that depends on
+  batch statistics?</template
+>
+
+<template data-part="math"
+  ><h4>The transformation</h4
+  ><p
+    >For one unit with values \(z_1,\dots,z_m\) over a batch of size \(m\) (Ioffe and Szegedy,
+    2015):</p
+  >$$\mu_B=\frac1m\sum_{i=1}^{m}z_i,\qquad\sigma_B^2=\frac1m\sum_{i=1}^{m}(z_i-\mu_B)^2,\qquad\hat
+  z_i=\frac{z_i-\mu_B}{\sqrt{\sigma_B^2+\epsilon}},\qquad y_i=\gamma\,\hat z_i+\beta.$$<p
+    >\(\gamma\) and \(\beta\) are learned, one pair per unit, starting at 1 and 0. They let the
+    network choose any mean and spread it likes for each unit. What changes is that these are now
+    set directly by two parameters instead of emerging from every weight in every earlier layer.</p
+  >
+  <h4>Backpropagation through it</h4
+  ><p
+    >The batch mean and variance depend on every example, so the gradient has three paths. With
+    \(\partial L/\partial y_i\) arriving from above:</p
+  >$$\frac{\partial L}{\partial\hat z_i}=\gamma\frac{\partial L}{\partial y_i},\qquad\frac{\partial
+  L}{\partial z_i}=\frac{1}{m\sqrt{\sigma_B^2+\epsilon}}\Big(m\frac{\partial L}{\partial\hat
+  z_i}-\sum_j\frac{\partial L}{\partial\hat z_j}-\hat z_i\sum_j\frac{\partial L}{\partial\hat
+  z_j}\hat z_j\Big),$$$$\frac{\partial L}{\partial\gamma}=\sum_i\frac{\partial L}{\partial y_i}\hat
+  z_i,\qquad\frac{\partial L}{\partial\beta}=\sum_i\frac{\partial L}{\partial y_i}.$$<p
+    >The division by \(\sigma_B\) has a useful side effect. If all the weights into a unit are
+    doubled, \(z\) doubles, \(\sigma_B\) doubles, and \(\hat z\) is unchanged: the layer's output no
+    longer depends on the scale of its weights. That is why the normalized network shrugs off badly
+    sized starting weights, too small or too large.</p
+  >
+  <h4>Training and testing differ</h4
+  ><p
+    >During training each example's output depends on which other examples share its batch. At test
+    time predictions must not depend on that, so the batch statistics are replaced by running
+    averages gathered during training:</p
+  >$$\mu_{\text{run}}\leftarrow(1-\rho)\,\mu_{\text{run}}+\rho\,\mu_B,\qquad\sigma^2_{\text{run}}\leftarrow(1-\rho)\,\sigma^2_{\text{run}}+\rho\,\sigma^2_B.$$<p
+    >The shading on the left-hand chart uses the running averages, as a deployed network would.</p
+  >
+  <h4>Why it helps</h4
+  ><p
+    >The original explanation was that it reduces "internal covariate shift", the drift in each
+    layer's input distribution as earlier layers change. Later work suggests the main effect is that
+    it makes the loss surface smoother and better conditioned, so larger learning rates are safe.
+    Both views agree on the practice: networks with batch normalization train faster, tolerate
+    careless initialization, and accept higher learning rates. The noise from batch statistics also
+    acts as a mild regularizer.</p
+  >
+  <h4>What you will see on this page</h4
+  ><p
+    >The benefit here is robustness, not a better final answer. With starting weights of the careful
+    size, the plain network trains just as fast on these small problems and usually ends with a
+    <i>lower</i> training loss, because the batch-to-batch noise in the normalized network keeps its
+    loss from settling all the way down. Move the weight size away from 1 in either direction and
+    the plain network slows or stops, while the normalized one barely notices. In very deep networks
+    a careful starting size is much harder to get right, which is where the method earns its
+    place.</p
+  >
+  <h4>When it hurts</h4
+  ><p
+    >With a very small batch, the mean and variance are estimated from a handful of numbers and jump
+    about from step to step. The normalization becomes a source of noise, and the running averages
+    become poor stand-ins for it at test time. Layer normalization and group normalization avoid
+    this by computing statistics within each example instead of across the batch, which is why
+    transformers use layer normalization.</p
+  >
+  <h4>What this page runs</h4
+  ><p
+    >Two fully connected tanh networks with 10 units per hidden layer, the same starting weights
+    (the Glorot value times the slider), the same batches and plain gradient descent. The run stops
+    when the normalized network's loss has changed by less than 0.002 over 25 passes, or after 300
+    passes.</p
+  ></template
+>
+
+<template data-part="question"
+  >With starting weights a third of the careful size, the plain network’s loss sits at 0.693 while
+  the normalized one learns at once. Both have exactly the same weights at the start. What is
+  different inside them, and why 0.693?</template
+>
+
+<template data-part="answer"
+  >In the plain network every layer multiplies the signal by weights that are too small, so its
+  spread shrinks by roughly the same factor at each layer. After six layers what reaches the output
+  is essentially zero whatever the input was, so the network gives every example a probability of
+  one half, and the loss of that answer is ln 2 = 0.693. The gradients shrink by the same factor at
+  every layer on the way back, so the early weights receive almost no signal and nothing moves. In
+  the normalized network each layer’s values are divided by their own batch standard deviation
+  before the activation, which restores a spread of about 1 whatever the size of the weights.
+  Information gets through in both directions from the first step.</template
+>

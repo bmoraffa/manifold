@@ -1,0 +1,197 @@
+<template data-part="lede"
+  >A child who can already read does not learn a new alphabet game from nothing. Networks can reuse
+  knowledge too. First a network studies hundreds of labelled letter pictures. Then a new question
+  arrives, “is this letter a vowel?”, with only a handful of examples. One learner starts from
+  scratch. The other keeps what the first network learned to see and only learns the new answer.
+  Watch which one copes.</template
+>
+
+<template data-part="intro"
+  ><p
+    >A chef who has cooked Italian food for ten years is asked to make a Thai dish from three
+    recipes. A beginner given the same three recipes will struggle, because three recipes cannot
+    teach knife skills, timing or how to taste. The chef already has all of that and only needs to
+    learn what is new. Most of what a network learns on one task with a lot of data, how to see
+    edges and strokes, how to read grammar, is useful for other tasks with little data.</p
+  >
+</template>
+
+<template data-part="stage"
+  ><div class="stage"
+    ><figure class="fig"
+      ><figcaption
+        >What the first layer looks for: one small picture per neuron (gold: wants ink here, red:
+        wants none). Top: learned from hundreds of pictures. Bottom: learned from scratch on the few
+        new examples</figcaption
+      ><canvas
+        class="short"
+        id="tl-c"
+        role="img"
+        aria-label="First-layer weights of the pretrained and the from-scratch networks"
+      ></canvas
+    ></figure>
+    <figure class="fig"
+      ><figcaption
+        >Top: all the examples the new task provides. Bottom: accuracy on new pictures while both
+        learners train (average of four tries)</figcaption
+      ><canvas
+        class="short"
+        id="tl-r"
+        role="img"
+        aria-label="Few-shot examples and test accuracy of both learners"
+      ></canvas></figure
+  ></div>
+  <div class="howto"
+    ><div
+      ><h3>How it works, step by step</h3
+      ><ol id="tl-steps"
+        ><li
+          >Stage 1, pretraining: a network learns to name six letters from 300 noisy pictures. Its
+          first layer learns to see strokes.</li
+        ><li>A new task arrives: say whether a letter is a vowel. There are only a few examples.</li
+        ><li
+          >Learner A, from scratch: a fresh network with random weights is trained on those few
+          examples.</li
+        ><li
+          >Learner B, transfer: copy the pretrained first layer, freeze it, and train only a new
+          last layer on the same few examples.</li
+        ><li>Test both on pictures neither has seen.</li></ol
+      ></div
+    ><div><h3>What just happened</h3><p class="live" id="tl-live" role="status"></p></div
+  ></div>
+  <div class="controls"
+    ><template data-label="Animation" data-control="group"
+      ><div class="row"
+        ><button class="btn go" id="tl-play" type="button">Run</button
+        ><button class="btn" id="tl-step" type="button">Ten epochs</button
+        ><button class="btn" id="tl-reset" type="button">Start over</button></div
+      ><template data-unit="epochs" data-id="tl" data-control="run-limit"></template
+    ></template>
+    <template data-label="The new task" data-control="group"
+      ><template
+        data-value="1"
+        data-step="1"
+        data-max="12"
+        data-min="1"
+        data-label="Examples per letter for the new task"
+        data-id="tl-k"
+        data-control="slider"
+      ></template
+      ><template
+        data-value="0.2"
+        data-step="0.01"
+        data-max="0.3"
+        data-min="0.05"
+        data-label="Noise: chance that a pixel is flipped"
+        data-id="tl-fl"
+        data-control="slider"
+      ></template
+      ><div class="row"
+        ><button class="btn" id="tl-new" type="button">New random sample</button></div
+      ></template
+    ></div
+  >
+  <dl class="read"
+    ><template data-label="Stage" data-key="ph" data-control="readout"></template
+    ><template
+      data-label="Pretrained network: letters named correctly"
+      data-key="pa"
+      data-control="readout"
+    ></template
+    ><template
+      data-class="hl2"
+      data-label="From scratch: accuracy on new pictures"
+      data-key="sc"
+      data-control="readout"
+    ></template
+    ><template
+      data-class="hl3"
+      data-label="Transfer: accuracy on new pictures"
+      data-key="tf"
+      data-control="readout"
+    ></template
+    ><template
+      data-label="Examples the new task provides"
+      data-key="n"
+      data-control="readout"
+    ></template
+    ><template
+      data-label="Weights trained: scratch / transfer"
+      data-key="w"
+      data-control="readout"
+    ></template></dl
+></template>
+
+<template data-part="tryit"
+  >Run it with 1 example per letter: six pictures in all. Compare the two rows of small pictures on
+  the left: one set is clean strokes, the other is noise that happened to fit six examples. Then
+  raise the examples to 12 per letter. The gap closes. When is starting from someone else’s network
+  worth it, and when does it stop mattering?</template
+>
+
+<template data-part="math"
+  ><h4>The recipe</h4
+  ><p
+    >Split a network into a <b>feature extractor</b> \(\phi\) (the early layers) and a
+    <b>head</b> \(g\) (the last layer).</p
+  ><ol
+    ><li><b>Pretrain</b> \(g_A(\phi(\mathbf x))\) on task A, which has plenty of data.</li
+    ><li>For task B, keep \(\phi\), throw away \(g_A\) and attach a fresh head \(g_B\).</li
+    ><li
+      >Train on task B. Either <b>freeze</b> \(\phi\) and train only \(g_B\) (as on this page), or
+      <b>fine-tune</b>: train everything, with a small learning rate so that \(\phi\) changes only a
+      little.</li
+    ></ol
+  >
+  <h4>Why it helps</h4
+  ><p
+    >It is the bias and variance trade-off again. Training from scratch on six examples means
+    fitting every weight, here 889 of them, to six pictures: enormous variance, and the first-layer
+    pictures on the lower left show the result. Freezing \(\phi\) leaves only the head's 25 weights
+    to fit, and they are fitted on features that already separate the letters cleanly. Far fewer
+    free numbers and better inputs mean much lower variance. The price is bias: if task B needs
+    features that task A never taught, a frozen \(\phi\) cannot supply them.</p
+  >
+  <h4>When it works, and when not</h4
+  ><ul
+    ><li
+      ><b>Works</b> when the two tasks share low-level structure: the same kind of pictures, the
+      same language, the same sensor.</li
+    ><li
+      ><b>Helps most</b> when task B has little data. With plenty, training from scratch catches up,
+      as the slider shows.</li
+    ><li
+      ><b>Can hurt</b> (negative transfer) when the tasks are unrelated, because the frozen features
+      discard what the new task needs.</li
+    ><li
+      ><b>Freeze or fine-tune?</b> Freeze with very little data, fine-tune with more, and unfreeze
+      from the last layer backward.</li
+    ></ul
+  >
+  <h4>Why this matters now</h4
+  ><p
+    >Almost nobody trains a large model from zero. Vision models are pretrained on millions of
+    images and language models on a large share of the public internet, then adapted with a few
+    thousand examples, a few dozen, or just a written instruction. Those pretrained networks are
+    called <b>foundation models</b>, and fine-tuning methods such as LoRA appear in the Language
+    Models module.</p
+  >
+  <h4>About this demonstration</h4
+  ><p
+    >Both tasks use the same six letters, so the new task is a new question about familiar pictures.
+    That is the easiest kind of transfer. The accuracy curves are averaged over four independent
+    draws of the few examples, because with so few examples a single try is mostly luck.</p
+  ></template
+>
+
+<template data-part="question"
+  >With 12 examples per letter the two learners end up level. Does that mean transfer learning was
+  pointless there?</template
+>
+
+<template data-part="answer"
+  >Not quite. It reached that accuracy while training only 25 weights instead of 889, so it was
+  cheaper and faster, and it got there with far fewer epochs. But the accuracy advantage is gone:
+  once the new task has enough data of its own, a network trained from scratch can learn good
+  features for itself. Transfer pays most when data for the new task is scarce.</template
+>

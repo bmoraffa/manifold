@@ -1,0 +1,212 @@
+<template data-part="lede"
+  >Most regression methods give you one curve. A Gaussian process gives you every curve that is
+  consistent with the data, weighted by how plausible it is, and so it can tell you where it is sure
+  and where it is guessing. Click to add measurements and watch the possible curves pinch together
+  around each one and fan out in the gaps.</template
+>
+
+<template data-part="intro"
+  ><p
+    >Imagine every smooth curve you could possibly draw across the picture, all at once, like a
+    thick bundle of threads. That bundle is your belief before you have seen anything. Now someone
+    tells you the curve passes close to a particular dot. Throw away every thread that misses the
+    dot. What is left is still a bundle, but pinched at that place. Near the dot the remaining
+    threads agree, so you are confident. Far from any dot they still spread out, so you are not. A
+    Gaussian process does this with mathematics instead of scissors, and the average of the
+    surviving threads is its prediction.</p
+  >
+</template>
+
+<template data-part="stage"
+  ><div class="row seg" id="gp-d" role="group" aria-label="Data"
+    ><button class="btn" type="button" data-v="wave">A Gentle Wave</button
+    ><button class="btn" type="button" data-v="gap">A Gap in the Middle</button
+    ><button class="btn" type="button" data-v="line">A Noisy Trend</button
+    ><button class="btn" type="button" data-v="none">No Data Yet</button></div
+  >
+  <div class="stage"
+    ><figure class="fig"
+      ><figcaption
+        >Dots: measurements. Thick line: the best guess. Shaded band: where the true curve lies with
+        95% probability. Thin moving lines: three curves drawn from the belief. Click empty space to
+        add a measurement, click a dot to remove it</figcaption
+      ><canvas
+        class="short"
+        id="gp-c"
+        role="img"
+        aria-label="Gaussian process posterior with samples"
+      ></canvas
+    ></figure>
+    <figure class="fig"
+      ><figcaption
+        >Top: the kernel, how strongly two points are tied as a function of how far apart they are.
+        Bottom: the score of the current settings (log marginal likelihood) while they are being
+        fitted</figcaption
+      ><canvas
+        class="short"
+        id="gp-r"
+        role="img"
+        aria-label="Kernel shape and marginal likelihood during fitting"
+      ></canvas></figure
+  ></div>
+  <div class="howto"
+    ><div
+      ><h3>How it works, step by step</h3
+      ><ol id="gp-steps"
+        ><li
+          >Choose a kernel. It says how similar the curve’s height should be at two places, given
+          their distance.</li
+        ><li
+          >Before any data, every curve the kernel allows is possible: the band is wide and
+          flat.</li
+        ><li>Add measurements. Curves that miss them become implausible and are dropped.</li
+        ><li
+          >The best guess at any place is a weighted average of the measurements, with weights set
+          by the kernel.</li
+        ><li>The band narrows near measurements and widens away from them.</li
+        ><li
+          >Fit the settings: adjust length scale, height and noise to make the data as probable as
+          possible. The first step tries a coarse grid of settings and jumps to the best; later
+          steps climb from there.</li
+        ></ol
+      ></div
+    ><div><h3>What just happened</h3><p class="live" id="gp-live" role="status"></p></div
+  ></div>
+  <div class="controls"
+    ><template data-label="Animation" data-control="group"
+      ><div class="row"
+        ><button class="btn go" id="gp-play" type="button">Fit the settings to the data</button
+        ><button class="btn" id="gp-step" type="button">One step</button
+        ><button class="btn" id="gp-reset" type="button">Start over</button></div
+      ><template data-unit="steps" data-id="gp" data-control="run-limit"></template
+    ></template>
+    <template data-label="The kernel" data-control="group"
+      ><div class="row seg" id="gp-k" role="group" aria-label="Kernel"
+        ><button class="btn" type="button" data-v="rbf">Smooth</button
+        ><button class="btn" type="button" data-v="mat">Rough</button
+        ><button class="btn" type="button" data-v="per">Repeating</button
+        ><button class="btn" type="button" data-v="lin">Straight</button></div
+      ><template
+        data-value="1"
+        data-step="0.05"
+        data-max="3"
+        data-min="0.15"
+        data-label="Length scale: how far apart before two points stop agreeing"
+        data-id="gp-l"
+        data-control="slider"
+      ></template
+      ><template
+        data-value="1"
+        data-step="0.05"
+        data-max="3"
+        data-min="0.2"
+        data-label="Height: how far the curve strays from zero"
+        data-id="gp-f"
+        data-control="slider"
+      ></template
+      ><template
+        data-value="0.2"
+        data-step="0.02"
+        data-max="1.5"
+        data-min="0.02"
+        data-label="Noise in each measurement"
+        data-id="gp-n"
+        data-control="slider"
+      ></template
+    ></template>
+    <template data-label="Data" data-control="group"
+      ><label class="check" for="gp-w"
+        ><input type="checkbox" id="gp-w" checked />Keep the sample curves moving</label
+      ><template data-id="gp" data-control="xy-upload"></template></template
+  ></div>
+  <dl class="read"
+    ><template data-label="Measurements" data-key="n" data-control="readout"></template
+    ><template
+      data-class="hl"
+      data-label="Score: log marginal likelihood"
+      data-key="ml"
+      data-control="readout"
+    ></template
+    ><template data-label="… of which data fit" data-key="fit" data-control="readout"></template
+    ><template
+      data-label="… of which complexity penalty"
+      data-key="cx"
+      data-control="readout"
+    ></template
+    ><template
+      data-label="Length scale / height / noise"
+      data-key="set"
+      data-control="readout"
+    ></template></dl
+></template>
+
+<template data-part="tryit"
+  >Choose No Data Yet and watch the three curves wander freely. Click once in the picture. What
+  happens to the band at that spot, and a little to each side? Add four or five more. Now drag the
+  length scale down to 0.2 and up to 3. Which setting ignores the data and which one chases every
+  dot? Press Fit the settings and watch the score climb. Choose A Gap in the Middle. How does the
+  band behave inside the gap? Switch the kernel to Repeating and see the belief fill the gap with a
+  pattern. Finally set your own x in the prediction box and read off the answer with its error
+  bar.</template
+>
+
+<template data-part="math"
+  ><h4>The model</h4
+  ><p
+    >A Gaussian process is a distribution over functions such that the heights at any finite set of
+    places are jointly Gaussian. It is fixed by a mean function, taken as zero here, and a
+    <b>kernel</b> \(k(x,x')\) giving the covariance of the heights at \(x\) and \(x'\):</p
+  >$$f\sim\mathcal{GP}(0,k),\qquad y_i=f(x_i)+\varepsilon_i,\quad\varepsilon_i\sim\mathcal
+  N(0,\sigma_n^2).$$
+  <h4>Kernels on this page</h4
+  >$$k_{\text{smooth}}=\sigma_f^2\exp\!\Big(-\frac{r^2}{2\ell^2}\Big),\qquad
+  k_{\text{rough}}=\sigma_f^2\Big(1+\frac{\sqrt3\,r}{\ell}\Big)\exp\!\Big(-\frac{\sqrt3\,r}{\ell}\Big),$$$$k_{\text{repeating}}=\sigma_f^2\exp\!\Big(-\frac{2\sin^2(\pi
+  r/p)}{\ell^2}\Big),\qquad k_{\text{straight}}=\sigma_f^2\,(1+x\,x'),$$<p
+    >with \(r=|x-x'|\) and period \(p=3\). The smooth one is the squared-exponential (RBF) kernel,
+    the rough one is Matérn 3/2. The straight kernel turns the Gaussian process into Bayesian linear
+    regression. The <b>length scale</b> \(\ell\) says how far you must move before the curve can
+    change much.</p
+  >
+  <h4>The prediction</h4
+  ><p
+    >Let \(\mathbf K\) be the kernel between all pairs of measured places, \(\mathbf k_*\) the
+    kernel between a new place \(x_*\) and the measured ones. Conditioning a joint Gaussian gives</p
+  >$$\mu_*=\mathbf k_*^{\top}(\mathbf K+\sigma_n^2\mathbf I)^{-1}\mathbf
+  y,\qquad\sigma_*^2=k(x_*,x_*)-\mathbf k_*^{\top}(\mathbf K+\sigma_n^2\mathbf I)^{-1}\mathbf
+  k_*.$$<p
+    >The mean is a weighted sum of the measurements. The variance starts at the prior value and has
+    something subtracted for what the data told you. It does not depend on the measured heights at
+    all, only on where you measured.</p
+  >
+  <h4>Choosing the settings</h4
+  ><p>The probability of the data with the function integrated out is available in closed form:</p
+  >$$\log p(\mathbf y)=\underbrace{-\tfrac12\mathbf y^{\top}(\mathbf K+\sigma_n^2\mathbf
+  I)^{-1}\mathbf y}_{\text{data fit}}\ \underbrace{-\tfrac12\log\lvert\mathbf K+\sigma_n^2\mathbf
+  I\rvert}_{\text{complexity penalty}}-\frac n2\log2\pi.$$<p
+    >A tiny length scale fits anything and pays a heavy complexity penalty. A huge one is cheap and
+    fits badly. Maximizing the sum balances the two without a validation set. The score can have
+    several peaks: one explanation with a short length scale and little noise, another with a long
+    length scale and more noise. So the Fit button first compares 36 settings on a coarse grid and
+    moves to the best of them if it clearly beats the current one, then climbs by gradient ascent on
+    \(\log\ell,\log\sigma_f,\log\sigma_n\), and stops when it gains less than 0.0005 in a step.</p
+  >
+  <h4>Cost</h4
+  ><p
+    >Everything needs the inverse of an \(n\times n\) matrix, which costs \(O(n^3)\). That is the
+    practical limit of exact Gaussian processes: superb with a few thousand points, and in need of
+    approximations beyond that.</p
+  ></template
+>
+
+<template data-part="question"
+  >In A Gap in the Middle the band is wide inside the gap. Would taking ten more measurements at the
+  far left, where there are already several, narrow it?</template
+>
+
+<template data-part="answer"
+  >Hardly at all. The predictive variance at a place depends only on how strongly the kernel ties
+  that place to the measured ones. With a length scale of about 1, points at the far left are almost
+  uncorrelated with the middle, so they subtract almost nothing from the variance there. To narrow
+  the band in the gap you have to measure in the gap, or believe in a longer length scale or a
+  repeating pattern that links the gap to the data you have.</template
+>

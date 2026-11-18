@@ -1,0 +1,253 @@
+<template data-part="lede"
+  >A language model only knows what was in its training text. It has never read your course
+  handbook, last week’s report, or anything written after it was trained, and when asked about them
+  it may invent an answer. Retrieval-augmented generation, or RAG, is the fix used almost
+  everywhere: first search a collection of documents for the passages closest to the question, then
+  hand those passages to the model together with the question. Here the search is real, and you can
+  add your own passage and ask about it.</template
+>
+
+<template data-part="intro"
+  ><p
+    >There are two kinds of exam. In a closed-book exam you answer from memory, and when memory
+    fails you are tempted to write something that merely sounds right. In an open-book exam you
+    first find the right page and then answer from what it says. A language model on its own always
+    sits the closed-book exam. Retrieval turns it into an open-book one. The model does not become
+    more knowledgeable. It is handed the right page at the moment it needs it. Everything then
+    depends on finding the right page.</p
+  >
+</template>
+
+<template data-part="stage"
+  ><div class="row seg" id="rg-q" role="group" aria-label="Example questions"></div>
+  <p style="margin:14px 0 2px;font-size:.86rem;color:var(--muted)"
+    >Or type your own question and press Enter</p
+  ><input
+    type="text"
+    id="rg-in"
+    aria-label="Your question"
+    autocomplete="off"
+    spellcheck="false"
+    style="display:block;width:100%;max-width:760px;font:inherit;font-size:1.08rem;padding:7px 2px;border:0;border-bottom:1px solid var(--muted);background:none;color:inherit;margin:0 0 20px" />
+  <div class="stage"
+    ><figure class="fig"
+      ><figcaption
+        >Every passage as a point, placed by the words it uses and squeezed from many dimensions
+        into two. The gold diamond is the question. Lines join it to the passages that were
+        retrieved</figcaption
+      ><canvas
+        class="short"
+        id="rg-c"
+        role="img"
+        aria-label="Map of passages and the question"
+      ></canvas
+    ></figure>
+    <figure class="fig"
+      ><figcaption
+        >The exact similarity between the question and every passage, best first. Gold bars are the
+        ones sent to the model</figcaption
+      ><canvas
+        class="short"
+        id="rg-r"
+        role="img"
+        aria-label="Similarity of each passage to the question"
+      ></canvas></figure
+  ></div>
+  <div class="stage" style="margin-top:22px"
+    ><figure class="fig"
+      ><figcaption>The prompt that is actually sent to the language model</figcaption
+      ><pre class="ragbox" id="rg-prompt"></pre>
+    </figure>
+    <figure class="fig"
+      ><figcaption>The answer</figcaption><p class="ragans" id="rg-ans" role="status"></p></figure
+  ></div>
+  <div class="howto"
+    ><div
+      ><h3>How it works, step by step</h3
+      ><ol id="rg-steps"
+        ><li
+          >Beforehand: cut the documents into passages and turn each passage into a list of numbers,
+          its embedding. Store them.</li
+        ><li>A question arrives. Turn it into an embedding in exactly the same way.</li
+        ><li>Compare the question with every stored passage and score how close they are.</li
+        ><li>Keep the k closest passages.</li
+        ><li
+          >Write a prompt: the retrieved passages, then the question, then an instruction to answer
+          only from the passages.</li
+        ><li
+          >The language model answers from what is in front of it, and can say which passage it
+          used.</li
+        ></ol
+      ></div
+    ><div><h3>What just happened</h3><p class="live" id="rg-live" role="status"></p></div
+  ></div>
+  <div class="controls"
+    ><template data-label="Animation" data-control="group"
+      ><div class="row"
+        ><button class="btn go" id="rg-play" type="button">Run</button
+        ><button class="btn" id="rg-step" type="button">One step</button
+        ><button class="btn" id="rg-reset" type="button">Start over</button></div
+      ></template
+    >
+    <template data-label="Retrieval" data-control="group"
+      ><template
+        data-value="2"
+        data-step="1"
+        data-max="5"
+        data-min="1"
+        data-label="Passages to retrieve, k"
+        data-id="rg-k"
+        data-control="slider"
+      ></template
+      ><div class="row seg" id="rg-mode" role="group" aria-label="Mode"
+        ><button class="btn" type="button" data-v="on">With Retrieval</button
+        ><button class="btn" type="button" data-v="off">Without Retrieval</button></div
+      ></template
+    >
+    <template data-label="Add your own passage" data-control="group">
+      <textarea
+        id="rg-add"
+        rows="3"
+        style="width:100%;font:inherit;font-size:.85rem;border:1px solid var(--line);background:none;color:inherit;padding:6px"
+        aria-label="A new passage"
+        placeholder="For example: The chess club meets on Fridays at 4 pm in room 12."
+      ></textarea
+      ><div class="row"
+        ><button class="btn" id="rg-addb" type="button">Add to the Collection</button
+        ><button class="btn" id="rg-resetc" type="button"
+          >Back to the Original Collection</button
+        ></div
+      ><p class="status" id="rg-st" role="status"></p></template
+  ></div>
+  <dl class="read"
+    ><template
+      data-label="Passages in the collection"
+      data-key="nd"
+      data-control="readout"
+    ></template
+    ><template
+      data-label="Different words: the number of dimensions"
+      data-key="nv"
+      data-control="readout"
+    ></template
+    ><template
+      data-label="Words of the question that carry weight"
+      data-key="qw"
+      data-control="readout"
+    ></template
+    ><template
+      data-class="hl"
+      data-label="Best similarity found"
+      data-key="best"
+      data-control="readout"
+    ></template
+    ><template
+      data-label="Passages sent to the model"
+      data-key="sent"
+      data-control="readout"
+    ></template
+    ><template
+      data-class="hl2"
+      data-label="Length of the prompt, in words"
+      data-key="pl"
+      data-control="readout"
+    ></template></dl
+></template>
+
+<template data-part="tryit"
+  >Press One step repeatedly and follow the question through the pipeline. Then try the example
+  questions. For “Who teaches machine learning?” set k to 1 and then to 2: which passage holds the
+  answer, and was it ranked first? The search matched on “machine learning” and missed that
+  “teaches” and “taught” are the same idea. Ask “What is the wifi password?”: nothing in the
+  handbook covers it, and the system should say so. Switch to Without Retrieval and ask about the
+  final project: what can a model do with only the question? Then write a passage of your own, add
+  it, and ask a question about it. Finally ask the same thing using different words from the ones in
+  your passage. Does the search still find it?</template
+>
+
+<template data-part="math"
+  ><h4>Embeddings: text as a point</h4
+  ><p
+    >To search by meaning, every passage \(d\) is turned into a vector \(\mathbf e(d)\). This page
+    uses the classical choice, <b>TF-IDF</b>. There is one coordinate for every word \(w\) in the
+    collection, and its value is</p
+  >$$e_w(d)=\mathrm{tf}(w,d)\cdot\log\frac{N+1}{\mathrm{df}(w)+1},$$<p
+    >where \(\mathrm{tf}\) counts how often the word occurs in the passage, \(N\) is the number of
+    passages and \(\mathrm{df}(w)\) is the number of passages that contain the word. A word that
+    appears everywhere, such as "student", gets a small weight. A word that appears in one passage,
+    such as "parking", gets a large one. Very common words like "the" are dropped. The question is
+    embedded in the same way.</p
+  >
+  <h4>Scoring</h4
+  ><p
+    >Closeness is measured by <b>cosine similarity</b>, the cosine of the angle between two
+    vectors:</p
+  >$$\mathrm{sim}(q,d)=\frac{\mathbf e(q)\cdot\mathbf e(d)}{\lVert\mathbf e(q)\rVert\,\lVert\mathbf
+  e(d)\rVert}.$$<p
+    >It is 1 when the two texts use the same words in the same proportions and 0 when they share no
+    weighted word. Dividing by the lengths means a long passage does not win merely by being long.
+    The right-hand chart shows this number for every passage.</p
+  >
+  <h4>Retrieve, then generate</h4
+  ><p
+    >The \(k\) passages with the highest similarity are pasted into the prompt in front of the
+    question. The model then computes its usual next-token probabilities, now conditioned on the
+    retrieved text:</p
+  >$$p(\text{answer}\mid\text{question})\ \longrightarrow\
+  p\big(\text{answer}\mid\text{passage}_1,\dots,\text{passage}_k,\ \text{question}\big).$$<p
+    >Nothing about the model changes: no training, no new weights. That is the appeal. Updating what
+    the system knows means editing the collection, which takes seconds.</p
+  >
+  <h4>Choosing k</h4
+  ><p
+    >With \(k\) too small the passage that holds the answer may be left out, and the model cannot
+    answer however capable it is. With \(k\) too large the prompt fills with unrelated text, which
+    costs more, runs slower, and gives the model more chances to be distracted by something
+    irrelevant. Typical systems retrieve between 3 and 20 passages and often re-rank them with a
+    second, more careful model.</p
+  >
+  <h4>Where it fails</h4
+  ><p
+    >Most failures of RAG are failures of the search, and you can produce each of them here.
+    <b>Vocabulary mismatch</b>: the question says "teaches" and the passage says "taught", so a
+    word-matching search sees no overlap. <b>Nothing relevant exists</b>: the search still returns
+    its \(k\) best passages, however poor, so a good system checks the score and is told to say "I
+    do not know". <b>The answer is split</b> across two passages and only one is retrieved.
+    <b>Bad chunking</b>: a passage was cut in the middle of the fact.</p
+  >
+  <h4>Dense embeddings</h4
+  ><p
+    >Modern systems replace TF-IDF with a neural network that maps text to a vector of a few hundred
+    to a few thousand numbers, trained so that texts with the same meaning land close together even
+    when they share no words. With such embeddings "who teaches" and "is taught by" are neighbours.
+    The rest of the pipeline is exactly what you see here: embed, score with cosine similarity, take
+    the top \(k\), build the prompt. Many systems combine the two kinds of search, because exact
+    word matching is still the best way to find names, codes and numbers.</p
+  >
+  <h4>What this page does, and what stands in for the model</h4
+  ><p
+    >The embedding, the similarity scores, the ranking and the prompt are all computed for real in
+    your browser. The map squeezes the embeddings into two dimensions with PCA, so nearness on the
+    map is only a rough guide and the bar chart is the exact picture. There is no large language
+    model inside this page. Its place is taken by a simple reader that picks, from the retrieved
+    passages, the sentence that best matches the question and the kind of answer asked for (a name
+    for “who”, a number for “how many”), and that refuses when the best similarity is below 0.12. A
+    real model would phrase the answer in its own words and could combine several passages. It could
+    not do better than the passages it was given.</p
+  ></template
+>
+
+<template data-part="question"
+  >A company adds retrieval to its chatbot, and the bot still answers a question about the refund
+  policy wrongly. The refund policy is in the document collection. Name two different places the
+  failure could be, and how you would tell them apart.</template
+>
+
+<template data-part="answer"
+  >First look at what was retrieved. If the refund passage is not among the k passages in the
+  prompt, the search failed: perhaps the customer’s wording shares no words with the passage, or the
+  passage was cut badly, or k is too small. The fix is in the retrieval. If the passage is in the
+  prompt and the answer is still wrong, the model failed to use it: perhaps it was buried among many
+  irrelevant passages, or the instruction to answer only from the passages was weak. Reading the
+  actual prompt, as this page lets you do, separates the two cases at once.</template
+>

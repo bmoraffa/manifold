@@ -1,0 +1,157 @@
+<template data-part="lede"
+  >Train several quite different models on the same data. Each is good in some places and poor in
+  others. Then train one more model whose only job is to combine their answers: it learns how much
+  to trust each one.</template
+>
+
+<template data-part="intro"
+  ><p
+    >Before a big decision you might consult a lawyer, an accountant and an engineer. They will
+    disagree. You would not simply take a show of hands: on a tax question you weigh the
+    accountant's view most. Over time you learn whom to trust about what. Stacking gives a machine
+    that role. Bagging and boosting combine many copies of the same kind of model by a fixed rule.
+    Stacking combines models of different kinds, and it <em>learns</em> the rule.</p
+  >
+</template>
+
+<template data-part="left-caption"
+  >The data, and what the model predicts everywhere (click to add a point, drag to move
+  one)</template
+>
+
+<template data-part="right-figure"
+  ><figure class="fig"
+    ><figcaption>The three base models, and the weight the combiner gives each</figcaption
+    ><canvas
+      class="short"
+      id="stacking-r"
+      role="img"
+      aria-label="The three base models, and the weight the combiner gives each"
+    ></canvas></figure
+></template>
+
+<template data-part="steps"
+  ><li
+    >Choose a few different kinds of model: here a straight line, 7 nearest neighbours and a small
+    tree.</li
+  ><li
+    >Split the training data into 5 folds. For each fold, train the base models on the other four
+    and record their predictions for the held-out fold.</li
+  ><li
+    >Now every training point has three predictions made by models that never saw it. Use those as
+    three new features.</li
+  ><li
+    >Train the combiner (a logistic regression) to predict the true label from those three
+    features.</li
+  ><li
+    >Retrain the base models on all the data. To predict: get the three base predictions, then pass
+    them through the combiner.</li
+  ></template
+>
+
+<template data-part="animation-controls"
+  ><div class="row"
+    ><button class="btn go" id="stacking-play" type="button">Tour the models</button
+    ><button class="btn" id="stacking-reset" type="button">Start over</button></div
+  ><p class="status" id="stacking-note" role="status"></p
+></template>
+
+<template data-part="model-controls"
+  ><div class="row seg" id="stacking-view"
+    ><button class="btn" type="button" data-v="0">Straight Line</button
+    ><button class="btn" type="button" data-v="1">7 Neighbours</button
+    ><button class="btn" type="button" data-v="2">Small Tree</button
+    ><button class="btn" type="button" data-v="3">Stacked</button></div
+  ><p style="margin:0;font-size:.9rem;color:var(--muted)"
+    >Choose which model’s predictions fill the picture on the left.</p
+  ></template
+>
+
+<template data-part="datasets"
+  ><option value="moons">Two moons</option><option value="circles">Ring around a core</option
+  ><option value="overlap">Two overlapping clouds</option><option value="blobs">Two clouds</option
+  ><option value="xor">Checkerboard (XOR)</option></template
+>
+
+<template data-part="point-count"
+  ><template
+    data-value="140"
+    data-step="2"
+    data-max="300"
+    data-min="20"
+    data-label="Number of points"
+    data-id="stacking-n"
+    data-control="slider"
+  ></template
+></template>
+
+<template data-part="readouts"
+  ><div><dt>Test accuracy: straight line</dt><dd data-r="a0">–</dd></div
+  ><div><dt>Test accuracy: 7 neighbours</dt><dd data-r="a1">–</dd></div
+  ><div><dt>Test accuracy: small tree</dt><dd data-r="a2">–</dd></div
+  ><template
+    data-class="hl"
+    data-label="Test accuracy: stacked"
+    data-key="a3"
+    data-control="readout"
+  ></template
+  ><template
+    data-class="hl3"
+    data-label="Combiner weights: line, neighbours, tree"
+    data-key="mw"
+    data-control="readout"
+  ></template
+></template>
+
+<template data-part="tryit"
+  >Take the tour and compare the four pictures on the same data. On the two moons, which base model
+  does the combiner trust least? Switch to the two clouds: do the weights change? Is the stacked
+  model ever much worse than the best base model?</template
+>
+
+<template data-part="math"
+  ><h4>The model</h4>$$\hat y=g\big(f_1(\mathbf x),\ f_2(\mathbf x),\ \dots,\ f_K(\mathbf
+  x)\big)$$<p
+    >The base models \(f_k\) each map the inputs to a prediction. The combiner \(g\), also called
+    the meta-learner, sees only those \(K\) predictions and outputs the final answer. Here \(g\) is
+    a logistic regression, so its weights say directly how much each base model counts.</p
+  >
+  <h4>The trap, and how to avoid it</h4
+  ><p
+    >If the combiner is trained on predictions the base models made for
+    <em>their own training data</em>, it is fooled. A model that memorises, such as
+    1-nearest-neighbour, looks perfect there, and the combiner would hand it all the weight. The
+    combiner must learn from predictions made on data the base models have not seen. So use
+    cross-validation:</p
+  >$$z_{ik}=f_k^{(-\text{fold}(i))}(\mathbf x_i)$$<p
+    >the prediction for point \(i\) from base model \(k\) trained without \(i\)'s fold. Every
+    training point gets an honest row \((z_{i1},\dots,z_{iK})\), and the combiner is fitted to those
+    rows:</p
+  >$$\min_{\mathbf w}\ \sum_i\ell\Big(y_i,\ \sigma\big(w_0+\textstyle\sum_kw_kz_{ik}\big)\Big).$$
+  <h4>When it helps</h4
+  ><p
+    >Stacking gains most when the base models are accurate and make <em>different</em> mistakes: a
+    linear model, a neighbour-based model and a tree carve up the plane in unrelated ways. Combining
+    five near-identical models gains nothing. It usually matches or slightly beats the best single
+    model, which is why it wins competitions by small margins and why it is used less in practice,
+    where one model is easier to maintain than several.</p
+  >
+  <h4>Relatives</h4
+  ><p
+    >A plain average of the base predictions is stacking with the weights fixed to be equal: simple
+    and hard to beat. "Blending" is stacking with a single held-out set in place of
+    cross-validation.</p
+  ></template
+>
+
+<template data-part="question"
+  >Why not train the combiner on the base models’ predictions for the training data
+  itself?</template
+>
+
+<template data-part="answer"
+  >Because those predictions are too good. Each base model has already seen those points, and
+  flexible ones nearly reproduce the labels. The combiner would learn to trust whichever model
+  overfits most. Using cross-validated predictions shows it how each model behaves on data it has
+  not seen, which is what matters at prediction time.</template
+>

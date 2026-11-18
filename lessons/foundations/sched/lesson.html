@@ -1,0 +1,120 @@
+<template data-part="lede"
+  >With noisy gradients a large learning rate makes fast progress but never settles, and a small one
+  settles but takes forever. A schedule starts large and shrinks. Compare the schedules on the same
+  noisy problem.</template
+>
+
+<template data-part="intro"
+  ><p
+    >Think of parking a car. You drive fast to reach the street, slow down to find the space, and
+    creep the last metre. One speed for all three would either take all day or put you through the
+    wall. With noisy gradients the same holds: far from the minimum the signal is large compared
+    with the noise, so big steps are safe; close to it the true gradient is nearly zero and each
+    step is mostly noise, so the steps must shrink for the noise to average out.</p
+  >
+</template>
+
+<template data-part="dimensions"
+  ><button class="btn" type="button" data-d="1">1D: A Curve</button
+  ><button class="btn" type="button" data-d="2">2D: Contour Map</button
+  ><button class="btn" type="button" data-d="3">3D: Surface</button></template
+>
+
+<template data-part="loss-caption">Loss, and the learning rate, at each step</template>
+
+<template data-part="controls"
+  ><template data-label="The schedule" data-control="group"
+    ><label class="ctl" for="sched-sc"
+      ><span>Learning rate over time</span
+      ><select id="sched-sc"
+        ><option value="const">Constant</option
+        ><option value="step">Step decay</option
+        ><option value="exp">Exponential decay</option
+        ><option value="inv">1 / t decay</option
+        ><option value="cos" selected>Cosine</option
+        ><option value="warm">Warm-up, then cosine</option></select
+      ></label
+    ><template
+      data-value="0.35"
+      data-step="0.005"
+      data-max="0.9"
+      data-min="0.01"
+      data-label="Starting learning rate η₀"
+      data-id="sched-lr"
+      data-control="slider"
+    ></template></template
+  ><template data-label="The problem" data-control="group"
+    ><label class="ctl" for="sched-f"
+      ><span>Loss surface</span
+      ><select id="sched-f"
+        ><option value="bowl">Round bowl</option
+        ><option value="ravine">Narrow valley</option
+        ><option value="banana" selected>Curved valley</option
+        ><option value="two">Two valleys</option
+        ><option value="saddle">Saddle between two valleys</option
+        ><option value="bumpy">Bumpy bowl</option
+        ><option value="plateau">Flat plateau with one pit</option></select
+      ></label
+    ><template
+      data-value="0.5"
+      data-step="0.05"
+      data-max="2"
+      data-min="0"
+      data-label="Noise in each gradient (as in SGD)"
+      data-id="sched-no"
+      data-control="slider"
+    ></template></template
+></template>
+
+<template data-part="readouts"
+  ><template
+    data-class="hl"
+    data-label="Loss: Gradient descent"
+    data-key="Lgd"
+    data-control="readout"
+  ></template
+  ><div><dt>Learning rate now</dt><dd data-r="lr">–</dd></div></template
+>
+
+<template data-part="tryit"
+  >Run the constant schedule with noise 0.5 and watch the loss hover without settling. Switch to
+  cosine. Then try exponential decay with a small starting rate: does it reach the bottom before the
+  rate runs out?</template
+>
+
+<template data-part="math"
+  ><h4>Why a constant rate cannot settle</h4
+  ><p
+    >With gradient noise of variance \(\sigma^2\), a constant rate \(\eta\) leaves the weights
+    bouncing around the minimum with a spread proportional to \(\eta\sigma^2\). The loss levels off
+    at a floor above the true minimum, and halving \(\eta\) halves the floor but doubles the time to
+    get there.</p
+  >
+  <h4>Common schedules</h4>$$\text{step: }\ \eta_t=\eta_0\,\gamma^{\lfloor t/s\rfloor}\qquad
+  \text{exponential: }\ \eta_t=\eta_0\,e^{-t/\tau}\qquad \text{inverse: }\
+  \eta_t=\frac{\eta_0}{1+t/\tau}$$$$\text{cosine: }\ \eta_t=\tfrac12\,\eta_0\Big(1+\cos\frac{\pi
+  t}{T}\Big)\qquad \text{warm-up: }\ \eta_t=\eta_0\,\frac{t}{t_w}\ \text{ for }t&lt;t_w$$<p
+    >Cosine stays high for longer than exponential, then falls smoothly to zero at the end of the
+    budget \(T\); it is the usual default for deep networks. Warm-up starts near zero for the first
+    few steps, when the weights are random and gradients are unreliable, and is standard for
+    transformers.</p
+  >
+  <h4>The theory</h4
+  ><p>For stochastic gradient descent to converge to the minimum exactly, the rates must satisfy</p
+  >$$\sum_t\eta_t=\infty\qquad\text{and}\qquad\sum_t\eta_t^2&lt;\infty .$$<p
+    >The first says the steps never run out before you arrive; the second says the noise they inject
+    adds up to a finite amount. \(\eta_t\propto1/t\) satisfies both. Exponential decay fails the
+    first: it can stop short.</p
+  ></template
+>
+
+<template data-part="question"
+  >Training loss has stopped falling and jitters around a fixed level. What does that suggest about
+  the learning rate?</template
+>
+
+<template data-part="answer"
+  >It is probably too large for this stage. The weights are bouncing around the minimum with a
+  spread set by the learning rate and the gradient noise. Lowering the rate, which is what a
+  schedule does automatically, lets the loss drop to a lower floor.</template
+>

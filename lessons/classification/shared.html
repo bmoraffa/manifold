@@ -1,0 +1,60 @@
+<template data-slot="top"></template
+><div class="stage"
+  ><figure class="fig"
+    ><figcaption><template data-slot="left-caption"></template></figcaption
+    ><canvas
+      class="sq"
+      data-id-suffix="-c"
+      style="touch-action:none;cursor:crosshair"
+      role="img"
+      aria-label="Two classes of points with the classifier's decision regions"
+    ></canvas
+  ></figure>
+  <template data-slot="right-figure"></template
+></div>
+<div class="howto"
+  ><div
+    ><h3>How it learns, step by step</h3
+    ><ol data-id-suffix="-steps"
+      ><template data-slot="steps"></template></ol></div
+  ><div><h3>What just happened</h3><p class="live" data-id-suffix="-live" role="status"></p></div
+></div>
+<div class="controls"
+  ><fieldset class="grp"
+    ><legend>Animation</legend><template data-slot="animation-controls"></template
+  ></fieldset>
+  <fieldset class="grp"
+    ><legend>The model</legend><template data-slot="model-controls"></template
+  ></fieldset>
+  <fieldset class="grp"
+    ><legend>The data</legend
+    ><label class="ctl" data-for-suffix="-ds"
+      ><span>Data set</span
+      ><select data-id-suffix="-ds"
+        ><template data-slot="datasets"></template></select></label
+    ><template
+      data-control="slider"
+      data-control-id-suffix="-nz"
+      data-label="Noise"
+      data-min="0"
+      data-max="1"
+      data-step="0.01"
+      data-value="0.3"
+    ></template
+    ><template data-slot="point-count"></template><template data-slot="dataset-extra"></template
+    ><div class="row"
+      ><button class="btn" data-id-suffix="-new" type="button">New random sample</button></div
+    ><div class="row seg" data-id-suffix="-add"
+      ><span style="font-size:.86rem;color:var(--muted)">A click adds a point of</span
+      ><button class="btn" type="button" data-c="0">Class A</button
+      ><button class="btn" type="button" data-c="1">Class B</button
+      ><template data-slot="extra-classes"></template
+      ><button class="btn" type="button" data-c="-1">Your Test Point</button></div
+    ></fieldset
+  ></div
+>
+<dl class="read"
+  ><div class="hl3"><dt>Train accuracy</dt><dd data-r="tr">–</dd></div
+  ><div class="hl2"><dt>Test accuracy</dt><dd data-r="te">–</dd></div
+  ><template data-slot="readouts"></template
+></dl>

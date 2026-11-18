@@ -1,0 +1,210 @@
+<template data-part="lede"
+  >Two networks play against each other. The generator turns random numbers into fake data and has
+  never seen the real thing. The discriminator sees both and tries to tell them apart. Each time the
+  detective gets better, the forger has to improve, and the other way round. Watch the gold fakes
+  chase the dark real points across the plane, and watch what can go wrong.</template
+>
+
+<template data-part="intro"
+  ><p
+    >A forger paints fake banknotes and a detective inspects them. The forger never sees a real
+    note. All they learn is what the detective says: "fake, the ink is wrong". They fix the ink. The
+    detective, now seeing better fakes, learns to check the paper. The forger fixes the paper. Round
+    after round both improve, and in the end the fakes are indistinguishable from the real thing.
+    Neither could have got there alone. A generative adversarial network (GAN) sets up that contest
+    between two networks.</p
+  >
+</template>
+
+<template data-part="stage"
+  ><div class="stage"
+    ><figure class="fig"
+      ><figcaption
+        >Dark dots: real data. Gold dots: what the generator makes right now. Background: the
+        discriminator’s opinion of every spot (green “looks real”, red “looks fake”)</figcaption
+      ><canvas
+        class="short"
+        id="ga-c"
+        role="img"
+        aria-label="Real and generated points with the discriminator’s decision field"
+      ></canvas
+    ></figure>
+    <figure class="fig"
+      ><figcaption
+        >Top: the two losses. Bottom: how often the discriminator is right about real points and
+        about fakes</figcaption
+      ><canvas
+        class="short"
+        id="ga-r"
+        role="img"
+        aria-label="Generator and discriminator losses and discriminator accuracy"
+      ></canvas></figure
+  ></div>
+  <div class="howto"
+    ><div
+      ><h3>How it works, step by step</h3
+      ><ol id="ga-steps"
+        ><li
+          >The generator turns a batch of random numbers into points. At first they land
+          anywhere.</li
+        ><li
+          >Discriminator’s turn: it is shown real points and fakes, told which is which, and adjusts
+          to tell them apart better.</li
+        ><li
+          >Generator’s turn: it makes new fakes and is told only how real the discriminator found
+          them. It adjusts to fool it more.</li
+        ><li
+          >Repeat. The background changes as the detective learns; the gold dots move as the forger
+          responds.</li
+        ><li
+          >There is no finish line: the aim is a balance where the fakes sit on the real data and
+          the detective can only guess.</li
+        ></ol
+      ></div
+    ><div><h3>What just happened</h3><p class="live" id="ga-live" role="status"></p></div
+  ></div>
+  <div class="controls"
+    ><template data-label="Animation" data-control="group"
+      ><div class="row"
+        ><button class="btn go" id="ga-play" type="button">Train</button
+        ><button class="btn" id="ga-step" type="button">20 steps</button
+        ><button class="btn" id="ga-reset" type="button">Start over</button></div
+      ><template data-unit="steps" data-id="ga" data-control="run-limit"></template
+    ></template>
+    <template data-label="The data" data-control="group"
+      ><label class="ctl" for="ga-ds"
+        ><span>Real data</span
+        ><select id="ga-ds"
+          ><option value="ring">Six separate clusters in a ring</option
+          ><option value="moons">Two moons</option
+          ><option value="line">One blob</option></select
+        ></label
+      ></template
+    >
+    <template data-label="The model" data-control="group"
+      ><template
+        data-value="1"
+        data-step="1"
+        data-max="5"
+        data-min="1"
+        data-label="Discriminator turns for each generator turn"
+        data-id="ga-dk"
+        data-control="slider"
+      ></template
+      ><template
+        data-value="2"
+        data-step="0.1"
+        data-max="6"
+        data-min="0.5"
+        data-label="Learning rate (×0.001)"
+        data-id="ga-lr"
+        data-control="slider"
+      ></template></template
+  ></div>
+  <dl class="read"
+    ><template data-label="Steps" data-key="step" data-control="readout"></template
+    ><template
+      data-class="hl3"
+      data-label="Discriminator loss"
+      data-key="ld"
+      data-control="readout"
+    ></template
+    ><template
+      data-class="hl2"
+      data-label="Generator loss"
+      data-key="lg"
+      data-control="readout"
+    ></template
+    ><template
+      data-label="Real points the discriminator calls real"
+      data-key="dr"
+      data-control="readout"
+    ></template
+    ><template
+      data-label="Fakes the discriminator calls real"
+      data-key="df"
+      data-control="readout"
+    ></template
+    ><template
+      data-class="hl"
+      data-label="Clusters the generator covers"
+      data-key="md"
+      data-control="readout"
+    ></template></dl
+></template>
+
+<template data-part="tryit"
+  >Run it on the six clusters and count how many the gold dots cover as training goes on. They often
+  lock onto two or three first, then jump: that is mode collapse, the best-known GAN failure. Watch
+  the two loss curves: neither goes to zero, and that is correct. Raise the learning rate to 6 and
+  train again. Then try One Blob, where there is nothing to collapse onto.</template
+>
+
+<template data-part="math"
+  ><h4>The two players</h4
+  ><p
+    >The <b>generator</b> \(G\) maps random noise \(\mathbf z\sim\mathcal N(\mathbf 0,\mathbf I)\)
+    to a data point \(G(\mathbf z)\). The <b>discriminator</b> \(D\) maps a point to the probability
+    that it is real. They play</p
+  >$$\min_G\max_D\;\;\mathbb E_{\mathbf x\sim\text{data}}\big[\log D(\mathbf x)\big]+\mathbb
+  E_{\mathbf z}\big[\log\big(1-D(G(\mathbf z))\big)\big].$$<p
+    >\(D\) wants both terms large: real points scored near 1, fakes near 0. \(G\) wants the second
+    term small.</p
+  >
+  <h4>Training</h4
+  ><p
+    >Alternate two steps. <b>Discriminator step:</b> ordinary classification, real against fake,
+    with \(G\) held fixed. <b>Generator step:</b> hold \(D\) fixed and backpropagate through it into
+    \(G\). In practice \(G\) maximises \(\log D(G(\mathbf z))\), which gives stronger gradients
+    early on than minimising \(\log(1-D(G(\mathbf z)))\). The generator's only teaching signal is
+    the gradient of the discriminator's opinion: which way should each fake move to look more
+    real?</p
+  >
+  <h4>The ideal end point</h4
+  ><p
+    >For a fixed generator the best discriminator is \(D^*(\mathbf x)=\dfrac{p_{\text{data}}(\mathbf
+    x)}{p_{\text{data}}(\mathbf x)+p_G(\mathbf x)}\). If the generator matches the data exactly,
+    \(D^*=\tfrac12\) everywhere: the detective is reduced to tossing a coin, and both losses settle
+    near \(\log2\approx0.69\) and \(2\log2\approx1.39\). So unlike every other lesson on this site,
+    a falling loss is not the goal, and there is no test for convergence. This page stops after a
+    fixed number of steps.</p
+  >
+  <h4>What goes wrong</h4
+  ><ul
+    ><li
+      ><b>Mode collapse.</b> The generator finds a few outputs that fool the detective and produces
+      only those. The detective catches up, the generator jumps elsewhere, and they chase each
+      other. Nothing in the objective rewards covering all of the data.</li
+    ><li
+      ><b>Instability.</b> Two networks optimising against each other can oscillate or diverge, and
+      the balance is sensitive to learning rates.</li
+    ><li
+      ><b>Vanishing signal.</b> If the detective becomes too good, its opinion is flat near the
+      fakes and the generator learns nothing.</li
+    ></ul
+  >
+  <h4>Where GANs stand</h4
+  ><p
+    >From 2014 to about 2020 GANs produced the sharpest generated images, and they are still used
+    where speed matters, since generation is one forward pass. Diffusion models have largely
+    replaced them for images because they train stably and cover the data better.</p
+  >
+  <h4>What this page trains</h4
+  ><p
+    >Two real networks, each with two hidden layers of 32 neurons, trained with Adam. The generator
+    maps two random numbers to a point in the plane.</p
+  ></template
+>
+
+<template data-part="question"
+  >After long training the discriminator’s accuracy is about 50% on both real and fake points. Has
+  training failed?</template
+>
+
+<template data-part="answer"
+  >No, that is the best possible outcome. If the generator’s points are distributed exactly like the
+  real data, no rule can tell them apart, and the best the discriminator can do is guess. A
+  discriminator that stays near 100% accuracy means the generator is still producing detectable
+  fakes; one near 50% means either success or, less happily, that the discriminator is too weak to
+  notice differences that are there.</template
+>

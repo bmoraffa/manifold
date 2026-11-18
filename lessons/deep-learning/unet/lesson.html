@@ -1,0 +1,170 @@
+<template data-part="lede"
+  >Some tasks need an answer for every pixel: which pixels are tumour, which are road. Here two
+  small convolutional networks learn, live, to pick out shapes from noisy pictures and mark every
+  pixel as shape or background. They are identical except for one thing: one has skip connections
+  and one does not. Watch their answers side by side, then draw your own shape and see what each
+  makes of it.</template
+>
+
+<template data-part="intro"
+  ><p
+    >To describe a photograph over the phone you would first step back and say what it shows: "a
+    face, in the middle". That overview needs the picture shrunk in your mind, with the detail
+    ignored. But if the listener must then redraw it exactly, the overview is not enough: they need
+    the fine lines back. A U-Net does both. One half steps back, level by level, to grasp the
+    content. The other half redraws at full size, and at each level it is handed the detail that was
+    set aside at the same level on the way down.</p
+  >
+</template>
+
+<template data-part="stage"
+  ><div class="stage"
+    ><figure class="fig"
+      ><figcaption
+        >Each row is one picture the networks have never trained on. Columns: the noisy input, the
+        true shape, the answer without skips, the answer with skips. The last row is yours: drag in
+        its first box to draw</figcaption
+      ><canvas
+        class="sq"
+        id="un-c"
+        role="img"
+        aria-label="Noisy inputs, true masks and the outputs of both networks"
+      ></canvas
+    ></figure>
+    <figure class="fig"
+      ><figcaption
+        >Top: the U-shaped network. The picture shrinks to 4 × 4 and grows back; the green rungs are
+        the skip connections. Bottom: overlap between each network’s answer and the truth on test
+        pictures</figcaption
+      ><canvas
+        class="sq"
+        id="un-r"
+        role="img"
+        aria-label="U-Net architecture and the test overlap curves"
+      ></canvas></figure
+  ></div>
+  <div class="howto"
+    ><div
+      ><h3>How it works, step by step</h3
+      ><ol id="un-steps"
+        ><li
+          >Make a random picture of one or two thin shapes, add noise, and keep the clean shape as
+          the answer.</li
+        ><li
+          >Down: convolutions find edges, pooling halves the size, twice. At 4 × 4 the network knows
+          roughly what is where and has lost the fine lines.</li
+        ><li
+          >Up: enlarge twice back to 16 × 16. With skips, each level is also handed the feature maps
+          from the same size on the way down.</li
+        ><li
+          >Compare the output with the true shape, pixel by pixel, and backpropagate through every
+          convolution.</li
+        ><li
+          >Repeat with fresh pictures. Check both networks on pictures they have not seen.</li
+        ></ol
+      ></div
+    ><div><h3>What just happened</h3><p class="live" id="un-live" role="status"></p></div
+  ></div>
+  <div class="controls"
+    ><template data-label="Animation" data-control="group"
+      ><div class="row"
+        ><button class="btn go" id="un-play" type="button">Train both</button
+        ><button class="btn" id="un-step" type="button">Ten steps</button
+        ><button class="btn" id="un-reset" type="button">Start over</button></div
+      ><template data-unit="steps" data-id="un" data-control="run-limit"></template
+    ></template>
+    <template data-label="The data" data-control="group"
+      ><template
+        data-value="0.3"
+        data-step="0.01"
+        data-max="0.6"
+        data-min="0"
+        data-label="Noise in the input pictures"
+        data-id="un-nz"
+        data-control="slider"
+      ></template
+      ><div class="row"
+        ><button class="btn" id="un-clear" type="button">Clear my drawing</button></div
+      ></template
+    ></div
+  >
+  <dl class="read"
+    ><template data-label="Training steps" data-key="step" data-control="readout"></template
+    ><template
+      data-class="hl2"
+      data-label="Without skips: overlap with the truth"
+      data-key="i0"
+      data-control="readout"
+    ></template
+    ><template
+      data-class="hl3"
+      data-label="With skips: overlap with the truth"
+      data-key="i1"
+      data-control="readout"
+    ></template
+    ><template
+      data-label="Weights: without / with skips"
+      data-key="np"
+      data-control="readout"
+    ></template
+    ><template data-label="Status" data-key="st" data-control="readout"></template></dl
+></template>
+
+<template data-part="tryit"
+  >Press Start over and watch the two right-hand columns. Both begin as grey fog. The one with skips
+  sharpens into thin clean lines; the one without stays blobby, because everything it knows had to
+  pass through a 4 × 4 bottleneck. Draw a small circle in the bottom row, then a single thin line.
+  Which network can draw a one-pixel line, and why can the other not?</template
+>
+
+<template data-part="math"
+  ><h4>The shape</h4
+  ><p
+    >The <b>encoder</b> (down path) alternates convolutions with pooling, halving the width and
+    height each time and increasing the number of feature maps, so that later layers see large
+    areas. The <b>decoder</b> (up path) alternates upsampling with convolutions back to full size. A
+    <b>skip connection</b> copies the encoder's feature maps at each size and joins them to the
+    decoder's maps of the same size:</p
+  >$$\mathbf d_l=\operatorname{conv}\big(\big[\operatorname{up}(\mathbf d_{l+1}),\;\mathbf
+  e_l\big]\big).$$<p
+    >Drawn with the sizes shrinking then growing, the network forms a U, and the skips are the
+    horizontal rungs (Ronneberger and others, 2015).</p
+  >
+  <h4>Why the skips are needed</h4
+  ><p
+    >Halving a picture three times leaves one number for every 64 pixels. Exact positions of edges
+    are gone and no amount of upsampling can bring them back: the decoder would have to invent them.
+    The skip supplies them directly. The deep path answers "what is here?", the skip answers
+    "exactly where?", and the decoder combines the two.</p
+  >
+  <h4>What this page trains</h4
+  ><p
+    >Two real convolutional networks, trained live by backpropagation. Each has three \(3\times3\)
+    convolution layers on the way down (4, 6 and 8 feature maps at sizes 16, 8 and 4), two on the
+    way up and a final one that outputs one number per pixel, turned into a probability by a
+    sigmoid. Pooling is \(2\times2\) max pooling and enlargement repeats each pixel. The loss is the
+    cross-entropy between the output and the true shape at every pixel. The two networks start from
+    the same random kernels and see the same pictures; the only difference is whether the encoder's
+    maps are joined to the decoder's at sizes 8 and 16. The score shown is intersection over union:
+    pixels both mark as shape, divided by pixels either marks.</p
+  >
+  <h4>Where U-Nets are used</h4
+  ><p
+    >Segmenting medical scans (the original purpose), satellite images and road scenes; removing
+    noise and sharpening images; and as the denoising network inside image diffusion models, which
+    you will meet in the Generative AI module. There the input is a noisy picture and the output is
+    an estimate of the noise, pixel for pixel.</p
+  ></template
+>
+
+<template data-part="question"
+  >A U-Net has its skip connections removed and is trained to outline cells in microscope images.
+  What kind of mistakes would you expect in its output?</template
+>
+
+<template data-part="answer"
+  >The right objects in roughly the right places, but with blurred, blobby outlines: neighbouring
+  cells merged, thin gaps closed, small cells missed. The bottleneck keeps what is in the image and
+  approximately where, and loses the exact positions of edges. Without the skips the decoder has to
+  guess the boundaries from the coarse map.</template
+>

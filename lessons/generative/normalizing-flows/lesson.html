@@ -1,0 +1,213 @@
+<template data-part="lede"
+  >Start with the simplest cloud there is, a round Gaussian blob, printed on a rubber sheet. Stretch
+  and turn the sheet, a little at a time, until the blob has the shape of the data. If every stretch
+  can be undone, two things come for free: new samples, by pushing fresh blob points through the
+  stretches, and the exact probability of any point, by pulling it back to the blob and keeping
+  count of how much the sheet was stretched there.</template
+>
+
+<template data-part="intro"
+  ><p
+    >Draw a round target on a sheet of rubber, densest at the bullseye. Now stretch the sheet. Where
+    you stretch it, the ink thins out, and the density falls. Where you bunch it up, the ink
+    concentrates, and the density rises. The total amount of ink never changes. A normalizing flow
+    is a recipe for stretching, learned so that the ink ends up where the data is. Because you know
+    exactly how much each spot was stretched, you know exactly how dense the ink is there. No other
+    model in this module can tell you the exact probability of a point. This one can.</p
+  >
+</template>
+
+<template data-part="stage"
+  ><div class="stage"
+    ><figure class="fig"
+      ><figcaption
+        >Faint dots: the real data. Gold dots: 350 points from a round Gaussian after the stretches.
+        Thin lines: a square grid drawn on the Gaussian, carried along by the same
+        stretches</figcaption
+      ><canvas
+        class="short"
+        id="nf-c"
+        role="img"
+        aria-label="Data, samples pushed through the flow and the warped grid"
+      ></canvas
+    ></figure>
+    <figure class="fig"
+      ><figcaption
+        >Top: the exact probability density the model assigns to every place (darker is more
+        likely). Bottom: the training loss</figcaption
+      ><canvas
+        class="short"
+        id="nf-r"
+        role="img"
+        aria-label="Exact model density and the training loss"
+      ></canvas></figure
+  ></div>
+  <div class="howto"
+    ><div
+      ><h3>How it works, step by step</h3
+      ><ol id="nf-steps"
+        ><li
+          >Take a batch of real points and pull them backwards through the six layers, toward the
+          Gaussian.</li
+        ><li
+          >Score the result: the points should land where a round Gaussian is dense, and the layers
+          get credit wherever they had to squeeze space to bring them there. This score is the exact
+          log-probability of the data.</li
+        ><li>Backpropagate to raise that log-probability. Repeat for 1,500 batches.</li
+        ><li>Generate: draw points from a round Gaussian.</li
+        ><li
+          >Push them forwards through the layers, one at a time. Each layer slides and stretches
+          points along one axis by an amount that depends on the other axis, then turns the picture
+          by 60°.</li
+        ><li>After the last layer the cloud has the shape of the data.</li></ol
+      ></div
+    ><div><h3>What just happened</h3><p class="live" id="nf-live" role="status"></p></div
+  ></div>
+  <div class="controls"
+    ><template data-label="Animation" data-control="group"
+      ><div class="row"
+        ><button class="btn go" id="nf-play" type="button">Run</button
+        ><button class="btn" id="nf-step" type="button">One step</button
+        ><button class="btn" id="nf-reset" type="button">Start over</button></div
+      ><template data-unit="training steps" data-id="nf" data-control="run-limit"></template
+    ></template>
+    <template data-label="Layer by layer" data-control="group"
+      ><template
+        data-value="6"
+        data-step="1"
+        data-max="6"
+        data-min="0"
+        data-label="Show the cloud after this many layers"
+        data-id="nf-ly"
+        data-control="slider"
+      ></template
+      ><div class="row"
+        ><button class="btn" id="nf-gen" type="button">Play the Layers Again</button></div
+      ></template
+    >
+    <template data-label="The data" data-control="group"
+      ><label class="ctl" for="nf-ds"
+        ><span>Shape to learn</span
+        ><select id="nf-ds"
+          ><option value="moons" selected>Two moons</option
+          ><option value="ring">A ring</option
+          ><option value="spiral">A spiral</option
+          ><option value="blobs">Three blobs</option></select
+        ></label
+      ></template
+    ></div
+  >
+  <dl class="read"
+    ><template data-label="Stage" data-key="ph" data-control="readout"></template
+    ><template data-label="Training steps" data-key="ts" data-control="readout"></template
+    ><template
+      data-class="hl2"
+      data-label="Loss: minus the average log-probability of the data"
+      data-key="L"
+      data-control="readout"
+    ></template
+    ><template
+      data-label="The same loss for a plain round Gaussian, with no layers"
+      data-key="base"
+      data-control="readout"
+    ></template
+    ><template
+      data-label="Layers applied in the left picture"
+      data-key="ly"
+      data-control="readout"
+    ></template
+    ><template
+      data-class="hl"
+      data-label="Generated points that land on the shape"
+      data-key="near"
+      data-control="readout"
+    ></template></dl
+></template>
+
+<template data-part="tryit"
+  >Watch the left picture during training: the round blob is pulled into the shape while the grid
+  shows where the sheet is being stretched and squeezed. Where are the grid cells smallest, and what
+  does the density picture show there? After training, drag the layer slider from 0 to 6 to see what
+  each layer adds. Then type coordinates for your own point: one on the shape, one in the gap
+  between the two moons. How do the two densities compare? Finally switch to A Ring. The model must
+  cover the ring with a sheet that has no hole in it. Look closely at the density: where did it hide
+  the seam?</template
+>
+
+<template data-part="math"
+  ><h4>Change of variables</h4
+  ><p
+    >Let \(f\) be an invertible map that carries a data point \(\mathbf x\) back to a point
+    \(\mathbf z=f(\mathbf x)\) with a standard Gaussian density \(p_Z\). Then the density of the
+    data is</p
+  >$$\log p_X(\mathbf x)=\log p_Z\big(f(\mathbf x)\big)+\log\left|\det\frac{\partial
+  f}{\partial\mathbf x}\right| .$$<p
+    >The first term asks whether \(\mathbf x\) is pulled back to a likely place under the bell. The
+    second is the bookkeeping for stretched rubber: the determinant of the Jacobian says how much
+    \(f\) expands or shrinks a small area around \(\mathbf x\). Training maximises the average of
+    this quantity over the data, which is maximum likelihood with nothing approximated.</p
+  >
+  <h4>The difficulty, and the trick</h4
+  ><p
+    >For a general network, the inverse does not exist and the determinant costs far too much to
+    compute. Coupling layers (Dinh and others, 2015 and 2017) are designed so that both are easy.
+    Split the coordinates into two parts. Leave the first as it is, and move the second by an amount
+    that depends only on the first:</p
+  >$$y_1=x_1,\qquad y_2=x_2\,e^{\,s(x_1)}+t(x_1).$$<p
+    >Here \(s\) and \(t\) are the two outputs of an ordinary small network. They can be as
+    complicated as you like, and they are never inverted. To undo the layer, note that \(x_1=y_1\)
+    is still available, so \(s\) and \(t\) can be recomputed, and then
+    \(x_2=(y_2-t(y_1))\,e^{-s(y_1)}\). The Jacobian is triangular, so its determinant is the product
+    of its diagonal:</p
+  >$$\log\left|\det\frac{\partial\mathbf y}{\partial\mathbf x}\right|=s(x_1).$$
+  <h4>Stacking layers</h4
+  ><p
+    >One coupling layer leaves \(x_1\) untouched, so between layers the axes are changed. With many
+    dimensions the two halves swap roles. In two dimensions this page turns the plane by 60° before
+    each layer, which costs nothing because a turn does not change areas. For a chain
+    \(f=f_K\circ\dots\circ f_1\) the log-determinants add:</p
+  >$$\log p_X(\mathbf x)=\log p_Z(\mathbf z)+\sum_{k=1}^{K}s_k .$$<p
+    >The loss shown is minus the average of this over a batch.</p
+  >
+  <h4>Sampling and density, both exact</h4
+  ><p
+    >To sample, draw \(\mathbf z\sim\mathcal N(\mathbf 0,\mathbf I)\) and apply the inverses in
+    reverse order: this is the animation on the left. To evaluate the density at a point, apply the
+    layers forwards and add up the \(s_k\): this is the top-right picture, and the readout for your
+    own point. A density that can be evaluated exactly is useful for spotting unusual inputs, for
+    compression, and for comparing models fairly.</p
+  >
+  <h4>What it cannot do</h4
+  ><p
+    >A smooth invertible map cannot tear the sheet or glue parts of it together. A blob has no hole,
+    so its image has no hole. To cover a ring, or two separate groups, the model must stretch a thin
+    film of density across the gap. You can see that film in the density picture, and some generated
+    points land on it. More layers make the film thinner but never remove it. The second limit is
+    cost: every layer must keep the same number of dimensions as the data, with no bottleneck.</p
+  >
+  <h4>Where flows went next</h4
+  ><p
+    >Glow applied coupling layers to images. Autoregressive flows make each coordinate depend on all
+    the earlier ones. Continuous normalizing flows replace the stack of layers with an ODE,
+    \(d\mathbf x/dt=\mathbf v_\theta(\mathbf x,t)\), and flow matching, which has its own tab, is
+    the modern way of training those without ever computing a determinant.</p
+  >
+  <h4>What this page trains</h4
+  ><p
+    >Six coupling layers. Each has its own network with two hidden layers of 32 neurons, whose scale
+    output is kept between −1.2 and 1.2. Training uses Adam on batches of 96 for 1,500 steps.</p
+  ></template
+>
+
+<template data-part="question"
+  >The model gives the exact density at any point. A student proposes using it as a spam filter for
+  data: flag any input whose density is low. In the ring data set, which points would this wrongly
+  accept?</template
+>
+
+<template data-part="answer"
+  >Points on the thin film that the model had to stretch across the hole or the gap. A flow cannot
+  tear the Gaussian apart, so some density always connects regions that the data keeps separate. A
+  point on that bridge receives a moderate density even though no real data ever appears there. The
+  exact density is exact for the model, not for the world: it is only as good as the fit.</template
+>

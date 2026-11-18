@@ -1,0 +1,159 @@
+<template data-part="lede"
+  >A single deep tree changes wildly when the data changes a little. So grow many trees, each on a
+  slightly different version of the data, and let them vote. The errors that differ from tree to
+  tree cancel out.</template
+>
+
+<template data-part="intro"
+  ><p
+    >Ask one person to guess the weight of an ox and the guess may be far off. Ask eight hundred and
+    average, and the result is startlingly close, because their errors point in different directions
+    and cancel. A deep decision tree is an erratic guesser: accurate on average, but each one is
+    thrown by the particular sample it saw. Bagging manufactures many such guessers from one data
+    set and averages them.</p
+  >
+</template>
+
+<template data-part="left-caption"
+  >The data, and what the model predicts everywhere (click to add a point, drag to move
+  one)</template
+>
+
+<template data-part="right-figure"
+  ><figure class="fig"
+    ><figcaption
+      >The most recent trees, each on its own, and the error as trees are added</figcaption
+    ><canvas
+      class="short"
+      id="bagging-r"
+      role="img"
+      aria-label="The most recent trees, each on its own, and the error as trees are added"
+    ></canvas></figure
+></template>
+
+<template data-part="steps"
+  ><li
+    >Draw a new training set of the same size by picking points at random with replacement. About a
+    third of the points are left out each time.</li
+  ><li>Grow a deep tree on it, with no pruning.</li><li>Repeat to get many different trees.</li
+  ><li>To predict, let every tree vote and take the average.</li
+  ><li
+    >Score each training point using only the trees that never saw it. That is the out-of-bag
+    estimate, a free test set.</li
+  ></template
+>
+
+<template data-part="animation-controls"
+  ><div class="row"
+    ><button class="btn go" id="bagging-play" type="button">Grow the ensemble</button
+    ><button class="btn" id="bagging-step" type="button">One step</button
+    ><button class="btn" id="bagging-reset" type="button">Start over</button></div
+  ><p class="status" id="bagging-note" role="status"></p
+></template>
+
+<template data-part="model-controls"
+  ><template
+    data-value="40"
+    data-step="1"
+    data-max="80"
+    data-min="1"
+    data-label="Number of trees"
+    data-id="bagging-B"
+    data-control="slider"
+  ></template
+  ><template
+    data-value="6"
+    data-step="1"
+    data-max="8"
+    data-min="1"
+    data-label="Depth of each tree"
+    data-id="bagging-depth"
+    data-control="slider"
+  ></template
+></template>
+
+<template data-part="datasets"
+  ><option value="moons">Two moons</option><option value="overlap">Two overlapping clouds</option
+  ><option value="blobs">Two clouds</option><option value="circles">Ring around a core</option
+  ><option value="xor">Checkerboard (XOR)</option></template
+>
+
+<template data-part="point-count"
+  ><template
+    data-value="140"
+    data-step="2"
+    data-max="300"
+    data-min="20"
+    data-label="Number of points"
+    data-id="bagging-n"
+    data-control="slider"
+  ></template
+></template>
+
+<template data-part="readouts"
+  ><div><dt>Trees so far</dt><dd data-r="k">–</dd></div
+  ><div><dt>One tree alone, average test accuracy</dt><dd data-r="one">–</dd></div
+  ><template
+    data-class="hl"
+    data-label="Out-of-bag accuracy"
+    data-key="oob"
+    data-control="readout"
+  ></template
+  ><div><dt>How often two trees agree</dt><dd data-r="agree">–</dd></div></template
+>
+
+<template data-part="tryit"
+  >Look at the small pictures: each tree is ragged and no two are alike. Now look at the vote on the
+  left. Step through from one tree to twenty and watch the test error of the vote fall below what
+  any single tree achieves. Then set the depth to 1: does voting still help?</template
+>
+
+<template data-part="math"
+  ><h4>The bootstrap</h4
+  ><p
+    >We have only one training set, so we fake many: draw \(n\) points from the \(n\) training
+    points <em>with replacement</em>. Some points appear twice or more, others not at all. The
+    chance that a given point is left out of one resample is</p
+  >$$\Big(1-\frac1n\Big)^{n}\ \approx\ e^{-1}\approx0.368,$$<p
+    >so each resample contains about 63% of the distinct points. Each resample is a plausible
+    alternative data set.</p
+  >
+  <h4>Bagging = bootstrap aggregating</h4>$$\hat f_{\text{bag}}(\mathbf x)=\frac1B\sum_{b=1}^{B}\hat
+  f^{*b}(\mathbf x)$$<p
+    >Grow one tree \(\hat f^{*b}\) on each resample and average their predictions (or take the
+    majority vote).</p
+  >
+  <h4>Why averaging helps</h4
+  ><p
+    >If each tree's prediction has variance \(\sigma^2\) and any two trees have correlation
+    \(\rho\), the variance of the average of \(B\) trees is</p
+  >$$\rho\,\sigma^2+\frac{1-\rho}{B}\,\sigma^2.$$<p
+    >The second term vanishes as \(B\) grows. The first does not: trees grown on overlapping data
+    make some of the same mistakes, and no amount of averaging removes shared mistakes. Bias is
+    unchanged by averaging. So bagging works best on models with low bias and high variance, which
+    is why the trees are grown deep and left unpruned. Averaging stumps achieves almost nothing.</p
+  >
+  <h4>Out-of-bag error</h4
+  ><p
+    >Each point was left out of about a third of the resamples. Predict it using only the trees that
+    never saw it, and compare with its label. This gives an honest error estimate with no separate
+    validation set, close to what cross-validation would give.</p
+  >
+  <h4>More trees never overfit</h4
+  ><p
+    >Adding trees only makes the average steadier. The error curve flattens; it does not turn back
+    up. The number of trees is limited by time, not by overfitting.</p
+  ></template
+>
+
+<template data-part="question"
+  >Bagging 100 linear regressions gives almost the same line as one linear regression. Why does it
+  help trees and not lines?</template
+>
+
+<template data-part="answer"
+  >A linear regression is stable: resampling the data barely changes the line, so there is little
+  variance to average away, and the average of lines is just another line. A deep tree is unstable:
+  resampling changes its splits completely, so the trees differ a lot and averaging them removes a
+  large amount of variance.</template
+>

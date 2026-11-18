@@ -1,0 +1,184 @@
+<template data-part="lede"
+  >A photograph can contain tens of thousands of different colours. Treat every pixel as a point in
+  red-green-blue space, run k-means, and repaint each pixel with the colour of its centre. The
+  picture survives on K colours. Use the built-in picture or upload your own.</template
+>
+
+<template data-part="intro"
+  ><p
+    >A box of crayons with only six crayons can still draw a recognisable landscape, as long as the
+    six are well chosen: a sky blue, a leaf green, something for the roofs. Choosing those six is
+    exactly a clustering problem. Pixels with similar colour should share one crayon, and each
+    crayon should be the average of the pixels that use it, so that no pixel is repainted with a
+    colour far from its own.</p
+  >
+</template>
+
+<template data-part="stage"
+  ><div class="stage"
+    ><figure class="fig"
+      ><figcaption>The original. Click a pixel to see where it goes</figcaption
+      ><canvas class="short" id="kp-o" role="img" aria-label="Original picture"></canvas
+    ></figure>
+    <figure class="fig"
+      ><figcaption>The same picture repainted with K colours, and the K colours</figcaption
+      ><canvas
+        class="short"
+        id="kp-q"
+        role="img"
+        aria-label="Picture repainted with K colours"
+      ></canvas></figure
+  ></div>
+  <div class="stage" style="margin-top:22px"
+    ><figure class="fig"
+      ><figcaption
+        >Every dot is a pixel, placed by how much red, green and blue it has. Rings are the K
+        centres</figcaption
+      ><canvas
+        class="short"
+        id="kp-c"
+        role="img"
+        aria-label="Pixels as points in colour space"
+      ></canvas
+    ></figure>
+    <figure class="fig"
+      ><figcaption>Average colour error after each step</figcaption
+      ><canvas
+        class="short"
+        id="kp-e"
+        role="img"
+        aria-label="Colour error by step"
+      ></canvas></figure
+  ></div>
+  <div class="howto"
+    ><div
+      ><h3>How it works, step by step</h3
+      ><ol id="kp-steps"
+        ><li>Read every pixel as a point with three coordinates: red, green, blue.</li
+        ><li>Pick K starting colours from the pixels (k-means++).</li
+        ><li>Assign: give every pixel the nearest of the K colours.</li
+        ><li>Move: change each of the K colours to the average of the pixels assigned to it.</li
+        ><li>Repeat steps 3 and 4 until the picture stops changing.</li></ol
+      ></div
+    ><div><h3>What just happened</h3><p class="live" id="kp-live" role="status"></p></div
+  ></div>
+  <div class="controls"
+    ><template data-label="Animation" data-control="group"
+      ><div class="row"
+        ><button class="btn go" id="kp-play" type="button">Run</button
+        ><button class="btn" id="kp-step" type="button">One step</button
+        ><button class="btn" id="kp-reset" type="button">Start over</button></div
+      ><template data-unit="rounds" data-id="kp" data-control="run-limit"></template
+    ></template>
+    <template data-label="The model" data-control="group"
+      ><template
+        data-value="6"
+        data-step="1"
+        data-max="24"
+        data-min="2"
+        data-label="Number of colours K"
+        data-id="kp-K"
+        data-control="slider"
+      ></template
+      ><template
+        data-value="35"
+        data-step="1"
+        data-max="360"
+        data-min="0"
+        data-label="Turn the colour cube"
+        data-id="kp-az"
+        data-control="slider"
+      ></template
+    ></template>
+    <template data-label="The picture" data-control="group"
+      ><div class="row"
+        ><button class="btn" id="kp-built" type="button">Built-in Picture</button
+        ><label class="btn file"
+          >Upload a Picture<input type="file" id="kp-file" accept="image/*" /></label></div
+      ><p class="status" id="kp-st" role="status"></p
+      ><p class="tpout" id="kp-tpo" role="status"></p></template
+  ></div>
+  <dl class="read"
+    ><template data-label="Pixels" data-key="n" data-control="readout"></template
+    ><template
+      data-label="Different colours in the original"
+      data-key="uc"
+      data-control="readout"
+    ></template
+    ><template
+      data-class="hl"
+      data-label="Colours after k-means"
+      data-key="k"
+      data-control="readout"
+    ></template
+    ><template
+      data-label="Bits per pixel, before → after"
+      data-key="bits"
+      data-control="readout"
+    ></template
+    ><template
+      data-class="hl2"
+      data-label="Average colour error (0 to 255 scale)"
+      data-key="err"
+      data-control="readout"
+    ></template
+    ><template data-label="Rounds so far" data-key="it" data-control="readout"></template></dl
+></template>
+
+<template data-part="tryit"
+  >Step through with K = 2, then 4, 8 and 16. At which K do you stop noticing the difference? Watch
+  the colour cube while it runs: the rings slide into the dense strands of pixels. Then upload a
+  photo of your own. Faces and skies need more colours than you expect, because smooth gradients
+  break into bands.</template
+>
+
+<template data-part="math"
+  ><h4>The picture as data</h4
+  ><p
+    >A picture with \(n\) pixels becomes \(n\) points \(x_i=(r_i,g_i,b_i)\in[0,255]^3\). Where a
+    pixel sits in the picture is ignored: only its colour matters. k-means with K centres
+    \(\mu_1,\dots,\mu_K\) minimises</p
+  >$$J=\sum_{i=1}^{n}\lVert x_i-\mu_{c(i)}\rVert^2 ,$$<p
+    >the total squared colour error of the repainted picture. Dividing by \(n\) and taking the
+    square root gives the average colour error shown under the pictures. Nothing about the algorithm
+    changes from the two-dimensional lesson: three coordinates instead of two.</p
+  >
+  <h4>Why this compresses</h4
+  ><p
+    >Storing a full-colour pixel takes 24 bits, eight for each of red, green and blue. After k-means
+    each pixel only needs to say which of the K colours it uses, which takes \(\lceil\log_2
+    K\rceil\) bits, plus one small table of K colours for the whole picture. With \(K=16\) that is 4
+    bits per pixel, a sixth of the original. This is called <b>vector quantisation</b>, and the
+    table of colours is the <b>codebook</b> or palette. The GIF image format works this way with up
+    to 256 colours.</p
+  >
+  <h4>What to notice</h4
+  ><p
+    >The centres do not spread evenly through the colour cube. They go where the pixels are: a
+    picture that is mostly sky spends several of its colours on slightly different blues, because
+    that lowers \(J\) most. Small bright details, such as a red roof, get a colour of their own only
+    when K is large enough that splitting a big region again would gain less than fixing the small
+    one. Smooth gradients turn into visible bands, because nearby pixels with nearly equal colours
+    fall on opposite sides of a boundary between two centres.</p
+  >
+  <h4>The same idea elsewhere</h4
+  ><p
+    >Replacing each item by the index of its nearest centre is used well beyond pictures:
+    compressing audio, building visual "words" from image patches, speeding up nearest-neighbour
+    search in large collections of embeddings (product quantisation), and the discrete codes of
+    VQ-VAE models that you will meet in the generative part of this site.</p
+  ></template
+>
+
+<template data-part="question"
+  >Two pictures have the same number of pixels. One is a photo of a clear blue sky, the other a
+  photo of a flower market. For the same K, which has the smaller colour error, and why?</template
+>
+
+<template data-part="answer"
+  >The sky. Its pixels form one thin strand in colour space, so a few centres placed along that
+  strand are close to every pixel. The flower market fills much more of the colour cube, so the same
+  number of centres must each cover a wider range of colours and the average error is larger. How
+  well k-means compresses depends on how concentrated the data is, not on how many points there
+  are.</template
+>

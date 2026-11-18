@@ -1,0 +1,210 @@
+<template data-part="lede"
+  >This is a real Transformer, small enough to train in your browser in seconds. Its job: read five
+  letters, then write them out backwards. Nobody tells it how. Watch the attention square as it
+  learns: a diagonal line appears, which is the network discovering that to write the first output
+  it must look at the last input. Then give it your own letters.</template
+>
+
+<template data-part="intro"
+  ><p
+    >Picture a meeting where everyone holds a page of notes about themselves. In each round two
+    things happen. First, everyone looks around the room and copies onto their own page whatever is
+    relevant from the others' pages: that is attention. Then everyone goes quiet and thinks over
+    their own page alone, rewriting it: that is the feed-forward layer. Nobody throws their old page
+    away; they add to it, which is the shortcut. After many rounds each page describes its owner in
+    the light of everyone else in the room. A Transformer runs that meeting with words.</p
+  >
+</template>
+
+<template data-part="stage"
+  ><div class="row seg" id="tf-task" role="group" aria-label="Task"
+    ><button class="btn" type="button" data-v="rev">Task: Write It Backwards</button
+    ><button class="btn" type="button" data-v="copy">Task: Copy It</button></div
+  >
+  <div class="stage"
+    ><figure class="fig"
+      ><figcaption
+        >Top: the letters going in, the ▸ that says “now answer”, and the letters it writes. Arcs:
+        where the highlighted output is looking. Bottom: the attention square, one row per position
+        that has to predict</figcaption
+      ><canvas
+        class="short"
+        id="tf-c"
+        role="img"
+        aria-label="Sequence with attention arcs and the learned attention matrix"
+      ></canvas
+    ></figure>
+    <figure class="fig"
+      ><figcaption
+        >Top: its confidence in each letter for the highlighted output. Middle: error while
+        training. Bottom: share of fresh sequences it gets entirely right</figcaption
+      ><canvas
+        class="short"
+        id="tf-r"
+        role="img"
+        aria-label="Next-letter probabilities, loss and accuracy"
+      ></canvas></figure
+  ></div>
+  <div class="stage one" style="margin-top:18px"
+    ><figure class="fig"
+      ><figcaption
+        >The same sequence as tables of numbers, one row per position: letter-plus-position vectors
+        going in, what attention adds, and what leaves the block. Arcs are the shortcuts</figcaption
+      ><canvas
+        class="tall"
+        id="tf-s"
+        style="aspect-ratio:16/3.6"
+        role="img"
+        aria-label="Token vectors at each stage of the trained block"
+      ></canvas></figure
+  ></div>
+  <div class="howto"
+    ><div
+      ><h3>How it works, step by step</h3
+      ><ol id="tf-steps"
+        ><li>Make up a random sequence of five letters, and the right answer for it.</li
+        ><li
+          >Forward: letters become vectors, positions are added, attention lets each position gather
+          from earlier ones, and a small network turns the result into a guess for the next
+          letter.</li
+        ><li>Compare the guesses with the right answer: the loss.</li
+        ><li
+          >Backward: backpropagation finds how every weight should change, including the ones that
+          decide where attention looks.</li
+        ><li
+          >Repeat with fresh sequences until it gets them all right. Then it answers sequences it
+          has never seen.</li
+        ></ol
+      ></div
+    ><div><h3>What just happened</h3><p class="live" id="tf-live" role="status"></p></div
+  ></div>
+  <div class="controls"
+    ><template data-label="Animation" data-control="group"
+      ><div class="row"
+        ><button class="btn go" id="tf-play" type="button">Train</button
+        ><button class="btn" id="tf-step" type="button">25 steps</button
+        ><button class="btn" id="tf-reset" type="button">Start over</button></div
+      ><template data-unit="steps" data-id="tf" data-control="run-limit"></template
+    ></template>
+    <template data-label="Try it yourself" data-control="group"
+      ><label class="ctl" for="tf-text"
+        ><span>Five letters from a to h</span
+        ><input
+          type="text"
+          class="num"
+          id="tf-text"
+          maxlength="5"
+          value="cafeb"
+          autocomplete="off"
+          spellcheck="false" /></label
+      ><template
+        data-value="1"
+        data-step="1"
+        data-max="5"
+        data-min="1"
+        data-label="Output to inspect"
+        data-id="tf-pos"
+        data-control="slider"
+      ></template
+      ><p class="status" id="tf-st" role="status"></p></template
+  ></div>
+  <dl class="read"
+    ><template data-label="Training steps" data-key="step" data-control="readout"></template
+    ><template data-class="hl2" data-label="Error" data-key="L" data-control="readout"></template
+    ><template
+      data-class="hl"
+      data-label="Fresh sequences fully correct"
+      data-key="acc"
+      data-control="readout"
+    ></template
+    ><template
+      data-class="hl3"
+      data-label="Its answer for your letters"
+      data-key="out"
+      data-control="readout"
+    ></template
+    ><template
+      data-label="The inspected output looks mostly at"
+      data-key="look"
+      data-control="readout"
+    ></template
+    ><template
+      data-label="Weights in the model"
+      data-key="np"
+      data-control="readout"
+    ></template></dl
+></template>
+
+<template data-part="tryit"
+  >Press Start over and watch the lower-left square while it trains: first a blur, then a line. For
+  Write It Backwards the line runs from top right to bottom left; switch the task to Copy It and it
+  runs the other way. Type your own five letters and move the Output to Inspect slider: the arcs
+  show which input letter each output is reading. Before training, where does it look?</template
+>
+
+<template data-part="math"
+  ><h4>The stages</h4
+  ><p
+    >With \(n\) tokens and vectors of size \(d\), stack the token vectors as the rows of an
+    \(n\times d\) matrix.</p
+  >$$\mathbf X=\mathbf E+\mathbf P\qquad\text{(embeddings plus positions)}$$$$\mathbf
+  A=\operatorname{softmax}\!\Big(\frac{(\mathbf X\mathbf W_Q)(\mathbf X\mathbf W_K)^{\top}}{\sqrt
+  d}+\mathbf M\Big),\qquad\mathbf Z=\mathbf A\,(\mathbf X\mathbf
+  W_V)\qquad\text{(self-attention)}$$$$\mathbf R_1=\operatorname{norm}(\mathbf X+\mathbf
+  Z)\qquad\text{(shortcut and normalise)}$$$$\mathbf F=\max(0,\;\mathbf R_1\mathbf W_1)\,\mathbf
+  W_2,\qquad\mathbf R_2=\operatorname{norm}(\mathbf R_1+\mathbf F)\qquad\text{(feed-forward,
+  shortcut, normalise)}$$<p
+    >The mask \(\mathbf M\) is \(-\infty\) wherever a word would look at a later word and 0
+    elsewhere, which makes those attention shares exactly zero.</p
+  >
+  <h4>Positions</h4
+  ><p
+    >Attention treats its inputs as a set: shuffle the words and each gets the same result. Order is
+    restored by adding to each word a vector that depends only on its position. The original design
+    uses waves of different lengths,</p
+  >$$P_{pos,2i}=\sin\!\Big(\frac{pos}{10000^{2i/d}}\Big),\qquad
+  P_{pos,2i+1}=\cos\!\Big(\frac{pos}{10000^{2i/d}}\Big),$$<p
+    >so that each position has a distinct pattern. This page learns its position vectors instead,
+    which works as well for short sequences.</p
+  >
+  <h4>Predicting the next word</h4
+  ><p
+    >The final vector of the last token is compared with the embedding of every word in the
+    vocabulary, \(\text{logits}=\mathbf r\,\mathbf E_{\text{vocab}}^{\top}\), and a softmax turns
+    the scores into probabilities. Training adjusts every matrix so that the true next word gets a
+    high probability, using backpropagation as in any network. With the mask, one pass through a
+    sentence trains the prediction at every position at once.</p
+  >
+  <h4>A real model</h4
+  ><p
+    >GPT-style models stack dozens of such blocks, use vectors of thousands of numbers, and run many
+    attention "heads" side by side in each block, each with its own \(\mathbf W_Q,\mathbf
+    W_K,\mathbf W_V\). The parts are the ones shown here.</p
+  >
+  <h4>What this page trains</h4
+  ><p
+    >One block with one attention head, vectors of 16 numbers, and about 2,000 weights. For
+    simplicity it leaves out normalisation and learns its position vectors. It is trained by
+    backpropagation with the Adam optimiser on random five-letter sequences, 12 at a time, and stops
+    when it writes every fresh sequence correctly.</p
+  ><p
+    >What it has to discover is a rule about <b>positions</b>: to write output number \(i\) of the
+    reversed sequence it must read input number \(6-i\). So the query and key matrices learn to use
+    the position vectors, which is the line you see in the attention square. The value matrix learns
+    to carry the letter itself across, and the final layer reads it out. Nothing in the code states
+    this rule. It emerges because it lowers the loss.</p
+  ></template
+>
+
+<template data-part="question"
+  >Without the position signal, would “dog bites man” and “man bites dog” give the word “bites”
+  different vectors at the end of the block?</template
+>
+
+<template data-part="answer"
+  >No. Attention computes each word’s output from the set of all word vectors, weighted by how well
+  they match. Without positions the same three vectors are present in both sentences, so every
+  score, every share and every output is identical; the two sentences are indistinguishable to the
+  block. Adding a different position vector to each slot is what lets it tell who did the
+  biting.</template
+>

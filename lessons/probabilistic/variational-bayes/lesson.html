@@ -1,0 +1,234 @@
+<template data-part="lede"
+  >MCMC answers "what does this awkward belief look like?" by wandering over it for a long time.
+  Variational Bayes takes a shortcut. Pick a simple family of distributions, here a bell curve, and
+  slide and stretch it until it sits as close to the true belief as that family allows. Sampling
+  becomes optimization, and it is fast. What you pay is that the answer is an approximation with a
+  characteristic bias, which you can watch on this page.</template
+>
+
+<template data-part="intro"
+  ><p
+    >You need to describe the shape of a country to someone over the phone, and all you are allowed
+    to say is "an oval, this wide, this tall, centred here". For a country shaped like an oval the
+    description is perfect. For a long thin country lying on a diagonal, an upright oval must
+    choose: cover the whole length and include a great deal of sea, or stay on land and leave most
+    of the country out. Variational Bayes always makes the second choice. It hates to put weight
+    where the truth has none, so it fits inside, and reports a country smaller than the real one.
+    That bias is the price of the speed.</p
+  >
+</template>
+
+<template data-part="stage"
+  ><div class="row seg" id="vb-tg" role="group" aria-label="Target distribution"
+    ><button class="btn" type="button" data-v="corr">A Slanted Bell</button
+    ><button class="btn" type="button" data-v="banana">A Banana</button
+    ><button class="btn" type="button" data-v="two">Two Islands</button></div
+  >
+  <div
+    class="row seg"
+    id="vb-f"
+    role="group"
+    aria-label="Family and criterion"
+    style="margin-top:8px"
+    ><button class="btn" type="button" data-v="mf">Mean-Field: Independent Axes</button
+    ><button class="btn" type="button" data-v="full">A Full Bell, Free to Tilt</button
+    ><button class="btn" type="button" data-v="fwd">Moment Matching (the Other KL)</button></div
+  >
+  <div class="stage"
+    ><figure class="fig"
+      ><figcaption
+        >Shading: the true belief. Gold ellipses: the approximation, drawn at one and two standard
+        deviations. Gold line: the path its centre has taken. Click anywhere to restart the
+        approximation from there</figcaption
+      ><canvas
+        class="short"
+        id="vb-c"
+        role="img"
+        aria-label="Target density with the variational approximation"
+      ></canvas
+    ></figure>
+    <figure class="fig"
+      ><figcaption
+        >Top: the left-to-right spread of the true belief (line) and of the approximation (filled).
+        Bottom: the score being climbed (the ELBO), which can never exceed the dashed line, the true
+        log evidence</figcaption
+      ><canvas
+        class="short"
+        id="vb-r"
+        role="img"
+        aria-label="Marginals and the evidence lower bound"
+      ></canvas></figure
+  ></div>
+  <figure class="fig" style="margin-top:18px"
+    ><figcaption>The last update, worked out</figcaption
+    ><div class="eq" id="vb-eq" aria-live="polite" style="min-height:7em;margin-top:6px"></div
+  ></figure>
+  <div class="howto"
+    ><div
+      ><h3>How it works, step by step</h3
+      ><ol id="vb-steps"
+        ><li
+          >Choose a simple family for the approximation q. Mean-field means one independent bell
+          curve per coordinate.</li
+        ><li>Start q somewhere.</li
+        ><li
+          >Score it with the ELBO: how much of the true belief q covers, plus a reward for staying
+          spread out.</li
+        ><li
+          >Improve one piece of q while holding the others fixed (or take a gradient step on all of
+          them).</li
+        ><li>Each update can only raise the ELBO. Repeat.</li
+        ><li
+          >Stop when the ELBO stops rising. The gap left to the dashed line is the error of the
+          approximation.</li
+        ></ol
+      ></div
+    ><div><h3>What just happened</h3><p class="live" id="vb-live" role="status"></p></div
+  ></div>
+  <div class="controls"
+    ><template data-label="Animation" data-control="group"
+      ><div class="row"
+        ><button class="btn go" id="vb-play" type="button">Run</button
+        ><button class="btn" id="vb-step" type="button">One step</button
+        ><button class="btn" id="vb-reset" type="button">Start over</button></div
+      ><template data-unit="steps" data-id="vb" data-control="run-limit"></template
+    ></template>
+    <template data-label="Animation speed" data-control="group"
+      ><template
+        data-value="2"
+        data-step="1"
+        data-max="3"
+        data-min="1"
+        data-label="Speed"
+        data-id="vb-sp"
+        data-control="slider"
+      ></template></template
+  ></div>
+  <dl class="read"
+    ><template data-label="Steps so far" data-key="it" data-control="readout"></template
+    ><template data-class="hl" data-label="ELBO" data-key="elbo" data-control="readout"></template
+    ><template
+      data-label="True log evidence (the ceiling)"
+      data-key="lz"
+      data-control="readout"
+    ></template
+    ><template
+      data-class="hl2"
+      data-label="Gap: KL divergence from q to the truth"
+      data-key="kl"
+      data-control="readout"
+    ></template
+    ><template
+      data-class="hl"
+      data-label="Spread of q ÷ true spread: left-right, up-down"
+      data-key="sx"
+      data-control="readout"
+    ></template
+    ><template
+      data-label="Share on the right-hand side: q / truth"
+      data-key="isl"
+      data-control="readout"
+    ></template></dl
+></template>
+
+<template data-part="tryit"
+  >On A Slanted Bell with Mean-Field, press One step and read the panel: each step moves one
+  coordinate of the centre to its best value given the other, and the centre zig-zags home. When it
+  stops, compare the top-right chart. The centre is exactly right. What about the width? Switch to A
+  Full Bell: the gap drops to almost nothing. Why? Go back to Mean-Field and choose Two Islands.
+  Click near the left island and run, then near the right one. Now choose Moment Matching on the
+  same target. Which answer would you rather use to say where the probability is, and which to quote
+  a mean and a variance?</template
+>
+
+<template data-part="math"
+  ><h4>The problem</h4
+  ><p
+    >After Bayes' rule the posterior is known up to a constant, \(p(\mathbf z\mid\mathbf x)=\tilde
+    p(\mathbf z)/Z\), where \(Z=p(\mathbf x)\) is the evidence. Choose a family \(\mathcal Q\) of
+    tractable distributions and look for the member closest to the posterior:</p
+  >$$q^*=\arg\min_{q\in\mathcal Q}\ \mathrm{KL}\big(q\,\Vert\,p(\cdot\mid\mathbf
+  x)\big),\qquad\mathrm{KL}(q\Vert p)=\mathbb E_q\Big[\log\frac{q(\mathbf z)}{p(\mathbf z\mid\mathbf
+  x)}\Big].$$ <h4>The evidence lower bound</h4
+  ><p>The KL divergence contains the unknown \(Z\). Rearranging removes it:</p>$$\log
+  Z=\underbrace{\mathbb E_q[\log\tilde p(\mathbf z)]+\mathbb
+  H[q]}_{\text{ELBO}(q)}+\mathrm{KL}\big(q\,\Vert\,p(\cdot\mid\mathbf x)\big).$$<p
+    >The left side does not depend on \(q\) and the KL term is never negative. So the ELBO is a
+    lower bound on \(\log Z\), and raising it is the same as lowering the KL. The first term rewards
+    putting \(q\) where the belief is high. The entropy \(\mathbb H[q]\) rewards keeping \(q\) wide.
+    On this page \(\log Z\) can be computed on a grid, so you can see the gap directly. In a real
+    problem you see only the ELBO.</p
+  >
+  <h4>Mean-field</h4
+  ><p
+    >The mean-field family assumes the coordinates are independent: \(q(\mathbf z)=\prod_j
+    q_j(z_j)\). Holding all factors but one fixed, the best choice for that factor has a closed
+    form:</p
+  >$$\log q_j^*(z_j)=\mathbb E_{q_{-j}}\big[\log\tilde p(\mathbf z)\big]+\text{const}.$$<p
+    >Cycling through the factors is <b>coordinate-ascent variational inference</b>. For a Gaussian
+    target with mean \(\boldsymbol\mu\) and precision matrix
+    \(\boldsymbol\Lambda=\boldsymbol\Sigma^{-1}\), the update for the first coordinate is itself a
+    Gaussian with</p
+  >$$m_1\leftarrow\mu_1-\frac{\Lambda_{12}}{\Lambda_{11}}(m_2-\mu_2),\qquad
+  s_1^2=\frac{1}{\Lambda_{11}},$$<p
+    >and the same with the indices swapped. The Slanted Bell with Mean-Field runs exactly these
+    updates.</p
+  >
+  <h4>The characteristic bias</h4
+  ><p
+    >The means converge to the true means. The variance does not: \(1/\Lambda_{11}\) is the variance
+    of \(z_1\) <i>given</i> \(z_2\), which is smaller than its overall variance \(\Sigma_{11}\)
+    whenever the two are correlated. For correlation \(\rho\),</p
+  >$$\frac{s_1^2}{\Sigma_{11}}=1-\rho^2.$$<p
+    >With \(\rho=0.85\) the approximation reports a standard deviation of about half the truth.
+    Mean-field variational Bayes is <b>overconfident</b>, and more so the stronger the dependence it
+    has been forced to ignore.</p
+  >
+  <h4>Why it hugs one mode</h4
+  ><p
+    >\(\mathrm{KL}(q\Vert p)\) averages over \(q\). Any region where \(q\) has weight and \(p\) has
+    almost none costs a great deal, while regions where \(p\) has weight and \(q\) has none cost
+    nothing. So \(q\) avoids the empty gap between two islands by sitting on one of them, and which
+    one depends on where it started. The gap it leaves on Two Islands is close to \(\ln
+    2\approx0.69\), which is exactly the cost of describing one of two equal halves perfectly and
+    missing the other. The opposite divergence, \(\mathrm{KL}(p\Vert q)\), averages over \(p\) and
+    punishes missing any of the truth. For a Gaussian \(q\) its minimizer simply matches the mean
+    and covariance of \(p\), and it covers both islands with one wide bell that peaks in the empty
+    middle. That is the criterion behind expectation propagation. It needs expectations under \(p\),
+    which is the thing we could not compute, so here it is found from the grid in a single step.</p
+  >
+  <h4>Richer families and gradients</h4
+  ><p
+    >The Full Bell adds a covariance term. It can tilt, so it fits the Slanted Bell exactly (the
+    small gap that remains on the page comes from estimating the ELBO with a finite number of
+    draws), but it is still one bell and cannot bend round the Banana or cover two islands. When no
+    closed-form update exists, the ELBO is climbed by gradient ascent using the reparameterization
+    \(\mathbf z=\mathbf m+\mathbf L\boldsymbol\epsilon\), \(\boldsymbol\epsilon\sim\mathcal
+    N(\mathbf 0,\mathbf I)\), which is how the Banana and Islands are fitted here (with 128 fixed
+    draws of \(\boldsymbol\epsilon\)) and how a variational autoencoder is trained. The run stops
+    when the ELBO gains less than \(10^{-5}\) for ten steps in a row.</p
+  >
+  <h4>Against MCMC</h4
+  ><p
+    >MCMC is asymptotically exact and slow, with no simple test for when it has finished.
+    Variational Bayes is fast, scales to very large models, and gives a number, the ELBO, to monitor
+    and to compare models with. Its error does not go away with more computing, and its
+    uncertainties are usually too small.</p
+  ></template
+>
+
+<template data-part="question"
+  >On the Slanted Bell, mean-field gets the centre exactly right and reports a spread about half the
+  true one. More steps do not help. Where does the missing spread go?</template
+>
+
+<template data-part="answer"
+  >The true belief is wide along its diagonal because the two coordinates move together. A product
+  of independent bell curves cannot represent "together": its ellipse must stand upright. If it were
+  made as wide as the true left-to-right spread, its corners would stick out into regions where the
+  truth has almost no probability, and the KL divergence from q to p punishes that severely. The
+  best upright ellipse is therefore the one that fits inside the slanted one, whose width is the
+  spread of one coordinate when the other is held fixed. The spread that came from the coordinates
+  varying together has nowhere to go in this family, so it is simply lost. Allowing the bell to tilt
+  recovers it.</template
+>

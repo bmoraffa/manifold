@@ -1,0 +1,231 @@
+<template data-part="lede"
+  >A café adds a new drink and wants to know what share of its customers like it. Before anyone has
+  tried it, the owner has a hunch. Then customers answer one by one: yes or no. Bayesian updating is
+  the rule for combining the hunch with the answers. It never gives a single number. It gives a
+  whole curve of belief over every possible share, and the curve narrows as the evidence comes in.
+  Watch three owners with very different hunches being pulled to the same conclusion.</template
+>
+
+<template data-part="intro"
+  ><p
+    >A doctor sees a patient with a cough. Before any test, she thinks a common cold is far more
+    likely than anything serious, because colds are common. A test comes back, and it shifts her
+    opinion, a lot if the result would be very surprising under one of the explanations, a little
+    otherwise. A second test shifts it again, starting from where the first left it. She never
+    throws away what she knew before, and she never ignores the evidence. Bayes' rule is the exact
+    arithmetic of that way of thinking: what you believe afterwards is what you believed before,
+    reweighted by how well each possibility explains what you saw.</p
+  >
+</template>
+
+<template data-part="stage"
+  ><div class="row seg" id="by-pr" role="group" aria-label="The owner's starting belief"
+    ><button class="btn" type="button" data-v="flat">No Opinion: Anything Is Possible</button
+    ><button class="btn" type="button" data-v="mild">Mild Hunch: About Half</button
+    ><button class="btn" type="button" data-v="stub">Stubborn: Sure It Is About 80%</button></div
+  >
+  <div class="stage"
+    ><figure class="fig"
+      ><figcaption
+        >Belief about the share of customers who like the drink. Dashed: before any answers. Filled:
+        now. The shaded part holds 95% of the belief. The thin line is what the answers alone say.
+        Dots along the top: the answers so far</figcaption
+      ><canvas
+        class="short"
+        id="by-c"
+        role="img"
+        aria-label="Prior, likelihood and posterior over the unknown share"
+      ></canvas
+    ></figure>
+    <figure class="fig"
+      ><figcaption
+        >Top: this owner’s best estimate and 95% range after each answer. Bottom: the best estimates
+        of all three owners, given the same answers</figcaption
+      ><canvas
+        class="short"
+        id="by-r"
+        role="img"
+        aria-label="Posterior mean and interval over time, and three priors compared"
+      ></canvas></figure
+  ></div>
+  <figure class="fig" style="margin-top:18px"
+    ><figcaption>The last update, worked out</figcaption
+    ><div class="eq" id="by-eq" aria-live="polite" style="min-height:9.5em;margin-top:6px"></div
+  ></figure>
+  <div class="howto"
+    ><div
+      ><h3>How it works, step by step</h3
+      ><ol id="by-steps"
+        ><li
+          >Before any answers, write down a belief about the share: a curve over every value from 0
+          to 1. This is the prior.</li
+        ><li>A customer answers yes or no.</li
+        ><li
+          >For every possible share, ask: how likely was that answer if this were the true share?
+          Multiply the belief at that share by that likelihood.</li
+        ><li>Rescale the curve so that its area is 1 again. This is the posterior.</li
+        ><li>The posterior becomes the prior for the next customer. Repeat.</li
+        ><li
+          >Stop when the belief is narrow enough for the decision at hand: here, when 95% of it fits
+          in a range 0.1 wide.</li
+        ></ol
+      ></div
+    ><div><h3>What just happened</h3><p class="live" id="by-live" role="status"></p></div
+  ></div>
+  <div class="controls"
+    ><template data-label="Animation" data-control="group"
+      ><div class="row"
+        ><button class="btn go" id="by-play" type="button">Run</button
+        ><button class="btn" id="by-step" type="button">One customer</button
+        ><button class="btn" id="by-reset" type="button">Start over</button></div
+      ><template data-unit="customers" data-id="by" data-control="run-limit"></template
+    ></template>
+    <template data-label="Add answers yourself" data-control="group"
+      ><div class="row"
+        ><button class="btn" id="by-yes" type="button">A Customer Says Yes</button
+        ><button class="btn" id="by-no" type="button">A Customer Says No</button></div
+      ></template
+    >
+    <template data-label="The world and the prior" data-control="group"
+      ><template
+        data-value="0.3"
+        data-step="0.01"
+        data-max="0.98"
+        data-min="0.02"
+        data-label="The true share of customers who like it (the owner cannot see this)"
+        data-id="by-p"
+        data-control="slider"
+      ></template
+      ><template
+        data-value="0.5"
+        data-step="0.01"
+        data-max="0.95"
+        data-min="0.05"
+        data-label="Prior: the owner’s best guess"
+        data-id="by-m"
+        data-control="slider"
+      ></template
+      ><template
+        data-value="2"
+        data-step="1"
+        data-max="100"
+        data-min="2"
+        data-label="Prior: how sure, as a number of imagined earlier customers"
+        data-id="by-n"
+        data-control="slider"
+      ></template></template
+  ></div>
+  <dl class="read"
+    ><template data-label="Customers asked" data-key="n" data-control="readout"></template
+    ><template data-label="Said yes" data-key="k" data-control="readout"></template
+    ><template
+      data-class="hl"
+      data-label="Best estimate now (posterior mean)"
+      data-key="mean"
+      data-control="readout"
+    ></template
+    ><template
+      data-class="hl2"
+      data-label="95% of the belief lies between"
+      data-key="ci"
+      data-control="readout"
+    ></template
+    ><template
+      data-label="Plain frequency: yes ÷ asked"
+      data-key="fr"
+      data-control="readout"
+    ></template
+    ><template data-label="Posterior" data-key="pb" data-control="readout"></template></dl
+></template>
+
+<template data-part="tryit"
+  >Press One customer a few times with No Opinion and read the worked update: each yes adds 1 to the
+  first number of the curve, each no adds 1 to the second. That is the entire calculation. Press Run
+  and watch the curve tighten around the true share. Now choose Stubborn and start over. How many
+  customers does it take before the owner’s estimate is closer to the truth than to the original
+  80%? Look at the bottom-right chart: when do the three owners agree to within a few percent? Then
+  use the two buttons to feed in a streak of ten yes answers by hand and see how each owner
+  reacts.</template
+>
+
+<template data-part="math"
+  ><h4>Bayes' rule</h4
+  ><p>Let \(\theta\) be the unknown share and \(D\) the data. The rule is</p
+  >$$\underbrace{p(\theta\mid
+  D)}_{\text{posterior}}=\frac{\overbrace{p(D\mid\theta)}^{\text{likelihood}}\
+  \overbrace{p(\theta)}^{\text{prior}}}{p(D)},\qquad p(D)=\int p(D\mid\theta)\,p(\theta)\,d\theta
+  .$$<p
+    >The prior is the belief before the data. The likelihood says how probable the data would be for
+    each value of \(\theta\). The denominator is only there to make the posterior's area equal 1.
+    Posterior is proportional to likelihood times prior: that sentence is the whole method.</p
+  >
+  <h4>The café: a Beta prior and yes-or-no answers</h4
+  ><p
+    >If the true share is \(\theta\), a customer says yes with probability \(\theta\). After \(k\)
+    yes answers among \(n\) customers the likelihood is \(\theta^k(1-\theta)^{n-k}\). For the prior,
+    use the Beta family:</p
+  >$$p(\theta)=\mathrm{Beta}(\theta;a,b)\propto\theta^{a-1}(1-\theta)^{b-1}.$$<p
+    >Multiplying the two gives another curve of the same shape,</p
+  >$$p(\theta\mid D)\propto\theta^{a+k-1}(1-\theta)^{b+n-k-1}=\mathrm{Beta}(\theta;\ a+k,\
+  b+n-k).$$<p
+    >So updating is addition: every yes adds 1 to \(a\), every no adds 1 to \(b\). A prior that
+    reproduces itself like this is called <b>conjugate</b>. The prior behaves exactly like \(a+b\)
+    imagined earlier customers, \(a\) of whom said yes. "No opinion" is \(\mathrm{Beta}(1,1)\), a
+    flat line.</p
+  >
+  <h4>Reading the posterior</h4
+  ><p>The mean of \(\mathrm{Beta}(a,b)\) is \(a/(a+b)\), so the best estimate after the data is</p
+  >$$\mathbb E[\theta\mid D]=\frac{a+k}{a+b+n}=\underbrace{\frac{a+b}{a+b+n}}_{\text{weight on the
+  prior}}\cdot\frac{a}{a+b}+\underbrace{\frac{n}{a+b+n}}_{\text{weight on the
+  data}}\cdot\frac{k}{n}.$$<p
+    >It is a weighted average of the prior guess and the plain frequency, and the weight on the data
+    grows with every customer. That is why the stubborn owner is pulled to the truth slowly and the
+    owner with no opinion almost at once, and why all three end in the same place. The 95% range,
+    called a <b>credible interval</b>, is the middle 95% of the posterior's area. Its width shrinks
+    like \(1/\sqrt n\).</p
+  >
+  <h4>The same number is also a prediction</h4
+  ><p
+    >The probability that the next customer says yes, taking the uncertainty about \(\theta\) into
+    account, is the posterior mean \((a+k)/(a+b+n)\). With no opinion and no data it is
+    \(\tfrac12\). After one yes it is \(\tfrac23\), not 1: one happy customer does not prove that
+    everyone will be happy. The plain frequency would have said 100%.</p
+  >
+  <h4>Why bother with a prior?</h4
+  ><p
+    >With a great deal of data the prior stops mattering, as the bottom chart shows. With little
+    data it matters a lot, and that is when it is most useful: it keeps the estimate sensible after
+    three answers, and it is the natural place to put real knowledge, such as "new drinks at this
+    café are usually liked by 20 to 40 percent of people". The cost is that a confident wrong prior
+    takes many observations to overturn. A prior should be as sure as you actually are, and no
+    surer.</p
+  >
+  <h4>Beyond the café</h4
+  ><p
+    >The same recipe, prior times likelihood, underlies spam filters, medical diagnosis, A/B
+    testing, the Thompson sampling of the Multi-Armed Bandits tab, and Gaussian process regression.
+    For most models the product has no tidy formula like the Beta one. Then the posterior is
+    explored by sampling, which is the subject of the next tab, MCMC.</p
+  >
+  <h4>What this page runs</h4
+  ><p
+    >Customers are drawn at random with the true share you set. The run stops when the 95% credible
+    interval is narrower than 0.1, or after 1,000 customers. The interval is computed by adding up
+    the area under the curve numerically.</p
+  ></template
+>
+
+<template data-part="question"
+  >With no opinion at the start, the first customer says yes. The plain frequency is now 1 out of 1,
+  or 100%. The Bayesian estimate is 2/3. Which is the better forecast for the second customer, and
+  why?</template
+>
+
+<template data-part="answer"
+  >The Bayesian one. A frequency of 100% claims that every future customer will say yes, on the
+  strength of one answer, and would be proved wrong by the first no. The posterior after one yes is
+  Beta(2, 1): it has shifted toward high values and still gives real weight to everything from about
+  0.2 upward. Its mean, 2/3, says “probably more people like it than not, and I am far from sure”.
+  That is what one answer actually tells you. As the answers accumulate the two estimates approach
+  each other, and after a few hundred customers they agree to the second decimal place.</template
+>

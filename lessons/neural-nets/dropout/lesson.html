@@ -1,0 +1,203 @@
+<template data-part="lede"
+  >A large network given a small, noisy set of examples will memorise them, mistakes included.
+  Dropout is a simple cure: during every training step, switch off a random share of the neurons. No
+  neuron can rely on any other being there, so the network has to learn the pattern in many
+  overlapping ways. Two identical networks train here side by side, one with dropout and one
+  without.</template
+>
+
+<template data-part="intro"
+  ><p
+    >Imagine a team where one brilliant member knows everything and the rest have learned to pass
+    every question to her. The team does well until the day she is away. Now imagine a manager who
+    sends a random half of the team home each day. Nobody can depend on anyone in particular, so
+    everyone has to become competent, and knowledge ends up spread across the team with plenty of
+    overlap. On the day that matters, everyone comes in. That is dropout: the team is the layer, the
+    members are neurons, and the days with absences are training steps.</p
+  >
+</template>
+
+<template data-part="stage"
+  ><div class="stage"
+    ><figure class="fig"
+      ><figcaption
+        >Left half: trained normally. Right half: trained with dropout. Same data, same starting
+        weights. Dots are the training points; a few carry the wrong colour on purpose</figcaption
+      ><canvas
+        class="wide"
+        id="dr-c"
+        role="img"
+        aria-label="Decision regions without and with dropout"
+      ></canvas
+    ></figure>
+    <figure class="fig"
+      ><figcaption
+        >Top: the dropout network on this step; crossed-out neurons are switched off. Bottom: error
+        on new data for both networks</figcaption
+      ><canvas
+        class="short"
+        id="dr-r"
+        role="img"
+        aria-label="Network with dropped neurons and the test loss curves"
+      ></canvas></figure
+  ></div>
+  <div class="howto"
+    ><div
+      ><h3>How it works, step by step</h3
+      ><ol id="dr-steps"
+        ><li>Give two identical networks the same small, noisy training set.</li
+        ><li>Normal training: every neuron takes part in every step.</li
+        ><li
+          >Dropout training: before each example, switch off each hidden neuron with probability p,
+          and scale up the ones that remain.</li
+        ><li>Both networks update their weights. Repeat for many epochs.</li
+        ><li
+          >To predict, switch every neuron back on. Compare the two networks on data they have not
+          seen.</li
+        ></ol
+      ></div
+    ><div><h3>What just happened</h3><p class="live" id="dr-live" role="status"></p></div
+  ></div>
+  <div class="controls"
+    ><template data-label="Animation" data-control="group"
+      ><div class="row"
+        ><button class="btn go" id="dr-play" type="button">Train both</button
+        ><button class="btn" id="dr-step" type="button">One epoch</button
+        ><button class="btn" id="dr-reset" type="button">Start over</button></div
+      ><template data-unit="epochs" data-id="dr" data-control="run-limit"></template
+    ></template>
+    <template data-label="The model" data-control="group"
+      ><template
+        data-value="0.5"
+        data-step="0.05"
+        data-max="0.8"
+        data-min="0"
+        data-label="Share of neurons switched off, p"
+        data-id="dr-p"
+        data-control="slider"
+      ></template
+      ><template
+        data-value="24"
+        data-step="1"
+        data-max="32"
+        data-min="4"
+        data-label="Neurons in each of the two hidden layers"
+        data-id="dr-hw"
+        data-control="slider"
+      ></template
+    ></template>
+    <template data-label="The data" data-control="group"
+      ><template
+        data-value="60"
+        data-step="2"
+        data-max="200"
+        data-min="20"
+        data-label="Training points"
+        data-id="dr-n"
+        data-control="slider"
+      ></template
+      ><template
+        data-value="0.12"
+        data-step="0.01"
+        data-max="0.3"
+        data-min="0"
+        data-label="Share of training points with the wrong label"
+        data-id="dr-fl"
+        data-control="slider"
+      ></template
+      ><div class="row"
+        ><button class="btn" id="dr-new" type="button">New random sample</button></div
+      ></template
+    ></div
+  >
+  <dl class="read"
+    ><template data-label="Epochs" data-key="ep" data-control="readout"></template
+    ><template
+      data-class="hl2"
+      data-label="Normal: accuracy on training / new data"
+      data-key="a0"
+      data-control="readout"
+    ></template
+    ><template
+      data-class="hl3"
+      data-label="Dropout: accuracy on training / new data"
+      data-key="a1"
+      data-control="readout"
+    ></template
+    ><template data-label="Normal: loss on new data" data-key="l0" data-control="readout"></template
+    ><template
+      data-class="hl"
+      data-label="Dropout: loss on new data"
+      data-key="l1"
+      data-control="readout"
+    ></template></dl
+></template>
+
+<template data-part="tryit"
+  >Run it and watch the left half: after a while it grows small islands around the wrongly labelled
+  points, and the red curve on the right turns upward. The right half stays smooth. Set p to 0 and
+  train again: the two halves now agree. Set p to 0.8: is more always better? Then raise the
+  training points to 200. Does dropout still matter as much?</template
+>
+
+<template data-part="math"
+  ><h4>What it does during training</h4
+  ><p
+    >For each training example and each hidden neuron, draw a mask \(m_j\) that is 0 with
+    probability \(p\) and 1 otherwise, and replace the neuron's output \(a_j\) by</p
+  >$$\tilde a_j=\frac{m_j}{1-p}\,a_j .$$<p
+    >The division by \(1-p\) (called inverted dropout) keeps the expected output the same, \(\mathbb
+    E[\tilde a_j]=a_j\), so the next layer sees inputs of the usual size. Backpropagation uses the
+    same mask: a neuron that was off receives no gradient on that step.</p
+  >
+  <h4>What it does at prediction time</h4
+  ><p
+    >Nothing. All neurons are on and no scaling is needed, because the scaling was already applied
+    in training. The decision regions drawn on this page are the prediction-time network.</p
+  >
+  <h4>Why it works</h4><p>Three ways to see it, all saying the same thing.</p
+  ><ul
+    ><li
+      ><b>No co-adaptation.</b> A neuron cannot rely on a specific partner, because that partner is
+      absent a share \(p\) of the time. Fragile arrangements of neurons that fit a single odd
+      training point do not survive.</li
+    ><li
+      ><b>An ensemble for the price of one.</b> Each mask defines a different thinned network. With
+      \(H\) hidden neurons there are \(2^H\) of them, all sharing weights. Training with dropout
+      trains them all a little, and predicting with every neuron on approximates averaging their
+      answers. Averaging many models reduces variance, as bagging did.</li
+    ><li
+      ><b>Noise as a penalty.</b> Adding noise to the hidden layer makes solutions that depend on
+      large, finely balanced weights perform badly, which pushes the network toward smaller, more
+      evenly spread weights, much as an L2 penalty does.</li
+    ></ul
+  >
+  <h4>The cost</h4
+  ><p
+    >Dropout makes the training loss noisier and higher, and training takes longer. If \(p\) is too
+    large the network does not have enough capacity left on each step and underfits. Typical values
+    are 0.5 for large fully connected layers and 0.1 to 0.3 elsewhere. With plenty of data there is
+    little overfitting to cure and dropout helps less.</p
+  >
+  <h4>Batch normalisation, briefly</h4
+  ><p
+    >Batch normalisation is a different technique that is often mentioned alongside dropout. It
+    rescales the inputs of each layer to mean 0 and variance 1 over the current mini-batch, then
+    lets the layer learn its own scale and shift. Its main effect is to make deep networks train
+    faster and more reliably, and the noise from using batch statistics also regularises a little.
+    It does not have its own animation on this site yet.</p
+  ></template
+>
+
+<template data-part="question"
+  >With dropout the training loss is higher than without, yet the test loss is lower. How can a
+  model that fits the training data worse be the better model?</template
+>
+
+<template data-part="answer"
+  >The training set here contains wrongly labelled points. Fitting them perfectly means bending the
+  boundary around each one, and those bends are wrong for new data. Dropout makes such narrow,
+  single-point fits unstable, because the few neurons that would encode them are often switched off,
+  so the network keeps only the broad pattern that many neurons agree on. Its higher training loss
+  is mostly the mislabelled points it declined to memorise.</template
+>

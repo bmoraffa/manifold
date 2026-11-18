@@ -1,0 +1,129 @@
+<template data-part="lede"
+  >With three classes, give each class its own score and turn the three scores into three
+  probabilities that add to one. Move the pointer over the picture to read the probabilities at any
+  spot.</template
+>
+
+<template data-part="intro"
+  ><p
+    >Logistic regression asked one question, "B or not?". With \(K\) classes, hold a small election
+    at every point: each class gets a score from its own linear function, and the scores are turned
+    into shares of the vote. The class with the highest score wins, and the margin of victory is the
+    confidence.</p
+  >
+</template>
+
+<template data-part="left-caption"
+  >The data, and what the model predicts everywhere (click to add a point, drag to move
+  one)</template
+>
+
+<template data-part="right-figure"
+  ><figure class="fig"
+    ><figcaption>At the pointer: one score per class, turned into probabilities</figcaption
+    ><canvas
+      class="short"
+      id="softmax-r"
+      role="img"
+      aria-label="At the pointer: one score per class, turned into probabilities"
+    ></canvas></figure
+></template>
+
+<template data-part="steps"
+  ><li>Start with random weights, one set per class.</li
+  ><li>For every training point, compute three scores and turn them into three probabilities.</li
+  ><li
+    >For each class, the error is its probability minus 1 if it is the true class, minus 0
+    otherwise.</li
+  ><li>Move each class’s weights against the average of error × input.</li
+  ><li>Repeat until the loss stops falling.</li></template
+>
+
+<template data-part="animation-controls"
+  ><div class="row"
+    ><button class="btn go" id="softmax-play" type="button">Train</button
+    ><button class="btn" id="softmax-step" type="button">One step</button
+    ><button class="btn" id="softmax-reset" type="button">Start over</button></div
+  ><p class="status" id="softmax-note" role="status"></p
+  ><template data-unit="steps" data-id="softmax" data-control="run-limit"></template
+></template>
+
+<template data-part="model-controls"
+  ><template
+    data-value="0.5"
+    data-step="0.02"
+    data-max="2"
+    data-min="0.02"
+    data-label="Learning rate η"
+    data-id="softmax-lr"
+    data-control="slider"
+  ></template
+></template>
+
+<template data-part="datasets"><option value="three">Three clouds</option></template>
+
+<template data-part="point-count"
+  ><template
+    data-value="150"
+    data-step="2"
+    data-max="300"
+    data-min="20"
+    data-label="Number of points"
+    data-id="softmax-n"
+    data-control="slider"
+  ></template
+></template>
+
+<template data-part="extra-classes"
+  ><button class="btn" type="button" data-c="2">Class C</button></template
+>
+
+<template data-part="readouts"
+  ><template
+    data-class="hl"
+    data-label="Cross-entropy loss"
+    data-key="ll"
+    data-control="readout"
+  ></template
+  ><div><dt>Steps taken</dt><dd data-r="k">–</dd></div></template
+>
+
+<template data-part="tryit"
+  >Move the pointer from the middle of one cloud to the spot where all three regions meet. What are
+  the three probabilities there? Drag a point from one class deep into another class’s region and
+  watch the loss.</template
+>
+
+<template data-part="math"
+  ><h4>The model</h4>$$z_k=\mathbf w_k^{\top}\mathbf x+b_k,\qquad
+  p_k=\frac{e^{z_k}}{\sum_{j=1}^{K}e^{z_j}}$$<p
+    >Exponentiating makes every score positive; dividing by the total makes them sum to one. This is
+    the softmax function. Raising one score lowers every other probability. With \(K=2\) it reduces
+    exactly to the sigmoid of the difference of the two scores.</p
+  >
+  <h4>The loss</h4>$$L=-\frac1n\sum_{i=1}^n\ln p_{i,\,y_i}$$<p
+    >Cross-entropy: the negative log of the probability given to the correct class. Its gradient
+    again has the familiar form, with one row per class:</p
+  >$$\frac{\partial L}{\partial\mathbf w_k}=\frac1n\sum_i\big(p_{ik}-\mathbb 1[y_i=k]\big)\,\mathbf
+  x_i.$$ <h4>The boundaries</h4
+  ><p
+    >The boundary between classes \(j\) and \(k\) is where \(z_j=z_k\), a straight line. So the
+    plane is cut into \(K\) regions by straight edges that meet at points.</p
+  >
+  <h4>Why it matters later</h4
+  ><p
+    >This is the last layer of nearly every neural network classifier, and of every language model,
+    where the "classes" are the tens of thousands of possible next tokens. Dividing the scores by a
+    temperature before the softmax sharpens or flattens the probabilities.</p
+  ></template
+>
+
+<template data-part="question"
+  >Adding the same constant to all three scores changes nothing. Why?</template
+>
+
+<template data-part="answer"
+  >The constant multiplies the numerator and every term of the denominator by the same factor, which
+  cancels. Only differences between scores matter. That is why one class’s weights can be fixed at
+  zero without losing anything.</template
+>

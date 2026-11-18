@@ -1,0 +1,147 @@
+<template data-part="lede"
+  >Start with any line. Visit the points one at a time. If a point is on the right side, do nothing.
+  If it is on the wrong side, swing the line toward it. Repeat. When a straight line can separate
+  the classes this always finishes. When none can, it never does.</template
+>
+
+<template data-part="intro"
+  ><p
+    >This is the oldest learning algorithm, from 1958, and the simplest picture of what learning
+    from examples means. The model makes a guess. If the guess is right, leave everything alone. If
+    it is wrong, nudge the weights so that this example would have come out a little more right.
+    That is all. A single artificial neuron with this rule is the ancestor of every neural
+    network.</p
+  >
+</template>
+
+<template data-part="left-caption"
+  >The data, and what the model predicts everywhere (click to add a point, drag to move
+  one)</template
+>
+
+<template data-part="right-figure"
+  ><figure class="fig"
+    ><figcaption>Mistakes in each pass through the data</figcaption
+    ><canvas
+      class="short"
+      id="perceptron-r"
+      role="img"
+      aria-label="Mistakes in each pass through the data"
+    ></canvas></figure
+></template>
+
+<template data-part="steps"
+  ><li>Start with a random line.</li
+  ><li>Take the next training point and check which side of the line it is on.</li
+  ><li>If it is on the correct side, change nothing.</li
+  ><li
+    >If it is on the wrong side, add η × (±1) × the point to the weights. The line swings toward
+    it.</li
+  ><li>After a full pass with no mistakes, stop.</li></template
+>
+
+<template data-part="animation-controls"
+  ><div class="row"
+    ><button class="btn go" id="perceptron-play" type="button">Train</button
+    ><button class="btn" id="perceptron-step" type="button">One step</button
+    ><button class="btn" id="perceptron-reset" type="button">Start over</button></div
+  ><p class="status" id="perceptron-note" role="status"></p
+  ><template data-unit="passes" data-id="perceptron" data-control="run-limit"></template
+></template>
+
+<template data-part="model-controls"
+  ><template
+    data-value="0.5"
+    data-step="0.05"
+    data-max="2"
+    data-min="0.05"
+    data-label="Size of each correction η"
+    data-id="perceptron-lr"
+    data-control="slider"
+  ></template
+></template>
+
+<template data-part="datasets"
+  ><option value="blobs">Two clouds</option><option value="overlap">Two overlapping clouds</option
+  ><option value="moons">Two moons</option><option value="xor">Checkerboard (XOR)</option></template
+>
+
+<template data-part="point-count"
+  ><template
+    data-value="60"
+    data-step="2"
+    data-max="300"
+    data-min="20"
+    data-label="Number of points"
+    data-id="perceptron-n"
+    data-control="slider"
+  ></template
+></template>
+
+<template data-part="readouts"
+  ><div><dt>Passes through the data</dt><dd data-r="ep">–</dd></div
+  ><template
+    data-class="hl"
+    data-label="Corrections made"
+    data-key="up"
+    data-control="readout"
+  ></template
+  ><template
+    data-class="hl2"
+    data-label="Mistakes in the last full pass"
+    data-key="ms"
+    data-control="readout"
+  ></template
+></template>
+
+<template data-part="tryit"
+  >On the two clouds, count the passes until a pass has no mistakes. Then choose the overlapping
+  clouds or the checkerboard and let it run: does the mistake count ever reach zero? Drag one point
+  across to the other side of the line and train again.</template
+>
+
+<template data-part="math"
+  ><h4>The model</h4>$$\hat y=\operatorname{sign}\big(\mathbf w^{\top}\mathbf x+b\big),\qquad
+  y\in\{-1,+1\}$$<p
+    >A hard yes or no: which side of the line \(\mathbf w^{\top}\mathbf x+b=0\) the point falls on.
+    The vector \(\mathbf w\) points across the line toward the positive side.</p
+  >
+  <h4>The update</h4
+  ><p
+    >For each point in turn, if it is misclassified, meaning \(y_i(\mathbf w^{\top}\mathbf
+    x_i+b)\le0\):</p
+  >$$\mathbf w\leftarrow\mathbf w+\eta\,y_i\,\mathbf x_i,\qquad b\leftarrow b+\eta\,y_i$$<p
+    >Adding \(y_i\mathbf x_i\) rotates \(\mathbf w\) toward a positive point or away from a negative
+    one. After the update that point's score \(y_i\mathbf w^{\top}\mathbf x_i\) has gone up by
+    \(\eta\lVert\mathbf x_i\rVert^2\): it is closer to being right, though not necessarily right
+    yet.</p
+  >
+  <h4>The convergence theorem</h4
+  ><p
+    >If some line separates the classes with margin \(\gamma\), and all points lie within radius
+    \(R\), the perceptron makes at most</p
+  >$$\Big(\frac{R}{\gamma}\Big)^2\ \text{ corrections}$$<p
+    >and then stops, whatever the order of the points. A wide gap between the classes means few
+    mistakes.</p
+  >
+  <h4>Its limits</h4
+  ><p
+    >If no separating line exists, the updates never stop: the line keeps swinging as different
+    points take turns being wrong. The checkerboard (XOR) is the famous example; the proof in 1969
+    that a single perceptron cannot solve it stalled neural network research for a decade, until
+    hidden layers were shown to fix it. And when the data is separable, the perceptron stops at the
+    first line that works, which may pass very close to some points. Choosing the best such line is
+    the idea of the support vector machine.</p
+  ></template
+>
+
+<template data-part="question"
+  >Two runs on the same separable data end with different lines. Is one of them wrong?</template
+>
+
+<template data-part="answer"
+  >Neither is wrong by the perceptron’s own standard: both separate the training data, and it stops
+  as soon as that happens. Which line it reaches depends on the starting weights and the order of
+  the points. They may differ in how well they generalise, which is the motivation for maximising
+  the margin.</template
+>

@@ -1,0 +1,180 @@
+<template data-part="lede"
+  >No formula for the whole curve. To predict at one spot, look only at the points near it and
+  weight them by closeness. Slide the spot along and the predictions trace out a curve. The
+  bandwidth decides who counts as a neighbour.</template
+>
+
+<template data-part="intro"
+  ><p
+    >Every method so far chose a shape in advance, a line or a polynomial, and then fitted it. Here
+    the data chooses the shape. To predict at \(x_0\), ask the training points nearby what their
+    \(y\) values were and average them, listening more to the closest ones. There are no
+    coefficients to learn: the training data itself is the model.</p
+  >
+</template>
+
+<template data-part="stage"
+  ><div class="stage"
+    ><figure class="fig"
+      ><figcaption>Predicting at x₀ from its neighbours</figcaption
+      ><canvas
+        class="short"
+        id="lr-c"
+        role="img"
+        aria-label="Scatter plot with kernel weights and a local fit"
+      ></canvas
+    ></figure>
+    <figure class="fig"
+      ><figcaption>Error against bandwidth</figcaption
+      ><canvas
+        class="short"
+        id="lr-e"
+        role="img"
+        aria-label="Training and leave-one-out error for each bandwidth"
+      ></canvas></figure
+  ></div>
+  <div class="controls"
+    ><template data-label="Animation" data-control="group"
+      ><div class="row"
+        ><button class="btn go" id="lr-play" type="button">Slide x₀</button
+        ><button class="btn" id="lr-new" type="button">New random sample</button></div
+      ><template
+        data-value="2"
+        data-step="0.02"
+        data-max="10"
+        data-min="0"
+        data-label="Position x₀"
+        data-id="lr-x"
+        data-control="slider"
+      ></template
+    ></template>
+    <template data-label="The method" data-control="group"
+      ><template
+        data-value="0.7"
+        data-step="0.01"
+        data-max="3.5"
+        data-min="0.12"
+        data-label="Bandwidth h"
+        data-id="lr-h"
+        data-control="slider"
+      ></template
+      ><label class="ctl" for="lr-k"
+        ><span>Weighting kernel</span
+        ><select id="lr-k"
+          ><option value="gauss">Gaussian (smooth)</option
+          ><option value="epan">Epanechnikov (dome)</option
+          ><option value="box">Box (in or out)</option></select
+        ></label
+      ><label class="ctl" for="lr-m"
+        ><span>Fit near x₀</span
+        ><select id="lr-m"
+          ><option value="const">A weighted average (kernel regression)</option
+          ><option value="lin">A weighted line (LOESS)</option></select
+        ></label
+      ></template
+    >
+    <template data-label="The data" data-control="group"
+      ><template
+        data-value="0.4"
+        data-step="0.01"
+        data-max="1.2"
+        data-min="0"
+        data-label="Noise σ"
+        data-id="lr-s"
+        data-control="slider"
+      ></template
+      ><template
+        data-value="70"
+        data-step="1"
+        data-max="200"
+        data-min="15"
+        data-label="Number of points"
+        data-id="lr-n"
+        data-control="slider"
+      ></template></template
+  ></div>
+  <dl class="read"
+    ><template
+      data-class="hl"
+      data-label="Prediction at x₀"
+      data-key="y"
+      data-control="readout"
+    ></template
+    ><template
+      data-class="hl3"
+      data-label="Effective number of neighbours"
+      data-key="eff"
+      data-control="readout"
+    ></template
+    ><template
+      data-class="hl3"
+      data-label="Train error (MSE)"
+      data-key="tr"
+      data-control="readout"
+    ></template
+    ><template
+      data-class="hl2"
+      data-label="Leave-one-out error (MSE)"
+      data-key="cv"
+      data-control="readout"
+    ></template
+    ><template
+      data-label="Bandwidth with the lowest leave-one-out error"
+      data-key="bh"
+      data-control="readout"
+    ></template></dl
+></template>
+
+<template data-part="tryit"
+  >Shrink the bandwidth to 0.15: the curve chases every point. Stretch it to 3: the curve goes
+  nearly flat. Then switch from a weighted average to a weighted line and watch what changes at the
+  two ends of the data.</template
+>
+
+<template data-part="math"
+  ><h4>Kernel regression (Nadaraya–Watson)</h4>$$\hat
+  f(x_0)=\frac{\sum_{i}K\!\big(\tfrac{x_i-x_0}{h}\big)\,y_i}{\sum_{i}K\!\big(\tfrac{x_i-x_0}{h}\big)}$$<p
+    >\(K\) is a bump centred at zero, drawn along the bottom of the picture; each point's weight is
+    the height of the bump above it. Common choices are the Gaussian \(K(u)=e^{-u^2/2}\), the
+    Epanechnikov dome \(K(u)=\max(1-u^2,0)\) and the box \(K(u)=\mathbb 1[|u|\le1]\). The kernel
+    matters little. The bandwidth \(h\) matters a great deal.</p
+  >
+  <h4>Bandwidth is the bias–variance dial</h4
+  ><p
+    >A small \(h\) uses few neighbours: the estimate follows the data closely (low bias) but is
+    noisy (high variance). A large \(h\) averages over many points: steady, but it flattens real
+    bumps (high bias). In the limit \(h\to\infty\) every prediction is the overall mean. Roughly,
+    variance scales like \(1/(nh)\) and squared bias like \(h^4\), so the best \(h\) shrinks slowly
+    as data grows.</p
+  >
+  <h4>Local linear regression (LOESS)</h4
+  >$$\big(\hat\beta_0,\hat\beta_1\big)=\arg\min_{\beta_0,\beta_1}\sum_iK\!\big(\tfrac{x_i-x_0}{h}\big)\big(y_i-\beta_0-\beta_1(x_i-x_0)\big)^2,\qquad
+  \hat f(x_0)=\hat\beta_0$$<p
+    >Fit a small weighted line near \(x_0\) and read off its height there. A weighted average is
+    biased wherever the neighbours are lopsided, which always happens at the ends of the data, where
+    all neighbours lie on one side. A local line corrects for the slope and removes that bias.</p
+  >
+  <h4>Choosing h without a test set</h4>$$\mathrm{CV}(h)=\frac1n\sum_{i=1}^n\big(y_i-\hat
+  f_{-i}(x_i)\big)^2$$<p
+    >Predict each point from all the <em>other</em> points and average the squared misses. Training
+    error is useless for this choice, because it falls to zero as \(h\to0\) when each point simply
+    predicts itself. Leave-one-out error has a real minimum, shown on the right.</p
+  >
+  <h4>Where this leads</h4
+  ><p
+    >The same weights \(K\) reappear as the kernel in kernel ridge regression, Gaussian processes
+    and support vector machines, and the weighted average is the ancestor of attention in
+    transformers, where the weights are learned.</p
+  ></template
+>
+
+<template data-part="question"
+  >Why does training error go to zero as the bandwidth shrinks?</template
+>
+
+<template data-part="answer"
+  >With a tiny bandwidth the only point with any weight near xᵢ is the point itself, so the
+  prediction there is exactly yᵢ. That is memorising, and it says nothing about how the method does
+  on new points. Leave-one-out error removes each point before predicting it, so it cannot cheat
+  this way.</template
+>

@@ -1,0 +1,158 @@
+<template data-part="lede"
+  >Start with a rule so simple it is barely better than a coin toss: one straight cut. See which
+  points it gets wrong, make those points heavier, and fit the next cut to the reweighted data. Add
+  the cuts together, each with a vote in proportion to its accuracy.</template
+>
+
+<template data-part="intro"
+  ><p
+    >A student revising for an exam does not reread the whole book each evening. They work through
+    practice questions, mark the ones they got wrong, and spend the next session on those. Boosting
+    trains a sequence of simple models the same way: each new one concentrates on the examples its
+    predecessors found hard. Individually each model is weak. Together, weighted by how reliable
+    each proved to be, they are strong. Bagging built its trees independently and in parallel;
+    boosting builds them one after another, each depending on the last.</p
+  >
+</template>
+
+<template data-part="left-caption"
+  >The data, and what the model predicts everywhere (click to add a point, drag to move
+  one)</template
+>
+
+<template data-part="right-figure"
+  ><figure class="fig"
+    ><figcaption
+      >Top: the vote weight α of each learner. Bottom: error as learners are added</figcaption
+    ><canvas
+      class="short"
+      id="adaboost-r"
+      role="img"
+      aria-label="Top: the vote weight α of each learner. Bottom: error as learners are added"
+    ></canvas></figure
+></template>
+
+<template data-part="steps"
+  ><li>Give every training point the same weight.</li
+  ><li>Fit a weak learner (one cut) to the weighted points.</li
+  ><li>Add up the weight of the points it gets wrong: its weighted error ε.</li
+  ><li>Give it a vote α = ½ ln((1 − ε)/ε). Small error, big vote.</li
+  ><li
+    >Multiply the weight of each point it got wrong by e^α and each it got right by e^−α. Go back to
+    step 2.</li
+  ></template
+>
+
+<template data-part="animation-controls"
+  ><div class="row"
+    ><button class="btn go" id="adaboost-play" type="button">Add learners</button
+    ><button class="btn" id="adaboost-step" type="button">One step</button
+    ><button class="btn" id="adaboost-reset" type="button">Start over</button></div
+  ><p class="status" id="adaboost-note" role="status"></p
+></template>
+
+<template data-part="model-controls"
+  ><template
+    data-value="40"
+    data-step="1"
+    data-max="100"
+    data-min="1"
+    data-label="Number of learners"
+    data-id="adaboost-B"
+    data-control="slider"
+  ></template
+  ><template
+    data-value="1"
+    data-step="1"
+    data-max="3"
+    data-min="1"
+    data-label="Depth of each learner (1 = a single cut)"
+    data-id="adaboost-depth"
+    data-control="slider"
+  ></template
+></template>
+
+<template data-part="datasets"
+  ><option value="moons">Two moons</option><option value="circles">Ring around a core</option
+  ><option value="overlap">Two overlapping clouds</option><option value="blobs">Two clouds</option
+  ><option value="xor">Checkerboard (XOR)</option></template
+>
+
+<template data-part="point-count"
+  ><template
+    data-value="120"
+    data-step="2"
+    data-max="300"
+    data-min="20"
+    data-label="Number of points"
+    data-id="adaboost-n"
+    data-control="slider"
+  ></template
+></template>
+
+<template data-part="readouts"
+  ><div><dt>Learners so far</dt><dd data-r="k">–</dd></div
+  ><template
+    data-class="hl2"
+    data-label="Weighted error of the latest"
+    data-key="er"
+    data-control="readout"
+  ></template
+  ><template
+    data-class="hl"
+    data-label="Its vote weight α"
+    data-key="al"
+    data-control="readout"
+  ></template
+  ><div><dt>Heaviest point, relative to average</dt><dd data-r="mw">–</dd></div></template
+>
+
+<template data-part="tryit"
+  >Step through the first five learners. The rings show each point’s weight: watch them swell on the
+  points that keep being misclassified. On the ring-around-a-core data, how can a sum of straight
+  cuts make a round boundary? Then add noise and run 100 learners: look at the heaviest
+  point.</template
+>
+
+<template data-part="math"
+  ><h4>The algorithm</h4
+  ><p>Labels \(y_i=\pm1\). Start with weights \(w_i=1/n\). For \(m=1,\dots,M\):</p
+  >$$\varepsilon_m=\sum_{i}w_i\,\mathbb 1\big[h_m(\mathbf x_i)\ne y_i\big],\qquad
+  \alpha_m=\tfrac12\ln\frac{1-\varepsilon_m}{\varepsilon_m}$$$$w_i\leftarrow\frac{w_i\,\exp\!\big(-\alpha_m\,y_i\,h_m(\mathbf
+  x_i)\big)}{Z_m}$$<p
+    >where \(h_m\) is the weak learner fitted to the weighted data and \(Z_m\) rescales the weights
+    to sum to 1. The final classifier is a weighted vote:</p
+  >$$F(\mathbf x)=\sum_{m=1}^{M}\alpha_m\,h_m(\mathbf x),\qquad \hat y=\operatorname{sign}F(\mathbf
+  x).$$ <h4>Reading the formulas</h4
+  ><p
+    >\(\alpha_m\) is zero when \(\varepsilon_m=\tfrac12\) (a coin toss earns no vote) and grows as
+    the error shrinks. The update multiplies the weight of a misclassified point by \(e^{\alpha_m}\)
+    and of a correct one by \(e^{-\alpha_m}\). After the update, the learner just fitted has
+    weighted error exactly \(\tfrac12\) on the new weights: the next learner is forced to find
+    something different.</p
+  >
+  <h4>Why it works</h4
+  ><p>AdaBoost is gradient descent, one learner at a time, on the exponential loss</p
+  >$$L=\sum_i\exp\!\big(-y_i\,F(\mathbf x_i)\big).$$<p
+    >If every weak learner has error at most \(\tfrac12-\gamma\), the training error falls at least
+    as fast as \(e^{-2\gamma^2M}\): exponentially. Each stump has high bias; adding them removes
+    bias. Boosting attacks bias, where bagging attacked variance.</p
+  >
+  <h4>Its weakness</h4
+  ><p
+    >The exponential loss punishes a badly misclassified point without limit. A mislabelled point
+    gets heavier every round until the whole ensemble bends to accommodate it. AdaBoost is sensitive
+    to label noise and outliers; gradient boosting with a gentler loss is the usual remedy.</p
+  ></template
+>
+
+<template data-part="question"
+  >A weak learner has weighted error 0.7, worse than chance. What does AdaBoost do with
+  it?</template
+>
+
+<template data-part="answer"
+  >Its vote weight α = ½ ln(0.3 / 0.7) is negative. AdaBoost uses it upside down: a rule that is
+  wrong 70% of the time is right 70% of the time when reversed. Only an error of exactly one half is
+  useless.</template
+>

@@ -1,0 +1,218 @@
+<template data-part="lede"
+  >k-means gives every point to exactly one cluster. A Gaussian mixture says each cluster is a bell
+  shape, and lets a point belong 70% to one cluster and 30% to another. The EM algorithm fits it
+  with two alternating steps. Start in one dimension, where every part of the idea can be seen, then
+  move to two.</template
+>
+
+<template data-part="intro"
+  ><p
+    >Suppose you measure the heights of a crowd without recording who is an adult and who is a
+    child. The histogram has two humps. If you knew who belonged to which group, fitting a bell
+    curve to each group would be easy. If you knew the two bell curves, you could say for any height
+    how likely it is to be a child's. You know neither, so you guess the curves, compute everyone's
+    probable group, refit the curves using those probabilities as weights, and repeat. That loop is
+    the EM algorithm, and the pair of bell curves is a Gaussian mixture.</p
+  >
+</template>
+
+<template data-part="stage"
+  ><div class="row seg" id="gm-dim" role="group" aria-label="Number of dimensions"
+    ><button class="btn" type="button" data-v="1">One Dimension</button
+    ><button class="btn" type="button" data-v="2">Two Dimensions</button
+    ><button class="btn" type="button" data-v="3">Two Dimensions, Seen as Hills</button></div
+  >
+  <p class="cap" id="gm-cap"></p>
+  <div class="stage"
+    ><figure class="fig"
+      ><figcaption id="gm-fc">The data and the clusters</figcaption
+      ><canvas
+        class="short"
+        id="gm-c"
+        role="img"
+        aria-label="Data with the fitted Gaussian clusters"
+      ></canvas
+      ><div id="gm-vb" style="display:none"><template data-control="rotation"></template></div
+    ></figure>
+    <figure class="fig"
+      ><figcaption
+        >Top: how the clusters share your point. Middle: each cluster’s share of all the points.
+        Bottom: log-likelihood after each step</figcaption
+      ><canvas
+        class="short"
+        id="gm-r"
+        role="img"
+        aria-label="Responsibilities of your point, cluster weights and the log-likelihood curve"
+      ></canvas></figure
+  ></div>
+  <figure class="fig" style="margin-top:20px"
+    ><figcaption
+      >The numbers behind the picture: every cluster’s weight, centre and spread right
+      now</figcaption
+    ><div class="ctab" id="gm-tab"></div
+  ></figure>
+  <div class="howto"
+    ><div
+      ><h3>How it works, step by step</h3
+      ><ol id="gm-steps"
+        ><li>Start with K bell shapes: a centre, a spread and a weight for each.</li
+        ><li
+          >E-step: for every point, work out what share of it each bell is responsible for. Nothing
+          moves; only the colours change.</li
+        ><li
+          >M-step: move each bell to the weighted average of its points, set its spread to their
+          weighted spread, and set its weight to its share of all the points. Only the bells
+          change.</li
+        ><li>Repeat steps 2 and 3 until the log-likelihood stops rising.</li></ol
+      ></div
+    ><div><h3>What just happened</h3><p class="live" id="gm-live" role="status"></p></div
+  ></div>
+  <div class="controls"
+    ><template data-label="Animation" data-control="group"
+      ><div class="row"
+        ><button class="btn go" id="gm-play" type="button">Run</button
+        ><button class="btn" id="gm-step" type="button">One step</button
+        ><button class="btn" id="gm-reset" type="button">Start over</button></div
+      ><template data-unit="rounds" data-id="gm" data-control="run-limit"></template
+    ></template>
+    <template data-label="The model" data-control="group"
+      ><template
+        data-value="2"
+        data-step="1"
+        data-max="6"
+        data-min="1"
+        data-label="Number of clusters K"
+        data-id="gm-K"
+        data-control="slider"
+      ></template
+      ><label class="ctl" for="gm-cov" id="gm-covl"
+        ><span>Shape each bell may take</span
+        ><select id="gm-cov"
+          ><option value="full">Any ellipse (full covariance)</option
+          ><option value="diag">Ellipse along the axes (diagonal)</option
+          ><option value="sph">Circle (spherical)</option></select
+        ></label
+      ></template
+    >
+    <template data-label="The data" data-control="group"
+      ><label class="ctl" for="gm-ds"
+        ><span>Data set</span
+        ><select id="gm-ds"
+          ><option value="h2" selected>Heights of children and adults (simulated)</option
+          ><option value="h3">Three humps</option
+          ><option value="hov">Two overlapping humps</option></select
+        ></label
+      ><template
+        data-value="240"
+        data-step="1"
+        data-max="500"
+        data-min="40"
+        data-label="Number of points"
+        data-id="gm-n"
+        data-control="slider"
+      ></template
+      ><div class="row"
+        ><button class="btn" id="gm-new" type="button">New random sample</button
+        ><label class="btn file"
+          >Upload a CSV<input type="file" id="gm-file" accept=".csv,.txt,text/csv" /></label></div
+      ><p class="status" id="gm-st" role="status"></p></template
+  ></div>
+  <dl class="read"
+    ><template data-label="Rounds so far" data-key="it" data-control="readout"></template
+    ><template
+      data-class="hl"
+      data-label="Log-likelihood"
+      data-key="ll"
+      data-control="readout"
+    ></template
+    ><template data-label="Rise in the last round" data-key="dl" data-control="readout"></template
+    ><template
+      data-class="hl2"
+      data-label="Points shared between clusters (none above 90%)"
+      data-key="sh"
+      data-control="readout"
+    ></template
+    ><template data-label="Status" data-key="st" data-control="readout"></template></dl
+></template>
+
+<template data-part="tryit"
+  >In One Dimension, press Start over and use One step. After each E-step look only at the colours
+  of the dots and the band under them; after each M-step look only at how the curves moved. Put your
+  point where two curves cross and read the top-right bar. Then choose Three Humps and set K to 3.
+  In Two Dimensions, pick Three Stretched Groups with K = 3 and watch the ellipses turn; then
+  restrict the shape to Circle and see what is lost. Seen as Hills shows the same fit as a
+  landscape.</template
+>
+
+<template data-part="math"
+  ><h4>The model</h4
+  ><p
+    >The data are assumed to come from K Gaussians. Cluster \(k\) has a weight \(\pi_k\) (its share
+    of the data, with \(\sum_k\pi_k=1\)), a mean \(\boldsymbol\mu_k\) and a covariance matrix
+    \(\boldsymbol\Sigma_k\). The density of a point is</p
+  >$$p(\mathbf x)=\sum_{k=1}^{K}\pi_k\,\mathcal N(\mathbf
+  x\mid\boldsymbol\mu_k,\boldsymbol\Sigma_k).$$<p
+    >We want the parameters that maximise the log-likelihood of the data,</p
+  >$$\ell=\sum_{i=1}^{n}\log\sum_{k=1}^{K}\pi_k\,\mathcal N(\mathbf
+  x_i\mid\boldsymbol\mu_k,\boldsymbol\Sigma_k).$$<p
+    >The sum inside the logarithm prevents a closed-form answer, which is why an iterative method is
+    needed.</p
+  >
+  <h4>E-step: responsibilities</h4
+  ><p
+    >With the current parameters, Bayes' rule gives the probability that point \(i\) came from
+    cluster \(k\):</p
+  >$$r_{ik}=\frac{\pi_k\,\mathcal N(\mathbf
+  x_i\mid\boldsymbol\mu_k,\boldsymbol\Sigma_k)}{\sum_{j}\pi_j\,\mathcal N(\mathbf
+  x_i\mid\boldsymbol\mu_j,\boldsymbol\Sigma_j)} .$$<p
+    >These are the colours in the picture: a point halfway between two clusters is drawn in a blend
+    of their colours.</p
+  >
+  <h4>M-step: weighted fits</h4
+  ><p
+    >Treat each \(r_{ik}\) as a fraction of a point. With \(N_k=\sum_i r_{ik}\) the effective number
+    of points in cluster \(k\),</p
+  >$$\pi_k=\frac{N_k}{n},\qquad\boldsymbol\mu_k=\frac{1}{N_k}\sum_i r_{ik}\,\mathbf
+  x_i,\qquad\boldsymbol\Sigma_k=\frac{1}{N_k}\sum_i r_{ik}\,(\mathbf x_i-\boldsymbol\mu_k)(\mathbf
+  x_i-\boldsymbol\mu_k)^{\top}.$$<p
+    >These are the ordinary maximum-likelihood formulas for a Gaussian from the first module, with
+    every point counted according to its responsibility.</p
+  >
+  <h4>Why it works</h4
+  ><p
+    >Each E-step followed by an M-step can never lower \(\ell\). The E-step builds a lower bound on
+    \(\ell\) that touches it at the current parameters, and the M-step moves to the top of that
+    bound. So the curve in the lower right rises at every step and flattens at a local maximum. Like
+    k-means, EM finds a local optimum that depends on the start, so it is usually started from a
+    k-means++ seeding and restarted a few times.</p
+  >
+  <h4>How it relates to k-means</h4
+  ><p
+    >Force every covariance to be the same small circle, \(\boldsymbol\Sigma_k=\sigma^2\mathbf I\),
+    and let \(\sigma\to0\). Each responsibility becomes 0 or 1, the E-step becomes "assign to the
+    nearest centre" and the M-step becomes "move to the average". k-means is the hard, round limit
+    of a Gaussian mixture. Choosing Circle in the controls shows the halfway case.</p
+  >
+  <h4>Cautions</h4
+  ><p
+    >A bell can shrink onto a single point, where its density, and with it the likelihood, grows
+    without bound. Implementations add a small constant to the diagonal of each
+    \(\boldsymbol\Sigma_k\), as this page does. More clusters always raise the likelihood, so K is
+    chosen with a penalty for the number of parameters, such as BIC \(=-2\ell+p\log n\), or by
+    likelihood on held-out data. And a mixture of Gaussians still cannot follow a curved shape such
+    as the two moons with K = 2: it needs several bells per moon.</p
+  ></template
+>
+
+<template data-part="question"
+  >After EM converges, a point has responsibilities 0.5 and 0.5 for two clusters. k-means would have
+  put it firmly in one. Which answer is more useful?</template
+>
+
+<template data-part="answer"
+  >The 0.5 and 0.5 is information that k-means throws away: the model is telling you that this point
+  is on the border and that its membership is uncertain. If a decision depends on the cluster, for
+  example which offer to send a customer, knowing that the assignment is a coin flip matters. A hard
+  label can always be recovered from the soft one by taking the larger share, but not the other way
+  round.</template
+>

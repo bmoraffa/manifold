@@ -1,0 +1,238 @@
+<template data-part="lede"
+  >Start with a degree-10 polynomial that overfits. Now charge a price for large coefficients. As
+  the price λ rises the curve calms down: ridge shrinks every coefficient, lasso switches some off
+  entirely.</template
+>
+
+<template data-part="intro"
+  ><p
+    >An overfitted curve gets its wild swings from huge coefficients of opposite sign that almost
+    cancel. So instead of forbidding high degrees, make large coefficients expensive. The model can
+    still use them, but only where the data pays for it. One dial, \(\lambda\), sets the price: at
+    zero you get the wild least-squares fit, at a very high price you get a flat line.</p
+  >
+</template>
+
+<template data-part="stage"
+  ><div
+    class="stage"
+    style="grid-template-columns:minmax(0,1fr) minmax(0,1.25fr);margin-bottom:30px"
+    ><figure class="fig"
+      ><figcaption>What the penalty does to one coefficient</figcaption
+      ><canvas
+        class="sq"
+        id="rg-s1"
+        role="img"
+        aria-label="Coefficient after the penalty against coefficient before, for ridge and lasso"
+      ></canvas
+    ></figure>
+    <figure class="fig"
+      ><figcaption
+        >On a problem: predicting an exam score from 12 measurements, of which only 3 matter
+        (simulated)</figcaption
+      ><canvas
+        class="sq"
+        id="rg-ap"
+        role="img"
+        aria-label="True, least-squares, ridge and lasso coefficients for twelve named features"
+      ></canvas></figure
+  ></div>
+  <div class="stage"
+    ><figure class="fig"
+      ><figcaption>The data and the degree-10 fit</figcaption
+      ><canvas
+        class="short"
+        id="rg-c"
+        role="img"
+        aria-label="Scatter plot with a regularized polynomial fit"
+      ></canvas
+    ></figure>
+    <figure class="fig"
+      ><figcaption>Each coefficient as the price λ changes</figcaption
+      ><canvas
+        class="short"
+        id="rg-p"
+        role="img"
+        aria-label="Coefficient paths against the regularization strength"
+      ></canvas></figure
+  ></div>
+  <div class="stage" style="margin-top:26px"
+    ><figure class="fig"
+      ><figcaption>The ten coefficients now (outline = with no penalty)</figcaption
+      ><canvas
+        class="short"
+        id="rg-b"
+        role="img"
+        aria-label="Bar chart of the coefficients, shrinking or dropping to zero"
+      ></canvas
+    ></figure>
+    <figure class="fig"
+      ><figcaption>Why: the norm ball meets the loss (two coefficients; drag the cross)</figcaption
+      ><canvas
+        class="sq"
+        id="rg-g"
+        style="touch-action:none;cursor:move"
+        role="img"
+        aria-label="Loss contours touching the L1 or L2 norm ball"
+      ></canvas></figure
+  ></div>
+  <div class="controls"
+    ><template data-label="Animation" data-control="group"
+      ><div class="row"
+        ><button class="btn go" id="rg-play" type="button">Sweep λ</button
+        ><button class="btn" id="rg-new" type="button">New random sample</button></div
+      ></template
+    >
+    <template data-label="The penalty" data-control="group"
+      ><template
+        data-value="20"
+        data-step="1"
+        data-max="59"
+        data-min="0"
+        data-label="Price λ (log scale)"
+        data-id="rg-l"
+        data-control="slider"
+      ></template
+      ><template
+        data-value="0"
+        data-step="0.05"
+        data-max="1"
+        data-min="0"
+        data-label="Mix: 0 = ridge, 1 = lasso"
+        data-id="rg-a"
+        data-control="slider"
+      ></template
+      ><div class="row seg" id="rg-kind"
+        ><button class="btn" type="button" data-a="0">Ridge</button
+        ><button class="btn" type="button" data-a="1">Lasso</button
+        ><button class="btn" type="button" data-a="0.5">Elastic Net</button></div
+      ></template
+    >
+    <template data-label="The data" data-control="group"
+      ><template
+        data-value="0.3"
+        data-step="0.01"
+        data-max="0.8"
+        data-min="0"
+        data-label="Noise σ"
+        data-id="rg-s"
+        data-control="slider"
+      ></template
+      ><template
+        data-value="26"
+        data-step="1"
+        data-max="120"
+        data-min="14"
+        data-label="Number of points"
+        data-id="rg-n"
+        data-control="slider"
+      ></template></template
+  ></div>
+  <dl class="read"
+    ><template data-label="Price λ" data-key="l" data-control="readout"></template
+    ><template
+      data-class="hl3"
+      data-label="Train error (MSE)"
+      data-key="tr"
+      data-control="readout"
+    ></template
+    ><template
+      data-class="hl2"
+      data-label="Test error (MSE)"
+      data-key="te"
+      data-control="readout"
+    ></template
+    ><template
+      data-class="hl"
+      data-label="Coefficients still in use, of 10"
+      data-key="nz"
+      data-control="readout"
+    ></template
+    ><template data-label="L1 norm ‖w‖₁ = Σ|wⱼ|" data-key="n1" data-control="readout"></template
+    ><template data-label="L2 norm ‖w‖₂ = √Σwⱼ²" data-key="nm" data-control="readout"></template
+    ><template
+      data-label="λ with the lowest test error"
+      data-key="bl"
+      data-control="readout"
+    ></template></dl
+></template>
+
+<template data-part="tryit"
+  >Sweep λ under Ridge and watch the bars: they all shrink, but does any reach exactly zero? Switch
+  to Lasso and sweep again. In the last picture, drag the cross and find where the lasso answer
+  lands on an axis.</template
+>
+
+<template data-part="math"
+  ><h4>The penalised loss</h4>$$\min_{\mathbf w}\ \frac{1}{2n}\lVert\mathbf y-X\mathbf
+  w\rVert^2+\lambda\Big(\alpha\lVert\mathbf w\rVert_1+\frac{1-\alpha}{2}\lVert\mathbf
+  w\rVert_2^2\Big)$$<p
+    >\(\alpha=0\) is <b>ridge</b> (squared penalty), \(\alpha=1\) is <b>lasso</b> (absolute-value
+    penalty), anything between is <b>elastic net</b>. The features are standardised first so that
+    the price is the same for every coefficient, and the intercept is not penalised.</p
+  >
+  <h4>What happens to a single coefficient</h4
+  ><p
+    >When the features are uncorrelated and standardised, each coefficient can be handled on its
+    own, and both penalties have a one-line effect on the least-squares value \(\hat w\) (the first
+    picture):</p
+  >$$w_{\text{ridge}}=\frac{\hat w}{1+\lambda},\qquad w_{\text{lasso}}=\operatorname{sign}(\hat
+  w)\,\max\big(|\hat w|-\lambda,\ 0\big).$$<p
+    >Ridge multiplies every coefficient by the same factor below one: large ones lose the most, and
+    none ever arrives at zero. Lasso subtracts the same amount \(\lambda\) from every coefficient's
+    size: large ones barely notice, and any coefficient smaller than \(\lambda\) is wiped out. The
+    second picture shows the consequence on a problem with 12 measurements of which 9 are pure
+    noise. Least squares gives every one of them a non-zero weight. Ridge makes all the weights
+    smaller. Lasso removes most of the noise features altogether and reports a shorter model.</p
+  >
+  <h4>The two norms</h4>$$\lVert\mathbf w\rVert_1=\sum_j|w_j|,\qquad \lVert\mathbf
+  w\rVert_2=\sqrt{\sum_jw_j^2}$$<p
+    >Both measure the size of the coefficient vector. Points at the same \(L_2\) norm form a circle;
+    points at the same \(L_1\) norm form a diamond with corners on the axes. Paying a price
+    \(\lambda\) per unit of norm is the same as fitting as well as you can while staying inside a
+    ball of some fixed size, where a larger \(\lambda\) means a smaller ball:</p
+  >$$\min_{\mathbf w}\ \lVert\mathbf y-X\mathbf w\rVert^2\quad\text{subject to}\quad\lVert\mathbf
+  w\rVert\le s.$$<p
+    >The last picture shows this for two coefficients. The thin ellipses are the loss, lowest at the
+    cross. The answer is where the smallest ellipse first touches the shaded ball. A circle has no
+    corners, so the touching point is almost never on an axis: both coefficients shrink and neither
+    is zero. A diamond sticks out furthest at its corners, so the ellipse very often touches a
+    corner first, and at a corner one coefficient is exactly zero. Drag the cross around to see how
+    large the set of positions is for which the diamond is hit at a corner.</p
+  >
+  <h4>Ridge shrinks</h4>$$\hat{\mathbf w}_{\text{ridge}}=(X^{\top}X+n\lambda I)^{-1}X^{\top}\mathbf
+  y$$<p
+    >Adding \(\lambda I\) makes the matrix safely invertible and pulls every coefficient toward zero
+    in proportion to its size. Large ones are pulled hard, small ones barely, so none arrives at
+    exactly zero. It is the MAP estimate under a Gaussian prior on the weights, the same pull toward
+    a prior you saw in the Gaussian module.</p
+  >
+  <h4>Lasso selects</h4
+  ><p>For one coefficient with the others held fixed, the lasso solution is a soft threshold:</p
+  >$$w_j\leftarrow\frac{S(\rho_j,\ \lambda\alpha)}{1+\lambda(1-\alpha)},\qquad
+  S(\rho,\tau)=\operatorname{sign}(\rho)\,\max\big(|\rho|-\tau,\ 0\big),\qquad
+  \rho_j=\tfrac1n\mathbf x_j^{\top}\big(\mathbf y-X_{-j}\mathbf w_{-j}\big)$$<p
+    >The absolute-value penalty pulls with the same force however small the coefficient is, so once
+    a feature's correlation with the residual \(|\rho_j|\) drops below \(\lambda\alpha\) the
+    coefficient is set to exactly zero. Lasso does feature selection as a side effect. It is the MAP
+    estimate under a Laplace prior. Cycling this update over the coefficients is coordinate descent,
+    which is how the picture is computed.</p
+  >
+  <h4>Choosing λ</h4
+  ><p
+    >Training error always rises with \(\lambda\). Test error falls first, as variance is removed,
+    then rises as the model becomes too stiff. The best \(\lambda\) sits at the bottom of that curve
+    and is found on held-out data.</p
+  ></template
+>
+
+<template data-part="question"
+  >Two features are almost identical copies of each other. What do ridge and lasso each do with
+  them?</template
+>
+
+<template data-part="answer"
+  >Ridge splits the weight evenly between the two. Lasso tends to keep one and set the other to
+  zero, and which one it keeps can change between samples. Elastic net was designed for this case:
+  it selects like lasso but keeps correlated features together.</template
+>

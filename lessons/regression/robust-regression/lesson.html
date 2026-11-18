@@ -1,0 +1,207 @@
+<template data-part="lede"
+  >Least squares punishes a miss by its square, so a single wild measurement, ten times further off
+  than the rest, pulls a hundred times harder. One typing error can tilt the whole line. Robust
+  regression changes the punishment so that points far from the crowd count for less, or for
+  nothing. Drag a point away from the others and watch which line follows it.</template
+>
+
+<template data-part="intro"
+  ><p
+    >Ask twenty people to estimate the length of a table, and suppose one of them answers in inches
+    while the rest answer in centimetres. The average of the twenty answers is ruined. The median is
+    fine. Least squares is the average: it listens to everyone in proportion to how loudly they
+    disagree. Robust regression behaves more like the median. It forms a first opinion, notices who
+    is far from it, and turns their volume down before asking again.</p
+  >
+</template>
+
+<template data-part="stage"
+  ><div class="row seg" id="rr-d" role="group" aria-label="Data"
+    ><button class="btn" type="button" data-v="one">One Wild Point</button
+    ><button class="btn" type="button" data-v="few">A Few Bad Readings</button
+    ><button class="btn" type="button" data-v="many">A Third of the Data Is Wrong</button
+    ><button class="btn" type="button" data-v="clean">Clean Data</button></div
+  >
+  <div class="stage"
+    ><figure class="fig"
+      ><figcaption
+        >Dashed: least squares. Solid: the robust line. Thin grey: the line that generated the good
+        data. Each dot is drawn as large as the weight the robust fit currently gives it. Drag any
+        dot; click empty space to add one</figcaption
+      ><canvas
+        class="short"
+        id="rr-c"
+        role="img"
+        aria-label="Data with least squares and robust lines"
+      ></canvas
+    ></figure>
+    <figure class="fig"
+      ><figcaption
+        >Top: the penalty for a miss of a given size, least squares (dashed) and the robust choice
+        (solid). Bottom: the weight a point receives against the size of its miss. Dots: the data
+        points at their current misses</figcaption
+      ><canvas
+        class="short"
+        id="rr-r"
+        role="img"
+        aria-label="Loss and weight functions"
+      ></canvas></figure
+  ></div>
+  <div class="howto"
+    ><div
+      ><h3>How it works, step by step</h3
+      ><ol id="rr-steps"
+        ><li>Start from a first line and measure every point’s miss (its residual).</li
+        ><li
+          >Estimate the typical size of a miss from the middle of the data, ignoring the
+          extremes.</li
+        ><li>Give each point a weight: 1 if its miss is ordinary, less if it is large.</li
+        ><li>Refit the line by weighted least squares.</li
+        ><li>The misses have changed, so recompute the weights and refit.</li
+        ><li>Stop when the line no longer moves.</li></ol
+      ></div
+    ><div><h3>What just happened</h3><p class="live" id="rr-live" role="status"></p></div
+  ></div>
+  <div class="controls"
+    ><template data-label="Animation" data-control="group"
+      ><div class="row"
+        ><button class="btn go" id="rr-play" type="button">Run</button
+        ><button class="btn" id="rr-step" type="button">One refit</button
+        ><button class="btn" id="rr-reset" type="button">Start over</button></div
+      ><template data-unit="refits" data-id="rr" data-control="run-limit"></template
+    ></template>
+    <template data-label="The penalty" data-control="group"
+      ><div class="row seg" id="rr-m" role="group" aria-label="Method"
+        ><button class="btn" type="button" data-v="huber">Huber</button
+        ><button class="btn" type="button" data-v="tukey">Tukey</button
+        ><button class="btn" type="button" data-v="l1">Absolute Value</button></div
+      ><template
+        data-value="1.35"
+        data-step="0.05"
+        data-max="6"
+        data-min="0.5"
+        data-label="Cut-off, in typical-miss units"
+        data-id="rr-k"
+        data-control="slider"
+      ></template
+      ><div class="row seg" id="rr-s" role="group" aria-label="First line" style="margin-top:6px"
+        ><button class="btn" type="button" data-v="ols">Start from Least Squares</button
+        ><button class="btn" type="button" data-v="lms"
+          >Start from a Search over Pairs of Points</button
+        ></div
+      ></template
+    >
+    <template data-label="Data" data-control="group"
+      ><div class="row"><button class="btn" id="rr-new" type="button">New data</button></div
+      ><template data-id="rr" data-control="xy-upload"></template></template
+  ></div>
+  <dl class="read"
+    ><template data-label="Refits so far" data-key="it" data-control="readout"></template
+    ><template
+      data-label="True line: intercept, slope"
+      data-key="tr"
+      data-control="readout"
+    ></template
+    ><template
+      data-class="hl2"
+      data-label="Least squares"
+      data-key="ls"
+      data-control="readout"
+    ></template
+    ><template data-class="hl" data-label="Robust" data-key="rb" data-control="readout"></template
+    ><template
+      data-label="Typical miss (robust scale)"
+      data-key="sc"
+      data-control="readout"
+    ></template
+    ><template
+      data-label="Points with weight below one half"
+      data-key="dn"
+      data-control="readout"
+    ></template></dl
+></template>
+
+<template data-part="tryit"
+  >On One Wild Point, press One refit a few times and watch the wild dot shrink as its weight falls.
+  Then drag it further away, and then towards the far right end. Which line follows it? Choose A
+  Third of the Data Is Wrong with Huber: does the robust line get anywhere near the grey one? Switch
+  to Tukey. Still no. Now switch the first line to Start from a Search over Pairs of Points and run
+  Tukey again. Then try Huber from that same start. Why does the starting line matter for Tukey and
+  not for Huber? Finally choose Clean Data: how much do you lose by being robust when nothing is
+  wrong?</template
+>
+
+<template data-part="math"
+  ><h4>From squared error to a gentler penalty</h4
+  ><p
+    >Least squares minimizes \(\sum_i r_i^2\) with \(r_i=y_i-a-b\,x_i\). An M-estimator replaces the
+    square with a function \(\rho\) that grows more slowly for large misses:</p
+  >$$\min_{a,b}\ \sum_i\rho\!\Big(\frac{r_i}{s}\Big),$$<p
+    >where \(s\) is a robust estimate of the typical miss. This page uses the median absolute
+    deviation, \(s=\operatorname{median}\lvert r_i-\operatorname{median}(r)\rvert/0.6745\), which
+    half of the data can be wrong about without spoiling it.</p
+  >
+  <h4>Three penalties</h4>$$\rho_{\text{Huber}}(u)=\begin{cases}\tfrac12u^2&\lvert u\rvert\le
+  k\\k\lvert u\rvert-\tfrac12k^2&\lvert
+  u\rvert>k\end{cases}\qquad\rho_{\text{Tukey}}(u)=\begin{cases}\tfrac{c^2}{6}\Big[1-\big(1-\tfrac{u^2}{c^2}\big)^3\Big]&\lvert
+  u\rvert\le c\\\tfrac{c^2}{6}&\lvert u\rvert>c\end{cases}\qquad\rho_{\text{abs}}(u)=\lvert
+  u\rvert.$$<p
+    >Huber's penalty (1964) is a square near zero and a straight line beyond the cut-off, so large
+    misses still pull, but with a constant force. Tukey's levels off completely: beyond the cut-off
+    a point exerts no pull at all. The absolute value pulls every point with the same force however
+    far away it is, which is what makes the median robust.</p
+  >
+  <h4>Iteratively reweighted least squares</h4
+  ><p
+    >Setting the derivative to zero gives a weighted least-squares problem with weights that depend
+    on the residuals:</p
+  >$$w_i=\frac{\rho'(u_i)}{u_i},\qquad w^{\text{Huber}}_i=\min\!\Big(1,\frac{k}{\lvert
+  u_i\rvert}\Big),\qquad w^{\text{Tukey}}_i=\Big(1-\frac{u_i^2}{c^2}\Big)^2\ \text{for }\lvert
+  u_i\rvert&lt;c,\ \text{else }0.$$<p
+    >Fix the weights, solve, recompute the weights, repeat. The run stops when intercept and slope
+    both change by less than \(10^{-5}\).</p
+  >
+  <h4>What can go wrong</h4
+  ><p
+    >Huber's penalty is convex: there is one best line and the iteration finds it from any start.
+    But its pull never drops to zero. When many points are bad, and above all when they sit together
+    at one end of the data, the line is dragged almost as far as the least-squares line. Tukey's
+    penalty ignores far points completely, which copes with much more contamination. The price is
+    that it is not convex. There can be several lines that each look best to the points they have
+    not discarded, and the answer depends on the first line. Started from least squares, which the
+    outliers have already tilted, it may throw away the good points instead of the bad ones.
+    Practical software starts from a very robust first fit. The one offered here tries the line
+    through every pair of data points and keeps the one whose median miss is smallest (least median
+    of squares): a line that half of the data can be wrong about.</p
+  >
+  <h4>Leverage</h4
+  ><p
+    >A point that is wrong in \(y\) near the middle of the data is easy to detect. A point far out
+    along the \(x\)-axis has <b>leverage</b>: the line pivots towards it, so its own residual stays
+    small and it keeps a high weight. Reweighting by residuals gives only limited protection against
+    such points.</p
+  >
+  <h4>The cost of caution</h4
+  ><p
+    >On clean Gaussian data least squares is the best possible estimator. Huber with \(k=1.345\) and
+    Tukey with \(c=4.685\) are chosen to keep 95% of that efficiency: a 5% insurance premium against
+    bad data.</p
+  ></template
+>
+
+<template data-part="question"
+  >With a third of the data wrong, Tukey started from least squares settles on a poor line, while
+  the same method started from the search over pairs finds the grey line. Nothing else changed.
+  Why?</template
+>
+
+<template data-part="answer"
+  >Tukey’s penalty gives zero weight to any point further than the cut-off from the current line.
+  Least squares has been pulled towards the bad third, so measured from that tilted line the
+  residuals are large everywhere and the robust scale is inflated; the reweighting then has no clear
+  group to discard and can lock on to a compromise. The line found by the search over pairs passes
+  through the good two-thirds, so measured from there the bad third is clearly far away, gets zero
+  weight at once, and the fit is finished using only good points. A penalty that can ignore points
+  entirely has more than one self-consistent answer, and the first line decides which one you
+  reach.</template
+>

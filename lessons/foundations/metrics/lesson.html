@@ -1,0 +1,164 @@
+<template data-part="lede"
+  >A classifier gives every case a score. A threshold turns scores into yes or no, and every case
+  lands in one of four boxes. Slide the threshold and watch what you gain and what you
+  pay.</template
+>
+
+<template data-part="intro"
+  ><p
+    >A smoke alarm can be wrong in two ways: it can stay silent in a fire, or go off when you make
+    toast. Turning up its sensitivity trades one mistake for the other, and no setting removes both
+    unless the alarm can tell smoke from toast perfectly. Every classifier has this dial. The right
+    setting depends on what each mistake costs, which is a question about the world, not about the
+    model.</p
+  >
+</template>
+
+<template data-part="stage"
+  ><div class="stage"
+    ><figure class="fig"
+      ><figcaption>Scores of the two classes, and the threshold</figcaption
+      ><canvas
+        class="short"
+        id="mt-c"
+        role="img"
+        aria-label="Score distributions of positives and negatives with a threshold"
+      ></canvas
+    ></figure>
+    <figure class="fig"
+      ><figcaption
+        >Every threshold at once: ROC curve (left) and precision–recall curve (right)</figcaption
+      ><canvas
+        class="short"
+        id="mt-r"
+        role="img"
+        aria-label="ROC curve and precision recall curve with the current threshold marked"
+      ></canvas></figure
+  ></div>
+  <div class="controls"
+    ><template data-label="Animation" data-control="group"
+      ><div class="row"
+        ><button class="btn go" id="mt-play" type="button">Sweep the threshold</button></div
+      ><template
+        data-value="0"
+        data-step="0.02"
+        data-max="4"
+        data-min="-4"
+        data-label="Threshold"
+        data-id="mt-t"
+        data-control="slider"
+      ></template
+    ></template>
+    <template data-label="The classifier" data-control="group"
+      ><template
+        data-value="1.8"
+        data-step="0.05"
+        data-max="4"
+        data-min="0"
+        data-label="How well it separates the classes"
+        data-id="mt-sep"
+        data-control="slider"
+      ></template></template
+    ><template data-label="The data" data-control="group"
+      ><template
+        data-value="0.3"
+        data-step="0.01"
+        data-max="0.99"
+        data-min="0.01"
+        data-label="Share of cases that are truly positive"
+        data-id="mt-pi"
+        data-control="slider"
+      ></template></template
+  ></div>
+  <dl class="read"
+    ><template
+      data-class="hl"
+      data-label="True positives (hits)"
+      data-key="tp"
+      data-control="readout"
+    ></template
+    ><template data-label="False negatives (misses)" data-key="fn" data-control="readout"></template
+    ><template
+      data-class="hl2"
+      data-label="False positives (false alarms)"
+      data-key="fp"
+      data-control="readout"
+    ></template
+    ><template data-label="True negatives" data-key="tn" data-control="readout"></template
+  ></dl>
+  <dl class="read"
+    ><template data-label="Accuracy" data-key="acc" data-control="readout"></template
+    ><template
+      data-class="hl2"
+      data-label="Precision"
+      data-key="pre"
+      data-control="readout"
+    ></template
+    ><template
+      data-class="hl"
+      data-label="Recall (true positive rate)"
+      data-key="rec"
+      data-control="readout"
+    ></template
+    ><template data-label="False positive rate" data-key="fpr" data-control="readout"></template
+    ><template data-label="F1 score" data-key="f1" data-control="readout"></template
+    ><template
+      data-class="hl3"
+      data-label="Area under the ROC curve"
+      data-key="auc"
+      data-control="readout"
+    ></template></dl
+></template>
+
+<template data-part="tryit"
+  >Set the share of positives to 0.02, as for a rare disease, and put the threshold far to the right
+  so the classifier says “no” to everyone. What is the accuracy? What is the recall? Then watch
+  which of the two curves on the right changes when you change the share of positives.</template
+>
+
+<template data-part="math"
+  ><h4>The confusion matrix</h4
+  ><p
+    >Out of every 1,000 cases the readouts count: <b>TP</b> positives correctly flagged,
+    <b>FN</b> positives missed, <b>FP</b> negatives wrongly flagged, <b>TN</b> negatives correctly
+    passed.</p
+  >
+  <h4>The rates</h4>$$\text{accuracy}=\frac{TP+TN}{\text{all}},\qquad
+  \text{precision}=\frac{TP}{TP+FP},\qquad \text{recall}=\frac{TP}{TP+FN},\qquad
+  \text{FPR}=\frac{FP}{FP+TN}$$$$F_1=\frac{2\cdot\text{precision}\cdot\text{recall}}{\text{precision}+\text{recall}}$$<p
+    ><b>Recall:</b> of the real positives, how many did I catch? <b>Precision:</b> of the cases I
+    flagged, how many were real? \(F_1\) is their harmonic mean, which is high only when both
+    are.</p
+  >
+  <h4>Why accuracy misleads</h4
+  ><p
+    >If 2% of cases are positive, answering "no" every time is 98% accurate and catches nothing.
+    With unbalanced classes look at precision and recall instead.</p
+  >
+  <h4>The ROC curve</h4
+  ><p
+    >Plot recall against the false positive rate for every threshold. A useless classifier follows
+    the diagonal; a perfect one hugs the top-left corner. The area under it has a direct meaning:</p
+  >$$\mathrm{AUC}=P\big(\text{score of a random positive}>\text{score of a random
+  negative}\big).$$<p
+    >Both axes are rates within one class, so the ROC curve does not move when the share of
+    positives changes. That makes it good for comparing classifiers and blind to class imbalance.</p
+  >
+  <h4>The precision–recall curve</h4
+  ><p
+    >Precision mixes the two classes, so it does depend on the share of positives. When positives
+    are rare, even a small false positive rate produces more false alarms than hits and precision
+    collapses. The precision–recall curve shows this; the ROC curve hides it.</p
+  ></template
+>
+
+<template data-part="question"
+  >A screening test for a rare disease has 99% recall and a 5% false positive rate. A patient tests
+  positive. Are they probably ill?</template
+>
+
+<template data-part="answer"
+  >Probably not. If 1 in 1,000 people has the disease, then of 1,000 tested about 1 is a true
+  positive and about 50 are false positives. Precision is about 2%. Set the share of positives to
+  0.01 and look at the precision readout.</template
+>

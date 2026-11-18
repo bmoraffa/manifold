@@ -1,0 +1,159 @@
+<template data-part="lede"
+  >A model always looks good on the data it was fitted to. To judge it honestly, hold some data
+  back. Cross-validation does this several times, with each block of data taking a turn as the
+  held-out part.</template
+>
+
+<template data-part="intro"
+  ><p
+    >A student who has seen the exam paper in advance will score well, and the score tells you
+    nothing. To learn what they know, set questions they have not seen. A model is the same: its
+    error on the training data is an exam it has already memorised. So hide part of the data during
+    fitting and score the model on that. Cross-validation is the frugal version: every point gets
+    used for fitting most of the time and for scoring exactly once.</p
+  >
+</template>
+
+<template data-part="stage"
+  ><div class="stage"
+    ><figure class="fig"
+      ><figcaption>This turn: fit on the filled points, score on the ringed ones</figcaption
+      ><canvas
+        class="short"
+        id="cv-c"
+        role="img"
+        aria-label="Data split into folds with the model fitted on the training folds"
+      ></canvas
+    ></figure>
+    <figure class="fig"
+      ><figcaption
+        >Top: error on each held-out block. Bottom: the estimate for every degree</figcaption
+      ><canvas
+        class="short"
+        id="cv-e"
+        role="img"
+        aria-label="Validation error per fold and cross-validation error against degree"
+      ></canvas></figure
+  ></div>
+  <div class="controls"
+    ><template data-label="Animation" data-control="group"
+      ><div class="row"
+        ><button class="btn go" id="cv-play" type="button">Rotate the folds</button
+        ><button class="btn" id="cv-new" type="button">New random sample</button></div
+      ></template
+    >
+    <template data-label="Cross-validation" data-control="group"
+      ><template
+        data-value="5"
+        data-step="1"
+        data-max="10"
+        data-min="2"
+        data-label="Number of folds k"
+        data-id="cv-k"
+        data-control="slider"
+      ></template
+      ><template
+        data-value="3"
+        data-step="1"
+        data-max="12"
+        data-min="1"
+        data-label="Polynomial degree being judged"
+        data-id="cv-d"
+        data-control="slider"
+      ></template></template
+    ><template data-label="The data" data-control="group"
+      ><template
+        data-value="40"
+        data-step="1"
+        data-max="150"
+        data-min="12"
+        data-label="Number of points"
+        data-id="cv-n"
+        data-control="slider"
+      ></template
+      ><template
+        data-value="0.3"
+        data-step="0.01"
+        data-max="0.8"
+        data-min="0"
+        data-label="Noise σ"
+        data-id="cv-s"
+        data-control="slider"
+      ></template></template
+  ></div>
+  <dl class="read"
+    ><template
+      data-class="hl2"
+      data-label="Cross-validation estimate"
+      data-key="cv"
+      data-control="readout"
+    ></template
+    ><template data-label="Spread across folds" data-key="sd" data-control="readout"></template
+    ><template
+      data-class="hl3"
+      data-label="Training error, for comparison"
+      data-key="tr"
+      data-control="readout"
+    ></template
+    ><template
+      data-class="hl"
+      data-label="True test error (10,000 fresh points)"
+      data-key="tt"
+      data-control="readout"
+    ></template
+    ><template
+      data-label="Degree cross-validation would pick"
+      data-key="pick"
+      data-control="readout"
+    ></template></dl
+></template>
+
+<template data-part="tryit"
+  >Compare the cross-validation estimate with the true test error, and both with the training error.
+  Which one is the liar? Then set k to 2 and to 10 and press “New random sample” a few times: which
+  k gives the steadier estimate?</template
+>
+
+<template data-part="math"
+  ><h4>Three sets, three jobs</h4
+  ><p
+    ><b>Training set:</b> fit the parameters. <b>Validation set:</b> compare models and choose
+    settings such as the degree or \(\lambda\). <b>Test set:</b> used once, at the very end, to
+    report how the chosen model will do. The third set is needed because choosing the best of many
+    models on the validation set is itself a form of fitting, so the winner's validation score is
+    optimistic.</p
+  >
+  <h4>k-fold cross-validation</h4
+  ><p
+    >Split the data into \(k\) blocks. For each block in turn, fit on the other \(k-1\) and measure
+    the error on that block:</p
+  >$$\mathrm{CV}_k=\frac1k\sum_{j=1}^{k}\ \frac{1}{|B_j|}\sum_{i\in B_j}\big(y_i-\hat
+  f^{(-j)}(x_i)\big)^2$$<p
+    >where \(\hat f^{(-j)}\) was fitted without block \(j\). With \(k=n\) each block is a single
+    point: leave-one-out.</p
+  >
+  <h4>Choosing k</h4
+  ><p
+    >Small \(k\) trains on much less data than you really have, so the estimate is pessimistic
+    (biased upward), and it depends heavily on how the split happened to fall. Large \(k\) trains on
+    nearly everything, so bias is small, but it costs \(k\) fits. \(k=5\) or \(10\) is the usual
+    compromise.</p
+  >
+  <h4>Using it</h4
+  ><p
+    >Compute \(\mathrm{CV}_k\) for each candidate model and pick the lowest, as in the bottom chart.
+    Then refit the winner on all the data. Any step that looks at the targets, including feature
+    selection and scaling, must be done inside each fold, not before the split.</p
+  ></template
+>
+
+<template data-part="question"
+  >You try 200 models and report the best cross-validation score as the expected accuracy. What is
+  wrong with that?</template
+>
+
+<template data-part="answer"
+  >The best of 200 scores is partly luck: some model will fit the quirks of the validation folds by
+  chance. The reported number is optimistic. Hold out a separate test set that plays no part in the
+  selection and report the winner’s score on that.</template
+>

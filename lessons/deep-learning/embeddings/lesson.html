@@ -1,0 +1,155 @@
+<template data-part="lede"
+  >A network cannot read letters; it needs numbers. The trick is to give every word a position on a
+  map and let the positions be learned from text alone, by one rule: words that appear in the same
+  company should sit close together. Here 28 words start scattered at random and sort themselves
+  into royalty, animals, food and cities without ever being told those groups exist.</template
+>
+
+<template data-part="intro"
+  ><p
+    >You can guess a lot about a stranger from the company they keep. If someone is always seen with
+    a crown, a throne and a palace, you do not need a dictionary to guess their role. Words work the
+    same way: "you shall know a word by the company it keeps" (J. R. Firth, 1957). Word embeddings
+    turn that saying into arithmetic. No one defines any word. The positions come entirely from
+    which words appear near which.</p
+  >
+</template>
+
+<template data-part="stage"
+  ><div class="stage"
+    ><figure class="fig"
+      ><figcaption
+        >The map of words. Gold line: a pair seen together in the text, being pulled closer. Red
+        line: a random pair, being pushed apart. Click a word to see its nearest
+        neighbours</figcaption
+      ><canvas
+        class="short"
+        id="we-c"
+        role="img"
+        aria-label="Two-dimensional word embeddings"
+      ></canvas
+    ></figure>
+    <figure class="fig"
+      ><figcaption
+        >Top: how similar every other word is to the one you clicked. Bottom: the error while
+        learning</figcaption
+      ><canvas
+        class="short"
+        id="we-r"
+        role="img"
+        aria-label="Similarity to the selected word and the loss curve"
+      ></canvas></figure
+  ></div>
+  <div class="howto"
+    ><div
+      ><h3>How it works, step by step</h3
+      ><ol id="we-steps"
+        ><li>Give every word a random position.</li
+        ><li>Take a pair of words that appear together in the text, such as “king” and “crown”.</li
+        ><li>Pull the two a little closer together.</li
+        ><li
+          >Take a random word that did not appear with the first, and push the two a little
+          apart.</li
+        ><li>Repeat over all the pairs, many times, until the map stops changing.</li></ol
+      ></div
+    ><div><h3>What just happened</h3><p class="live" id="we-live" role="status"></p></div
+  ></div>
+  <div class="controls"
+    ><template data-label="Animation" data-control="group"
+      ><div class="row"
+        ><button class="btn go" id="we-play" type="button">Train</button
+        ><button class="btn" id="we-step" type="button">One pass</button
+        ><button class="btn" id="we-reset" type="button">Start over</button></div
+      ><template data-unit="passes" data-id="we" data-control="run-limit"></template
+    ></template>
+    <template data-label="The model" data-control="group"
+      ><label class="check"
+        ><input type="checkbox" id="we-col" checked /> Colour the words by their true group (the
+        model never sees it)</label
+      ><template
+        data-value="2"
+        data-step="1"
+        data-max="5"
+        data-min="0"
+        data-label="Random pairs pushed apart for each pair pulled together"
+        data-id="we-neg"
+        data-control="slider"
+      ></template></template
+  ></div>
+  <dl class="read"
+    ><template data-label="Passes over the text" data-key="ep" data-control="readout"></template
+    ><template data-class="hl2" data-label="Error" data-key="L" data-control="readout"></template
+    ><template data-label="Word you clicked" data-key="sel" data-control="readout"></template
+    ><template
+      data-class="hl"
+      data-label="Its nearest neighbours"
+      data-key="nn"
+      data-control="readout"
+    ></template
+    ><template
+      data-label="Words whose nearest neighbour is in their own group"
+      data-key="grp"
+      data-control="readout"
+    ></template></dl
+></template>
+
+<template data-part="tryit"
+  >Press Start over and train with the colours off, so you see what the model sees: grey words
+  drifting. Turn the colours on at the end. Click “queen” and read its neighbours. Then set the
+  random pairs to 0 and train again: with only pulling and no pushing, what happens to the whole
+  map?</template
+>
+
+<template data-part="math"
+  ><h4>The model (skip-gram with negative sampling)</h4
+  ><p
+    >Every word \(w\) gets a vector \(\mathbf u_w\), and a second vector \(\mathbf v_w\) for when it
+    plays the role of context. For a pair \((w,c)\) seen together in the text and \(k\) randomly
+    drawn words \(n_1,\dots,n_k\), the loss is</p
+  >$$\mathcal L=-\log\sigma\big(\mathbf u_w\cdot\mathbf
+  v_c\big)-\sum_{j=1}^{k}\log\sigma\big(-\mathbf u_w\cdot\mathbf v_{n_j}\big).$$<p
+    >The first term is small when the dot product of a true pair is large, so true pairs are pulled
+    into alignment. The second is small when the dot product with a random word is very negative, so
+    random pairs are pushed apart. Gradient descent on this loss is the pulling and pushing in the
+    animation. This is word2vec (Mikolov and others, 2013).</p
+  >
+  <h4>Why similar words end up together</h4
+  ><p
+    >"King" and "queen" need never appear side by side. Both appear with "crown", "throne" and
+    "palace", so both are pulled toward the same context vectors and arrive in the same region.
+    Similarity of meaning is measured by the cosine of the angle between two vectors,</p
+  >$$\cos(\mathbf a,\mathbf b)=\frac{\mathbf a\cdot\mathbf b}{\lVert\mathbf a\rVert\,\lVert\mathbf
+  b\rVert},$$<p>which is what the bars on the right show.</p> <h4>Why the pushing is needed</h4
+  ><p
+    >Pulling alone has a trivial solution: put every word at the same point. The random "negative"
+    pairs give the model something to lose by doing that.</p
+  >
+  <h4>Real embeddings</h4
+  ><p
+    >Real ones have 100 to several thousand dimensions and are learned from billions of words. In
+    that much space, directions acquire meaning: the step from "man" to "woman" is close to the step
+    from "king" to "queen". Two dimensions, as here, have room for groups but not for such
+    directions. Embeddings also absorb the biases of the text they are trained on. In a Transformer
+    the embedding table is the first layer, and each word's vector is then reshaped by its sentence,
+    which a fixed table like this one cannot do: "bank" gets one position whether it is a river bank
+    or a savings bank.</p
+  >
+  <h4>The text used here</h4
+  ><p
+    >The "text" is a small list of word pairs built for this page: each of 16 words is paired with
+    three context words of its group (for example king with crown, throne, palace). It is a toy
+    corpus, not real text.</p
+  ></template
+>
+
+<template data-part="question"
+  >“King” and “queen” end up close together although the text never contains the pair (king, queen).
+  How?</template
+>
+
+<template data-part="answer"
+  >Both words appear with the same context words: crown, throne, palace. Training pulls king toward
+  the context vectors of those words and pulls queen toward the same three vectors. Two words pulled
+  toward the same targets end up near each other. The embedding encodes shared company, not direct
+  co-occurrence.</template
+>

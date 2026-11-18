@@ -1,0 +1,162 @@
+<template data-part="lede"
+  >Go the other way: start from data and find the Gaussian. Build your own data set, watch points
+  arrive one at a time, and see the fitted ellipses settle. Held-out test points show whether the
+  fit generalises.</template
+>
+
+<template data-part="intro"
+  ><p
+    >Maximum likelihood asks one question: of all possible Gaussians, which one would have made this
+    data least surprising? It slides and reshapes the hill until the data points sit as high on it
+    as possible, on average.</p
+  >
+</template>
+
+<template data-part="stage"
+  ><div class="stage one"
+    ><figure class="fig"
+      ><canvas
+        class="wide"
+        id="fit-c"
+        role="img"
+        aria-label="Scatter plot with fitted Gaussian ellipses"
+      ></canvas></figure
+  ></div>
+  <div class="controls"
+    ><template data-label="Animation" data-control="group"
+      ><div class="row"
+        ><button class="btn go" id="fit-play" type="button">Play</button
+        ><button class="btn" id="fit-step" type="button">Add one</button
+        ><button class="btn" id="fit-reset" type="button">Reset</button></div
+      ><template
+        data-value="3"
+        data-step="1"
+        data-max="20"
+        data-min="1"
+        data-label="Speed"
+        data-id="fit-speed"
+        data-control="slider"
+      ></template
+    ></template>
+    <template data-label="The data" data-control="group"
+      ><label class="ctl" for="fit-ds"
+        ><span>Data set</span
+        ><select id="fit-ds"
+          ><option value="tilted">Tilted cloud</option
+          ><option value="round">Round cloud</option
+          ><option value="narrow">Narrow, strongly correlated</option
+          ><option value="clumps">Two clumps (not Gaussian)</option
+          ><option value="custom">Your own settings</option></select
+        ></label
+      ><div class="row"
+        ><button class="btn" id="fit-new" type="button">New random sample</button
+        ><label class="btn file"
+          >Upload a CSV<input type="file" id="fit-file" accept=".csv,.txt,text/csv" /></label></div
+      ><p class="status" id="fit-status" role="status"></p
+    ></template>
+    <template data-label="The true Gaussian" data-control="group"
+      ><template
+        data-value="1.5"
+        data-step="0.05"
+        data-max="2.5"
+        data-min="0.3"
+        data-label="Spread of x, σₓ"
+        data-id="fit-sx"
+        data-control="slider"
+      ></template
+      ><template
+        data-value="0.8"
+        data-step="0.05"
+        data-max="2.5"
+        data-min="0.3"
+        data-label="Spread of y, σᵧ"
+        data-id="fit-sy"
+        data-control="slider"
+      ></template
+      ><template
+        data-value="0.7"
+        data-step="0.01"
+        data-max="0.97"
+        data-min="-0.97"
+        data-label="Correlation ρ"
+        data-id="fit-rho"
+        data-control="slider"
+      ></template
+      ><template
+        data-value="220"
+        data-step="10"
+        data-max="500"
+        data-min="20"
+        data-label="Number of points"
+        data-id="fit-n"
+        data-control="slider"
+      ></template></template
+  ></div>
+  <dl class="read"
+    ><template data-label="Training points used" data-key="n" data-control="readout"></template
+    ><template data-label="Estimated mean" data-key="mu" data-control="readout"></template
+    ><template data-label="Estimated σₓ, σᵧ, ρ" data-key="cov" data-control="readout"></template
+    ><template
+      data-class="hl2"
+      data-label="Train: average log-likelihood"
+      data-key="tr"
+      data-control="readout"
+    ></template
+    ><template
+      data-class="hl3"
+      data-label="Test: average log-likelihood"
+      data-key="te"
+      data-control="readout"
+    ></template></dl
+></template>
+
+<template data-part="tryit"
+  >Compare train and test log-likelihood after 5 points, then after 100. When are they far apart?
+  Set the number of points to 20 and press “New random sample” a few times: how much does the fit
+  change? Then try “Two clumps”.</template
+>
+
+<template data-part="math"
+  ><h4>The likelihood</h4
+  ><p
+    >For independent points the probability of the whole data set is a product, so its logarithm is
+    a sum:</p
+  >$$\ell(\boldsymbol\mu,\Sigma)=\sum_{i=1}^n\ln p(\mathbf x_i)=-\frac
+  n2\ln\big|2\pi\Sigma\big|-\frac12\sum_{i=1}^n(\mathbf
+  x_i-\boldsymbol\mu)^{\top}\Sigma^{-1}(\mathbf x_i-\boldsymbol\mu).$$
+  <p
+    >The second term rewards hills that sit close to the points. The first term penalises hills that
+    are spread out, since a wide hill is low everywhere. The best fit balances the two.</p
+  >
+  <h4>The answer</h4
+  ><p>Setting the derivatives to zero gives the estimates in closed form:</p
+  >$$\hat{\boldsymbol\mu}=\frac1n\sum_{i=1}^n\mathbf x_i,\qquad
+  \hat\Sigma=\frac1n\sum_{i=1}^n(\mathbf x_i-\hat{\boldsymbol\mu})(\mathbf
+  x_i-\hat{\boldsymbol\mu})^{\top}.$$<p
+    >The sample mean and the sample covariance. No iteration is needed, which is rare; most models
+    in later topics need gradient descent to do this same job.</p
+  >
+  <h4>Train against test</h4
+  ><p
+    >The fit is tuned to the training points, so they score better under it than fresh points do.
+    With \(n\) points and \(k\) fitted numbers (here \(k=5\)), the gap in average log-likelihood is
+    roughly \(k/n\). It is large for small \(n\), and it closes as data arrives. This gap is
+    overfitting in its simplest form. With fewer than 3 points \(\hat\Sigma\) is singular and the
+    likelihood is infinite, which the next lesson fixes.</p
+  >
+  <h4>When the model is wrong</h4
+  ><p
+    >Maximum likelihood finds the best Gaussian, not a good model. For two clumps it returns one
+    wide hill whose peak sits in the empty gap.</p
+  ><p>A CSV needs at least two numeric columns. The first two are used.</p></template
+>
+
+<template data-part="question"
+  >For “Two clumps”, the fitted peak sits where there is almost no data. What does that tell
+  you?</template
+>
+
+<template data-part="answer"
+  >Maximum likelihood finds the best Gaussian, not a good model. One Gaussian cannot have two peaks.
+  That is the reason for mixtures of Gaussians, which come later.</template
+>

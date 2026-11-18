@@ -1,0 +1,192 @@
+<template data-part="lede"
+  >Very deep networks used to be untrainable, because the learning signal faded before it reached
+  the first layers. The cure was almost embarrassingly simple: let each block add its result to its
+  own input, so that there is always a direct road past it. Send the learning signal back through a
+  plain stack and a stack with shortcuts, and compare what arrives.</template
+>
+
+<template data-part="intro"
+  ><p
+    >Think of a message passed along a line of sixty people, each of whom rewrites it in their own
+    words. By the end it is unrecognisable. Now change one rule: each person passes on the original
+    note untouched and staples their own comment to it. The original always arrives, and each person
+    only has to add what they think is missing. A residual block works like that. Its layers do not
+    have to reproduce their whole input, only to compute a correction to it, and the input itself
+    travels along the shortcut.</p
+  >
+</template>
+
+<template data-part="stage"
+  ><div class="stage one"
+    ><figure class="fig"
+      ><figcaption
+        >Top row: a plain stack of layers. Bottom row: the same layers with a shortcut around each.
+        The learning signal starts on the right; the size of the dot is its strength</figcaption
+      ><canvas
+        class="tall"
+        id="rs-c"
+        style="aspect-ratio:16/5"
+        role="img"
+        aria-label="Plain and residual stacks with the learning signal travelling backward"
+      ></canvas></figure
+  ></div>
+  <div class="stage" style="margin-top:18px"
+    ><figure class="fig"
+      ><figcaption
+        >Strength of the learning signal on arriving at each layer, compared with where it
+        started</figcaption
+      ><canvas
+        class="tall"
+        id="rs-r"
+        role="img"
+        aria-label="Gradient strength by layer for plain and residual networks"
+      ></canvas
+    ></figure>
+    <figure class="fig"
+      ><figcaption>What one block computes</figcaption
+      ><canvas
+        class="tall"
+        id="rs-d"
+        role="img"
+        aria-label="Diagram of a plain block and a residual block"
+      ></canvas></figure
+  ></div>
+  <div class="howto"
+    ><div
+      ><h3>How it works, step by step</h3
+      ><ol id="rs-steps"
+        ><li
+          >Build two stacks from the same random weights: one plain, one where every block adds its
+          output to its input.</li
+        ><li>Start a learning signal of strength 1 at the last layer of both.</li
+        ><li
+          >Plain stack: stepping back one layer multiplies the signal by the weights and the slope
+          of the activation. It usually shrinks.</li
+        ><li
+          >Residual stack: the signal splits. One part goes back through the layer as before. The
+          other takes the shortcut, unchanged. They add.</li
+        ><li>Compare what reaches the first layer.</li></ol
+      ></div
+    ><div><h3>What just happened</h3><p class="live" id="rs-live" role="status"></p></div
+  ></div>
+  <div class="controls"
+    ><template data-label="Animation" data-control="group"
+      ><div class="row"
+        ><button class="btn go" id="rs-play" type="button">Send the signal back</button
+        ><button class="btn" id="rs-step" type="button">One layer</button
+        ><button class="btn" id="rs-reset" type="button">Start over</button></div
+      ></template
+    >
+    <template data-label="The network" data-control="group"
+      ><template
+        data-value="20"
+        data-step="1"
+        data-max="60"
+        data-min="4"
+        data-label="Number of layers"
+        data-id="rs-depth"
+        data-control="slider"
+      ></template
+      ><template
+        data-value="0.8"
+        data-step="0.05"
+        data-max="1.6"
+        data-min="0.3"
+        data-label="Size of the weights (1 = standard)"
+        data-id="rs-v"
+        data-control="slider"
+      ></template
+      ><label class="ctl" for="rs-act"
+        ><span>Activation</span
+        ><select id="rs-act"
+          ><option value="tanh">tanh</option
+          ><option value="relu">ReLU</option
+          ><option value="sigmoid">Sigmoid</option></select
+        ></label
+      ></template
+    ></div
+  >
+  <dl class="read"
+    ><template
+      data-class="hl2"
+      data-label="Plain stack: signal at the first layer"
+      data-key="pl"
+      data-control="readout"
+    ></template
+    ><template
+      data-class="hl3"
+      data-label="With shortcuts: signal at the first layer"
+      data-key="rs"
+      data-control="readout"
+    ></template
+    ><template
+      data-label="Plain: average change per layer"
+      data-key="pp"
+      data-control="readout"
+    ></template
+    ><template
+      data-label="With shortcuts: average change per layer"
+      data-key="rp"
+      data-control="readout"
+    ></template></dl
+></template>
+
+<template data-part="tryit"
+  >Run it at 20 layers, then at 60. In the plain stack the dot shrinks to nothing; with shortcuts it
+  arrives intact. Switch the activation to Sigmoid: the plain stack is hopeless, yet the shortcuts
+  still deliver. Now raise the size of the weights to 1.6. What happens to the signal with
+  shortcuts, and why do real residual networks also use normalisation?</template
+>
+
+<template data-part="math"
+  ><h4>The block</h4
+  ><p
+    >A plain layer computes \(\mathbf a_{l+1}=F(\mathbf a_l)\), where \(F\) is "multiply by weights,
+    apply the activation". A residual block computes</p
+  >$$\mathbf a_{l+1}=\mathbf a_l+F(\mathbf a_l).$$<p
+    >If the best thing a block can do is nothing, it only has to learn \(F=0\), which is easy. A
+    plain layer would have to learn to copy its input exactly, which is hard.</p
+  >
+  <h4>Why the gradient survives</h4><p>Differentiate the block:</p>$$\frac{\partial\mathbf
+  a_{l+1}}{\partial\mathbf a_l}=\mathbf I+\frac{\partial F}{\partial\mathbf a_l}.$$<p
+    >Going back through \(L\) plain layers multiplies \(L\) factors \(\partial F/\partial\mathbf
+    a\), and if each is a little smaller than 1 in size the product vanishes geometrically. With
+    shortcuts each factor is \(\mathbf I+\partial F/\partial\mathbf a\). Multiplying these out gives
+    the identity plus many other terms, so there is always a path from the loss to every layer along
+    which the signal is multiplied by exactly 1. The gradient at layer \(l\) is</p
+  >$$\frac{\partial\mathcal L}{\partial\mathbf a_l}=\frac{\partial\mathcal L}{\partial\mathbf
+  a_L}\Big(\mathbf I+\text{terms that pass through one or more blocks}\Big).$$
+  <h4>What it made possible</h4
+  ><p
+    >Before residual connections (He and others, 2015), adding layers beyond about twenty made
+    networks worse, even on the training data: an optimisation failure, not overfitting. With them,
+    networks of 50, 150 and more than 1000 layers trained successfully. Every Transformer block also
+    has two shortcuts, one around attention and one around its feed-forward layers, and U-Nets use
+    long shortcuts between matching layers.</p
+  >
+  <h4>The other side</h4
+  ><p
+    >The shortcut stops the signal from vanishing, but if the blocks' own contribution is large the
+    sum can grow layer after layer, forward and backward. That is why residual networks pair
+    shortcuts with batch or layer normalisation and with careful initialisation, often starting each
+    block close to \(F=0\).</p
+  >
+  <h4>What this page computes</h4
+  ><p
+    >Both rows use the same random weight matrices, 30 neurons wide. The residual row scales each
+    block's contribution by one half. The bars are the root-mean-square size of the gradient at each
+    layer, computed with the formulas above for thirty random inputs.</p
+  ></template
+>
+
+<template data-part="question"
+  >In a residual network, what does a block compute if all of its weights are zero, and why is that
+  a good place to start training?</template
+>
+
+<template data-part="answer"
+  >It computes a(l+1) = a(l) + 0: the block passes its input through unchanged. A network made of
+  such blocks is the identity from first block to last, so the signal and the gradient both travel
+  through perfectly at the start. Training then only has to add useful corrections, block by block,
+  instead of first repairing a scrambled signal.</template
+>

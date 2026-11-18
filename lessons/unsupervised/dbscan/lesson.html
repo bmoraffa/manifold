@@ -1,0 +1,218 @@
+<template data-part="lede"
+  >DBSCAN has no centres and needs no K. It says a cluster is a region where points are packed
+  densely, and it grows each cluster outward from point to point for as long as the crowd continues.
+  Points in thin air are labelled noise. It can follow any shape.</template
+>
+
+<template data-part="intro"
+  ><p
+    >Look at a satellite photo of a country at night. Cities are where the lights are packed
+    together. You do not need to know how many cities there are, or what shape they have: you follow
+    the lights, and a city ends where the lights thin out. A lone farmhouse is not a city. DBSCAN
+    (density-based spatial clustering of applications with noise) turns that into an algorithm with
+    two numbers: how far to look, and how many lights count as "packed".</p
+  >
+</template>
+
+<template data-part="stage"
+  ><div class="stage"
+    ><figure class="fig"
+      ><figcaption
+        >Filled dots are core points, rings are border points, crosses are noise. The circle has
+        radius ε around the point being examined</figcaption
+      ><canvas
+        class="short"
+        id="db-c"
+        role="img"
+        aria-label="Points labelled as core, border or noise"
+      ></canvas
+    ></figure>
+    <figure class="fig"
+      ><figcaption
+        >Choosing ε: every point’s distance to its minPts-th nearest neighbour, sorted</figcaption
+      ><canvas
+        class="short"
+        id="db-r"
+        role="img"
+        aria-label="Sorted k-distance plot with the chosen epsilon"
+      ></canvas></figure
+  ></div>
+  <div class="howto"
+    ><div
+      ><h3>How it works, step by step</h3
+      ><ol id="db-steps"
+        ><li
+          >Pick a point that has not been visited and count the points within distance ε of it,
+          itself included.</li
+        ><li>Fewer than minPts: mark it as noise for now and go back to step 1.</li
+        ><li
+          >At least minPts: it is a core point. Start a new cluster and put its neighbours in a
+          queue.</li
+        ><li
+          >Take the next point from the queue and add it to the cluster. If it is a core point too,
+          its neighbours join the queue. If not, it is a border point and the cluster does not
+          spread through it.</li
+        ><li
+          >When the queue is empty the cluster is complete. Go back to step 1 until every point has
+          been visited.</li
+        ></ol
+      ></div
+    ><div><h3>What just happened</h3><p class="live" id="db-live" role="status"></p></div
+  ></div>
+  <div class="controls"
+    ><template data-label="Animation" data-control="group"
+      ><div class="row"
+        ><button class="btn go" id="db-play" type="button">Run</button
+        ><button class="btn" id="db-step" type="button">One point</button
+        ><button class="btn" id="db-reset" type="button">Start over</button></div
+      ></template
+    >
+    <template data-label="The model" data-control="group"
+      ><template
+        data-value="0.3"
+        data-step="0.01"
+        data-max="1.3"
+        data-min="0.1"
+        data-label="Radius ε"
+        data-id="db-eps"
+        data-control="slider"
+      ></template
+      ><template
+        data-value="5"
+        data-step="1"
+        data-max="14"
+        data-min="2"
+        data-label="minPts: neighbours needed to be a core point"
+        data-id="db-m"
+        data-control="slider"
+      ></template
+      ><div class="row"
+        ><button class="btn" id="db-fin" type="button">Run to the End</button></div
+      ></template
+    >
+    <template data-label="The data" data-control="group"
+      ><label class="ctl" for="db-ds"
+        ><span>Data set</span
+        ><select id="db-ds"
+          ><option value="moons" selected>Two moons</option
+          ><option value="rings">Two rings</option
+          ><option value="dens">Dense and sparse groups</option
+          ><option value="blobs">Three round groups</option
+          ><option value="long">Three stretched groups</option
+          ><option value="none">No groups at all</option></select
+        ></label
+      ><template
+        data-value="220"
+        data-step="1"
+        data-max="500"
+        data-min="40"
+        data-label="Number of points"
+        data-id="db-n"
+        data-control="slider"
+      ></template
+      ><template
+        data-value="14"
+        data-step="1"
+        data-max="60"
+        data-min="0"
+        data-label="Stray background points"
+        data-id="db-bg"
+        data-control="slider"
+      ></template
+      ><div class="row"
+        ><button class="btn" id="db-new" type="button">New random sample</button
+        ><label class="btn file"
+          >Upload a CSV<input type="file" id="db-file" accept=".csv,.txt,text/csv" /></label></div
+      ><p class="status" id="db-st" role="status"></p></template
+  ></div>
+  <dl class="read"
+    ><template data-label="Points visited" data-key="v" data-control="readout"></template
+    ><template
+      data-class="hl"
+      data-label="Clusters found"
+      data-key="cl"
+      data-control="readout"
+    ></template
+    ><template
+      data-class="hl3"
+      data-label="Core points"
+      data-key="co"
+      data-control="readout"
+    ></template
+    ><template data-label="Border points" data-key="bo" data-control="readout"></template
+    ><template
+      data-class="hl2"
+      data-label="Noise points"
+      data-key="no"
+      data-control="readout"
+    ></template></dl
+></template>
+
+<template data-part="tryit"
+  >Step through the first cluster on Two Moons and watch the queue (gold rings) run along the moon
+  without ever jumping the gap. Then drag ε slowly up: at what value do the two moons fuse into one
+  cluster, and what does the right-hand plot show at that value? On Dense and Sparse Groups, try to
+  find one ε that captures all three groups. You will not find one. That is the main weakness of
+  DBSCAN.</template
+>
+
+<template data-part="math"
+  ><h4>The definitions</h4
+  ><p
+    >Fix a radius \(\varepsilon\) and a count \(\text{minPts}\). The \(\varepsilon\)-neighbourhood
+    of a point is</p
+  >$$N_\varepsilon(p)=\{q:\lVert p-q\rVert\le\varepsilon\},$$<p
+    >which includes \(p\) itself. Every point is then one of three kinds:</p
+  ><ul
+    ><li><b>Core point:</b> \(|N_\varepsilon(p)|\ge\text{minPts}\). It sits inside a crowd.</li
+    ><li
+      ><b>Border point:</b> not core, but inside the neighbourhood of some core point. It sits on
+      the edge of a crowd.</li
+    ><li><b>Noise:</b> neither. It belongs to no cluster.</li></ul
+  >
+  <p
+    >A point \(q\) is <b>density-reachable</b> from a core point \(p\) if there is a chain
+    \(p=p_1,p_2,\dots,p_m=q\) in which each point lies within \(\varepsilon\) of the one before and
+    all of \(p_1,\dots,p_{m-1}\) are core points. A cluster is a core point together with everything
+    density-reachable from it. The chain is what lets a cluster bend: each link is short, yet the
+    two ends can be far apart.</p
+  >
+  <h4>The algorithm</h4
+  ><p
+    >The step list above is the whole algorithm. Each point's neighbourhood is computed once. With a
+    spatial index that costs about \(n\log n\) in total; without one, \(n^2\). A border point within
+    reach of two clusters goes to whichever reaches it first, which is the only way the result can
+    depend on the order of the data.</p
+  >
+  <h4>Choosing the two numbers</h4
+  ><p
+    ><b>minPts</b> is usually set from the dimension \(d\) of the data: at least \(d+1\), and \(2d\)
+    is a common default, larger for noisy data. Then for every point compute the distance to its
+    minPts-th nearest neighbour and sort those distances, as in the right-hand picture. Points
+    inside clusters have small values and stray points have large ones. A good <b>ε</b> sits at the
+    bend between the long flat part and the steep rise. Points whose value lies above ε cannot be
+    core points.</p
+  >
+  <h4>Strengths and limits</h4
+  ><p
+    >DBSCAN finds clusters of any shape, decides the number of clusters itself, and labels outliers
+    instead of forcing them into a cluster, which also makes it a simple anomaly detector. Its limit
+    is the single global ε: if one cluster is much denser than another, an ε small enough to
+    separate the dense ones marks the sparse one as noise, and an ε large enough for the sparse one
+    merges the dense ones. HDBSCAN and OPTICS address this by considering all values of ε at once.
+    Distances also become less informative in very high dimensions, where every point is roughly as
+    far from every other.</p
+  ></template
+>
+
+<template data-part="question"
+  >A point has only 3 neighbours within ε and minPts is 5, yet DBSCAN puts it in a cluster. How can
+  that be?</template
+>
+
+<template data-part="answer"
+  >It is a border point. It is not dense enough to be a core point itself, but it lies within ε of
+  some core point, so it is density-reachable from that core point and joins its cluster. What it
+  cannot do is extend the cluster: its own neighbours are not added to the queue. This is why a thin
+  bridge of sparse points does not merge two clusters.</template
+>

@@ -1,0 +1,225 @@
+<template data-part="lede"
+  >Diffusion reaches data by a winding, noisy road. Flow matching asks for the simplest road there
+  is: pair each noise point with a data point, join them with a straight line, and teach a network
+  the direction of travel along those lines. Generating is then following the arrows from noise for
+  a few steps. Many recent image and video models are trained this way.</template
+>
+
+<template data-part="intro"
+  ><p
+    >Picture a crowd spread randomly over a field, and a set of chairs arranged in a ring. Give each
+    person one chair at random and tell them to walk straight to it at steady speed, arriving after
+    one minute. Now film the crowd from above. At every spot and every moment there is a typical
+    direction in which people are moving. Flow matching trains a network to report that typical
+    direction. Afterwards the people and their assignments are no longer needed: drop a new crowd on
+    the field, tell everyone to follow the reported directions, and after one minute they are
+    sitting in a ring.</p
+  >
+</template>
+
+<template data-part="stage"
+  ><div class="stage"
+    ><figure class="fig"
+      ><figcaption
+        >Faint dots: the real data. Arrows: the velocity the network has learned, at the time shown.
+        Gold dots: points being carried from noise to data. Thin lines: fourteen of their
+        routes</figcaption
+      ><canvas
+        class="short"
+        id="fm-c"
+        role="img"
+        aria-label="Data, the learned velocity field and points flowing along it"
+      ></canvas
+    ></figure>
+    <figure class="fig"
+      ><figcaption
+        >Top: what training sees. Each line joins one noise point (open) to one data point (filled).
+        Bottom: the training error, then quality for each number of steps</figcaption
+      ><canvas
+        class="short"
+        id="fm-r"
+        role="img"
+        aria-label="Training pairs, the loss and quality against number of steps"
+      ></canvas></figure
+  ></div>
+  <div class="howto"
+    ><div
+      ><h3>How it works, step by step</h3
+      ><ol id="fm-steps"
+        ><li>Draw a random noise point and a random real point. Join them with a straight line.</li
+        ><li
+          >Pick a random time between 0 and 1 and stand that far along the line. The correct
+          velocity there is simply “data point minus noise point”.</li
+        ><li
+          >Ask the network for the velocity at that place and time, compare with the correct one,
+          and backpropagate. Repeat for 2,500 batches.</li
+        ><li
+          >Measure: generate with 1, 2, 3 and up to 40 steps and count the points that land on the
+          shape.</li
+        ><li
+          >Generate: start from pure noise at time 0. At each step ask the network for the velocity
+          and move every point a short way along it.</li
+        ><li>At time 1 the points have arrived.</li></ol
+      ></div
+    ><div><h3>What just happened</h3><p class="live" id="fm-live" role="status"></p></div
+  ></div>
+  <div class="controls"
+    ><template data-label="Animation" data-control="group"
+      ><div class="row"
+        ><button class="btn go" id="fm-play" type="button">Run</button
+        ><button class="btn" id="fm-step" type="button">One step</button
+        ><button class="btn" id="fm-reset" type="button">Start over</button></div
+      ><template data-unit="training steps" data-id="fm" data-control="run-limit"></template
+    ></template>
+    <template data-label="The sampler" data-control="group"
+      ><template
+        data-value="5"
+        data-step="1"
+        data-max="8"
+        data-min="0"
+        data-label="Number of steps from noise to data"
+        data-id="fm-n"
+        data-control="slider"
+      ></template
+      ><div class="row seg" id="fm-sol" role="group" aria-label="Solver"
+        ><button class="btn" type="button" data-v="euler">Euler: One Look per Step</button
+        ><button class="btn" type="button" data-v="mid">Midpoint: Two Looks per Step</button></div
+      ><div class="row"
+        ><button class="btn" id="fm-same" type="button">Same Noise Again</button
+        ><button class="btn" id="fm-new" type="button">New Noise</button></div
+      ></template
+    >
+    <template data-label="The data" data-control="group"
+      ><label class="ctl" for="fm-ds"
+        ><span>Shape to learn</span
+        ><select id="fm-ds"
+          ><option value="moons">Two moons</option
+          ><option value="ring" selected>A ring</option
+          ><option value="spiral">A spiral</option
+          ><option value="blobs">Three blobs</option></select
+        ></label
+      ></template
+    ></div
+  >
+  <dl class="read"
+    ><template data-label="Stage" data-key="ph" data-control="readout"></template
+    ><template data-label="Training steps" data-key="ts" data-control="readout"></template
+    ><template
+      data-class="hl2"
+      data-label="Error at guessing the velocity"
+      data-key="L"
+      data-control="readout"
+    ></template
+    ><template
+      data-label="Times the network was called"
+      data-key="nc"
+      data-control="readout"
+    ></template
+    ><template
+      data-class="hl"
+      data-label="Generated points that land on the shape"
+      data-key="near"
+      data-control="readout"
+    ></template
+    ><template
+      data-label="How straight the routes are (1 = ruler-straight)"
+      data-key="st"
+      data-control="readout"
+    ></template></dl
+></template>
+
+<template data-part="tryit"
+  >Watch the top-right picture during training: every arrow there is known exactly, so the network
+  has a clear target at every step. When generation starts, look at the routes on the left. They are
+  not perfectly straight even though every training line was. Why not? (Hint: many lines cross at
+  the same place, and the network can only give one answer there.) Now set the steps to 1: every
+  point jumps in a single stride. Where do they land? Try 2, 4 and 8. Switch to Midpoint and compare
+  4 steps of Midpoint with 8 steps of Euler: both call the network eight times. Which lands more
+  points on the shape?</template
+>
+
+<template data-part="math"
+  ><h4>The straight-line path</h4
+  ><p
+    >Take noise \(\mathbf x_0\sim\mathcal N(\mathbf 0,\mathbf I)\) and a real point \(\mathbf x_1\).
+    For a time \(t\in[0,1]\) define the point on the line between them and its velocity:</p
+  >$$\mathbf x_t=(1-t)\,\mathbf x_0+t\,\mathbf x_1,\qquad \frac{d\mathbf x_t}{dt}=\mathbf
+  x_1-\mathbf x_0 .$$<p
+    >The velocity does not depend on \(t\): each person walks at constant speed. This is the choice
+    used by rectified flow (Liu, Gong and Liu, 2023) and by conditional flow matching (Lipman and
+    others, 2023).</p
+  >
+  <h4>Training</h4
+  ><p
+    >The network \(\mathbf v_\theta(\mathbf x,t)\) is trained by plain regression onto that
+    velocity:</p
+  >$$\mathcal L=\mathbb E_{\,t,\ \mathbf x_0,\ \mathbf x_1}\big\lVert \mathbf v_\theta(\mathbf
+  x_t,t)-(\mathbf x_1-\mathbf x_0)\big\rVert^2 .$$<p
+    >As with diffusion, the target is known exactly because we built the path ourselves. There is no
+    noise schedule to design and no \(\bar\alpha_t\).</p
+  >
+  <h4>What the network actually learns</h4
+  ><p
+    >Many different lines pass through the same place at the same time, each with its own velocity,
+    and the network can give only one answer. The answer that minimises a squared error is the
+    average:</p
+  >$$\mathbf v^\star(\mathbf x,t)=\mathbb E\big[\mathbf x_1-\mathbf x_0\ \big|\ \mathbf x_t=\mathbf
+  x\big].$$<p
+    >So the error can never reach zero, for the same reason as in the diffusion tab. The remarkable
+    fact is that following this averaged field still moves the whole noise distribution onto the
+    whole data distribution. Individual routes bend where lines crossed, because the field cannot
+    let two routes cross, but the crowd as a whole ends in the right place.</p
+  >
+  <h4>Generating</h4
+  ><p
+    >Solve the ordinary differential equation \(d\mathbf x/dt=\mathbf v_\theta(\mathbf x,t)\) from
+    \(t=0\) to \(t=1\). With \(N\) steps of Euler's method and \(h=1/N\):</p
+  >$$\mathbf x_{t+h}=\mathbf x_t+h\,\mathbf v_\theta(\mathbf x_t,t).$$<p
+    >The midpoint method spends two network calls per step: it takes half a step, looks at the
+    velocity there, and uses that velocity for the full step,</p
+  >$$\mathbf x_{t+h}=\mathbf x_t+h\,\mathbf v_\theta\big(\mathbf x_t+\tfrac h2\mathbf
+  v_\theta(\mathbf x_t,t),\ t+\tfrac h2\big).$$<p
+    >Nothing random is added along the way, so the same starting noise always gives the same result,
+    as with DDIM.</p
+  >
+  <h4>Why straightness matters</h4
+  ><p
+    >Euler's method is exact on a straight route travelled at constant speed, whatever the step
+    size. The straighter the learned routes, the fewer steps are needed. The readout compares the
+    straight-line distance from start to finish with the length of the route actually taken. One
+    further idea, called reflow, generates noise and data pairs with the trained model and retrains
+    on those pairs. Their lines cross less, the routes become straighter, and good samples can then
+    be made in one or two steps.</p
+  >
+  <h4>How it relates to diffusion</h4
+  ><p
+    >A diffusion model's \(\eta=0\) sampler also solves an ODE from noise to data. The difference is
+    the path that training prescribes between the two ends: curved and tied to a noise schedule for
+    diffusion, straight for flow matching. One can be rewritten as the other with a change of time
+    and scale. The network's output is a velocity here and a noise estimate there, and each can be
+    computed from the other.</p
+  >
+  <h4>What this page trains</h4
+  ><p
+    >A network with two hidden layers of 64 neurons, taking the two coordinates and eight numbers
+    that encode the time, trained with Adam for 2,500 batches of 128. Training times are drawn a
+    little more often from the data end of the line, where the field has the most detail. The
+    quality number is the share of generated points within 0.1 of a real data point, measured on 200
+    fresh points for each setting in the chart.</p
+  ></template
+>
+
+<template data-part="question"
+  >With one Euler step, every point moves from its starting place by exactly the velocity the
+  network gives at time 0. Why does that produce a blob near the middle of the data instead of the
+  shape?</template
+>
+
+<template data-part="answer"
+  >At time 0 a point is pure noise and carries no information about which data point it was paired
+  with, because the pairing was random. The best single answer for its velocity is therefore the
+  average over all data points: “head for the centre of the data”. One step with that velocity sends
+  everything toward the centre. Only later, when a point has moved and its position starts to say
+  something about where it is heading, does the field split toward the different parts of the shape.
+  That needs more than one step.</template
+>

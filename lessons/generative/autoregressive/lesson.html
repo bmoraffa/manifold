@@ -1,0 +1,184 @@
+<template data-part="lede"
+  >Every chatbot writes the same way: it looks at what has been written so far, works out how likely
+  each possible next piece is, picks one, and repeats. That is all “autoregressive” means. Here the
+  model is as simple as it can be: it has read a short text and counted which letter tends to follow
+  which. Watch it write, then give it your own text to learn from.</template
+>
+
+<template data-part="intro"
+  ><p
+    >Play a game: I say "once upon a", and you say the next word. You did not need to think. You
+    have heard that phrase finished the same way many times. An autoregressive model plays this game
+    with itself. It writes a piece, reads back what it has written, guesses the next piece, and
+    continues. The only thing that changes from the toy on this page to the largest language model
+    is how it makes the guess: by counting here, with a Transformer there.</p
+  >
+</template>
+
+<template data-part="stage"
+  ><p
+    class="cap"
+    id="ar-out"
+    role="status"
+    style="font-family:var(--font-mono);min-height:5.5em;white-space:pre-wrap"
+  ></p>
+  <div class="stage"
+    ><figure class="fig"
+      ><figcaption
+        >How likely the model thinks each next letter is, given the letters in the gold box. The one
+        it picked is gold</figcaption
+      ><canvas class="short" id="ar-c" role="img" aria-label="Next-character probabilities"></canvas
+    ></figure>
+    <figure class="fig"
+      ><figcaption
+        >Top: what the model has learned from the text, for the current context. Bottom: how
+        surprised the model is by the real text, for each memory length</figcaption
+      ><canvas
+        class="short"
+        id="ar-r"
+        role="img"
+        aria-label="Counts for the current context and perplexity by context length"
+      ></canvas></figure
+  ></div>
+  <div class="howto"
+    ><div
+      ><h3>How it works, step by step</h3
+      ><ol id="ar-steps"
+        ><li
+          >Learn: read the text once. For every run of k letters, count which letter came next.</li
+        ><li>Write: look at the last k letters written so far.</li
+        ><li>Look up the counts for that context and turn them into probabilities.</li
+        ><li
+          >Pick the next letter at random according to those probabilities. Temperature makes the
+          choice bolder or safer.</li
+        ><li>Add the letter to the text and go back to step 2.</li></ol
+      ></div
+    ><div><h3>What just happened</h3><p class="live" id="ar-live" role="status"></p></div
+  ></div>
+  <div class="controls"
+    ><template data-label="Animation" data-control="group"
+      ><div class="row"
+        ><button class="btn go" id="ar-play" type="button">Write</button
+        ><button class="btn" id="ar-step" type="button">One letter</button
+        ><button class="btn" id="ar-reset" type="button">Start over</button></div
+      ></template
+    >
+    <template data-label="The model" data-control="group"
+      ><template
+        data-value="3"
+        data-step="1"
+        data-max="6"
+        data-min="0"
+        data-label="Memory: letters of context it looks at"
+        data-id="ar-k"
+        data-control="slider"
+      ></template
+      ><template
+        data-value="1"
+        data-step="0.05"
+        data-max="2"
+        data-min="0.2"
+        data-label="Temperature"
+        data-id="ar-temp"
+        data-control="slider"
+      ></template
+    ></template>
+    <template data-label="The text it learns from" data-control="group">
+      <textarea
+        id="ar-text"
+        rows="4"
+        style="width:100%;font:inherit;font-size:.85rem;border:1px solid var(--line);background:none;padding:6px"
+        aria-label="Training text"
+      ></textarea
+      ><p class="status" id="ar-st" role="status"></p></template
+  ></div>
+  <dl class="read"
+    ><template data-label="Context right now" data-key="ctx" data-control="readout"></template
+    ><template
+      data-label="Different letters seen after it"
+      data-key="opt"
+      data-control="readout"
+    ></template
+    ><template
+      data-class="hl"
+      data-label="Letter picked"
+      data-key="pick"
+      data-control="readout"
+    ></template
+    ><template
+      data-label="Letters in the training text"
+      data-key="n"
+      data-control="readout"
+    ></template
+    ><template
+      data-class="hl2"
+      data-label="Perplexity on the training text at this memory"
+      data-key="pp"
+      data-control="readout"
+    ></template></dl
+></template>
+
+<template data-part="tryit"
+  >Set the memory to 0 and write: a soup of letters in roughly English proportions. Raise it to 1,
+  2, 3, 4: syllables appear, then words, then phrases. At 6 it mostly copies the text back. Why?
+  Then put the memory at 3 and move the temperature to 0.2 and to 2. Finally paste a paragraph in
+  another language, or a song you know, and see what it writes.</template
+>
+
+<template data-part="math"
+  ><h4>The idea in one line</h4
+  ><p
+    >The probability of a whole sequence can always be split into a product of next-item
+    probabilities, by the chain rule:</p
+  >$$p(x_1,x_2,\dots,x_T)=\prod_{t=1}^{T}p\big(x_t\mid x_1,\dots,x_{t-1}\big).$$<p
+    >So a model that can answer "what comes next, given everything so far?" is a complete model of
+    sequences. To generate, sample \(x_1\), then \(x_2\) given \(x_1\), and so on.</p
+  >
+  <h4>The model on this page</h4
+  ><p
+    >It assumes the next letter depends only on the previous \(k\) letters, and estimates the
+    probability by counting in the training text:</p
+  >$$p\big(x_t\mid x_{t-k},\dots,x_{t-1}\big)\approx\frac{\text{count}(x_{t-k}\dots
+  x_{t-1}\,x_t)}{\text{count}(x_{t-k}\dots x_{t-1})}.$$<p
+    >This is an n-gram model with \(n=k+1\). Training is one pass of counting. A neural language
+    model replaces the table of counts with a network, which lets it use thousands of items of
+    context and share what it learns between similar contexts.</p
+  >
+  <h4>Temperature</h4
+  ><p
+    >Before sampling, each probability is raised to the power \(1/\tau\) and the results are
+    rescaled to add up to 1:</p
+  >$$p_\tau(x)\propto p(x)^{1/\tau}.$$<p
+    >With \(\tau&lt;1\) likely letters become more likely still, and the text is safe and
+    repetitive. With \(\tau&gt;1\) the choices even out, and the text is varied and error-prone.
+    \(\tau\to0\) always takes the single most likely letter.</p
+  >
+  <h4>Memory against data</h4
+  ><p
+    >Longer context gives better guesses but splits the text into more and more distinct contexts,
+    each seen fewer times. With a short text and \(k=6\), most contexts were seen once, so the model
+    has exactly one continuation to offer and reproduces the text. That is overfitting.
+    <b>Perplexity</b>, \(\exp\big(-\tfrac1T\sum_t\log p(x_t\mid\text{context})\big)\), is the
+    model's average number of equally likely choices per letter. On the training text it always
+    falls as \(k\) grows, which is why it must be measured on text the model has not seen.</p
+  >
+  <h4>Why it matters</h4
+  ><p
+    >GPT-style models, WaveNet for audio and PixelCNN for images are all autoregressive. Their
+    strengths: an exact likelihood and simple training (predict the next item). Their weakness:
+    generation is one item at a time, and an early mistake cannot be taken back.</p
+  ></template
+>
+
+<template data-part="question"
+  >With a memory of 6 letters the output is nearly a copy of the training text. Is that a better
+  model than memory 3?</template
+>
+
+<template data-part="answer"
+  >It is a better memoriser, not a better model. With a short training text almost every 6-letter
+  context occurred once, so only one continuation has a non-zero count and the model can do nothing
+  but replay the text. It has the lowest perplexity on the training text and would do badly on new
+  text, where most 6-letter contexts never appeared at all. Memory 3 has seen each context many
+  times and has learned patterns it can recombine.</template
+>

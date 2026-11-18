@@ -1,0 +1,126 @@
+<template data-part="lede"
+  >A distribution is a recipe for random numbers. Choose μ and σ, draw one number at a time and
+  stack them. The pile is rough at first and settles onto the curve.</template
+>
+
+<template data-part="intro"
+  ><p
+    >You never see a distribution, only numbers drawn from it. The histogram is your picture of it,
+    and with more samples the picture sharpens. This is the law of large numbers: averages of
+    samples converge to the true values.</p
+  >
+</template>
+
+<template data-part="stage"
+  ><div class="stage one"
+    ><figure class="fig"
+      ><canvas
+        class="wide"
+        id="sm-c"
+        role="img"
+        aria-label="Histogram of samples under the bell curve"
+      ></canvas></figure
+  ></div>
+  <div class="controls"
+    ><template data-label="Animation" data-control="group"
+      ><div class="row"
+        ><button class="btn go" id="sm-play" type="button">Play</button
+        ><button class="btn" id="sm-step" type="button">Draw one</button
+        ><button class="btn" id="sm-reset" type="button">Reset</button></div
+      ><template
+        data-value="2"
+        data-step="1"
+        data-max="200"
+        data-min="1"
+        data-label="Samples per frame"
+        data-id="sm-speed"
+        data-control="slider"
+      ></template
+    ></template>
+    <template data-label="The distribution" data-control="group"
+      ><template
+        data-value="0"
+        data-step="0.1"
+        data-max="3"
+        data-min="-3"
+        data-label="Mean μ"
+        data-id="sm-mu"
+        data-control="slider"
+      ></template
+      ><template
+        data-value="1"
+        data-step="0.05"
+        data-max="2"
+        data-min="0.4"
+        data-label="Standard deviation σ"
+        data-id="sm-sig"
+        data-control="slider"
+      ></template></template
+    ><template data-label="The histogram" data-control="group"
+      ><template
+        data-value="48"
+        data-step="2"
+        data-max="96"
+        data-min="10"
+        data-label="Number of bins"
+        data-id="sm-bins"
+        data-control="slider"
+      ></template></template
+  ></div>
+  <dl class="read"
+    ><template data-label="Samples drawn" data-key="n" data-control="readout"></template
+    ><template
+      data-class="hl3"
+      data-label="Sample mean"
+      data-key="m"
+      data-control="readout"
+    ></template
+    ><template
+      data-class="hl3"
+      data-label="Sample standard deviation"
+      data-key="s"
+      data-control="readout"
+    ></template
+    ><template
+      data-class="hl"
+      data-label="Expected error of the mean, σ / √n"
+      data-key="se"
+      data-control="readout"
+    ></template></dl
+></template>
+
+<template data-part="tryit"
+  >Reset, then draw ten samples one at a time and look at the sample mean. Then press Play. Compare
+  the error of the mean you see with the predicted σ / √n. Try very few and very many
+  bins.</template
+>
+
+<template data-part="math"
+  ><h4>The estimates</h4>$$\bar x=\frac1n\sum_{i=1}^n x_i,\qquad s^2=\frac{1}{n-1}\sum_{i=1}^n
+  (x_i-\bar x)^2$$
+  <p
+    >The \(n-1\) is there because the deviations are measured from \(\bar x\), which was itself
+    fitted to the same data and so sits a little closer to the points than the true mean does.
+    Dividing by \(n-1\) corrects that.</p
+  >
+  <h4>How fast it converges</h4
+  ><p>The sample mean is itself a random number. Across repeated experiments it is distributed as</p
+  >$$\bar x\sim N\!\left(\mu,\ \frac{\sigma^2}{n}\right),$$<p
+    >so its typical error is \(\sigma/\sqrt n\). To halve the error you need four times the data.
+    That square root shows up everywhere in machine learning, from error bars to the noise in
+    stochastic gradient descent.</p
+  >
+  <h4>Bins</h4
+  ><p
+    >Each bar is a count divided by \(n\) and by the bin width. Narrow bins follow the shape closely
+    but each holds few samples and is noisy. Wide bins are steady but blur the shape. That is a
+    first look at the bias–variance trade-off.</p
+  ></template
+>
+
+<template data-part="question">Why do the bars jump around so much when n is small?</template>
+
+<template data-part="answer"
+  >Each bar is a count divided by n. With few samples one extra point changes a bar a lot. The noise
+  in each bar shrinks like 1 / √n.</template
+>

@@ -1,0 +1,238 @@
+<template data-part="lede"
+  >Show a child one picture of a giraffe and they will know giraffes for life. A classifier trained
+  the usual way needs thousands. Few-shot learning closes the gap by changing what is learned. The
+  network is not taught the classes it will be asked about. It is taught, on other classes, how to
+  compare, so that when five symbols it has never seen arrive with one example each, it can sort new
+  drawings among them. With one example per class this is one-shot learning.</template
+>
+
+<template data-part="intro"
+  ><p
+    >Someone who has learned to read one alphabet finds a second one easy. They have not seen its
+    letters before, but they know what matters about a letter: which strokes there are and how they
+    join, not the exact position on the page or the thickness of the pen. Shown one new character,
+    they can pick it out from others at once. What they carried over is a way of looking, not a list
+    of answers. Few-shot learning trains a network on many small "tell these apart" exercises with
+    ever-changing symbols, so that the only thing worth learning is that way of looking.</p
+  >
+</template>
+
+<template data-part="stage"
+  ><div class="stage"
+    ><figure class="fig"
+      ><figcaption
+        >One task. Each row is a symbol from an invented alphabet that the network never saw in
+        training. Left of the line: the examples it is given (the support set). Right: new drawings
+        to classify, outlined dark when it gets them right and amber when wrong. Press New task for
+        different symbols</figcaption
+      ><canvas
+        class="short"
+        id="fs-c"
+        role="img"
+        aria-label="Support and query symbols for one episode"
+      ></canvas
+    ></figure>
+    <figure class="fig"
+      ><figcaption
+        >Top: where the network places this task’s drawings (its 8 output numbers, flattened to 2).
+        Large dots: the class centres (prototypes). Small dots: the new drawings. Bottom: accuracy
+        on unseen symbols as training proceeds, against comparing raw pixels (dashed)</figcaption
+      ><canvas
+        class="short"
+        id="fs-r"
+        role="img"
+        aria-label="Embedding of the episode and accuracy during training"
+      ></canvas></figure
+  ></div>
+  <div class="howto"
+    ><div
+      ><h3>How it works, step by step</h3
+      ><ol id="fs-steps"
+        ><li
+          >Invent a small task from the training alphabets: pick a few symbols, a few examples of
+          each, and some extra drawings to classify.</li
+        ><li
+          >Pass every drawing through the network. Each becomes a point in an 8-dimensional
+          space.</li
+        ><li>Average the example points of each symbol. That average is the symbol’s prototype.</li
+        ><li>Classify each extra drawing by its nearest prototype, and measure the error.</li
+        ><li
+          >Adjust the network so that drawings land nearer their own prototype and further from the
+          others.</li
+        ><li
+          >Repeat with a new task. At test time do steps 2 to 4 on symbols never seen before: no
+          retraining.</li
+        ></ol
+      ></div
+    ><div><h3>What just happened</h3><p class="live" id="fs-live" role="status"></p></div
+  ></div>
+  <div class="controls"
+    ><template data-label="Animation" data-control="group"
+      ><div class="row"
+        ><button class="btn go" id="fs-play" type="button">Run</button
+        ><button class="btn" id="fs-step" type="button">Train on 20 tasks</button
+        ><button class="btn" id="fs-reset" type="button">Start over</button></div
+      ><template data-unit="tasks" data-id="fs" data-control="run-limit"></template
+    ></template>
+    <template data-label="The task" data-control="group"
+      ><template
+        data-value="1"
+        data-step="1"
+        data-max="5"
+        data-min="1"
+        data-label="Examples given per symbol (1 = one-shot)"
+        data-id="fs-k"
+        data-control="slider"
+      ></template
+      ><template
+        data-value="5"
+        data-step="1"
+        data-max="6"
+        data-min="2"
+        data-label="Symbols to tell apart"
+        data-id="fs-w"
+        data-control="slider"
+      ></template
+      ><template
+        data-value="1"
+        data-step="0.1"
+        data-max="2"
+        data-min="0"
+        data-label="How sloppy the handwriting is"
+        data-id="fs-z"
+        data-control="slider"
+      ></template
+      ><div class="row"
+        ><button class="btn" id="fs-new" type="button">New task</button></div
+      ></template
+    >
+    <template data-label="Draw your own" data-control="group"
+      ><canvas
+        id="fs-d"
+        width="126"
+        height="126"
+        style="width:126px;height:126px;max-height:none;border:1px solid var(--line);border-radius:6px;cursor:pointer;touch-action:none"
+        role="img"
+        aria-label="Seven by seven grid to draw a symbol"
+      ></canvas
+      ><div class="row"
+        ><button class="btn" id="fs-copy" type="button">Start from a drawing in this task</button
+        ><button class="btn" id="fs-clr" type="button">Clear</button></div
+      ><p class="tpout" id="fs-out" role="status"></p></template
+  ></div>
+  <dl class="read"
+    ><template data-label="Training tasks so far" data-key="ep" data-control="readout"></template
+    ><template
+      data-class="hl"
+      data-label="Unseen symbols, one example each"
+      data-key="a1"
+      data-control="readout"
+    ></template
+    ><template
+      data-class="hl"
+      data-label="Unseen symbols, at the number of examples chosen"
+      data-key="ak"
+      data-control="readout"
+    ></template
+    ><template
+      data-class="hl2"
+      data-label="Comparing raw pixels, same tasks"
+      data-key="px"
+      data-control="readout"
+    ></template
+    ><template data-label="This task" data-key="this" data-control="readout"></template></dl
+></template>
+
+<template data-part="tryit"
+  >Before training, look at the top-right map: the drawings of different symbols are jumbled
+  together, and the accuracy is close to what raw pixels give or worse. Press Run. Watch the groups
+  pull apart, on symbols the network has never trained on. When it stops, compare the three accuracy
+  readouts. Slide the examples per symbol from 1 to 5: how much does each extra example buy? Raise
+  the number of symbols to tell apart to 6, then lower it to 2. Push the sloppiness up and see which
+  method suffers more. Then draw your own symbol in the grid, or copy one from the task and change a
+  few squares until the answer flips.</template
+>
+
+<template data-part="math"
+  ><h4>The task</h4
+  ><p
+    >An \(N\)-way \(K\)-shot task gives a <b>support set</b> with \(K\) labelled examples of each of
+    \(N\) classes and asks for the classes of some <b>query</b> examples. \(K=1\) is one-shot
+    learning and small \(K\) is few-shot. The classes at test time are disjoint from the classes
+    used in training, so memorizing classes is useless.</p
+  >
+  <h4>Prototypical networks</h4
+  ><p
+    >An embedding network \(f_\theta\) maps each input to a point (Snell, Swersky and Zemel, 2017).
+    Each class is represented by the mean of its support points, its <b>prototype</b>:</p
+  >$$\mathbf c_n=\frac1K\sum_{i\in S_n}f_\theta(\mathbf x_i).$$<p
+    >A query is assigned to classes by a softmax over negative squared distances to the
+    prototypes:</p
+  >$$p(y=n\mid\mathbf x)=\frac{\exp\!\big(-\lVert f_\theta(\mathbf x)-\mathbf
+  c_n\rVert^2\big)}{\sum_{m}\exp\!\big(-\lVert f_\theta(\mathbf x)-\mathbf c_m\rVert^2\big)}.$$<p
+    >Nothing in this rule is specific to particular classes. Give it any support set and it
+    classifies.</p
+  >
+  <h4>Training in episodes</h4
+  ><p
+    >Training imitates the test. Each step samples a fresh task from the training classes, computes
+    prototypes from its support set, and minimizes the cross-entropy of its queries:</p
+  >$$\mathcal L(\theta)=-\sum_{(\mathbf x,y)\in Q}\log p(y\mid\mathbf x).$$<p
+    >The gradient flows through the queries and through the prototypes into the embedding. Because
+    the classes change every episode, the network cannot succeed by recognizing classes. It has to
+    learn an embedding in which drawings of the same symbol land close together whatever the symbol
+    is. This is the sense in which the method is called <b>meta-learning</b>, or learning to
+    learn.</p
+  >
+  <h4>Why not compare pixels?</h4
+  ><p
+    >Nearest-prototype classification works in any space, including raw pixels, and that is the
+    dashed baseline. Pixels fail because two drawings of one symbol shifted by a square can share
+    fewer pixels than drawings of two different symbols. The trained embedding has learned, from
+    other alphabets, which differences matter.</p
+  >
+  <h4>Relatives</h4
+  ><p
+    ><b>Siamese networks</b> (Koch and others, 2015) train a network to say whether two inputs are
+    the same class, and classify a query by its most similar support example.
+    <b>Matching networks</b> (Vinyals and others, 2016) classify by attention over the support set
+    and introduced episodic training. With one example per class a prototype is just that example,
+    so the three methods nearly coincide in the one-shot case. Optimization-based methods such as
+    MAML take another route and learn starting weights that adapt in a few gradient steps.</p
+  >
+  <h4>The same words elsewhere</h4
+  ><p
+    >"Few-shot" is also used for large language models, when a handful of worked examples are placed
+    in the prompt. The mechanism differs, since no prototypes are computed and no weights change,
+    but the idea is the same: the model was trained broadly enough to pick up a new task from a few
+    demonstrations. Strong pretrained features with a simple classifier on top are now a very
+    competitive few-shot method.</p
+  >
+  <h4>What this page runs</h4
+  ><p
+    >Symbols are three random pen strokes on a 7 by 7 grid. Each drawing is redrawn with jittered
+    stroke ends, a random shift of up to one square and a few flipped pixels. There are 200 training
+    symbols and a separate, unlimited supply of test symbols. The embedding is a network with one
+    hidden layer of 48 tanh units and 8 outputs, trained with Adam on 5-way tasks with 3 examples
+    and 5 queries per class. Accuracy is measured every 100 tasks on 100 fixed test tasks of unseen
+    symbols. Training stops when the one-shot accuracy has not improved by more than 0.7 points over
+    800 tasks, or after 6,000 tasks.</p
+  ></template
+>
+
+<template data-part="question"
+  >After training, the network classifies drawings of symbols it has never seen, from one example
+  each, far better than comparing pixels. Its weights were never updated on those symbols. What did
+  training on other symbols give it?</template
+>
+
+<template data-part="answer"
+  >An embedding: a way of turning a drawing into a point so that drawings of the same symbol land
+  close together and different symbols land apart, whatever the symbols are. Because every training
+  task used a different set of symbols, the network could not lower its loss by memorizing them. The
+  only thing that helped across all tasks was to become insensitive to what varies between two
+  drawings of one symbol (a small shift, a wobbly stroke, a stray pixel) and sensitive to what
+  distinguishes symbols (which strokes are present and where they join). That knowledge is about
+  drawings in general, so it transfers. At test time the single example of each new symbol only has
+  to mark a location in that space.</template
+>

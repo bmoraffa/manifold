@@ -1,0 +1,185 @@
+<template data-part="lede"
+  >Give a network a picture, force it through a bottleneck of just two numbers, and ask for the same
+  picture back on the other side. To succeed it has to discover on its own what matters about the
+  pictures. Nobody tells it which letter is which, yet the letters sort themselves into groups on
+  the map of those two numbers. Drag across the map to see what each spot turns into.</template
+>
+
+<template data-part="intro"
+  ><p
+    >Suppose you must describe a friend's face over a bad phone line using only two numbers. You
+    could not send the picture. You would have to agree on a scheme first: perhaps the first number
+    says how round the face is and the second how long the hair. A good scheme lets the listener
+    redraw something close to the original. An autoencoder invents such a scheme by itself. The
+    encoder is you, the two numbers are the phone line, the decoder is the listener, and the scheme
+    is whatever makes the redrawn pictures match best.</p
+  >
+</template>
+
+<template data-part="stage"
+  ><div class="stage"
+    ><figure class="fig"
+      ><figcaption
+        >The map: where each picture lands on the two numbers of the bottleneck. Faint pictures show
+        what every region decodes to. Drag the diamond anywhere</figcaption
+      ><canvas
+        class="short"
+        id="ae-c"
+        role="img"
+        aria-label="Two-dimensional code space of the autoencoder"
+      ></canvas
+    ></figure>
+    <figure class="fig"
+      ><figcaption
+        >Top row: six originals. Second row: what comes back after the squeeze. Then: the picture
+        decoded from the diamond, and the error while learning</figcaption
+      ><canvas
+        class="short"
+        id="ae-r"
+        role="img"
+        aria-label="Originals, reconstructions, decoded probe and loss"
+      ></canvas></figure
+  ></div>
+  <div class="howto"
+    ><div
+      ><h3>How it works, step by step</h3
+      ><ol id="ae-steps"
+        ><li>Take a 5 × 7 picture of a letter: 35 numbers.</li
+        ><li
+          >Encoder: squeeze the 35 numbers through a hidden layer down to 2. That pair is the code,
+          a point on the map.</li
+        ><li>Decoder: expand the 2 numbers back through a hidden layer to 35.</li
+        ><li>Compare the output with the original picture, pixel by pixel. That is the error.</li
+        ><li
+          >Adjust all the weights to lower the error, and repeat over all the pictures until it
+          stops falling.</li
+        ></ol
+      ></div
+    ><div><h3>What just happened</h3><p class="live" id="ae-live" role="status"></p></div
+  ></div>
+  <div class="controls"
+    ><template data-label="Animation" data-control="group"
+      ><div class="row"
+        ><button class="btn go" id="ae-play" type="button">Train</button
+        ><button class="btn" id="ae-step" type="button">Ten epochs</button
+        ><button class="btn" id="ae-reset" type="button">Start over</button></div
+      ><template data-unit="epochs" data-id="ae" data-control="run-limit"></template
+    ></template>
+    <template data-label="The model" data-control="group"
+      ><template
+        data-value="14"
+        data-step="1"
+        data-max="24"
+        data-min="3"
+        data-label="Neurons in each hidden layer"
+        data-id="ae-hw"
+        data-control="slider"
+      ></template
+    ></template>
+    <template data-label="The data" data-control="group"
+      ><template
+        data-value="0.04"
+        data-step="0.01"
+        data-max="0.2"
+        data-min="0"
+        data-label="Noise: chance that a pixel is flipped"
+        data-id="ae-flip"
+        data-control="slider"
+      ></template
+      ><label class="check"
+        ><input type="checkbox" id="ae-col" checked /> Show the true letter (the network never sees
+        it)</label
+      ><div class="row"
+        ><button class="btn" id="ae-new" type="button">New random sample</button></div
+      ></template
+    ></div
+  >
+  <dl class="read"
+    ><template data-label="Epochs" data-key="ep" data-control="readout"></template
+    ><template
+      data-class="hl2"
+      data-label="Error per pixel"
+      data-key="L"
+      data-control="readout"
+    ></template
+    ><template
+      data-class="hl"
+      data-label="Pixels reproduced correctly"
+      data-key="px"
+      data-control="readout"
+    ></template
+    ><template
+      data-label="Numbers per picture: before → after"
+      data-key="cmp"
+      data-control="readout"
+    ></template
+    ><template data-label="Status" data-key="st" data-control="readout"></template></dl
+></template>
+
+<template data-part="tryit"
+  >Press Start over and train. At first every picture lands on the same spot and comes back as the
+  same grey blur. Watch the points pull apart into groups, and the second row sharpen. When it has
+  converged, drag the diamond slowly from the A group to the H group: the decoded picture morphs
+  from one letter into the other. Untick Show the True Letter and train again to see that the
+  grouping does not depend on the labels.</template
+>
+
+<template data-part="math"
+  ><h4>The model</h4
+  ><p
+    >An encoder \(f\) maps the input \(\mathbf x\in\mathbb R^{35}\) to a short code \(\mathbf
+    z\in\mathbb R^{2}\), and a decoder \(g\) maps the code back:</p
+  >$$\mathbf z=f(\mathbf x),\qquad\hat{\mathbf x}=g(\mathbf z),\qquad\mathcal
+  L=\frac1n\sum_{i=1}^{n}\ell\big(\mathbf x_i,\;g(f(\mathbf x_i))\big).$$<p
+    >Here both are small networks, \(35\to H\to2\) and \(2\to H\to35\), and \(\ell\) is the
+    cross-entropy between each original pixel and the predicted one. The target is the input itself,
+    so no labels are needed: this is unsupervised (more precisely, self-supervised) learning.</p
+  >
+  <h4>Why the bottleneck matters</h4
+  ><p
+    >If the code were as large as the input, the network could copy its input straight through and
+    learn nothing. Two numbers cannot hold 35 pixels, so the network must keep what distinguishes
+    one picture from another and drop the rest. Pictures that share most of their pixels need nearly
+    the same code, so they land close together on the map. That is why the letters form groups
+    without ever being told they are letters.</p
+  >
+  <h4>Relation to PCA</h4
+  ><p
+    >With no hidden layers and no activation, the best possible autoencoder with a two-number code
+    finds the same plane as the first two principal components. The non-linear layers let it bend
+    that plane into a curved surface that fits the data better. An autoencoder is a non-linear
+    generalisation of PCA.</p
+  >
+  <h4>The decoder is a generator</h4
+  ><p
+    >The decoder turns any point of the map into a picture, including points that no training
+    picture landed on. Dragging the diamond between two groups gives pictures in between. In a plain
+    autoencoder the regions between groups can decode to rubbish, because nothing trained them. The
+    <b>variational autoencoder</b> fixes this by making the codes fill the map smoothly, which turns
+    the decoder into a proper generative model. That is the start of the Generative AI module.</p
+  >
+  <h4>What autoencoders are used for</h4
+  ><ul
+    ><li><b>Compression and visualisation:</b> a short code in place of a long input.</li
+    ><li><b>Denoising:</b> train with a corrupted input and the clean picture as the target.</li
+    ><li
+      ><b>Anomaly detection:</b> an input unlike the training data is reconstructed badly, and the
+      size of the error flags it.</li
+    ><li
+      ><b>Pre-training:</b> the encoder's code is a compact set of features for another task.</li
+    ></ul
+  ></template
+>
+
+<template data-part="question"
+  >After training, a picture of the letter K, which was never in the training set, is fed in. What
+  do you expect to come out, and how could that be put to use?</template
+>
+
+<template data-part="answer"
+  >Something that looks like a blend of the letters it does know, probably closest to H or X,
+  because the decoder can only produce pictures of the kind it was trained on. The reconstruction
+  will differ from the input in many pixels, so the error will be much larger than for a familiar
+  letter. That is the basis of anomaly detection with autoencoders: a large reconstruction error
+  signals an input unlike the training data.</template
+>

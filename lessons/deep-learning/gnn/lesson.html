@@ -1,0 +1,156 @@
+<template data-part="lede"
+  >Some data is not a table or a picture but a web of connections: friendships, molecules, roads,
+  web pages. A graph neural network learns from such data by letting every node repeatedly ask its
+  neighbours what they think and update its own view. Here two people in a small social network have
+  told us which club they joined. Watch that knowledge spread along the friendships until everyone
+  has an answer.</template
+>
+
+<template data-part="intro"
+  ><p
+    >Suppose you move to a new town and want to know which football team a stranger supports. You do
+    not know, but you know two of their friends, and each of those has friends whose team you do
+    know. Ask around: each person forms a guess from their friends' guesses, and passes their own
+    guess on. After a few rounds of gossip, a reasonable answer has reached everyone, because
+    friends tend to agree. A graph neural network is this gossip, with learned rules for how to
+    combine what is heard.</p
+  >
+</template>
+
+<template data-part="stage"
+  ><div class="stage"
+    ><figure class="fig"
+      ><figcaption
+        >A friendship network. Ringed nodes have a known answer. Colour is each node’s current
+        belief: green club or gold club. Dots are messages. Click a node to change what is known
+        about it</figcaption
+      ><canvas
+        class="short"
+        id="gn-c"
+        role="img"
+        aria-label="Graph with node beliefs and messages passing along edges"
+      ></canvas
+    ></figure>
+    <figure class="fig"
+      ><figcaption
+        >Every node’s belief, round by round. 1 = certainly gold, 0 = certainly green</figcaption
+      ><canvas
+        class="short"
+        id="gn-r"
+        role="img"
+        aria-label="Node beliefs over rounds of message passing"
+      ></canvas></figure
+  ></div>
+  <div class="howto"
+    ><div
+      ><h3>How it works, step by step</h3
+      ><ol id="gn-steps"
+        ><li>Start: the labelled nodes know their club. Everyone else is undecided, at one half.</li
+        ><li>Message: every node sends its current belief along each of its friendships.</li
+        ><li
+          >Aggregate: every node averages the messages it received together with its own belief.</li
+        ><li
+          >Update: that average becomes its new belief. Labelled nodes keep their known answer.</li
+        ><li
+          >Repeat. Each round carries information one friendship further. Stop when the beliefs no
+          longer change.</li
+        ></ol
+      ></div
+    ><div><h3>What just happened</h3><p class="live" id="gn-live" role="status"></p></div
+  ></div>
+  <div class="controls"
+    ><template data-label="Animation" data-control="group"
+      ><div class="row"
+        ><button class="btn go" id="gn-play" type="button">Pass messages</button
+        ><button class="btn" id="gn-step" type="button">One round</button
+        ><button class="btn" id="gn-reset" type="button">Start over</button></div
+      ><template data-unit="rounds" data-id="gn" data-control="run-limit"></template
+    ></template>
+    <template data-label="The model" data-control="group"
+      ><label class="check"
+        ><input type="checkbox" id="gn-fix" checked /> Labelled nodes keep their known answer</label
+      ><div class="row"
+        ><button class="btn" id="gn-clear" type="button">Forget all labels</button></div
+      ></template
+    ></div
+  >
+  <dl class="read"
+    ><template data-label="Rounds" data-key="rd" data-control="readout"></template
+    ><template
+      data-label="Largest change in the last round"
+      data-key="ch"
+      data-control="readout"
+    ></template
+    ><template
+      data-class="hl"
+      data-label="Nodes placed in their true club"
+      data-key="acc"
+      data-control="readout"
+    ></template
+    ><template data-label="Labelled nodes" data-key="lab" data-control="readout"></template
+    ><template data-label="Status" data-key="st" data-control="readout"></template></dl
+></template>
+
+<template data-part="tryit"
+  >Step through three rounds and watch the colour spread outward from the two ringed nodes, one
+  friendship per round. Notice the nodes on the bridge between the two groups: they stay pale. Now
+  untick “Labelled nodes keep their known answer” and run: every node drifts to the same colour.
+  That is over-smoothing, and it is why very deep graph networks are hard to build. Then click nodes
+  to label different people and see how few labels are enough.</template
+>
+
+<template data-part="math"
+  ><h4>Message passing</h4
+  ><p
+    >Let \(\mathbf h_i^{(t)}\) be the vector held by node \(i\) after round \(t\) and \(\mathcal
+    N(i)\) its neighbours. One round, or one layer, is</p
+  >$$\mathbf h_i^{(t+1)}=\phi\Big(\mathbf W\cdot\frac{1}{1+|\mathcal N(i)|}\Big[\mathbf
+  h_i^{(t)}+\sum_{j\in\mathcal N(i)}\mathbf h_j^{(t)}\Big]\Big).$$<p
+    >Each node averages its own vector with its neighbours', multiplies by a learned matrix
+    \(\mathbf W\) and applies an activation. This is essentially the graph convolutional network of
+    Kipf and Welling (2017). The same \(\mathbf W\) is used at every node, as a convolution reuses
+    one kernel at every pixel, so the layer works on a graph of any size or shape.</p
+  >
+  <h4>What this page shows</h4
+  ><p
+    >Each node holds one number, its belief that it is in the gold club, and the round is the plain
+    average with no learned weights (\(\mathbf W=1\), no activation). Labelled nodes are reset to
+    their known value after each round. <b>That is the untrained core of a graph network</b>, known
+    on its own as label propagation. A trained network would also use each node's own features and
+    learn \(\mathbf W\) so that the averaging emphasises what matters.</p
+  >
+  <h4>Depth is reach</h4
+  ><p
+    >After one round a node knows about its friends; after two, about friends of friends. A network
+    with \(k\) layers sees exactly \(k\) steps away. That is the graph version of the receptive
+    field.</p
+  >
+  <h4>Over-smoothing</h4
+  ><p
+    >Averaging with neighbours makes connected nodes more alike every round. With nothing to hold
+    them apart, all nodes of a connected graph converge to the same value, and the network can no
+    longer tell them apart. That is why practical graph networks are shallow, usually two to four
+    layers, or use residual shortcuts back to each node's original features.</p
+  >
+  <h4>Where they are used</h4
+  ><p
+    >Predicting properties of molecules (atoms are nodes, bonds are edges), recommending products
+    (people and items), estimating travel times on road maps, detecting fraud in payment networks,
+    and weather forecasting on a mesh of the globe. A Transformer is a graph network on a graph in
+    which every token is connected to every other, with attention deciding the weight of each
+    edge.</p
+  ></template
+>
+
+<template data-part="question"
+  >A node is five friendships away from the nearest labelled node. What is the smallest number of
+  rounds after which its belief can differ from one half, and what does that say about choosing the
+  number of layers?</template
+>
+
+<template data-part="answer"
+  >Five. Information moves one friendship per round, so after four rounds nothing from a labelled
+  node has reached it. In a graph network the number of layers sets how far each node can see, so it
+  must be at least the distance over which the relevant information has to travel, but not much
+  more, because each extra round also blurs neighbouring nodes together.</template
+>

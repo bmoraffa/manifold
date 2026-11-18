@@ -1,0 +1,115 @@
+<template data-part="lede"
+  >Gradient descent knows only which way is down. Newton’s method also measures how the slope is
+  changing, fits a bowl to the surface where it stands, and jumps straight to the bottom of that
+  bowl. Watch the two race.</template
+>
+
+<template data-part="intro"
+  ><p
+    >Gradient descent takes the same length of step whether the valley floor is one stride away or a
+    mile away, because the slope alone cannot tell the difference. Curvature can. If the slope is
+    flattening quickly, the bottom is near, so take a short step. If the slope is barely changing,
+    the bottom is far, so take a long one. Newton's method rescales the step in every direction by
+    the curvature in that direction.</p
+  >
+</template>
+
+<template data-part="dimensions"
+  ><button class="btn" type="button" data-d="1">1D: A Curve</button
+  ><button class="btn" type="button" data-d="2">2D: Contour Map</button
+  ><button class="btn" type="button" data-d="3">3D: Surface</button></template
+>
+
+<template data-part="loss-caption">Loss at each step</template>
+
+<template data-part="controls"
+  ><template data-label="The surface" data-control="group"
+    ><label class="ctl" for="newton-f"
+      ><span>Loss surface</span
+      ><select id="newton-f"
+        ><option value="bowl">Round bowl</option
+        ><option value="ravine" selected>Narrow valley</option
+        ><option value="banana">Curved valley</option
+        ><option value="two">Two valleys</option
+        ><option value="saddle">Saddle between two valleys</option
+        ><option value="bumpy">Bumpy bowl</option
+        ><option value="plateau">Flat plateau with one pit</option></select
+      ></label
+    ></template
+  ><template data-label="The two optimisers" data-control="group"
+    ><template
+      data-value="0.1"
+      data-step="0.005"
+      data-max="0.9"
+      data-min="0.005"
+      data-label="Gradient descent: learning rate η"
+      data-id="newton-lr"
+      data-control="slider"
+    ></template
+    ><template
+      data-value="1"
+      data-step="0.05"
+      data-max="1"
+      data-min="0.05"
+      data-label="Newton: fraction of the full step"
+      data-id="newton-da"
+      data-control="slider"
+    ></template></template
+></template>
+
+<template data-part="readouts"
+  ><template
+    data-class="hl"
+    data-label="Loss: Gradient descent"
+    data-key="Lgd"
+    data-control="readout"
+  ></template
+  ><template
+    data-class="hl2"
+    data-label="Loss: Newton"
+    data-key="Lnewton"
+    data-control="readout"
+  ></template
+></template>
+
+<template data-part="tryit"
+  >On the narrow valley Newton arrives in one step while gradient descent crawls. Why? Now choose
+  the saddle and start near the middle: where does Newton go, and is that a good place?</template
+>
+
+<template data-part="math"
+  ><h4>The step</h4
+  ><p>Approximate the loss near \(\mathbf w\) by its second-order Taylor expansion, a bowl:</p
+  >$$L(\mathbf w+\mathbf d)\approx L(\mathbf w)+\nabla L^{\top}\mathbf d+\tfrac12\,\mathbf
+  d^{\top}H\,\mathbf d,\qquad H_{ij}=\frac{\partial^2L}{\partial w_i\,\partial w_j}.$$<p
+    >The bottom of that bowl is where its gradient vanishes:</p
+  >$$\mathbf d=-H^{-1}\nabla L,\qquad \mathbf w_{t+1}=\mathbf w_t-H^{-1}\nabla L(\mathbf w_t).$$<p
+    >Compare with gradient descent: the single number \(\eta\) has been replaced by the matrix
+    \(H^{-1}\), a separate, automatically chosen learning rate for every direction.</p
+  >
+  <h4>What it buys</h4
+  ><p
+    >If the loss really is a bowl (a quadratic), the approximation is exact and Newton lands on the
+    minimum in one step, however stretched the bowl is. Near any minimum it converges quadratically:
+    the number of correct digits roughly doubles each step.</p
+  >
+  <h4>What it costs</h4
+  ><p
+    >With \(d\) parameters, \(H\) has \(d^2\) entries and inverting it costs about \(d^3\)
+    operations. For a network with a million weights that is out of the question. Second, Newton
+    seeks any point where the gradient is zero. Where the surface curves downward in some direction,
+    \(H\) is not positive definite and the step heads for a saddle or a maximum. Practical methods
+    (damped Newton, quasi-Newton such as L-BFGS, and Adam's per-weight scaling) keep the idea of
+    rescaling by curvature and avoid both problems.</p
+  ></template
+>
+
+<template data-part="question"
+  >Why is plain Newton’s method not used to train neural networks?</template
+>
+
+<template data-part="answer"
+  >Two reasons. The Hessian of a network with millions of weights is far too large to store or
+  invert. And the loss surfaces of networks are full of saddle points, which Newton is attracted to.
+  Methods that approximate curvature cheaply, per weight, are used instead.</template
+>

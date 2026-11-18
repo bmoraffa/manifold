@@ -1,0 +1,224 @@
+<template data-part="lede"
+  >Every prediction error is made of three parts. Bias: the model is too stiff to follow the truth.
+  Variance: the model is so flexible that it changes with every new batch of data. Noise: the world
+  itself is not perfectly predictable, and no model can remove that part. Making a model more
+  flexible trades the first for the second. The third stays put.</template
+>
+
+<template data-part="intro"
+  ><p
+    >Picture an archer shooting many arrows at a target. If the arrows land in a tight group but off
+    to one side, the archer has <b>bias</b>: a consistent error that more arrows will not fix. If
+    they are centred on the bullseye but spread wide, that is <b>variance</b>: each shot depends too
+    much on the moment. Now put the target on a boat that rocks. Even a perfect archer misses a
+    little, because the target itself moves. That is <b>irreducible noise</b>. In machine learning
+    each arrow is a model trained on one batch of data, the bullseye is the truth, and the rocking
+    boat is everything about the outcome that the inputs do not explain.</p
+  >
+</template>
+
+<template data-part="stage"
+  ><div class="row seg" id="bv-pre" role="group" aria-label="Situations to look at"
+    ><button class="btn" type="button" data-v="simple">Too Stiff</button
+    ><button class="btn" type="button" data-v="best">Just Right</button
+    ><button class="btn" type="button" data-v="flex">Too Flexible</button
+    ><button class="btn" type="button" data-v="quiet">Low Noise</button
+    ><button class="btn" type="button" data-v="loud">High Noise</button></div
+  >
+  <p class="cap" id="bv-cap"></p>
+  <div class="stage"
+    ><figure class="fig"
+      ><figcaption
+        >Each thin line is the same model fitted to a fresh batch of data. Gold is the average of
+        all such fits. Dashed is the truth</figcaption
+      ><canvas
+        class="short"
+        id="bv-c"
+        role="img"
+        aria-label="Truth, noise band, repeated fits and their average"
+      ></canvas
+    ></figure>
+    <figure class="fig"
+      ><figcaption
+        >Top: the expected error on new data at this flexibility, split into its three parts.
+        Bottom: the three parts at every flexibility</figcaption
+      ><canvas
+        class="sq"
+        id="bv-r"
+        role="img"
+        aria-label="Error decomposition bar and the bias-variance curves against flexibility"
+      ></canvas></figure
+  ></div>
+  <div class="howto"
+    ><div
+      ><h3>How to read it, step by step</h3
+      ><ol id="bv-steps"
+        ><li
+          >The world: a true curve, plus noise on every measurement. The grey band is where
+          measurements land.</li
+        ><li>Collect one batch of data and fit the model to it. That is one thin line.</li
+        ><li>Collect a fresh batch and fit again. The line comes out different.</li
+        ><li
+          >Bias is the gap between the average line (gold) and the truth. Variance is how far the
+          thin lines scatter around the gold one.</li
+        ><li
+          >A new measurement also carries its own noise. Expected error = bias² + variance +
+          noise.</li
+        ></ol
+      ></div
+    ><div><h3>What just happened</h3><p class="live" id="bv-live" role="status"></p></div
+  ></div>
+  <div class="controls"
+    ><template data-label="Animation" data-control="group"
+      ><div class="row"
+        ><button class="btn go" id="bv-play" type="button">Draw new batches</button
+        ><button class="btn" id="bv-step" type="button">One batch</button
+        ><button class="btn" id="bv-reset" type="button">Start over</button></div
+      ><template data-unit="batches" data-id="bv" data-control="run-limit"></template
+      ><div class="row"
+        ><button class="btn" id="bv-sweep" type="button">Sweep the flexibility for me</button></div
+      ></template
+    >
+    <template data-label="The model" data-control="group"
+      ><template
+        data-value="5"
+        data-step="1"
+        data-max="12"
+        data-min="0"
+        data-label="Flexibility (degree of the polynomial)"
+        data-id="bv-d"
+        data-control="slider"
+      ></template
+    ></template>
+    <template data-label="The world" data-control="group"
+      ><label class="ctl" for="bv-f"
+        ><span>True curve</span
+        ><select id="bv-f"
+          ><option value="wave">A wave</option
+          ><option value="bump">A single bump</option
+          ><option value="line">A straight line</option></select
+        ></label
+      ><template
+        data-value="0.3"
+        data-step="0.01"
+        data-max="1.2"
+        data-min="0"
+        data-label="Irreducible noise σ"
+        data-id="bv-s"
+        data-control="slider"
+      ></template
+      ><template
+        data-value="25"
+        data-step="1"
+        data-max="80"
+        data-min="15"
+        data-label="Points in each batch"
+        data-id="bv-n"
+        data-control="slider"
+      ></template></template
+  ></div>
+  <dl class="read"
+    ><template data-class="hl2" data-label="Bias²" data-key="b" data-control="readout"></template
+    ><template data-class="hl3" data-label="Variance" data-key="v" data-control="readout"></template
+    ><template
+      data-label="Noise σ² (cannot be reduced)"
+      data-key="s"
+      data-control="readout"
+    ></template
+    ><template
+      data-class="hl"
+      data-label="Expected error on new data"
+      data-key="t"
+      data-control="readout"
+    ></template
+    ><template
+      data-label="Best flexibility for this world"
+      data-key="best"
+      data-control="readout"
+    ></template
+    ><template data-label="Batches drawn" data-key="k" data-control="readout"></template></dl
+></template>
+
+<template data-part="tryit"
+  >Press Too Stiff, then Too Flexible, and each time read the bar: which colour takes over? Press
+  Sweep the Flexibility and watch the red and green parts trade places while the grey part never
+  moves. Then press High Noise. Three things happen at once: the grey floor rises, the green curve
+  gets steeper, and the best flexibility moves left. Why does more noise call for a simpler
+  model?</template
+>
+
+<template data-part="math"
+  ><h4>The decomposition</h4
+  ><p
+    >Suppose the world produces \(y=f(x)+\varepsilon\), with noise of mean 0 and variance
+    \(\sigma^2\). Train a model on a random batch and call its prediction \(\hat f(x)\). Averaging
+    over batches and over the noise in a new measurement at \(x\),</p
+  >$$\mathbb E\big[(y-\hat f(x))^2\big]=\underbrace{\big(\mathbb E[\hat
+  f(x)]-f(x)\big)^2}_{\text{bias}^2}+\underbrace{\mathbb E\Big[\big(\hat f(x)-\mathbb E[\hat
+  f(x)]\big)^2\Big]}_{\text{variance}}+\underbrace{\sigma^2}_{\text{noise}} .$$
+  <p
+    >To see why, write \(y-\hat f=\varepsilon+(f-\bar f)+(\bar f-\hat f)\) with \(\bar f=\mathbb
+    E[\hat f]\). The three pieces are uncorrelated: the new noise is independent of the training
+    batch, and \(\bar f-\hat f\) has mean zero. So the squares add and the cross terms vanish.</p
+  >
+  <h4>Why this page can show it exactly</h4
+  ><p
+    >The model here is a polynomial fitted by least squares, which is linear in the data: the
+    prediction at any \(x\) is a fixed weighted sum of the batch's \(y\) values, \(\hat f(x)=\mathbf
+    h(x)^{\top}\mathbf y\). Each batch uses the same \(x\) positions with fresh noise. Then nothing
+    has to be estimated:</p
+  >$$\mathbb E[\hat f(x)]=\mathbf h(x)^{\top}\mathbf f,\qquad\text{bias}(x)=\mathbf
+  h(x)^{\top}\mathbf f-f(x),\qquad\text{variance}(x)=\sigma^2\,\lVert\mathbf h(x)\rVert^2 .$$<p
+    >The curves in the lower picture are these formulas averaged over \(x\). The thin lines are
+    simulations, and the second bar shows what you would measure from only the batches drawn so far.
+    It closes in on the exact bar as batches accumulate, and the animation stops once the two
+    agree.</p
+  >
+  <h4>The trade-off</h4
+  ><p
+    >A polynomial of degree \(d\) has \(p=d+1\) coefficients. Averaged over the training positions,
+    its variance is exactly</p
+  >$$\overline{\text{variance}}=\sigma^2\,\frac{p}{n} .$$<p
+    >Every extra coefficient adds \(\sigma^2/n\) of variance, whether or not it helps. Meanwhile
+    bias² can only fall as \(d\) grows, quickly at first and then hardly at all once the model can
+    follow the truth. The total is therefore U-shaped. Its lowest point is where one more
+    coefficient would remove less bias than the \(\sigma^2/n\) of variance it costs.</p
+  >
+  <h4>What irreducible noise does</h4
+  ><p
+    >Noise enters the total twice. First directly, as the floor \(\sigma^2\): the best possible
+    model, the truth itself, still has this error, so no amount of data or tuning takes the test
+    error below it. Second through the variance, which is proportional to \(\sigma^2\): noisier data
+    make every fitted line wobble more. Bias does not depend on \(\sigma\) at all. So when noise is
+    high, the variance curve rises more steeply while the bias curve stays where it was, and the
+    bottom of the U moves toward simpler models. With very noisy data a straight line can beat the
+    "correct" flexible model.</p
+  >
+  <h4>What more data does</h4
+  ><p
+    >Variance is proportional to \(1/n\), so more data lowers the green curve and moves the best
+    flexibility to the right. Bias is unaffected: a stiff model stays wrong however much data it
+    sees. The noise floor is unaffected too. The only ways to lower \(\sigma^2\) are better
+    measurements or new input variables that explain what is now treated as noise.</p
+  >
+  <h4>How this guides practice</h4
+  ><p
+    >High training error and similar test error: bias dominates, so use a more flexible model or
+    better features. Low training error and much higher test error: variance dominates, so get more
+    data, simplify, regularise, or average many models (bagging). Both errors stuck at a level that
+    no model improves on: you have probably reached the noise floor.</p
+  ></template
+>
+
+<template data-part="question"
+  >A team has tuned every model they can think of and the test error will not go below 4.0. They
+  collect ten times more data and it stays at 4.0. What is the most likely explanation, and what
+  could actually help?</template
+>
+
+<template data-part="answer"
+  >They have reached the irreducible noise: with the inputs they have, outcomes that look identical
+  to the model differ by about that much. More data only reduces variance, and tuning only trades
+  bias against variance. The remaining options are to measure the target more accurately, or to find
+  new input variables that explain part of what currently looks like noise.</template
+>

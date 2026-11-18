@@ -1,0 +1,244 @@
+<template data-part="lede"
+  >A language model does not write. It produces a list of probabilities for the next word, and a
+  separate, very small piece of code picks one. That picking rule decides whether the text is dull
+  and repetitive, lively, or nonsense, and it is the part you control with settings such as
+  temperature and top-p. Here a small neural network learns from a few dozen sentences, and you
+  choose how its next word is picked.</template
+>
+
+<template data-part="intro"
+  ><p
+    >Think of a jazz player choosing the next note. At every moment some notes are obvious, some are
+    interesting, and some are simply wrong. Always playing the most obvious note gives a tune that
+    is correct and lifeless, and tends to loop. Choosing with no regard for what fits gives noise.
+    Good playing stays among the notes that fit and does not always take the first one. A language
+    model supplies the "how well does each note fit" numbers. The sampling rule is the player's
+    taste.</p
+  >
+</template>
+
+<template data-part="stage"
+  ><p
+    class="cap"
+    id="ns-out"
+    role="status"
+    style="font-family:var(--font-mono);min-height:5.5em;white-space:pre-wrap"
+  ></p>
+  <div class="stage"
+    ><figure class="fig"
+      ><figcaption
+        >The model’s probabilities for the next word. Faint bar: after temperature. Solid bar: after
+        the cuts, rescaled. Struck-out words were cut. The gold word was picked</figcaption
+      ><canvas
+        class="short"
+        id="ns-c"
+        role="img"
+        aria-label="Next-word probabilities before and after the cuts"
+      ></canvas
+    ></figure>
+    <figure class="fig"
+      ><figcaption
+        >Top: how surprising each chosen word was. Bottom: how many real choices the model had at
+        each step</figcaption
+      ><canvas
+        class="short"
+        id="ns-r"
+        role="img"
+        aria-label="Surprise of each chosen word and the effective number of choices"
+      ></canvas></figure
+  ></div>
+  <div class="howto"
+    ><div
+      ><h3>How it works, step by step</h3
+      ><ol id="ns-steps"
+        ><li
+          >Train: the network reads the sentences and learns to give a probability to every word in
+          its vocabulary, given the three words before.</li
+        ><li>Write: feed in the last three words. The network returns a score for every word.</li
+        ><li
+          >Temperature: divide the scores by the temperature and turn them into probabilities. Low
+          temperature sharpens them, high temperature flattens them.</li
+        ><li
+          >Top-k: keep only the k most likely words. Top-p: keep the most likely words until their
+          probabilities add up to p. Everything else is cut.</li
+        ><li>Rescale what is left so that it adds up to 1, and draw one word at random from it.</li
+        ><li>Add the word to the text and go back to step 2.</li></ol
+      ></div
+    ><div><h3>What just happened</h3><p class="live" id="ns-live" role="status"></p></div
+  ></div>
+  <div class="controls"
+    ><template data-label="Animation" data-control="group"
+      ><div class="row"
+        ><button class="btn go" id="ns-play" type="button">Run</button
+        ><button class="btn" id="ns-step" type="button">One word</button
+        ><button class="btn" id="ns-reset" type="button">Start over</button></div
+      ><template data-unit="words" data-id="ns" data-control="run-limit"></template
+    ></template>
+    <template data-label="How the next word is picked" data-control="group"
+      ><div class="row seg" id="ns-pre" role="group" aria-label="Presets"
+        ><button class="btn" type="button" data-v="greedy">Greedy</button
+        ><button class="btn" type="button" data-v="pure">Plain Sampling</button
+        ><button class="btn" type="button" data-v="topk">Top-k = 5</button
+        ><button class="btn" type="button" data-v="topp">Top-p = 0.9</button
+        ><button class="btn" type="button" data-v="hot">Hot</button></div
+      ><template
+        data-value="1"
+        data-step="0.05"
+        data-max="2.5"
+        data-min="0.1"
+        data-label="Temperature"
+        data-id="ns-t"
+        data-control="slider"
+      ></template
+      ><template
+        data-value="40"
+        data-step="1"
+        data-max="40"
+        data-min="1"
+        data-label="Top-k: words kept"
+        data-id="ns-k"
+        data-control="slider"
+      ></template
+      ><template
+        data-value="1"
+        data-step="0.05"
+        data-max="1"
+        data-min="0.05"
+        data-label="Top-p: probability kept"
+        data-id="ns-p"
+        data-control="slider"
+      ></template
+    ></template>
+    <template data-label="The start of the text" data-control="group"
+      ><label class="ctl" for="ns-pr"
+        ><span>Prompt</span
+        ><select id="ns-pr"
+          ><option>the cat</option
+          ><option>the dog chased</option
+          ><option>a small</option
+          ><option>the girl</option
+          ><option>the sun was</option></select
+        ></label
+      ><p class="status" id="ns-st" role="status"></p></template
+  ></div>
+  <dl class="read"
+    ><template data-label="Stage" data-key="ph" data-control="readout"></template
+    ><template data-label="Words written" data-key="n" data-control="readout"></template
+    ><template
+      data-label="Probability of the word just picked"
+      data-key="pk"
+      data-control="readout"
+    ></template
+    ><template
+      data-class="hl"
+      data-label="Words still allowed after the cuts"
+      data-key="al"
+      data-control="readout"
+    ></template
+    ><template
+      data-label="Effective number of choices before the cuts"
+      data-key="ef"
+      data-control="readout"
+    ></template
+    ><template
+      data-class="hl2"
+      data-label="Average surprise, bits per word"
+      data-key="sp"
+      data-control="readout"
+    ></template
+    ><template
+      data-label="Three-word phrases that came up more than once"
+      data-key="rp"
+      data-control="readout"
+    ></template></dl
+></template>
+
+<template data-part="tryit"
+  >When training finishes, press Greedy and Run. The text is correct and soon starts going round in
+  circles: count the repeated phrases. Press Plain Sampling and run again several times. More
+  variety, and now and then an odd sentence. Raise the temperature to 2.5: what happens to the bars,
+  and to the text? Bring it back to 1 and press Top-k = 5, then Top-p = 0.9. Step one word at a time
+  and compare how many words each rule keeps at a step where the model is sure (after “on”) and at a
+  step where it is not (after “the”). Which of the two rules adapts to the situation?</template
+>
+
+<template data-part="math"
+  ><h4>From scores to probabilities</h4
+  ><p
+    >For a given context the network outputs one score, or logit, \(z_i\) for every word \(i\) in
+    the vocabulary. The softmax turns scores into probabilities. The <b>temperature</b> \(T\)
+    rescales the scores first:</p
+  >$$p_i=\frac{e^{z_i/T}}{\sum_j e^{z_j/T}} .$$<p
+    >With \(T=1\) these are the probabilities the model learned. As \(T\to0\) all the probability
+    moves to the single highest score, which is <b>greedy</b> decoding. As \(T\) grows, the
+    probabilities approach equal shares for every word, including the absurd ones. Temperature
+    changes the gaps between words and never their order.</p
+  >
+  <h4>Top-k</h4
+  ><p
+    >Sort the words by probability and keep only the \(k\) most likely. Set the others to zero and
+    rescale:</p
+  >$$p_i'=\frac{p_i}{\sum_{j\in\text{top-}k}p_j}\ \text{ for } i\in\text{top-}k,\qquad p_i'=0\
+  \text{ otherwise}.$$<p
+    >This removes the long tail of unlikely words, where most nonsense comes from. Its weakness is
+    that \(k\) is fixed. When the model is sure, five words is too many and lets poor ones in. When
+    many continuations are reasonable, five is too few.</p
+  >
+  <h4>Top-p, or nucleus sampling</h4
+  ><p
+    >Keep the smallest set of most likely words whose probabilities add up to at least \(p\)
+    (Holtzman and others, 2020):</p
+  >$$\text{keep the first } m \text{ words, where } m=\min\Big\{m:\ \sum_{i=1}^{m}p_{(i)}\ge
+  p\Big\}.$$<p
+    >The number of words kept now adapts. If one word has probability 0.95, the set is that one
+    word. If the model is unsure, the set is wide. This is why top-p is the usual default. The two
+    cuts can be combined, and they are applied after the temperature.</p
+  >
+  <h4>Measuring what you see</h4
+  ><p
+    >The <b>surprise</b> of a chosen word is \(-\log_2 p\) bits, using the model's own probability
+    \(p\) at \(T=1\). Greedy text has low surprise at every step. The
+    <b>effective number of choices</b> is \(2^{H}\), where \(H=-\sum_i p_i\log_2 p_i\) is the
+    entropy of the distribution: it is 1 when the model is certain and equals the vocabulary size
+    when every word is equally likely. Average surprise over a long text is the logarithm of the
+    perplexity you met in the Autoregressive Models tab.</p
+  >
+  <h4>Why the most likely text is not the best text</h4
+  ><p
+    >It seems natural to want the most probable continuation. In practice the most probable long
+    text is bland and repetitive: once a phrase has appeared, repeating it is likely, and that makes
+    repeating it again more likely still. Human writing carries a steady, moderate amount of
+    surprise. Sampling with a mild temperature and a top-p cut imitates that. For tasks with one
+    right answer, such as arithmetic, extracting a date, or writing code that must compile, a low
+    temperature is the better choice, because there the obvious note is the correct one.</p
+  >
+  <h4>Other rules you may meet</h4
+  ><p
+    ><b>Beam search</b> keeps several partial texts alive and extends the best ones. It suits
+    translation, where the output is tightly determined, and gives dull open-ended text. A
+    <b>repetition penalty</b> lowers the scores of words already used. <b>Min-p</b> keeps every word
+    whose probability is at least a set fraction of the top word's.</p
+  >
+  <h4>What this page trains</h4
+  ><p
+    >A network in the style of Bengio and others (2003): each of the three previous words is looked
+    up in a table of 12 learned numbers, the 36 numbers pass through one hidden layer of 48 neurons,
+    and the output is one score for each word in the vocabulary. It is trained with Adam on about
+    forty short sentences for 700 steps. It knows nothing else about the world, so its text never
+    leaves cats, dogs and cheese. The sampling rules are exactly the ones used with large models.</p
+  ></template
+>
+
+<template data-part="question"
+  >A student sets the temperature to 0.1 and top-p to 0.9 and is surprised that changing top-p no
+  longer does anything. Why not?</template
+>
+
+<template data-part="answer"
+  >The temperature is applied first. At 0.1 the differences between scores are multiplied by ten
+  before the softmax, so almost all of the probability lands on the single most likely word, often
+  more than 0.99 of it. Top-p then keeps the smallest set of words that reaches 0.9, and that set is
+  already just the one word. The cut has nothing left to remove. The two settings are not
+  independent: a low temperature makes every cut irrelevant, and a very high temperature makes the
+  cut do all the work.</template
+>

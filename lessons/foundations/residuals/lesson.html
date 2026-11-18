@@ -1,0 +1,190 @@
+<template data-part="lede"
+  >A fitted line always looks reasonable drawn through its own data. The honest test is to take the
+  line away and look at what is left. If the model has captured everything systematic, the leftovers
+  are shapeless noise. If they show a bend, a funnel or a lone straggler, the model is telling you
+  exactly what it missed. Press Run and watch the fitted line being pulled flat, carrying the data
+  with it.</template
+>
+
+<template data-part="intro"
+  ><p
+    >A tailor checks a suit by looking at where the cloth pulls and where it hangs loose, because
+    that is where the pattern was wrong. Residuals are the same check for a model. Each one is the
+    part of an observation that the model failed to predict. If the model is right, what it failed
+    to predict is pure chance, and chance has no shape. Any shape you can see in the residuals is
+    something real that the model does not know about, and the kind of shape tells you what to
+    add.</p
+  >
+</template>
+
+<template data-part="stage"
+  ><div class="row seg" id="rs-d" role="group" aria-label="Data"
+    ><button class="btn" type="button" data-v="good">A Line That Fits</button
+    ><button class="btn" type="button" data-v="curve">A Hidden Bend</button
+    ><button class="btn" type="button" data-v="funnel">A Funnel</button
+    ><button class="btn" type="button" data-v="out">One Straggler</button></div
+  >
+  <div class="stage"
+    ><figure class="fig"
+      ><figcaption id="rs-cap"
+        >The data and the fitted model. Vertical sticks are the residuals: observed minus predicted.
+        Run flattens the fitted line into the horizontal axis, which turns this picture into the
+        residual plot</figcaption
+      ><canvas
+        class="short"
+        id="rs-c"
+        role="img"
+        aria-label="Data and fit, morphing into the residual plot"
+      ></canvas
+    ></figure>
+    <figure class="fig"
+      ><figcaption
+        >Top: how the residuals are distributed (bars) against a bell curve of the same spread.
+        Bottom: the size of each residual, ignoring sign, against the predicted value. A rising
+        trend means the scatter is not constant</figcaption
+      ><canvas
+        class="short"
+        id="rs-r"
+        role="img"
+        aria-label="Histogram of residuals and spread against fitted value"
+      ></canvas></figure
+  ></div>
+  <div class="howto"
+    ><div
+      ><h3>How it works, step by step</h3
+      ><ol id="rs-steps"
+        ><li>Fit the model to the data.</li
+        ><li
+          >For every point, subtract the prediction from the observation. That difference is the
+          residual.</li
+        ><li
+          >Plot the residuals against the predictions. The fitted line becomes the flat line at
+          zero.</li
+        ><li
+          >Look for a bend: residuals mostly positive at the ends and negative in the middle, or the
+          reverse.</li
+        ><li>Look for a funnel: residuals spreading out as the prediction grows.</li
+        ><li>Look for stragglers, far from everything else.</li></ol
+      ></div
+    ><div><h3>What just happened</h3><p class="live" id="rs-live" role="status"></p></div
+  ></div>
+  <div class="controls"
+    ><template data-label="Animation" data-control="group"
+      ><div class="row"
+        ><button class="btn go" id="rs-play" type="button">Run</button
+        ><button class="btn" id="rs-step" type="button">Flip the view</button
+        ><button class="btn" id="rs-reset" type="button">Start over</button></div
+      ></template
+    >
+    <template data-label="The model" data-control="group"
+      ><div class="row seg" id="rs-m" role="group" aria-label="Model"
+        ><button class="btn" type="button" data-v="1">Straight Line</button
+        ><button class="btn" type="button" data-v="2">Curve (adds x²)</button></div
+      ><label class="check" for="rs-log"
+        ><input type="checkbox" id="rs-log" />Model the logarithm of y instead of y</label
+      ><label class="check" for="rs-drop"
+        ><input type="checkbox" id="rs-drop" />Leave the most extreme point out of the fit</label
+      ></template
+    >
+    <template data-label="Data" data-control="group"
+      ><div class="row"><button class="btn" id="rs-new" type="button">New data</button></div
+      ><template data-id="rs" data-control="xy-upload"></template></template
+  ></div>
+  <dl class="read"
+    ><template
+      data-label="R²: share of variation explained"
+      data-key="r2"
+      data-control="readout"
+    ></template
+    ><template
+      data-class="hl"
+      data-label="Bend left in the residuals"
+      data-key="bend"
+      data-control="readout"
+    ></template
+    ><template
+      data-class="hl"
+      data-label="Funnel: spread growing with the prediction"
+      data-key="fun"
+      data-control="readout"
+    ></template
+    ><template
+      data-class="hl2"
+      data-label="Largest residual, in typical-miss units"
+      data-key="big"
+      data-control="readout"
+    ></template
+    ><template data-label="Verdict" data-key="ver" data-control="readout"></template></dl
+></template>
+
+<template data-part="tryit"
+  >Start with A Line That Fits and let it run: the leftover cloud is a shapeless band. That is what
+  success looks like. Now choose A Hidden Bend. R² is high. Would you have noticed the problem from
+  the left-hand picture before it flattened? Switch the model to Curve and run again. Choose A
+  Funnel and look at the bottom-right chart, then tick the logarithm box. Choose One Straggler: how
+  far does a single point move the line? Tick the box that leaves it out and compare.</template
+>
+
+<template data-part="math"
+  ><h4>Definition</h4
+  ><p>For a fitted model \(\hat y_i=\hat f(x_i)\) the residuals are</p>$$e_i=y_i-\hat y_i.$$<p
+    >Least squares forces them to sum to zero and to be uncorrelated with \(x\), so their average
+    and their straight-line trend carry no information. Everything else about them does.</p
+  >
+  <h4>What a linear model assumes</h4
+  ><p
+    >The standard model is \(y_i=a+b\,x_i+\varepsilon_i\) with errors \(\varepsilon_i\) that are
+    independent, centred on zero, of constant variance \(\sigma^2\), and for the usual tests and
+    intervals roughly Gaussian. Each assumption has a visible signature when it fails:</p
+  >
+  <table
+    ><tr><th>You see</th><th>It means</th><th>Usual remedy</th></tr
+    ><tr
+      ><td>A bend or arch</td><td>The relationship is not a straight line</td
+      ><td>Add a curved term, or transform \(x\)</td></tr
+    ><tr
+      ><td>A funnel</td><td>The scatter grows with the mean (heteroscedasticity)</td
+      ><td>Model \(\log y\), or use weights or a generalized linear model</td></tr
+    ><tr
+      ><td>One point far away</td><td>An outlier or a recording error</td
+      ><td>Check it; refit without it; use a robust method</td></tr
+    ><tr><td>A lopsided histogram</td><td>Errors are skewed</td><td>Transform \(y\)</td></tr></table
+  >
+  <h4>Why R² is not enough</h4><p>The coefficient of determination</p>$$R^2=1-\frac{\sum_i
+  e_i^2}{\sum_i(y_i-\bar y)^2}$$<p
+    >measures how much of the variation the model accounts for. It says nothing about whether the
+    remainder is noise. A straight line through a gentle curve can have \(R^2\) above 0.9 and still
+    be wrong everywhere in a predictable direction. Anscombe's four data sets (1973) share the same
+    line and the same \(R^2\) and look nothing alike.</p
+  >
+  <h4>The numbers on this page</h4
+  ><p
+    >The <b>bend</b> readout is the correlation between the residuals and the squared, centred
+    prediction: near zero for a good fit, large when the residuals arch. The <b>funnel</b> readout
+    is the correlation between \(\lvert e_i\rvert\) and the prediction. The
+    <b>largest residual</b> is divided by a robust estimate of the typical miss, so a value above
+    about 3.5 marks a point worth checking. A bend or funnel is flagged when its correlation exceeds
+    0.35 in size, which pure chance rarely produces with this much data. They are aids for the eye,
+    not replacements for it.</p
+  >
+  <h4>Leverage</h4
+  ><p
+    >A point far from the others along \(x\) pulls the line towards itself, so its own residual can
+    be small even when it is badly wrong. The straggler here sits at the right-hand end for that
+    reason: refitting without it shows how much it moved the line.</p
+  ></template
+>
+
+<template data-part="question"
+  >On A Hidden Bend the straight line has an R² of about 0.9. Its residual plot shows a clear arch.
+  Is the model good enough?</template
+>
+
+<template data-part="answer"
+  >It depends on what it is for, but the arch means its errors are not random. In the middle of the
+  range it predicts too high (or too low) every time, and at both ends it errs the other way every
+  time. Those are systematic mistakes that a better model would remove, and they grow quickly if you
+  predict beyond the data. The high R² only says that the overall upward trend dominates the
+  variation. Adding the squared term removes the arch, and the remaining residuals look like
+  noise.</template
+>

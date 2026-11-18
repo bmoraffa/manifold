@@ -1,0 +1,201 @@
+<template data-part="lede"
+  >Now the map is gone. A walker wanders at random along a row of five squares until it falls off
+  one end: nothing on the left, a reward of 1 on the right. How good is it to be on each square? Two
+  ways of finding out from experience are compared. Monte Carlo waits until the walk is over and
+  then tells every square it visited how things turned out. Temporal-difference learning does not
+  wait: after every single step it corrects one square using its current guess about the next. That
+  small change is the central idea of reinforcement learning.</template
+>
+
+<template data-part="intro"
+  ><p
+    >You drive home from work every day and want to predict how long the trip takes. One method:
+    note the time when you leave, and when you get home, compare the real total with what you had
+    predicted at each point along the way. That is Monte Carlo. Nothing is learned until you are on
+    your own doorstep. The other method: you leave expecting 30 minutes, reach the motorway, and
+    find it jammed. At that moment you already know the trip will be nearer 45. Why wait until you
+    are home to correct your prediction for "just left work"? Correct it now, using your new and
+    better guess. That is temporal-difference learning: learning a guess from a later guess.</p
+  >
+</template>
+
+<template data-part="stage"
+  ><div class="stage"
+    ><figure class="fig"
+      ><figcaption
+        >Top: the walk. Below: the value of each square. Short dark line: the true value. Left bar
+        of each pair: TD’s estimate. Right bar: Monte Carlo’s</figcaption
+      ><canvas
+        class="short"
+        id="td-c"
+        role="img"
+        aria-label="Random walk and value estimates of each state by two methods"
+      ></canvas
+    ></figure>
+    <figure class="fig"
+      ><figcaption
+        >Top: the error of each method in this one run. Bottom: the same, averaged over 100 separate
+        runs with the current α</figcaption
+      ><canvas
+        class="short"
+        id="td-r"
+        role="img"
+        aria-label="Estimation error of TD and Monte Carlo, in this run and on average"
+      ></canvas></figure
+  ></div>
+  <figure class="fig" style="margin-top:18px"
+    ><figcaption>The latest updates, worked out</figcaption
+    ><div class="eq" id="td-eq" aria-live="polite" style="min-height:10em;margin-top:6px"></div
+  ></figure>
+  <div class="howto"
+    ><div
+      ><h3>How it works, step by step</h3
+      ><ol id="td-steps"
+        ><li>Every square starts with the guess 0.5. The walker starts in the middle, C.</li
+        ><li>It steps left or right with equal chance.</li
+        ><li
+          >TD, after each step: nudge the value of the square just left toward reward + value of the
+          square just entered.</li
+        ><li
+          >Keep stepping until the walker falls off an end. The return of the walk is 1 if it left
+          on the right and 0 if on the left.</li
+        ><li
+          >Monte Carlo, now that the walk is over: nudge the value of every square that was visited
+          toward that return.</li
+        ><li>Start a new walk from C. Repeat for 100 walks.</li></ol
+      ></div
+    ><div><h3>What just happened</h3><p class="live" id="td-live" role="status"></p></div
+  ></div>
+  <div class="controls"
+    ><template data-label="Animation" data-control="group"
+      ><div class="row"
+        ><button class="btn go" id="td-play" type="button">Run</button
+        ><button class="btn" id="td-step" type="button">One step</button
+        ><button class="btn" id="td-reset" type="button">Start over</button></div
+      ><template data-unit="walks" data-id="td" data-control="run-limit"></template
+    ></template>
+    <template data-label="Learning" data-control="group"
+      ><template
+        data-value="0.1"
+        data-step="0.01"
+        data-max="0.5"
+        data-min="0.01"
+        data-label="Step size α for both methods"
+        data-id="td-al"
+        data-control="slider"
+      ></template
+      ><template
+        data-value="2"
+        data-step="1"
+        data-max="3"
+        data-min="1"
+        data-label="Speed"
+        data-id="td-sp"
+        data-control="slider"
+      ></template></template
+  ></div>
+  <dl class="read"
+    ><template data-label="Walks finished" data-key="ep" data-control="readout"></template
+    ><template
+      data-class="hl"
+      data-label="TD: error now"
+      data-key="et"
+      data-control="readout"
+    ></template
+    ><template
+      data-class="hl2"
+      data-label="Monte Carlo: error now"
+      data-key="em"
+      data-control="readout"
+    ></template
+    ><template data-label="Last walk ended" data-key="lw" data-control="readout"></template
+    ><template data-label="Steps in the last walk" data-key="ls" data-control="readout"></template
+    ><template
+      data-label="Average error over walks 1 to 100, across 100 runs: TD / MC"
+      data-key="avg"
+      data-control="readout"
+    ></template></dl
+></template>
+
+<template data-part="tryit"
+  >Step through the first walk. After each step TD changes one bar straight away, by a small amount,
+  while Monte Carlo does nothing. When the walk ends, Monte Carlo moves every visited square at
+  once, all in the same direction. Which of the two is jumpier? Press Run and compare the two error
+  curves, then look at the average of 100 runs below. Now change α. At 0.02 both learn slowly and
+  smoothly. At 0.3 both are quick and noisy. Is there an α at which Monte Carlo beats TD in the
+  averaged chart? Why can neither error reach zero with a fixed α?</template
+>
+
+<template data-part="math"
+  ><h4>What is being estimated</h4
+  ><p
+    >For a fixed way of behaving, here walking at random, the value \(V(s)\) of a state is the
+    expected total reward from that state onward. In this walk the only reward is 1 for leaving on
+    the right, so \(V(s)\) is the probability of finishing on the right. The true values of the five
+    squares A to E are \(\tfrac16,\tfrac26,\tfrac36,\tfrac46,\tfrac56\). Neither method is told
+    this.</p
+  >
+  <h4>Monte Carlo</h4
+  ><p
+    >Run a whole episode. For each state \(s_t\) visited, the <b>return</b> \(G_t\) is the total
+    reward actually collected from that point to the end. Move the estimate toward it:</p
+  >$$V(s_t)\leftarrow V(s_t)+\alpha\,\big[G_t-V(s_t)\big].$$<p
+    >The target \(G_t\) is an honest sample of what the value is supposed to predict, so on average
+    it is exactly right. It is also very noisy: here it is either 0 or 1, never the 0.5 that the
+    middle square is really worth.</p
+  >
+  <h4>Temporal-difference learning, TD(0)</h4
+  ><p
+    >After a single step from \(s_t\) to \(s_{t+1}\) with reward \(r_{t+1}\), use the current
+    estimate of the next state in place of the rest of the episode (Sutton, 1988):</p
+  >$$V(s_t)\leftarrow V(s_t)+\alpha\,\big[\underbrace{r_{t+1}+\gamma V(s_{t+1})}_{\text{TD
+  target}}-V(s_t)\big].$$<p
+    >The bracket is the TD error \(\delta_t\). The target leans on \(V(s_{t+1})\), which is itself
+    only a guess, so it is biased while the guesses are poor. This use of an estimate to improve an
+    estimate is called <b>bootstrapping</b>. In return the target varies much less than a full
+    return, because it depends on one random step, not on a whole random walk.</p
+  >
+  <h4>The trade</h4
+  ><p
+    >Monte Carlo: no bias, high variance, must wait for the end, and cannot be used at all if
+    episodes never end. TD: some bias early on, low variance, learns at every step. On problems like
+    this one TD usually reaches a given accuracy sooner, as the averaged chart shows for most values
+    of \(\alpha\). The two are the ends of a range: \(n\)-step methods and TD(\(\lambda\)) look a
+    few steps ahead before bootstrapping.</p
+  >
+  <h4>Why the error does not reach zero</h4
+  ><p
+    >With a fixed \(\alpha\) every update moves the estimate by a fixed fraction toward a noisy
+    target, so the estimates keep rattling around the true values for ever. A smaller \(\alpha\)
+    rattles less and takes longer to arrive. Exact convergence needs \(\alpha\) to shrink over
+    time.</p
+  >
+  <h4>What this page runs</h4
+  ><p
+    >The five-state random walk from Sutton and Barto's book. Both methods see exactly the same
+    walks. The error shown is the root-mean-square difference between the five estimates and the
+    five true values. The bottom chart repeats the whole experiment 100 times with fresh walks and
+    averages the curves, because one run is too noisy to judge. There is no discounting,
+    \(\gamma=1\).</p
+  >
+  <h4>Where this leads</h4
+  ><p
+    >Replace "value of a state" by "value of a move in a state" and let the learner choose its own
+    moves, and TD learning becomes SARSA and Q-learning, the next two tabs.</p
+  ></template
+>
+
+<template data-part="question"
+  >The walker goes C → D → E → off the right edge, earning 1. Monte Carlo then raises the values of
+  C, D and E. TD, during that same walk, may have lowered the value of C. How can that be, when the
+  walk ended well?</template
+>
+
+<template data-part="answer"
+  >TD updated C at the moment the walker stepped from C to D, long before the outcome was known. Its
+  target was the reward for that step, 0, plus the current value of D. If D’s estimate happened to
+  be lower than C’s at that moment, C was moved down. TD does not know how the walk ends. It only
+  compares neighbouring guesses. The good news from the right edge reaches E at once, reaches D the
+  next time a walk passes from D to E, and reaches C later still. Monte Carlo delivers the news to
+  all three at once, along with all the luck in that one walk.</template
+>

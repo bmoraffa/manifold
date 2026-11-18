@@ -1,0 +1,133 @@
+<template data-part="lede"
+  >Training a model means finding the lowest point of a loss surface you cannot see all at once.
+  Gradient descent feels the slope under its feet and takes a step downhill, again and again. Choose
+  a surface, a step size and a starting point.</template
+>
+
+<template data-part="intro"
+  ><p
+    >You are on a hillside in thick fog and want to reach the valley floor. You cannot see the
+    valley, but you can feel which way the ground slopes where you stand. So you take a step in the
+    steepest downhill direction, feel again, and repeat. That is the whole algorithm. Everything
+    else, step size, momentum, noise, is about how to take those steps well.</p
+  >
+</template>
+
+<template data-part="dimensions"
+  ><button class="btn" type="button" data-d="1">1D: A Curve</button
+  ><button class="btn" type="button" data-d="2">2D: Contour Map</button
+  ><button class="btn" type="button" data-d="3">3D: Surface</button></template
+>
+
+<template data-part="loss-caption">Loss at each step</template>
+
+<template data-part="controls"
+  ><template data-label="The surface" data-control="group"
+    ><label class="ctl" for="gd-f"
+      ><span>Loss surface</span
+      ><select id="gd-f"
+        ><option value="bowl">Round bowl</option
+        ><option value="ravine">Narrow valley</option
+        ><option value="banana" selected>Curved valley</option
+        ><option value="two">Two valleys</option
+        ><option value="saddle">Saddle between two valleys</option
+        ><option value="bumpy">Bumpy bowl</option
+        ><option value="plateau">Flat plateau with one pit</option></select
+      ></label
+    ></template
+  ><template data-label="The optimiser" data-control="group"
+    ><template
+      data-value="0.3"
+      data-step="0.005"
+      data-max="0.9"
+      data-min="0.005"
+      data-label="Learning rate η"
+      data-id="gd-lr"
+      data-control="slider"
+    ></template
+    ><template
+      data-value="0"
+      data-step="0.01"
+      data-max="0.98"
+      data-min="0"
+      data-label="Momentum β"
+      data-id="gd-mo"
+      data-control="slider"
+    ></template
+    ><template
+      data-value="0"
+      data-step="0.05"
+      data-max="2"
+      data-min="0"
+      data-label="Noise in each gradient (as in SGD)"
+      data-id="gd-no"
+      data-control="slider"
+    ></template></template
+  ><template data-label="Cases that go wrong" data-control="group"
+    ><div class="row" id="gd-cases"
+      ><button class="btn" type="button" data-case="big">Step Too Large</button
+      ><button class="btn" type="button" data-case="saddle">Balanced on a Saddle</button
+      ><button class="btn" type="button" data-case="plateau">Lost on a Plateau</button
+      ><button class="btn" type="button" data-case="valley">The Wrong Valley</button
+      ><button class="btn" type="button" data-case="noise">Noise That Never Settles</button></div
+    ></template
+  ></template
+>
+
+<template data-part="readouts"
+  ><template
+    data-class="hl"
+    data-label="Loss: Gradient descent"
+    data-key="Lgd"
+    data-control="readout"
+  ></template
+></template>
+
+<template data-part="tryit"
+  >Switch between the 1D, 2D and 3D pictures of the same descent. On the narrow valley, raise the
+  learning rate until the path zig-zags, then until it diverges. Then press each of the five “cases
+  that go wrong” and read what happened under the loss chart.</template
+>
+
+<template data-part="math"
+  ><h4>The update</h4>$$\mathbf w_{t+1}=\mathbf w_t-\eta\,\nabla L(\mathbf w_t)$$<p
+    >The gradient \(\nabla L\) is the vector of slopes in each direction; it points uphill, so the
+    step goes against it. The learning rate \(\eta\) sets the step length.</p
+  >
+  <h4>Why the learning rate has a limit</h4
+  ><p
+    >Near a minimum the surface is a bowl with curvature \(\lambda\) in each direction. One step
+    multiplies the distance to the bottom in that direction by \((1-\eta\lambda)\). That shrinks
+    only if</p
+  >$$|1-\eta\lambda|&lt;1\quad\Longleftrightarrow\quad \eta&lt;\frac{2}{\lambda_{\max}}.$$<p
+    >The steepest direction sets the limit. In a narrow valley the walls are steep and the floor is
+    nearly flat: a rate small enough for the walls is far too small for the floor, so progress along
+    the valley is painfully slow. Just below the limit the path bounces from wall to wall.</p
+  >
+  <h4>Momentum</h4>$$\mathbf v_{t+1}=\beta\,\mathbf v_t-\eta\,\nabla L(\mathbf w_t),\qquad \mathbf
+  w_{t+1}=\mathbf w_t+\mathbf v_{t+1}$$<p
+    >Keep a running velocity, like a heavy ball rolling. Across the valley the gradient keeps
+    flipping sign and cancels; along it the gradient keeps the same sign and builds up. With
+    \(\beta=0.9\) the effective step along a steady direction is about ten times larger.</p
+  >
+  <h4>Noise: stochastic gradient descent</h4
+  ><p
+    >Real training estimates the gradient from a small batch of data, so each step uses the true
+    gradient plus noise. The path jitters and never settles exactly, but each step is far cheaper,
+    and the noise can shake it out of shallow dips.</p
+  >
+  <h4>What it cannot promise</h4
+  ><p
+    >Gradient descent only knows the local slope. On a surface with several valleys it ends in
+    whichever one the starting point drains into.</p
+  ></template
+>
+
+<template data-part="question"
+  >The loss is going up at every step. What is the most likely cause?</template
+>
+
+<template data-part="answer"
+  >The learning rate is above the limit 2 / λmax for the steepest direction, so each step overshoots
+  the valley floor by more than it started with. Lowering the learning rate fixes it.</template
+>

@@ -1,0 +1,207 @@
+<template data-part="lede"
+  >Students who do well in algebra tend to do well in geometry. Students who read well tend to write
+  well. Nobody can measure "mathematical ability" or "verbal ability" directly, but six test scores
+  that rise and fall in two groups suggest that two hidden quantities are driving them. Factor
+  analysis works backwards from the pattern of correlations to the hidden causes, and at the same
+  time works out how much of each test is just its own noise.</template
+>
+
+<template data-part="intro"
+  ><p
+    >A doctor cannot see "health" but can take a temperature, a pulse and a blood pressure, and
+    knows these tend to go wrong together. Factor analysis treats every measurement as a sum of two
+    things: a part driven by a few hidden quantities that many measurements share, and a private
+    part that belongs to that measurement alone, such as a noisy thermometer. Things that move
+    together are explained by the shared part. Everything else goes in the private part. The method
+    is given only the measurements and has to deduce both.</p
+  >
+</template>
+
+<template data-part="stage"
+  ><div class="row seg" id="fa-d" role="group" aria-label="Data"
+    ><button class="btn" type="button" data-v="two">Two Hidden Abilities</button
+    ><button class="btn" type="button" data-v="one">One General Ability</button
+    ><button class="btn" type="button" data-v="noisy">One Unreliable Test</button></div
+  >
+  <div class="stage"
+    ><figure class="fig"
+      ><figcaption
+        >Left grid: how the six test scores vary together in the data (covariance; the diagonal is
+        each test’s own variance). Right grid: what the current model says they should be. Fitting
+        makes the right grid match the left</figcaption
+      ><canvas
+        class="short"
+        id="fa-c"
+        role="img"
+        aria-label="Observed and model covariance matrices"
+      ></canvas
+    ></figure>
+    <figure class="fig"
+      ><figcaption
+        >Top: loadings, how strongly each hidden factor drives each test. Grey bars: the share of
+        each test that no factor explains (its own noise). Bottom: the log-likelihood rising as the
+        fit improves</figcaption
+      ><canvas
+        class="short"
+        id="fa-r"
+        role="img"
+        aria-label="Loadings, uniquenesses and log-likelihood"
+      ></canvas></figure
+  ></div>
+  <div class="howto"
+    ><div
+      ><h3>How it works, step by step</h3
+      ><ol id="fa-steps"
+        ><li>Guess the loadings (how each factor drives each test) and each test’s own noise.</li
+        ><li
+          >E-step: for every student, work out the most plausible values of the hidden factors given
+          their scores and the current guess.</li
+        ><li
+          >M-step: with those factor values, refit the loadings as a regression of the scores on the
+          factors.</li
+        ><li>Set each test’s own noise to whatever variance the factors left unexplained.</li
+        ><li
+          >The model’s covariance is loadings × loadingsᵀ plus the noise on the diagonal. Compare it
+          with the data.</li
+        ><li>Repeat until the log-likelihood stops rising.</li></ol
+      ></div
+    ><div><h3>What just happened</h3><p class="live" id="fa-live" role="status"></p></div
+  ></div>
+  <div class="controls"
+    ><template data-label="Animation" data-control="group"
+      ><div class="row"
+        ><button class="btn go" id="fa-play" type="button">Run</button
+        ><button class="btn" id="fa-step" type="button">One step</button
+        ><button class="btn" id="fa-reset" type="button">Start over</button></div
+      ><template data-unit="steps" data-id="fa" data-control="run-limit"></template
+    ></template>
+    <template data-label="The model" data-control="group"
+      ><template
+        data-value="2"
+        data-step="1"
+        data-max="3"
+        data-min="1"
+        data-label="Number of hidden factors"
+        data-id="fa-k"
+        data-control="slider"
+      ></template
+      ><label class="check" for="fa-rot"
+        ><input type="checkbox" id="fa-rot" checked />Rotate the factors so each test leans on as
+        few as possible (varimax)</label
+      ></template
+    >
+    <template data-label="Data" data-control="group"
+      ><div class="row"
+        ><button class="btn" id="fa-new" type="button">New class of students</button></div
+      ></template
+    ></div
+  >
+  <dl class="read"
+    ><template data-label="Steps so far" data-key="it" data-control="readout"></template
+    ><template
+      data-class="hl"
+      data-label="Log-likelihood per student"
+      data-key="ll"
+      data-control="readout"
+    ></template
+    ><template
+      data-class="hl2"
+      data-label="Largest mismatch between the two grids"
+      data-key="gap"
+      data-control="readout"
+    ></template
+    ><template
+      data-label="First principal component leans most on"
+      data-key="pc"
+      data-control="readout"
+    ></template
+    ><template
+      data-label="First factor leans most on"
+      data-key="f1"
+      data-control="readout"
+    ></template></dl
+></template>
+
+<template data-part="tryit"
+  >Run it on Two Hidden Abilities and read the loadings: which tests share a factor? Set the number
+  of factors to 1 and run again. Look at the right-hand grid: which block of the left grid can one
+  factor not reproduce? Now choose One Unreliable Test, where the statistics exam was marked
+  carelessly and its scores are very noisy. Compare the last two readouts. PCA chases the largest
+  variance. Where does factor analysis put that noise instead? Untick the rotation box: the fit does
+  not change at all. Why not?</template
+>
+
+<template data-part="math"
+  ><h4>The model</h4
+  ><p
+    >Each observation \(\mathbf x\in\mathbb R^p\) is generated from \(k&lt;p\) hidden factors
+    \(\mathbf z\):</p
+  >$$\mathbf z\sim\mathcal N(\mathbf 0,\mathbf I_k),\qquad\mathbf
+  x=\boldsymbol\mu+\boldsymbol\Lambda\mathbf
+  z+\boldsymbol\varepsilon,\qquad\boldsymbol\varepsilon\sim\mathcal N(\mathbf
+  0,\boldsymbol\Psi),\quad\boldsymbol\Psi\text{ diagonal}.$$<p
+    >\(\boldsymbol\Lambda\) is the \(p\times k\) matrix of <b>loadings</b> and the diagonal entries
+    of \(\boldsymbol\Psi\) are the <b>uniquenesses</b>. Integrating out \(\mathbf z\) gives the
+    covariance the model implies:</p
+  >$$\operatorname{Cov}(\mathbf x)=\boldsymbol\Lambda\boldsymbol\Lambda^{\top}+\boldsymbol\Psi.$$<p
+    >All the correlation between different tests has to come from
+    \(\boldsymbol\Lambda\boldsymbol\Lambda^{\top}\), because \(\boldsymbol\Psi\) only touches the
+    diagonal.</p
+  >
+  <h4>Fitting by EM</h4
+  ><p
+    >The factors are hidden, so the model is fitted by expectation-maximization (Rubin and Thayer,
+    1982). With sample covariance \(\mathbf S\):</p
+  >$$\textbf{E-step:}\quad\boldsymbol\beta=\boldsymbol\Lambda^{\top}(\boldsymbol\Lambda\boldsymbol\Lambda^{\top}+\boldsymbol\Psi)^{-1},\qquad\mathbb
+  E[\mathbf z\mid\mathbf x]=\boldsymbol\beta(\mathbf x-\boldsymbol\mu),\qquad\mathbf C_{zz}=\mathbf
+  I-\boldsymbol\beta\boldsymbol\Lambda+\boldsymbol\beta\mathbf
+  S\boldsymbol\beta^{\top}.$$$$\textbf{M-step:}\quad\boldsymbol\Lambda\leftarrow\mathbf
+  S\boldsymbol\beta^{\top}\mathbf
+  C_{zz}^{-1},\qquad\boldsymbol\Psi\leftarrow\operatorname{diag}\big(\mathbf
+  S-\boldsymbol\Lambda\boldsymbol\beta\mathbf S\big).$$<p
+    >Each step cannot lower the log-likelihood</p
+  >$$\ell=-\tfrac12\Big[p\log2\pi+\log\lvert\boldsymbol\Sigma\rvert+\operatorname{tr}(\boldsymbol\Sigma^{-1}\mathbf
+  S)\Big],\qquad\boldsymbol\Sigma=\boldsymbol\Lambda\boldsymbol\Lambda^{\top}+\boldsymbol\Psi,$$<p
+    >shown per student. The run stops when a step raises it by less than \(10^{-7}\). EM for factor
+    analysis is slow near the end, so expect a few hundred steps.</p
+  >
+  <h4>How it differs from PCA</h4
+  ><p
+    >PCA looks for directions of largest total variance and makes no distinction between shared
+    variation and private noise. If one test is very noisy, its variance is large and the first
+    principal component points at it. Factor analysis gives every test its own noise term, so a
+    noisy test gets a large uniqueness and is otherwise ignored. If all the uniquenesses are forced
+    to be equal, factor analysis becomes probabilistic PCA.</p
+  >
+  <h4>Rotation</h4
+  ><p
+    >For any rotation \(\mathbf R\), the loadings \(\boldsymbol\Lambda\mathbf R\) give the same
+    \(\boldsymbol\Lambda\boldsymbol\Lambda^{\top}\) and so exactly the same fit. The factors are
+    identified only up to rotation. Analysts choose the rotation that is easiest to read.
+    <b>Varimax</b> picks the one in which each test loads heavily on as few factors as possible, by
+    maximizing the variance of the squared loadings within each factor. It changes the description,
+    not the model.</p
+  >
+  <h4>How many factors</h4
+  ><p
+    >More factors always raise the likelihood. With \(p\) tests and \(k\) factors the model has
+    \(pk+p-k(k-1)/2\) free parameters against \(p(p+1)/2\) covariances, so with six tests three
+    factors already use up every degree of freedom, which is why the slider stops there. In practice
+    the number is chosen by a likelihood-ratio test, an information criterion, or
+    interpretability.</p
+  ></template
+>
+
+<template data-part="question"
+  >On One Unreliable Test, the first principal component leans most on the statistics exam, while
+  the first factor does not. Both methods saw the same scores. Why do they disagree?</template
+>
+
+<template data-part="answer"
+  >The statistics exam has by far the largest variance, because careless marking added a lot of
+  random noise to it. PCA maximizes explained variance and has no way to tell shared variation from
+  private noise, so its first direction points at the biggest variance it can find. Factor analysis
+  has a separate noise term for every test. The statistics noise is uncorrelated with the other five
+  tests, so no shared factor can explain it and it is absorbed into that test’s uniqueness. The
+  factors are left to describe only what the tests have in common.</template
+>

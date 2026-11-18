@@ -1,0 +1,200 @@
+<template data-part="lede"
+  >A cart runs on a short track with a pole hinged on top, and the only controls are a push to the
+  left and a push to the right. Keep the pole up for 200 steps. The situation is described by four
+  continuous numbers, so there is no finite list of squares and no table can hold the answer. The
+  table is replaced by a neural network. Two famous ways of training it are shown: a deep Q-network,
+  which learns the value of each push, and an actor-critic, which learns the behaviour directly with
+  a second network as its coach. Watch a controller go from dropping the pole in a tenth of a second
+  to balancing it indefinitely.</template
+>
+
+<template data-part="intro"
+  ><p
+    >Balance a broom upright on your palm. You could not write down a table of what to do for every
+    possible lean and every possible speed: there are infinitely many. Yet you learn it in a minute,
+    because nearby situations call for nearby responses, and your brain fills in the gaps. A neural
+    network does the same for the robot. It is shown some situations and generalises to the ones in
+    between. The two methods here differ in what the network is asked to output: a score for each
+    push, or the push itself.</p
+  >
+</template>
+
+<template data-part="stage"
+  ><div class="row seg" id="aq-m" role="group" aria-label="Method"
+    ><button class="btn" type="button" data-v="dqn">Deep Q-Network (DQN)</button
+    ><button class="btn" type="button" data-v="ac">Actor-Critic</button></div
+  >
+  <div class="stage"
+    ><figure class="fig"
+      ><figcaption
+        >The cart and pole, controlled by the network as it is right now. The arrow shows the push
+        it chose</figcaption
+      ><canvas class="short" id="aq-c" role="img" aria-label="Cart and pole being balanced"></canvas
+    ></figure>
+    <figure class="fig"
+      ><figcaption
+        >Top: how many steps the pole stayed up in each episode. Bottom: what the network has
+        learned to do for every lean of the pole (across) and every speed of falling
+        (up)</figcaption
+      ><canvas
+        class="short"
+        id="aq-r"
+        role="img"
+        aria-label="Episode length and the learned policy over pole angle and angular velocity"
+      ></canvas></figure
+  ></div>
+  <figure class="fig" style="margin-top:18px"
+    ><figcaption>One training example, worked out</figcaption
+    ><div class="eq" id="aq-eq" aria-live="polite" style="min-height:9.5em;margin-top:6px"></div
+  ></figure>
+  <div class="howto"
+    ><div
+      ><h3>How it works, step by step</h3
+      ><ol id="aq-steps"
+        ><li
+          >The network sees four numbers: where the cart is, how fast it moves, how far the pole
+          leans, how fast it is falling. Every step the pole stays up earns a reward.</li
+        ><li
+          >Act: choose a push using the network, with some randomness so that both pushes get
+          tried.</li
+        ><li
+          >DQN stores every step in a memory. It then draws 32 old steps at random and, for each,
+          moves its predicted value toward reward + γ × the best value of the next situation, as
+          judged by a slowly updated copy of itself.</li
+        ><li
+          >Actor-critic waits for the episode to end. Its critic network predicts how long the pole
+          will stay up from each situation. Pushes that led to a longer run than the critic
+          predicted are made more likely, the others less.</li
+        ><li>Repeat until the last 20 episodes average at least 180 of the 200 possible steps.</li
+        ><li>Then watch the trained controller, and give the pole a shove.</li></ol
+      ></div
+    ><div><h3>What just happened</h3><p class="live" id="aq-live" role="status"></p></div
+  ></div>
+  <div class="controls"
+    ><template data-label="Animation" data-control="group"
+      ><div class="row"
+        ><button class="btn go" id="aq-play" type="button">Run</button
+        ><button class="btn" id="aq-step" type="button">One episode</button
+        ><button class="btn" id="aq-reset" type="button">Start over</button></div
+      ><template data-unit="episodes" data-id="aq" data-control="run-limit"></template
+    ></template>
+    <template data-label="Test the controller" data-control="group"
+      ><div class="row"
+        ><button class="btn" id="aq-kl" type="button">Shove the Pole Left</button
+        ><button class="btn" id="aq-kr" type="button">Shove the Pole Right</button></div
+      ><p class="tpout" id="aq-tpo" role="status"></p></template
+  ></div>
+  <dl class="read"
+    ><template data-label="Stage" data-key="ph" data-control="readout"></template
+    ><template data-label="Episodes finished" data-key="ep" data-control="readout"></template
+    ><template
+      data-label="Length of the last episode"
+      data-key="ll"
+      data-control="readout"
+    ></template
+    ><template
+      data-class="hl"
+      data-label="Average length, last 20 episodes"
+      data-key="av"
+      data-control="readout"
+    ></template
+    ><template
+      data-class="hl2"
+      data-label="Steps of experience so far"
+      data-key="ts"
+      data-control="readout"
+    ></template
+    ><template
+      data-label="Randomness in its choices now"
+      data-key="ex"
+      data-control="readout"
+    ></template></dl
+></template>
+
+<template data-part="tryit"
+  >Press Run with DQN. For the first episodes the pole falls almost at once. Watch the bottom-right
+  picture: it starts as noise and becomes two clean regions with a slanted border. What rule does
+  that border express, in words? When training stops, press the two shove buttons and see how hard a
+  push the controller can recover from. Now switch to Actor-Critic and compare: how many episodes
+  and how many steps of experience does each method need? Run each two or three times with Start
+  over. Which one is more consistent from run to run?</template
+>
+
+<template data-part="math"
+  ><h4>From a table to a function</h4
+  ><p
+    >The state is \(s=(x,\dot x,\theta,\dot\theta)\). In place of a table entry \(Q(s,a)\) there is
+    a network \(Q_w(s,a)\) with weights \(w\), taking the four numbers in and giving one value per
+    push out. Changing the weights to fix one situation also changes the answer for similar
+    situations. That is the point, and also the source of all the trouble: the careful
+    one-entry-at-a-time argument that made the table converge no longer applies.</p
+  >
+  <h4>Deep Q-network</h4
+  ><p
+    >DQN (Mnih and others, 2015) keeps the Q-learning target and trains the network to predict it,
+    minimising the squared error</p
+  >$$L(w)=\Big(r+\gamma\max_{a'}Q_{w^-}(s',a')-Q_w(s,a)\Big)^2 .$$<p
+    >Two additions make this stable. A <b>replay memory</b> stores past steps, and training uses
+    random handfuls of them. Consecutive steps are almost identical, and training on them in order
+    would make the network forget everything but the last few seconds. A
+    <b>target network</b> \(Q_{w^-}\), a copy of the weights that is refreshed only now and then,
+    computes the target. Without it the network would be chasing a target that moves every time it
+    learns. When the pole falls the episode ends and the target is just the final reward, here
+    \(-1\).</p
+  >
+  <h4>Actor-critic</h4
+  ><p
+    >The <b>actor</b> is a policy network \(\pi_\theta(a\mid s)\) giving the probability of each
+    push, trained by the policy gradient of the previous tab. The <b>critic</b> is a value network
+    \(V_\phi(s)\) that predicts the return from each situation and serves as the baseline:</p
+  >$$\theta\leftarrow\theta+\alpha\,\big(G_t-V_\phi(s_t)\big)\,\nabla_\theta\log\pi_\theta(a_t\mid
+  s_t),\qquad \phi\leftarrow\phi-\beta\,\nabla_\phi\big(G_t-V_\phi(s_t)\big)^2 .$$<p
+    >The quantity \(G_t-V_\phi(s_t)\) is the <b>advantage</b>: how much better the run went than the
+    critic expected. A push followed by a better-than-expected run is made more likely. The critic
+    turns the vague signal "the pole stayed up 40 steps" into the sharp one "that was 15 more than
+    usual from there".</p
+  >
+  <h4>How they compare</h4
+  ><p
+    >DQN is off-policy: it can reuse every old step many times, so it is sparing with experience,
+    and it needs the replay memory and target network to stay stable. It only works for a small set
+    of distinct actions, because of the \(\max\). Actor-critic is on-policy: it learns from each
+    episode once and then discards it, but each update is cheap, it has no \(\max\), and it carries
+    over directly to continuous actions such as a steering angle. Modern methods mix the two
+    ideas.</p
+  >
+  <h4>Reading the policy picture</h4
+  ><p
+    >The bottom-right picture fixes the cart in the middle and at rest, and colours each combination
+    of pole angle and falling speed by the push the network prefers. A good controller pushes toward
+    the side the pole is falling to, which moves the cart back underneath it. The border is slanted
+    because speed matters as well as position: a pole leaning slightly left and swinging quickly to
+    the right needs a push to the right.</p
+  >
+  <h4>What this page trains</h4
+  ><p
+    >The standard cart-pole simulation, with episodes ending when the pole passes 12 degrees, the
+    cart leaves the track, or 200 steps are reached. DQN: a network with two hidden layers of 32
+    neurons, a memory of 10,000 steps, a batch of 32 every second step, the target copy refreshed
+    every 150 updates, and exploration falling from 100% to 5% over the first 2,500 steps.
+    Actor-critic: an actor and a critic with one hidden layer of 32 neurons each, updated once after
+    every episode. Training stops when the last 20 episodes average 180 steps, or after 400
+    episodes. Both methods are sensitive to luck, and an occasional run fails to reach the mark.</p
+  ></template
+>
+
+<template data-part="question"
+  >DQN trains on steps drawn at random from a memory of old experience, some of it collected
+  thousands of steps ago by a much worse version of the network. Why is it legitimate to learn from
+  such stale experience, when the actor-critic must throw each episode away?</template
+>
+
+<template data-part="answer"
+  >A stored step records a fact about the world: in this situation, this push led to that situation
+  and that reward. That fact is true whoever made the push and however badly they were behaving. The
+  Q-learning target then asks only for the best value available from the next situation, using the
+  current network, so nothing in the update depends on how the old agent would have continued. That
+  is what off-policy means. The actor-critic update is an average over what the current policy does.
+  Experience gathered by an older policy describes a different average, so using it without
+  correction would point the update in the wrong direction.</template
+>

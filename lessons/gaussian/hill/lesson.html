@@ -1,0 +1,131 @@
+<template data-part="lede"
+  >With two variables the bell curve becomes a hill. Rotate it, reshape it, then cut it with a flat
+  plane: every cut is an ellipse, and the ellipses stacked on a flat map are the contour
+  plot.</template
+>
+
+<template data-part="intro"
+  ><p
+    >In one dimension, the height of the curve depends on how far you are from the mean, measured in
+    units of \(\sigma\). In two dimensions it is the same idea, except that "how far" now depends on
+    direction: one step along the long side of the hill costs less height than one step across
+    it.</p
+  >
+</template>
+
+<template data-part="stage"
+  ><div class="stage"
+    ><figure class="fig"
+      ><figcaption>The hill, cut at one height</figcaption><canvas class="d3" id="hill-c3"></canvas
+      ><template data-control="rotation"></template></figure
+    ><figure class="fig"
+      ><figcaption>Seen from above</figcaption
+      ><canvas
+        class="sq"
+        id="hill-c2"
+        role="img"
+        aria-label="Contour map of the hill"
+      ></canvas></figure
+  ></div>
+  <div class="controls"
+    ><template data-label="Animation" data-control="group"
+      ><div class="row"
+        ><button class="btn go" id="hill-play" type="button">Lower the cut</button
+        ><button class="btn" id="hill-clear" type="button">Clear traces</button></div
+      ></template
+    >
+    <template data-label="The cut" data-control="group"
+      ><template
+        data-value="0.9"
+        data-step="0.01"
+        data-max="0.97"
+        data-min="0.03"
+        data-label="Height, as a share of the peak"
+        data-id="hill-h"
+        data-control="slider"
+      ></template></template
+    ><template data-label="Shape of the hill" data-control="group"
+      ><template
+        data-value="1.4"
+        data-step="0.01"
+        data-max="2"
+        data-min="0.45"
+        data-label="Spread of x, σₓ"
+        data-id="hill-sx"
+        data-control="slider"
+      ></template
+      ><template
+        data-value="0.9"
+        data-step="0.01"
+        data-max="2"
+        data-min="0.45"
+        data-label="Spread of y, σᵧ"
+        data-id="hill-sy"
+        data-control="slider"
+      ></template
+      ><template
+        data-value="0.6"
+        data-step="0.01"
+        data-max="0.97"
+        data-min="-0.97"
+        data-label="Correlation ρ"
+        data-id="hill-rho"
+        data-control="slider"
+      ></template></template
+  ></div>
+  <dl class="read"
+    ><template
+      data-class="hl2"
+      data-label="Density at the cut"
+      data-key="h"
+      data-control="readout"
+    ></template
+    ><template
+      data-label="Contour radius, in σ units"
+      data-key="r"
+      data-control="readout"
+    ></template
+    ><template
+      data-class="hl"
+      data-label="Probability inside the contour"
+      data-key="in"
+      data-control="readout"
+    ></template></dl
+></template>
+
+<template data-part="tryit"
+  >Watch each ellipse drop onto the map as the cut comes down. Drag the hill until you look straight
+  down on it. Then set ρ to 0 and make σₓ equal σᵧ: what shape are the cuts now?</template
+>
+
+<template data-part="math"
+  ><h4>The formula</h4>$$p(\mathbf x)=\frac{1}{2\pi\sqrt{|\Sigma|}}\exp\!\left(-\tfrac12\,(\mathbf
+  x-\boldsymbol\mu)^{\!\top}\Sigma^{-1}(\mathbf x-\boldsymbol\mu)\right)$$
+  <p
+    >The quantity \(d^2=(\mathbf x-\boldsymbol\mu)^{\top}\Sigma^{-1}(\mathbf x-\boldsymbol\mu)\)
+    plays the role of \(z^2\). It is a squared distance that has been corrected for the shape of the
+    hill.</p
+  >
+  <h4>Why every cut is an ellipse</h4
+  ><p
+    >The height depends on \(\mathbf x\) only through \(d\). A flat cut fixes the height, so it
+    fixes \(d\), and the set of points with \(d\) constant is \(\{\mathbf x:(\mathbf
+    x-\boldsymbol\mu)^{\top}\Sigma^{-1}(\mathbf x-\boldsymbol\mu)=d^2\}\): an ellipse. A cut at a
+    fraction \(h\) of the peak has</p
+  >$$e^{-d^2/2}=h\quad\Longrightarrow\quad d=\sqrt{-2\ln h}.$$
+  <h4>How much probability is inside</h4
+  ><p
+    >In two dimensions \(d^2\) follows a chi-squared distribution with 2 degrees of freedom, whose
+    distribution function is \(1-e^{-d^2/2}\). So the probability inside the contour is</p
+  >$$P(\text{inside})=1-e^{-d^2/2}=1-h.$$<p
+    >A cut at 10% of the peak encloses 90% of the probability. The 1σ ellipse holds only 39%, not
+    68%: in two dimensions there is more room far from the centre.</p
+  ></template
+>
+
+<template data-part="question">Where on the contour map is the hill steepest?</template>
+
+<template data-part="answer"
+  >Where the contour lines are closest together. For equally spaced heights that is along the short
+  axis of the ellipses, at about one σ from the centre.</template
+>

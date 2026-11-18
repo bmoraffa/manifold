@@ -1,0 +1,132 @@
+<template data-part="lede"
+  >No training at all. To classify a new point, find the k training points closest to it and take a
+  vote. Move the pointer over the picture to see who gets a vote. Small k follows every point; large
+  k smooths everything out.</template
+>
+
+<template data-part="intro"
+  ><p
+    >If you want to know whether a house is in a good school district, look at the houses next to
+    it. k-nearest neighbours makes that the whole method: things that are close together tend to
+    share a label, so let the closest known examples vote. Nothing is learned ahead of time. The
+    training data is kept, and all the work happens at the moment of prediction.</p
+  >
+</template>
+
+<template data-part="left-caption"
+  >The data, and what the model predicts everywhere (click to add a point, drag to move
+  one)</template
+>
+
+<template data-part="right-figure"
+  ><figure class="fig"
+    ><figcaption>Error for every k</figcaption
+    ><canvas class="short" id="knn-r" role="img" aria-label="Error for every k"></canvas></figure
+></template>
+
+<template data-part="steps"
+  ><li>Store every training point. That is all the training there is.</li
+  ><li>For a new point, measure its distance to every stored point.</li><li>Pick the k closest.</li
+  ><li>Count their labels. The majority wins, and the share is the probability.</li></template
+>
+
+<template data-part="animation-controls"
+  ><div class="row"
+    ><button class="btn go" id="knn-play" type="button">Sweep k</button
+    ><button class="btn" id="knn-reset" type="button">Start over</button></div
+  ><p class="status" id="knn-note" role="status"></p
+></template>
+
+<template data-part="model-controls"
+  ><template
+    data-value="5"
+    data-step="1"
+    data-max="41"
+    data-min="1"
+    data-label="Number of neighbours k"
+    data-id="knn-k"
+    data-control="slider"
+  ></template
+  ><label class="ctl" for="knn-m"
+    ><span>Distance</span
+    ><select id="knn-m"
+      ><option value="e">Straight-line (Euclidean)</option
+      ><option value="m">City-block (Manhattan)</option></select
+    ></label
+  ></template
+>
+
+<template data-part="datasets"
+  ><option value="moons">Two moons</option><option value="blobs">Two clouds</option
+  ><option value="overlap">Two overlapping clouds</option
+  ><option value="circles">Ring around a core</option
+  ><option value="xor">Checkerboard (XOR)</option></template
+>
+
+<template data-part="point-count"
+  ><template
+    data-value="120"
+    data-step="2"
+    data-max="300"
+    data-min="20"
+    data-label="Number of points"
+    data-id="knn-n"
+    data-control="slider"
+  ></template
+></template>
+
+<template data-part="readouts"
+  ><div><dt>k</dt><dd data-r="k">–</dd></div
+  ><template
+    data-class="hl"
+    data-label="Vote at the pointer"
+    data-key="vote"
+    data-control="readout"
+  ></template
+  ><div><dt>k with the lowest test error</dt><dd data-r="bk">–</dd></div></template
+>
+
+<template data-part="tryit"
+  >Set k = 1 and read the train accuracy. Is it a good model? Raise k slowly and watch the islands
+  around single points disappear. What happens to the boundary, and to both errors, when k gets
+  close to the number of points?</template
+>
+
+<template data-part="math"
+  ><h4>The rule</h4>$$\hat p(\text{B}\mid\mathbf x)=\frac1k\sum_{i\in N_k(\mathbf x)}\mathbb
+  1[y_i=\text{B}],\qquad \hat y=\text{the majority class in }N_k(\mathbf x)$$<p
+    >where \(N_k(\mathbf x)\) is the set of the \(k\) training points nearest to \(\mathbf x\). It
+    is kernel regression from the Regression module, applied to labels, with a box kernel whose
+    width adapts to how dense the data is.</p
+  >
+  <h4>k is the bias–variance dial</h4
+  ><p
+    >With \(k=1\) every training point owns a small territory around itself. Training error is zero,
+    the boundary is ragged, and a single mislabelled point creates an island of wrong answers: high
+    variance. As \(k\) grows, votes are averaged over a wider area, islands dissolve and the
+    boundary smooths: lower variance, more bias. At \(k=n\) every point gets the same answer, the
+    overall majority. The effective number of parameters is about \(n/k\).</p
+  >
+  <h4>Distance is a choice</h4>$$d_2(\mathbf a,\mathbf b)=\sqrt{\sum_j(a_j-b_j)^2},\qquad
+  d_1(\mathbf a,\mathbf b)=\sum_j|a_j-b_j|$$<p
+    >The answer depends entirely on what "near" means. A feature measured in large units dominates
+    the distance, so features must be scaled first. And irrelevant features add noise to every
+    distance.</p
+  >
+  <h4>Strengths and limits</h4
+  ><p
+    >It can draw any boundary and needs no assumptions. But it must store all the data and search it
+    for every prediction, and it suffers the curse of dimensionality directly: in many dimensions
+    the nearest neighbours are not near.</p
+  ></template
+>
+
+<template data-part="question"
+  >k = 1 gets 100% on the training data. Why is that not a reason to use it?</template
+>
+
+<template data-part="answer"
+  >Each training point is its own nearest neighbour, so it always votes for its own label. That
+  measures memory, not prediction. Test accuracy, or leave-one-out accuracy, is the honest measure,
+  and it is usually best at a moderate k.</template
+>

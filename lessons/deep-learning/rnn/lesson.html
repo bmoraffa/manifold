@@ -1,0 +1,185 @@
+<template data-part="lede"
+  >Your phone suggests the next word as you type. To do that it has to remember what came before. A
+  recurrent network reads a sequence one item at a time and keeps a small memory that it updates at
+  every step. Here one learns to spell a phrase you choose, letter by letter, and then writes it
+  back on its own.</template
+>
+
+<template data-part="intro"
+  ><p
+    >When you read a sentence you do not start afresh at every word. You carry a running sense of
+    what the sentence has said so far, and each new word updates it. A recurrent network (RNN) has
+    exactly one such running summary: a vector called the hidden state. At every step it takes the
+    new item and the old summary, mixes them, and produces a new summary. Nothing else is
+    remembered, so whatever the network needs to know about the past has to be squeezed into that
+    vector.</p
+  >
+</template>
+
+<template data-part="stage"
+  ><p class="cap" id="rn-out" role="status"></p>
+  <div class="stage"
+    ><figure class="fig"
+      ><figcaption
+        >Unrolled in time. Bottom: the letter read. Middle: the memory, one coloured cell per
+        neuron. Top: the letter it expects next. The memory is passed along to the right</figcaption
+      ><canvas
+        class="short"
+        id="rn-c"
+        role="img"
+        aria-label="Recurrent network unrolled over time steps"
+      ></canvas
+    ></figure>
+    <figure class="fig"
+      ><figcaption
+        >Top: how likely it thinks each letter is to come next. Bottom: the error while it
+        learns</figcaption
+      ><canvas
+        class="short"
+        id="rn-r"
+        role="img"
+        aria-label="Next-letter probabilities and the training loss"
+      ></canvas></figure
+  ></div>
+  <div class="howto"
+    ><div
+      ><h3>How it works, step by step</h3
+      ><ol id="rn-steps"
+        ><li
+          >Learn: read the phrase many times. At each letter, guess the next one, measure the error,
+          and adjust the weights (backpropagation through time).</li
+        ><li>Write: start with the first letter and an empty memory.</li
+        ><li>Mix the letter just read with the memory so far. That mixture is the new memory.</li
+        ><li
+          >From the new memory, work out how likely each letter is to come next, and take the most
+          likely.</li
+        ><li>Feed that letter back in as the next input, and repeat.</li></ol
+      ></div
+    ><div><h3>What just happened</h3><p class="live" id="rn-live" role="status"></p></div
+  ></div>
+  <div class="controls"
+    ><template data-label="Animation" data-control="group"
+      ><div class="row"
+        ><button class="btn go" id="rn-play" type="button">Run</button
+        ><button class="btn" id="rn-step" type="button">One step</button
+        ><button class="btn" id="rn-reset" type="button">Start over</button></div
+      ><template data-unit="readings" data-id="rn" data-control="run-limit"></template
+    ></template>
+    <template data-label="The phrase" data-control="group"
+      ><label class="ctl" for="rn-text"
+        ><span>Phrase to learn (letters and spaces, up to 28)</span
+        ><input
+          type="text"
+          class="num"
+          id="rn-text"
+          maxlength="28"
+          value="hello world"
+          autocomplete="off"
+          spellcheck="false" /></label
+      ><p class="status" id="rn-st" role="status"></p
+    ></template>
+    <template data-label="The model" data-control="group"
+      ><template
+        data-value="12"
+        data-step="1"
+        data-max="24"
+        data-min="1"
+        data-label="Memory cells (hidden neurons)"
+        data-id="rn-H"
+        data-control="slider"
+      ></template></template
+  ></div>
+  <dl class="read"
+    ><template data-label="Stage" data-key="ph" data-control="readout"></template
+    ><template
+      data-label="Times it has read the phrase"
+      data-key="ep"
+      data-control="readout"
+    ></template
+    ><template
+      data-class="hl2"
+      data-label="Error per letter"
+      data-key="L"
+      data-control="readout"
+    ></template
+    ><template
+      data-class="hl"
+      data-label="Letters it now predicts correctly"
+      data-key="acc"
+      data-control="readout"
+    ></template
+    ><template data-label="Weights" data-key="np" data-control="readout"></template></dl
+></template>
+
+<template data-part="tryit"
+  >Let it learn “hello world” and watch the line of text above the pictures improve from nonsense.
+  In the phrase, the letter “l” is followed once by “l”, once by “o” and once by “d”. Step through
+  the writing and look at the memory column each time it reads an “l”: the cells differ, and that is
+  how it knows which one it is on. Now set the memory to 1 cell and run again. Then type your own
+  phrase.</template
+>
+
+<template data-part="math"
+  ><h4>One step</h4
+  ><p
+    >Let \(\mathbf x_t\) be the letter at step \(t\), written as a vector with a 1 in that letter's
+    position and 0 elsewhere. The memory \(\mathbf h_t\) and the prediction \(\hat{\mathbf y}_t\)
+    are</p
+  >$$\mathbf h_t=\tanh\big(\mathbf W_{xh}\mathbf x_t+\mathbf W_{hh}\mathbf h_{t-1}+\mathbf
+  b_h\big),\qquad\hat{\mathbf y}_t=\operatorname{softmax}\big(\mathbf W_{hy}\mathbf h_t+\mathbf
+  b_y\big).$$<p
+    >The same three weight matrices are used at every step. That is what "recurrent" means, and it
+    is why the network can read a sequence of any length with a fixed number of weights.</p
+  >
+  <h4>Learning: backpropagation through time</h4
+  ><p
+    >The loss is the cross-entropy between the predicted next letter and the true one, added up over
+    the phrase: \(\mathcal L=-\sum_t\log\hat y_t[\text{true next letter}]\). To get gradients,
+    unroll the network in time, as in the left picture, and treat it as a deep network with one
+    layer per step and shared weights. Blame flows from each prediction back through the memory to
+    all earlier steps:</p
+  >$$\frac{\partial\mathcal L}{\partial\mathbf h_t}=\mathbf W_{hy}^{\top}\big(\hat{\mathbf
+  y}_t-\mathbf y_t\big)+\mathbf W_{hh}^{\top}\Big[\big(1-\mathbf
+  h_{t+1}^2\big)\odot\frac{\partial\mathcal L}{\partial\mathbf h_{t+1}}\Big].$$<p
+    >The gradient of each shared matrix is the sum of its gradients at all steps.</p
+  >
+  <h4>Why memory is needed</h4
+  ><p
+    >In "hello world" the letter l is followed by l, by o and by d. A model that sees only the
+    current letter cannot do better than guess among them. The RNN can, because by the time it reads
+    each l its memory holds a trace of the letters before it. The number of memory cells limits how
+    much can be kept: with too few, different histories collapse onto the same memory and the
+    predictions blur.</p
+  >
+  <h4>The weakness, and LSTM and GRU</h4
+  ><p
+    >Going back \(k\) steps multiplies the gradient by \(\mathbf W_{hh}^{\top}\) and by tanh slopes
+    \(k\) times, the same repeated product as in the Activation Functions lesson. Over long gaps it
+    vanishes, so a plain RNN learns short-range patterns well and long-range ones poorly. The
+    <b>LSTM</b> and the <b>GRU</b> add gates, small sigmoid layers that decide at each step how much
+    of the old memory to keep, how much new information to write and how much to reveal. The LSTM's
+    memory update is \(\mathbf c_t=\mathbf f_t\odot\mathbf c_{t-1}+\mathbf i_t\odot\tilde{\mathbf
+    c}_t\): when the forget gate \(\mathbf f_t\) is near 1 the memory, and the gradient with it,
+    passes through unchanged, much like a residual shortcut through time. Those gated versions are
+    not animated on this page.</p
+  >
+  <h4>Where RNNs stand now</h4
+  ><p
+    >For language, Transformers have largely replaced RNNs because attention lets every position
+    look directly at every other. RNNs are still used for streaming signals and small devices, and
+    the idea of a state carried through time appears throughout machine learning.</p
+  ></template
+>
+
+<template data-part="question"
+  >The network has learned “hello world” and is writing it back. It has just read the second “l”.
+  The input is the same as for the first “l”, yet it now predicts “o” instead of “l”. Where is the
+  difference stored?</template
+>
+
+<template data-part="answer"
+  >In the memory (the hidden state). The prediction depends on the new memory, and the new memory is
+  computed from the current letter and the previous memory. Before the first l the previous memory
+  encoded “he”; before the second it encoded “hel”. Same input, different previous memory, so a
+  different new memory and a different prediction.</template
+>

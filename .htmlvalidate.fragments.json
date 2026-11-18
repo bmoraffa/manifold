@@ -1,0 +1,8 @@
+{
+  "root": true,
+  "rules": {
+    "close-order": "error",
+    "no-dup-attr": "error",
+    "no-dup-id": "error"
+  }
+}

@@ -1,0 +1,37 @@
+<template data-template="slider">
+  <label class="ctl"><span></span><input type="range" /><output></output></label>
+</template>
+<template data-template="group">
+  <fieldset class="grp"><legend></legend></fieldset>
+</template>
+<template data-template="number">
+  <label class="ctl"><span></span><input class="num" type="number" step="0.1" /></label>
+</template>
+<template data-template="point-status">
+  <p class="tpout" role="status"></p>
+</template>
+<template data-template="readout">
+  <div><dt></dt><dd>–</dd></div>
+</template>
+<template data-template="run-limit">
+  <label class="ctl"
+    ><span></span><input type="number" class="num" min="1" step="1" placeholder="no limit" /></label
+  ><p class="status" role="status"></p>
+</template>
+<template data-template="rotation">
+  <div class="viewbar"
+    ><span>Drag to rotate</span
+    ><button class="link" data-v="spin" type="button">Rotate for me</button
+    ><button class="link" data-v="in" type="button">Zoom in</button
+    ><button class="link" data-v="out" type="button">Zoom out</button
+    ><button class="link" data-v="reset" type="button">Reset view</button></div
+  >
+</template>
+<template data-template="xy-upload">
+  <div class="row"
+    ><label class="btn file"
+      >Upload a CSV with two number columns<input
+        type="file"
+        accept=".csv,.txt,text/csv" /></label></div
+  ><p class="status" role="status"></p>
+</template>

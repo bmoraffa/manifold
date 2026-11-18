@@ -1,0 +1,229 @@
+<template data-part="lede"
+  >Before learning by trial and error, take the easier case: the robot has a complete map. It knows
+  every square, what each move does, and what each reward is. No experience is needed, only
+  thinking. The thinking is one small calculation repeated over and over: the value of a square is
+  the best you can get by making one move and then collecting the value of wherever you land. Watch
+  values spread out from the goal like water, and the arrows fall into place behind them.</template
+>
+
+<template data-part="intro"
+  ><p
+    >Suppose you want to know how many minutes each junction in a town is from the railway station,
+    and you have a map. Write 0 on the station. Every junction next to it is "one street away":
+    write that down. Every junction next to those is "one more street". Keep going and the numbers
+    flood outward from the station until the map is covered. Once every junction has its number,
+    finding the way from anywhere is trivial: at each junction, walk toward the neighbour with the
+    smallest number. Value iteration is this flood, with rewards in place of minutes and with the
+    complication that a move may not go where you intended.</p
+  >
+</template>
+
+<template data-part="stage"
+  ><div class="row seg" id="vi-m" role="group" aria-label="Method"
+    ><button class="btn" type="button" data-v="vi">Value Iteration</button
+    ><button class="btn" type="button" data-v="pi">Policy Iteration</button></div
+  >
+  <div class="stage"
+    ><figure class="fig"
+      ><figcaption
+        >The number in each square is its current value: the total reward expected from there. The
+        arrow is the best move given those values. Gold frame: the square being recomputed. Click a
+        square to see its calculation</figcaption
+      ><canvas
+        class="short"
+        id="vi-c"
+        role="img"
+        aria-label="Grid world with the value and best move of every square"
+      ></canvas
+    ></figure>
+    <figure class="fig"
+      ><figcaption
+        >Top: the largest change in any value during each sweep. Bottom: how many arrows changed in
+        each sweep</figcaption
+      ><canvas
+        class="short"
+        id="vi-r"
+        role="img"
+        aria-label="Largest value change and number of policy changes per sweep"
+      ></canvas></figure
+  ></div>
+  <figure class="fig" style="margin-top:18px"
+    ><figcaption>The calculation for one square</figcaption
+    ><div class="eq" id="vi-eq" aria-live="polite" style="min-height:11em;margin-top:6px"></div
+  ></figure>
+  <div class="howto"
+    ><div
+      ><h3>How it works, step by step</h3
+      ><ol id="vi-steps"
+        ><li>Start with every value at zero.</li
+        ><li
+          >Value iteration: take a square. For each of the four moves, work out reward + γ × the
+          value of where the move leads, averaged over where it might slip to.</li
+        ><li
+          >The new value of the square is the best of those four numbers, and the arrow points at
+          the move that gave it.</li
+        ><li
+          >Do this for every square: that is one sweep. Repeat sweeps until no value changes by more
+          than 0.001.</li
+        ><li
+          >Policy iteration instead fixes all the arrows, works out the values of following exactly
+          those arrows, then redraws each arrow toward the best move, and repeats until no arrow
+          changes.</li
+        ></ol
+      ></div
+    ><div><h3>What just happened</h3><p class="live" id="vi-live" role="status"></p></div
+  ></div>
+  <div class="controls"
+    ><template data-label="Animation" data-control="group"
+      ><div class="row"
+        ><button class="btn go" id="vi-play" type="button">Run</button
+        ><button class="btn" id="vi-step" type="button">One step</button
+        ><button class="btn" id="vi-reset" type="button">Start over</button></div
+      ><template data-unit="sweeps" data-id="vi" data-control="run-limit"></template
+    ></template>
+    <template data-label="The world" data-control="group"
+      ><div class="row seg" id="vi-w" role="group" aria-label="World"
+        ><button class="btn" type="button" data-v="room">The Room with a Pit</button
+        ><button class="btn" type="button" data-v="maze">The Maze</button></div
+      ><template
+        data-value="0.2"
+        data-step="0.05"
+        data-max="0.5"
+        data-min="0"
+        data-label="Slippery floor: chance a move slides sideways"
+        data-id="vi-sl"
+        data-control="slider"
+      ></template
+      ><template
+        data-value="0.9"
+        data-step="0.01"
+        data-max="1"
+        data-min="0.5"
+        data-label="Discount γ"
+        data-id="vi-ga"
+        data-control="slider"
+      ></template
+      ><template
+        data-value="-1"
+        data-step="0.25"
+        data-max="0"
+        data-min="-3"
+        data-label="Reward for each ordinary step"
+        data-id="vi-rs"
+        data-control="slider"
+      ></template></template
+  ></div>
+  <dl class="read"
+    ><template data-label="Method" data-key="me" data-control="readout"></template
+    ><template data-label="Sweeps so far" data-key="sw" data-control="readout"></template
+    ><template
+      data-class="hl2"
+      data-label="Largest change in the last sweep"
+      data-key="dl"
+      data-control="readout"
+    ></template
+    ><template
+      data-class="hl"
+      data-label="Value of the start square"
+      data-key="vs"
+      data-control="readout"
+    ></template
+    ><template
+      data-label="Route from the start, following the arrows"
+      data-key="rt"
+      data-control="readout"
+    ></template
+    ><template
+      data-label="Arrows changed in the last sweep"
+      data-key="pc"
+      data-control="readout"
+    ></template></dl
+></template>
+
+<template data-part="tryit"
+  >Press One step repeatedly in the first sweep and read each calculation. Only squares next to the
+  goal or the pit get interesting values at first. Why? Press Run and watch the values travel
+  outward, one square per sweep. Notice the arrows settle long before the numbers do. Now set the
+  reward for each step to 0 and the slippery slider to 0.3, and look at C4, the square under the
+  pit: its arrow points down, into the wall. Then set the step reward to −3. With a very costly
+  step, what does the robot next to the pit prefer? Finally switch to Policy Iteration: how many
+  rounds does it need, compared with the number of sweeps value iteration took?</template
+>
+
+<template data-part="math"
+  ><h4>The setting: a Markov decision process</h4
+  ><p
+    >There is a set of states \(s\), a set of actions \(a\), transition probabilities \(P(s'\mid
+    s,a)\) saying where each action leads, a reward \(r(s,a,s')\), and a discount \(\gamma\). A
+    <b>policy</b> \(\pi\) says which action to take in each state. The <b>value</b> \(V^\pi(s)\) is
+    the expected total discounted reward from \(s\) when following \(\pi\). The goal is the policy
+    whose values are highest everywhere.</p
+  >
+  <h4>The Bellman optimality equation</h4
+  ><p
+    >The values of the best policy satisfy a consistency condition (Bellman, 1957). The value of a
+    state is the best, over actions, of the immediate reward plus the discounted value of the next
+    state:</p
+  >$$V^\star(s)=\max_a\sum_{s'}P(s'\mid s,a)\,\big[r(s,a,s')+\gamma V^\star(s')\big].$$<p
+    >This is one equation for every state, all tied together, and the \(\max\) makes them impossible
+    to solve by ordinary algebra.</p
+  >
+  <h4>Value iteration</h4
+  ><p>Turn the equation into an update. Start from \(V_0=0\) and compute, for every state,</p
+  >$$V_{k+1}(s)=\max_a\sum_{s'}P(s'\mid s,a)\,\big[r(s,a,s')+\gamma V_k(s')\big].$$<p
+    >The panel under the pictures writes this out for one square: four lines, one per move, then the
+    best. Each sweep brings every value closer to \(V^\star\) by at least the factor \(\gamma\):</p
+  >$$\max_s\big|V_{k+1}(s)-V^\star(s)\big|\le\gamma\,\max_s\big|V_k(s)-V^\star(s)\big|.$$<p
+    >That is why the top-right curve falls steadily, and why a \(\gamma\) near 1 needs more sweeps.
+    Information travels one square per sweep, so a goal ten squares away takes at least ten sweeps
+    to be felt.</p
+  >
+  <h4>From values to behaviour</h4
+  ><p>Given values, the best move in each state is the one that achieved the maximum:</p
+  >$$\pi(s)=\arg\max_a\sum_{s'}P(s'\mid s,a)\,\big[r(s,a,s')+\gamma V(s')\big].$$<p
+    >The arrows usually stop changing long before the values have converged, because the arrow only
+    depends on which neighbour is better, not on by how much.</p
+  >
+  <h4>Policy iteration</h4
+  ><p
+    >Howard (1960) used that observation. Alternate two steps. <b>Evaluate</b>: with the arrows
+    fixed, find the values of following them, by sweeping the simpler update without a \(\max\)
+    until it settles,</p
+  >$$V^\pi(s)=\sum_{s'}P(s'\mid s,\pi(s))\,\big[r+\gamma V^\pi(s')\big].$$<p
+    ><b>Improve</b>: redraw every arrow toward the best move under those values. Each round gives a
+    policy at least as good as the last, and there are finitely many policies, so it stops, usually
+    after very few rounds. Each round costs many sweeps, though, as the readout shows.</p
+  >
+  <h4>What the settings do</h4
+  ><p
+    ><b>Slippery floor</b>: with chance \(p\) a move slides to one side or the other. Next to the
+    pit, when steps are cheap, the robot then prefers a move that cannot slide into it, even walking
+    into a wall. <b>Step reward</b>: at 0 there is no hurry and the robot takes the safest route
+    however long. At \(-3\) life is so costly that a risky short cut becomes worthwhile, and for
+    squares far from the goal even the pit can be preferable to a long walk. <b>\(\gamma\)</b>:
+    small values make distant rewards nearly worthless.</p
+  >
+  <h4>Why this is not yet learning</h4
+  ><p
+    >Everything here needs \(P\) and \(r\) to be known: the robot is planning, not learning. In most
+    real problems nobody hands you the rules. The next tabs keep the same Bellman idea and replace
+    the known probabilities with experience: Monte Carlo and TD learning estimate values from
+    sampled walks, and Q-learning does so while also choosing the moves.</p
+  ></template
+>
+
+<template data-part="question"
+  >In the room, set the reward for each step to 0 and the slippery floor to 0.3. The best move in
+  C4, the square directly under the pit, is now “down”, straight into the wall, which gets the robot
+  nowhere. Why is that the best move?</template
+>
+
+<template data-part="answer"
+  >Because a move can slide sideways. The robot wants to go left, away from the pit. But a move to
+  the left can slide up, and up from C4 is the pit. A move down pushes into the wall and keeps the
+  robot where it is, and its two possible slides are left, to safety, and right, into another wall.
+  So “down” can never enter the pit, and sooner or later it slides the robot to the left. When steps
+  cost nothing, waiting for that lucky slide is better than taking a real chance of losing 10. Give
+  each step a cost of 1 and the patience stops paying: click C4 to compare the four
+  numbers.</template
+>

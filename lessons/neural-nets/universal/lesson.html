@@ -1,0 +1,180 @@
+<template data-part="lede"
+  >One hidden layer is enough, in principle, to copy any continuous curve as closely as you like.
+  Each neuron contributes one simple piece, a bend or an S-shaped step, and the output adds the
+  pieces up. Watch the pieces arrange themselves, add neurons one at a time, or draw your own curve
+  and see how many neurons it takes.</template
+>
+
+<template data-part="intro"
+  ><p
+    >A child with a box of identical wooden ramps can build the outline of any hill: a few ramps for
+    a gentle one, many small ramps for a jagged one. The ramps are all the same simple shape. What
+    changes is where each is placed, how steep it is, and whether it goes up or down. A neural
+    network with one hidden layer builds curves this way. Each hidden neuron is one ramp or one
+    step, and training is the work of sliding the pieces into place.</p
+  >
+</template>
+
+<template data-part="stage"
+  ><div class="stage"
+    ><figure class="fig"
+      ><figcaption
+        >Dashed: the curve to copy. Thin coloured lines: what each neuron contributes. Gold: their
+        sum, the network’s output. Drag across the picture to draw your own curve</figcaption
+      ><canvas
+        class="short"
+        id="ua-c"
+        role="img"
+        aria-label="Target curve, the contribution of each neuron and their sum"
+      ></canvas
+    ></figure>
+    <figure class="fig"
+      ><figcaption
+        >Top: error by training step. Bottom: the best error reached with each number of
+        neurons</figcaption
+      ><canvas
+        class="short"
+        id="ua-r"
+        role="img"
+        aria-label="Loss curve and error against number of neurons"
+      ></canvas></figure
+  ></div>
+  <div class="howto"
+    ><div
+      ><h3>How it works, step by step</h3
+      ><ol id="ua-steps"
+        ><li
+          >Each hidden neuron makes one simple piece: it scales and shifts the input, then bends
+          it.</li
+        ><li>The output multiplies every piece by its own weight and adds them all up.</li
+        ><li>Compare the sum with the target at 100 positions: the error.</li
+        ><li
+          >Adjust every scale, shift and weight a little to lower the error. Repeat until it stops
+          falling.</li
+        ><li>If the fit is still poor, add another neuron and train again.</li></ol
+      ></div
+    ><div><h3>What just happened</h3><p class="live" id="ua-live" role="status"></p></div
+  ></div>
+  <div class="controls"
+    ><template data-label="Animation" data-control="group"
+      ><div class="row"
+        ><button class="btn go" id="ua-play" type="button">Train</button
+        ><button class="btn" id="ua-step" type="button">Twenty steps</button
+        ><button class="btn" id="ua-reset" type="button">Start over</button></div
+      ><template data-unit="steps" data-id="ua" data-control="run-limit"></template
+      ><div class="row"
+        ><button class="btn" id="ua-grow" type="button">Add Neurons One at a Time</button></div
+      ></template
+    >
+    <template data-label="The network" data-control="group"
+      ><template
+        data-value="5"
+        data-step="1"
+        data-max="24"
+        data-min="1"
+        data-label="Hidden neurons"
+        data-id="ua-H"
+        data-control="slider"
+      ></template
+      ><label class="ctl" for="ua-act"
+        ><span>Shape of each piece</span
+        ><select id="ua-act"
+          ><option value="tanh">S-shaped step (tanh)</option
+          ><option value="relu">Bend (ReLU)</option></select
+        ></label
+      ></template
+    >
+    <template data-label="The curve to copy" data-control="group"
+      ><label class="ctl" for="ua-tg"
+        ><span>Target</span
+        ><select id="ua-tg"
+          ><option value="wave">A wave</option
+          ><option value="hill">One hill</option
+          ><option value="step">A staircase</option
+          ><option value="sky">A city skyline</option
+          ><option value="own">Your own drawing</option></select
+        ></label
+      ><p class="status" id="ua-st" role="status"></p></template
+  ></div>
+  <dl class="read"
+    ><template data-label="Hidden neurons" data-key="H" data-control="readout"></template
+    ><template
+      data-label="Numbers the network can adjust"
+      data-key="np"
+      data-control="readout"
+    ></template
+    ><template data-label="Training steps" data-key="ep" data-control="readout"></template
+    ><template
+      data-class="hl"
+      data-label="Error (mean squared)"
+      data-key="L"
+      data-control="readout"
+    ></template
+    ><template data-label="Status" data-key="st" data-control="readout"></template></dl
+></template>
+
+<template data-part="tryit"
+  >Press Add Neurons One at a Time on the wave and watch the bars on the right: how many neurons
+  until the gold line sits on the dashed one? Then switch to the staircase with S-shaped pieces:
+  count the steps in the staircase and the neurons needed. Change the pieces to Bends and try the
+  skyline. Finally draw something of your own, the wilder the better, and find its number.</template
+>
+
+<template data-part="math"
+  ><h4>The network as a sum of pieces</h4
+  ><p>With one input \(x\), \(H\) hidden neurons and one output,</p>$$\hat
+  f(x)=c+\sum_{j=1}^{H}v_j\,\phi\big(w_jx+b_j\big).$$<p
+    >Inside each term, \(w_j\) sets how sharp the piece is, \(-b_j/w_j\) sets where along the axis
+    it sits, and \(v_j\) sets its height and whether it points up or down. The thin coloured lines
+    in the picture are the individual terms \(v_j\phi(w_jx+b_j)\), and the gold line is their
+    sum.</p
+  >
+  <h4>Why steps are enough</h4
+  ><p
+    >Take \(\phi=\tanh\) with a large \(w\): the piece is nearly a sharp step. Two steps at slightly
+    different positions, one up and one down, make a narrow bump of any height. Any continuous curve
+    can be approximated by a row of narrow bumps of the right heights, as a bar chart approximates a
+    curve, and making the bars narrower makes the approximation as close as you like. With
+    \(\phi=\mathrm{ReLU}\) each piece is a bend, sums of bends are piecewise-linear curves, and
+    enough short straight segments follow any continuous curve.</p
+  >
+  <h4>The theorem</h4
+  ><p
+    >For any continuous function \(f\) on a closed, bounded interval and any tolerance
+    \(\varepsilon&gt;0\), there is a number of neurons \(H\) and a choice of weights such that</p
+  >$$\big|\hat f(x)-f(x)\big|&lt;\varepsilon\quad\text{for every }x\text{ in the interval.}$$<p
+    >This holds for any activation that is not a polynomial (Cybenko 1989; Hornik 1991; Leshno and
+    others 1993), and in any number of input dimensions.</p
+  >
+  <h4>What the theorem does not say</h4
+  ><ul
+    ><li
+      ><b>How many neurons.</b> It may be very many. Rough or rapidly changing targets need more
+      pieces, which you can check with the skyline or your own drawing. In high dimensions the
+      number can grow exponentially.</li
+    ><li
+      ><b>That training will find the weights.</b> The theorem says good weights exist. Gradient
+      descent may stop at a worse arrangement, and running the same setting twice here can give
+      different errors.</li
+    ><li
+      ><b>Anything about new data.</b> Fitting 100 known points closely is not the same as
+      predicting well away from them. That is the bias and variance story again.</li
+    ><li
+      ><b>That one layer is the best design.</b> Deep networks can represent many useful functions
+      with far fewer neurons than a single wide layer, because later layers reuse the pieces built
+      by earlier ones.</li
+    ></ul
+  ></template
+>
+
+<template data-part="question"
+  >The staircase target has four flat levels. About how many tanh neurons should be enough, and why
+  does adding many more barely help?</template
+>
+
+<template data-part="answer"
+  >Three, one for each jump between levels: a tanh neuron with a large input weight is one step,
+  placed where it is needed and scaled to the height of that jump, and the output bias sets the
+  first level. Once every jump has its own neuron the error is already close to zero, so extra
+  neurons have nothing left to explain and receive almost no gradient.</template
+>

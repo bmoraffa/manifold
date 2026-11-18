@@ -1,0 +1,222 @@
+<template data-part="lede"
+  >Gaussian noise suits pictures, where a pixel can be a little brighter or darker. A letter cannot
+  be a little more “q”. For words, tokens and other things that come in separate kinds, the noise is
+  different: tokens are hidden behind a blank. The model learns to guess what is under the blanks,
+  and it generates by starting with everything hidden and revealing a few tokens at a time. Unlike a
+  language model that writes left to right, it fills in the whole thing at once, in any
+  order.</template
+>
+
+<template data-part="intro"
+  ><p
+    >Think of a crossword with no clues, or the game where letters of a hidden phrase are turned
+    over one at a time. With every square blank, all you can say is that E is common and Q is rare.
+    Turn over one letter and the neighbours become easier. Turn over a few more and the rest is
+    nearly forced. A discrete diffusion model is trained to play this game from any position: given
+    some squares, state the odds for all the others. To write something new it starts from an empty
+    board, lets its own odds decide a few squares, looks again, and carries on.</p
+  >
+</template>
+
+<template data-part="stage"
+  ><div class="row seg" id="dd-kind" role="group" aria-label="What to generate"
+    ><button class="btn" type="button" data-v="pic"
+      >Letter Pictures: 35 Black-or-White Squares</button
+    ><button class="btn" type="button" data-v="word"
+      >Five-Letter Words: 5 Letters out of 26</button
+    ></div
+  >
+  <div class="stage"
+    ><figure class="fig"
+      ><figcaption
+        >Eight samples being generated. Tinted cells are still hidden, and the strength of the tint
+        is the network’s current belief. Gold frames mark what was revealed in the last
+        step</figcaption
+      ><canvas
+        class="short"
+        id="dd-c"
+        role="img"
+        aria-label="Eight samples being revealed step by step"
+      ></canvas
+    ></figure>
+    <figure class="fig"
+      ><figcaption
+        >Top: one training example with more and more of it hidden. Bottom: the training error, then
+        quality for each number of reveal steps</figcaption
+      ><canvas
+        class="short"
+        id="dd-r"
+        role="img"
+        aria-label="Forward masking of one example, the loss, and quality against number of steps"
+      ></canvas></figure
+  ></div>
+  <div class="howto"
+    ><div
+      ><h3>How it works, step by step</h3
+      ><ol id="dd-steps"
+        ><li
+          >Take a real example. Choose a random fraction between 0 and 1 and hide that fraction of
+          its tokens behind a blank.</li
+        ><li
+          >Show the network the partly hidden example and ask, for every blank, how likely each
+          token is. Score it only on the blanks and backpropagate. Repeat for 1,500 batches.</li
+        ><li
+          >Measure: generate with different numbers of reveal steps and count how many samples are
+          real.</li
+        ><li>Generate: start with everything hidden.</li
+        ><li
+          >Ask the network for its beliefs about every blank. Reveal a few blanks by drawing a token
+          for each from those beliefs. The rest stay hidden.</li
+        ><li
+          >Ask again: the tokens just revealed change the beliefs about the rest. Repeat until
+          nothing is hidden.</li
+        ></ol
+      ></div
+    ><div><h3>What just happened</h3><p class="live" id="dd-live" role="status"></p></div
+  ></div>
+  <div class="controls"
+    ><template data-label="Animation" data-control="group"
+      ><div class="row"
+        ><button class="btn go" id="dd-play" type="button">Run</button
+        ><button class="btn" id="dd-step" type="button">One step</button
+        ><button class="btn" id="dd-reset" type="button">Start over</button></div
+      ><template data-unit="training steps" data-id="dd" data-control="run-limit"></template
+    ></template>
+    <template data-label="Generating" data-control="group"
+      ><template
+        data-value="5"
+        data-step="1"
+        data-max="7"
+        data-min="0"
+        data-label="Number of reveal steps"
+        data-id="dd-n"
+        data-control="slider"
+      ></template
+      ><div class="row seg" id="dd-ord" role="group" aria-label="Which blanks to reveal first"
+        ><button class="btn" type="button" data-v="conf">Most Confident First</button
+        ><button class="btn" type="button" data-v="rand">Random Order</button></div
+      ><div class="row"
+        ><button class="btn" id="dd-gen" type="button">Generate Again</button></div
+      ></template
+    ></div
+  >
+  <dl class="read"
+    ><template data-label="Stage" data-key="ph" data-control="readout"></template
+    ><template data-label="Training steps" data-key="ts" data-control="readout"></template
+    ><template
+      data-class="hl2"
+      data-label="Error at guessing hidden tokens"
+      data-key="L"
+      data-control="readout"
+    ></template
+    ><template data-label="Reveal steps" data-key="rs" data-control="readout"></template
+    ><template
+      data-label="Tokens still hidden in each sample"
+      data-key="hid"
+      data-control="readout"
+    ></template
+    ><template
+      data-class="hl"
+      data-label="Samples that came out real"
+      data-key="ok"
+      data-control="readout"
+    ></template></dl
+></template>
+
+<template data-part="tryit"
+  >Let it train, then watch a run with Letter Pictures. Early on the tint is the same in all eight
+  samples: with nothing revealed the network can only report how often each square is black on
+  average. After the first few reveals the samples go their separate ways. Now set the reveal steps
+  to 1 and press Generate Again: every square is drawn at once. What comes out, and why? Raise the
+  steps until the letters are clean. Compare Most Confident First with Random Order at a middle
+  setting. Then switch to Five-Letter Words and try 1 step and 5 steps. With one step, are the
+  letters at least plausible for their positions?</template
+>
+
+<template data-part="math"
+  ><h4>The forward process: hiding</h4
+  ><p
+    >Let \(\mathbf x=(x^1,\dots,x^L)\) be a sequence of tokens. At time \(t\in[0,1]\) each token is
+    independently replaced by a special blank token \(\texttt{[M]}\) with probability \(t\) and
+    otherwise left alone:</p
+  >$$q(x_t^i\mid x^i)=\begin{cases}1-t & x_t^i=x^i\\[2pt] t & x_t^i=\texttt{[M]}\end{cases}$$<p
+    >At \(t=0\) nothing is hidden and at \(t=1\) everything is. A blank never turns back into a
+    token on its own, so this is called an absorbing process. It plays the part that adding Gaussian
+    noise plays for pictures.</p
+  >
+  <h4>Training</h4
+  ><p
+    >The network sees the partly hidden sequence and outputs, for every position, a distribution
+    over the vocabulary. It is scored with cross-entropy on the hidden positions only:</p
+  >$$\mathcal L=\mathbb E_{\,t,\ \mathbf x,\ \mathbf x_t}\Big[\,w(t)\sum_{i:\
+  x_t^i=\texttt{[M]}}-\log p_\theta\big(x^i\mid\mathbf x_t\big)\Big].$$<p
+    >With the weight \(w(t)=1/t\) this is a bound on the log-likelihood of the data (Sahoo and
+    others, 2024; Shi and others, 2024). This page uses \(w(t)=1\) and averages over the hidden
+    positions, which trains the same network a little less exactly. If you know BERT, this is its
+    training task, with one change: the fraction hidden is not fixed at 15% but ranges over
+    everything from none to all. That range is what turns a fill-in-the-blank model into a
+    generator.</p
+  >
+  <h4>Generating: revealing</h4
+  ><p
+    >Start from \(\mathbf x_1=(\texttt{[M]},\dots,\texttt{[M]})\). Choose \(N\) steps. At each step
+    run the network once, pick some of the positions that are still hidden, and for each draw a
+    token from the network's distribution for that position. With a linear schedule, \(L/N\)
+    positions are revealed per step. Which positions go first is a free choice. Random Order is what
+    the forward process implies. Most Confident First, used by MaskGIT (Chang and others, 2022),
+    reveals the positions where the network's top choice has the highest probability.</p
+  >
+  <h4>Why the number of steps matters</h4
+  ><p
+    >The network outputs one distribution per position. It does not output a joint distribution over
+    several positions at once. Tokens revealed in the same step are therefore drawn
+    <b>independently</b>: none of them knows what the others turned out to be.</p
+  >$$p_\theta(x^i,x^j\mid\mathbf x_t)\ \text{is approximated by}\ p_\theta(x^i\mid\mathbf
+  x_t)\,p_\theta(x^j\mid\mathbf x_t).$$<p
+    >With one step, every position is drawn from its own average behaviour, and the result is a
+    blend of all the training examples: letters that are each plausible for their place but do not
+    form a word, or a picture with pieces of several letters. With \(N=L\) steps exactly one token
+    is revealed at a time, each one sees all the earlier ones, and nothing is approximated. In
+    between is the trade: fewer network calls against more tokens that had to be chosen blind. The
+    chart measures it.</p
+  >
+  <h4>How it compares with writing left to right</h4
+  ><p
+    >An autoregressive model is the special case in which one token is revealed per step in a fixed
+    left-to-right order. Discrete diffusion relaxes both parts: any order, and several tokens per
+    step. That allows generation in far fewer network calls than there are tokens, and it makes
+    filling a gap in the middle of a text as natural as continuing it. The cost is the independence
+    error above, and the fact that a revealed token is never revisited in this simple form.</p
+  >
+  <h4>Other kinds of discrete noise</h4
+  ><p
+    >Hiding is not the only choice. D3PM (Austin and others, 2021) also studies replacing a token
+    with a uniformly random one, or with a similar one. SEDD (Lou and others, 2024) learns ratios of
+    probabilities, a discrete counterpart of the score. Hiding has become the common choice for text
+    because it is simple and works well.</p
+  >
+  <h4>What this page trains</h4
+  ><p
+    >One network with two hidden layers of 96 neurons. Its input marks each position as one of the
+    tokens or as hidden. For Letter Pictures the data is 150 slightly noisy pictures of the letters
+    A, E, H, O, T and X on a 5 by 7 grid, and a sample counts as real if it is within two squares of
+    one of those letters. For Five-Letter Words the data is 64 common words, and a sample counts as
+    real if it is one of them. A list that short can only be memorised, so the words tab shows the
+    process, not creativity.</p
+  ></template
+>
+
+<template data-part="question"
+  >With one reveal step the pictures come out as a blur of several letters, yet the network that
+  produced them is exactly the one that draws clean letters in 35 steps. What does the one-step
+  failure tell you about what the network outputs?</template
+>
+
+<template data-part="answer"
+  >It outputs a separate probability for each hidden square, given what is visible. With nothing
+  visible those probabilities are just how often each square is black across all six letters.
+  Drawing all 35 squares from them at once treats the squares as independent, and independent
+  squares cannot agree on which letter they are part of. The knowledge that squares go together is
+  in the network, but it is only used when a revealed square is fed back in as input for the next
+  step.</template
+>

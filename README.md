@@ -24,11 +24,11 @@ will do when the data change.
 
 115 lessons across 12 topics:
 
-| | | |
-| --- | --- | --- |
-| The Gaussian | Foundations | Regression |
-| Classification | Ensembles | Unsupervised learning |
-| Neural networks | Deep learning | Generative AI |
+|                 |                        |                       |
+| --------------- | ---------------------- | --------------------- |
+| The Gaussian    | Foundations            | Regression            |
+| Classification  | Ensembles              | Unsupervised learning |
+| Neural networks | Deep learning          | Generative AI         |
 | Language models | Reinforcement learning | Probabilistic methods |
 
 The range runs from the bell curve and least squares to diffusion models, transformers, Q-learning and
@@ -43,12 +43,12 @@ Teachers are welcome to use it in lectures, assignments and office hours. Please
 
 ## How to cite
 
-> Moraffah, B. (2026). *Manifold: Machine Learning You Can See Move* [Interactive website].
+> Moraffah, B., & Sun, D. (2026). _Manifold: Machine Learning You Can See Move_ [Interactive website].
 > https://bmoraffa.github.io/manifold/
 
 ```bibtex
 @misc{moraffah2026manifold,
-  author       = {Moraffah, Bahman},
+  author       = {Moraffah, Bahman and Sun, Dachun},
   title        = {Manifold: Machine Learning You Can See Move},
   year         = {2026},
   howpublished = {\url{https://bmoraffa.github.io/manifold/}},
@@ -63,29 +63,60 @@ the same details from `CITATION.cff`.
 ## Acknowledgements
 
 The idea came out of conversations about teaching machine learning with Professor Ethan Prihar at Worcester
-Polytechnic Institute. Thanks also to Professor Raha Moraffah and Professor Dachun Sun, both at Worcester
-Polytechnic Institute, for discussion and feedback throughout. The full note is on the site's
+Polytechnic Institute. Thanks also to Professor Raha Moraffah at Worcester Polytechnic Institute
+for discussion and feedback throughout. The full note is on the site's
 [Acknowledgements](https://bmoraffa.github.io/manifold/#acknowledgements) page.
 
 ## For maintainers
 
 The site is plain HTML, CSS and JavaScript. There is no build step and no server code.
 
-| Path | Contents |
-| --- | --- |
-| `index.html` | The page shell, and the scripts in the order they must load |
-| `css/style.css` | All styling; light and dark themes follow the device |
-| `js/core.js` | Shared helpers: drawing, controls, animation, small maths |
-| `js/gaussian.js` … `js/probabilistic.js` | One file per topic |
-| `js/extra-lessons.js` | Lessons added later, appended to their topics |
-| `js/about.js` | References, Suggested Books, Acknowledgements, How to Cite |
-| `js/app.js` | Topic list, home-page animation, menu and routing |
-| `CITATION.cff` | Citation details for GitHub |
+| Path                             | Contents                                                            |
+| -------------------------------- | ------------------------------------------------------------------- |
+| `index.html`, `css/style.css`    | Page shell, shared styling, and themes                              |
+| `lessons/<topic>/index.js`       | Topic metadata and lesson order                                     |
+| `lessons/<topic>/<id>/`          | Lesson HTML beside its simulation module                            |
+| `js/core/`, `js/ui/`, `js/math/` | Shared drawing, controls, and numerical helpers                     |
+| `js/app/`                        | Loading, routing, caching, home animation, and transitions          |
+| `pages/about/`, `CITATION.cff`   | References, suggested books, acknowledgements, and citation details |
 
-To preview a change, open `index.html` in a browser. To publish it, commit to `main`; GitHub Pages updates
-the live site within a minute or two.
+Run `npm ci` and `npm run dev`, then open [the local site](http://127.0.0.1:4173/manifold/).
+GitHub Pages serves the repository source directly. See the [lesson authoring guide](docs/lesson-authoring.md)
+for the file layout and shared control conventions.
 
 The only outside resources are MathJax, for typesetting formulas, and three typefaces from Google Fonts.
+
+### Tests, formatting and linting
+
+Development tooling requires Node.js 22.22 or newer on the 22.x release line, or Node.js 24.8 or newer.
+Install the locked development dependencies with `npm ci`. The website itself still runs directly in
+the browser without installing dependencies or running a build.
+
+| Command                | Purpose                                                          |
+| ---------------------- | ---------------------------------------------------------------- |
+| `npm run format`       | Format supported project files with Prettier                     |
+| `npm run format:check` | Check formatting without changing files                          |
+| `npm test`             | Run focused upload, tree, markup, animation and math regressions |
+| `npm run lint:js`      | Check JavaScript with ESLint's recommended rules                 |
+| `npm run lint:css`     | Check CSS with Stylelint's recommended rules                     |
+| `npm run lint:html`    | Validate the shell and check lesson fragments                    |
+| `npm run lint`         | Run the three linters, stopping at the first failure             |
+| `npm run check`        | Check formatting, run tests, then run the linters                |
+
+Prettier owns formatting: two-space indentation, semicolons, single quotes in JavaScript, trailing
+commas, a 100-column target, and LF line endings. `.editorconfig` and `.gitattributes` keep editor and
+Git line endings consistent. Embedded-language formatting is disabled to preserve lesson strings,
+and HTML whitespace uses strict sensitivity. HTML Validate's Prettier preset disables conflicting
+formatting rules; CSS linting checks correctness rather than duplicating Prettier's style rules.
+
+ESLint checks native module imports. Node tests exercise the production modules, assembled lesson
+HTML, loading, navigation, and existing simulation regressions. LinkeDOM is used only by tests.
+Use a real browser to verify canvas drawing, file inputs, visual layout, and motion.
+
+Existing lint debt remains in unused locals, precision-loss literals, empty blocks, a constant
+condition, and CSS selector ordering. Consequently `npm run check` currently fails on lint debt
+after running the regression tests. Fix those issues in a separate behavior-reviewed change;
+`npm run format` never runs linter fixes or reorders CSS rules.
 
 ## Copyright
 

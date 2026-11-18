@@ -1,0 +1,7 @@
+node_modules/
+.superpowers/
+tests/fixtures/legacy-lessons.json
+.codegraph/
+coverage/
+dist/
+package-lock.json

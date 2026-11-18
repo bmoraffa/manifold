@@ -1,0 +1,169 @@
+<template data-part="lede"
+  >Type your own matrix, or pick a shape, and watch the cloud, the contours and the hill morph to
+  match. Isotropic gives circles. Diagonal stretches along an axis. Off-diagonal entries tilt
+  it.</template
+>
+
+<template data-part="intro"
+  ><p
+    >The covariance matrix answers two questions at once. The diagonal says how much each variable
+    varies on its own. The off-diagonal says whether they vary together: positive when a large \(x\)
+    tends to come with a large \(y\), negative when it comes with a small one, zero when knowing one
+    tells you nothing about the other.</p
+  >
+</template>
+
+<template data-part="stage"
+  ><div class="stage"
+    ><figure class="fig"
+      ><figcaption>Samples, contours and principal axes</figcaption
+      ><canvas
+        class="sq"
+        id="cov-c2"
+        role="img"
+        aria-label="Scatter of samples with contour ellipses and axes"
+      ></canvas></figure
+    ><figure class="fig"
+      ><figcaption>The hill</figcaption><canvas class="d3" id="cov-c3"></canvas
+      ><template data-control="rotation"></template></figure
+  ></div>
+  <div class="controls"
+    ><template data-label="Type the matrix" data-control="group"
+      ><div class="mx"
+        ><span class="mx-l">Σ =</span
+        ><div class="mx-grid"
+          ><input
+            type="number"
+            id="cov-a"
+            step="0.1"
+            min="0.2"
+            max="4"
+            aria-label="Variance of x" /><input
+            type="number"
+            id="cov-b"
+            step="0.1"
+            min="-4"
+            max="4"
+            aria-label="Covariance of x and y" /><input
+            type="number"
+            id="cov-b2"
+            disabled
+            aria-label="Covariance, mirrored" /><input
+            type="number"
+            id="cov-d"
+            step="0.1"
+            min="0.2"
+            max="4"
+            aria-label="Variance of y" /></div></div
+      ><p class="status" id="cov-status" role="status"></p
+    ></template>
+    <template data-label="Or pick a shape" data-control="group"
+      ><div class="row" id="cov-presets"
+        ><button class="btn" type="button" data-p="1,0,1">Isotropic</button
+        ><button class="btn" type="button" data-p="2.4,0,2.4">Isotropic, wide</button
+        ><button class="btn" type="button" data-p="3,0,0.5">Diagonal</button
+        ><button class="btn" type="button" data-p="1.8,1.1,1.2">Positive tilt</button
+        ><button class="btn" type="button" data-p="1.8,-1.1,1.2">Negative tilt</button
+        ><button class="btn" type="button" data-p="2,1.9,2">Nearly a line</button></div
+      ><div class="row"
+        ><button class="btn go" id="cov-play" type="button">Tour the shapes</button></div
+      ></template
+    >
+    <template data-label="Or use sliders" data-control="group"
+      ><template
+        data-value="1.4"
+        data-step="0.01"
+        data-max="2"
+        data-min="0.45"
+        data-label="Spread of x, σₓ"
+        data-id="cov-sx"
+        data-control="slider"
+      ></template
+      ><template
+        data-value="0.9"
+        data-step="0.01"
+        data-max="2"
+        data-min="0.45"
+        data-label="Spread of y, σᵧ"
+        data-id="cov-sy"
+        data-control="slider"
+      ></template
+      ><template
+        data-value="0.6"
+        data-step="0.01"
+        data-max="0.97"
+        data-min="-0.97"
+        data-label="Correlation ρ"
+        data-id="cov-rho"
+        data-control="slider"
+      ></template></template
+  ></div>
+  <dl class="read"
+    ><template data-label="Shape" data-key="shape" data-control="readout"></template
+    ><template
+      data-class="hl2"
+      data-label="Long axis variance λ₁"
+      data-key="l1"
+      data-control="readout"
+    ></template
+    ><template data-label="Short axis variance λ₂" data-key="l2" data-control="readout"></template
+    ><template data-label="Tilt of the long axis" data-key="th" data-control="readout"></template
+    ><template
+      data-class="hl3"
+      data-label="Determinant |Σ|"
+      data-key="det"
+      data-control="readout"
+    ></template></dl
+></template>
+
+<template data-part="tryit"
+  >Type 1, 0, 1 for an isotropic Gaussian. Change only the top-left entry to 3. Then put 0.9 in the
+  off-diagonal. Last, try an off-diagonal of 2 with ones on the diagonal and read the
+  message.</template
+>
+
+<template data-part="math"
+  ><h4>The matrix</h4>$$\Sigma=\begin{pmatrix}\sigma_x^2 & \rho\,\sigma_x\sigma_y\\[2pt]
+  \rho\,\sigma_x\sigma_y & \sigma_y^2\end{pmatrix},\qquad
+  \Sigma_{12}=\mathbb{E}\big[(x-\mu_x)(y-\mu_y)\big],\qquad
+  \rho=\frac{\Sigma_{12}}{\sigma_x\sigma_y}\in[-1,1].$$ <h4>Three families</h4
+  ><p
+    ><b>Isotropic</b>, \(\Sigma=\sigma^2 I\): the same spread in every direction, circular contours,
+    one number to learn. <b>Diagonal</b>, \(\Sigma=\operatorname{diag}(\sigma_x^2,\sigma_y^2)\):
+    independent variables, ellipses lined up with the axes, one number per dimension. <b>Full</b>:
+    any tilt, \(d(d+1)/2\) numbers in \(d\) dimensions. Models choose between these all the time:
+    naive Bayes assumes diagonal, a standard VAE and diffusion noise are isotropic.</p
+  >
+  <h4>What makes a matrix valid</h4
+  ><p
+    >The variance in any direction \(\mathbf u\) is \(\mathbf u^{\top}\Sigma\,\mathbf u\), and a
+    variance cannot be negative. So \(\Sigma\) must be symmetric and positive definite, which in two
+    dimensions means \(\Sigma_{11}>0\), \(\Sigma_{22}>0\) and
+    \(\Sigma_{12}^2&lt;\Sigma_{11}\Sigma_{22}\). That last condition is the same as
+    \(|\rho|&lt;1\).</p
+  >
+  <h4>Axes of the ellipse</h4>$$\Sigma=Q\,\Lambda\,Q^{\top},\qquad
+  \Lambda=\operatorname{diag}(\lambda_1,\lambda_2).$$<p
+    >The columns of \(Q\) (the eigenvectors) are the directions of the ellipse axes, and the axis
+    lengths are proportional to \(\sqrt{\lambda_1}\) and \(\sqrt{\lambda_2}\). Finding these axes
+    from data is exactly PCA. The determinant \(|\Sigma|=\lambda_1\lambda_2\) measures the area of
+    the ellipse, \(\pi\sqrt{|\Sigma|}\) for the 1σ contour, and sets the peak height
+    \(1/(2\pi\sqrt{|\Sigma|})\).</p
+  >
+  <h4>How the samples are made</h4
+  ><p
+    >Draw \(\mathbf z\sim N(\mathbf 0,I)\) and set \(\mathbf x=\boldsymbol\mu+L\mathbf z\) with
+    \(LL^{\top}=\Sigma\). The dots in the picture are the same \(\mathbf z\) every time, pushed
+    through a different \(L\). This "reparameterisation" is what lets a VAE learn through a sampling
+    step.</p
+  ></template
+>
+
+<template data-part="question"
+  >Two matrices have the same determinant. Do they give the same shape?</template
+>
+
+<template data-part="answer"
+  >No. The determinant fixes the area of the ellipse, not its shape. A circle and a long thin
+  ellipse can have the same area. Compare 1, 0, 1 with 3, 0, 0.33.</template
+>

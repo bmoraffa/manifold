@@ -1,0 +1,227 @@
+<template data-part="lede"
+  >The diffusion model in the earlier tabs walks through every noise level, one small step at a
+  time. Real image models have a thousand levels, so that walk is slow. A sampler is the rule for
+  getting from noise to data, and you can change it after training without touching the network.
+  Here one network is trained once, with 100 noise levels, and then asked to finish the job in 100
+  steps, in 10, or in 3.</template
+>
+
+<template data-part="intro"
+  ><p
+    >Think of walking down a foggy mountain to a village. The DDPM rule is a cautious walker who
+    takes a thousand tiny steps and is nudged sideways by a random gust after each one. DDIM is a
+    walker who, at every stop, asks a guide "where do you think the village is?", then strides a
+    long way in that direction and asks again. The guide is the same in both cases: it is the
+    trained network. The first few answers are vague ("somewhere down there"), and later answers are
+    sharp, so a handful of well-spaced questions is enough. Because there are no gusts, starting
+    from the same spot always leads to the same door.</p
+  >
+</template>
+
+<template data-part="stage"
+  ><div class="stage"
+    ><figure class="fig"
+      ><figcaption
+        >Faint dots: the real data. Gold dots: points being generated. Thin lines: the routes taken
+        by fourteen of them, from the open circle where each one starts</figcaption
+      ><canvas
+        class="short"
+        id="dm-c"
+        role="img"
+        aria-label="Data, generated points and the routes they take"
+      ></canvas
+    ></figure>
+    <figure class="fig"
+      ><figcaption
+        >Top: where the network currently thinks each point will end up. Bottom: how many points
+        land on the shape for each number of steps</figcaption
+      ><canvas
+        class="short"
+        id="dm-r"
+        role="img"
+        aria-label="The network's guess of the finished points and quality against number of steps"
+      ></canvas></figure
+  ></div>
+  <div class="howto"
+    ><div
+      ><h3>How it works, step by step</h3
+      ><ol id="dm-steps"
+        ><li
+          >Train as in the previous tab: add a random amount of noise to real points and teach the
+          network to guess that noise. There are 100 noise levels.</li
+        ><li
+          >Measure: generate with 1, 2, 3 and up to 100 steps, with and without added randomness,
+          and count the points that land on the shape.</li
+        ><li
+          >Generate: start from pure noise and choose a short list of levels to visit, for example
+          100, 80, 60, 40, 20, 0.</li
+        ><li
+          >At each stop the network guesses the noise. Removing all of that noise gives a guess of
+          the finished point.</li
+        ><li
+          >Jump: put the guess back at the next level on the list by adding the right amount of
+          noise. DDIM reuses the noise the network just guessed. The DDPM rule mixes in fresh random
+          noise.</li
+        ><li>After the last jump the points are finished.</li></ol
+      ></div
+    ><div><h3>What just happened</h3><p class="live" id="dm-live" role="status"></p></div
+  ></div>
+  <div class="controls"
+    ><template data-label="Animation" data-control="group"
+      ><div class="row"
+        ><button class="btn go" id="dm-play" type="button">Run</button
+        ><button class="btn" id="dm-step" type="button">One step</button
+        ><button class="btn" id="dm-reset" type="button">Start over</button></div
+      ><template data-unit="training steps" data-id="dm" data-control="run-limit"></template
+    ></template>
+    <template data-label="The sampler" data-control="group"
+      ><template
+        data-value="6"
+        data-step="1"
+        data-max="10"
+        data-min="0"
+        data-label="Number of sampler steps"
+        data-id="dm-n"
+        data-control="slider"
+      ></template
+      ><template
+        data-value="0"
+        data-step="0.1"
+        data-max="1"
+        data-min="0"
+        data-label="Fresh randomness at each step, η"
+        data-id="dm-eta"
+        data-control="slider"
+      ></template
+      ><div class="row"
+        ><button class="btn" id="dm-same" type="button">Same Noise Again</button
+        ><button class="btn" id="dm-new" type="button">New Noise</button></div
+      ></template
+    >
+    <template data-label="The data" data-control="group"
+      ><label class="ctl" for="dm-ds"
+        ><span>Shape to learn</span
+        ><select id="dm-ds"
+          ><option value="moons">Two moons</option
+          ><option value="ring" selected>A ring</option
+          ><option value="spiral">A spiral</option
+          ><option value="blobs">Three blobs</option></select
+        ></label
+      ></template
+    ></div
+  >
+  <dl class="read"
+    ><template data-label="Stage" data-key="ph" data-control="readout"></template
+    ><template data-label="Training steps" data-key="ts" data-control="readout"></template
+    ><template
+      data-label="Times the network was called"
+      data-key="nc"
+      data-control="readout"
+    ></template
+    ><template
+      data-class="hl"
+      data-label="Generated points that land on the shape"
+      data-key="near"
+      data-control="readout"
+    ></template
+    ><template
+      data-class="hl2"
+      data-label="Average shift from the last run with the same starting noise"
+      data-key="mv"
+      data-control="readout"
+    ></template></dl
+></template>
+
+<template data-part="tryit"
+  >Let it train and measure. With η at 0, set the steps to 100 and note how many points land on the
+  shape, then try 20, 10, 5 and 2. How few steps can you get away with? Now press Same Noise Again
+  several times: the shift readout stays at 0.00, because nothing random is left in the walk. Move η
+  to 1 and repeat: the same starting noise now ends somewhere new each time, and the routes turn
+  jittery. Now look at the two lines in the chart. Where do both fall, and how far apart are they at
+  5 steps and at 50? Last, watch the top-right picture on a 10-step run: how early does the network
+  already know roughly where the points belong?</template
+>
+
+<template data-part="math"
+  ><h4>Two things the network's answer gives you</h4
+  ><p
+    >At level \(t\) the noisy point is \(\mathbf x_t=\sqrt{\bar\alpha_t}\,\mathbf
+    x_0+\sqrt{1-\bar\alpha_t}\,\boldsymbol\varepsilon\). The network returns
+    \(\hat{\boldsymbol\varepsilon}=\boldsymbol\varepsilon_\theta(\mathbf x_t,t)\). Solving the same
+    equation for \(\mathbf x_0\) turns that into a guess of the finished point:</p
+  >$$\hat{\mathbf x}_0=\frac{\mathbf
+  x_t-\sqrt{1-\bar\alpha_t}\,\hat{\boldsymbol\varepsilon}}{\sqrt{\bar\alpha_t}} .$$<p
+    >The top-right picture plots \(\hat{\mathbf x}_0\) for every point. Early on it is a blurry
+    average of the data. It sharpens as the level falls.</p
+  >
+  <h4>The jump</h4
+  ><p
+    >To move from level \(t\) to any lower level \(s\), not only \(t-1\), rebuild a noisy point at
+    level \(s\) from the guess:</p
+  >$$\mathbf x_s=\sqrt{\bar\alpha_s}\,\hat{\mathbf
+  x}_0+\sqrt{1-\bar\alpha_s-\sigma^2}\;\hat{\boldsymbol\varepsilon}+\sigma\,\mathbf z,\qquad \mathbf
+  z\sim\mathcal N(\mathbf 0,\mathbf
+  I),$$$$\sigma=\eta\,\sqrt{\frac{1-\bar\alpha_s}{1-\bar\alpha_t}}\,\sqrt{1-\frac{\bar\alpha_t}{\bar\alpha_s}}
+  .$$<p
+    >The total noise in \(\mathbf x_s\) is always \(1-\bar\alpha_s\), which is what level \(s\)
+    should contain. The slider \(\eta\) decides how much of it is new. With \(\eta=1\) and every
+    level visited this is exactly the DDPM step from the previous tab. With \(\eta=0\) no new noise
+    enters: this is <b>DDIM</b> (Song, Meng and Ermon, 2021).</p
+  >
+  <h4>Why skipping levels is allowed</h4
+  ><p
+    >Training only ever used the one-jump formula for \(\mathbf x_t\) given \(\mathbf x_0\). It
+    never used the chain of small steps. DDIM's observation is that many different step-by-step
+    processes share those same one-jump distributions, so a network trained for one of them is
+    already trained for all of them. Choosing a sampler is choosing among those processes after the
+    fact. That is why the page trains once and then moves the two sliders freely.</p
+  >
+  <h4>What you give up and what you gain</h4
+  ><p
+    >Each jump treats the network's current guess as if it stayed correct across the whole jump.
+    Over a short jump that is nearly true. Over a long jump the direction should have bent, so the
+    error grows as the number of steps falls: the bottom-right chart shows quality dropping at the
+    left. With \(\eta=0\) the routes are smooth curves. With \(\eta=1\) every step also adds a
+    random kick, and the routes are jagged. In large image models the \(\eta=0\) rule usually keeps
+    its quality better when the steps are few, which is why DDIM made fast sampling practical. On
+    this small two-dimensional problem the two lines in the chart stay close to each other. The
+    clear effect here is the one both lines share: below about five steps, quality collapses.</p
+  >
+  <h4>The same noise gives the same picture</h4
+  ><p
+    >With \(\eta=0\) the only randomness is the starting point \(\mathbf x_T\). Generation becomes a
+    fixed map from noise to data. Three useful things follow. A result can be reproduced from its
+    seed. Sliding smoothly between two starting noises gives a smooth blend between two outputs. And
+    the map can be run backwards, from a real picture to the noise that would produce it, which is
+    how many image-editing methods begin.</p
+  >
+  <h4>Other samplers</h4
+  ><p
+    >As the steps shrink, the \(\eta=0\) rule traces the solution of an ordinary differential
+    equation, called the probability-flow ODE. Once generation is seen as solving an ODE, any
+    numerical solver can be used. Euler's method is the plain version. Heun's method and the
+    DPM-Solver family look at the slope more than once per step and reach the same quality with
+    fewer network calls. The sampler names in image tools, such as "Euler", "Heun", "DPM++" and
+    "DDIM", are these choices. The network is the same in every case.</p
+  >
+  <h4>What this page trains</h4
+  ><p
+    >The same small network as the previous tab, two hidden layers of 64 neurons, trained for 2,500
+    batches of 128 with \(T=100\) noise levels. The quality number is the share of generated points
+    that fall within 0.1 of a real data point. For the chart it is measured on 200 fresh points for
+    each setting, so it wobbles by a few percent from one training run to the next.</p
+  ></template
+>
+
+<template data-part="question"
+  >A classmate says: "DDIM with 10 steps must need a network trained with 10 noise levels." What is
+  wrong with that?</template
+>
+
+<template data-part="answer"
+  >The network is trained with all 100 levels and is never retrained. Training only teaches it to
+  guess the noise in a point at any single level. How those guesses are strung together into a walk
+  is decided afterwards by the sampler. DDIM visits 10 of the 100 levels and uses the network’s
+  guess at each one to jump straight to the next, so the same weights serve 100 steps, 10 steps or
+  3.</template
+>

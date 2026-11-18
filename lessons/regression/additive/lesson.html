@@ -1,0 +1,175 @@
+<template data-part="lede"
+  >With several inputs, give each its own smooth curve and add them up. The curves are found by
+  taking turns: hold one fixed, smooth what is left over against the other, and repeat. Watch the
+  two curves settle.</template
+>
+
+<template data-part="intro"
+  ><p
+    >Splines and local regression bend a curve in one input. With many inputs, fitting a fully
+    flexible surface needs an enormous amount of data, because the points thin out fast as
+    dimensions are added. An additive model takes a middle road: each input gets its own free-form
+    curve, but the curves only ever add. You lose interactions between inputs, and in exchange you
+    get a model that needs far less data and can be read one picture at a time.</p
+  >
+</template>
+
+<template data-part="stage"
+  ><p class="cap" id="am-cap" role="status"></p>
+  <div class="stage" style="grid-template-columns:minmax(0,1fr) minmax(0,1fr)"
+    ><figure class="fig"
+      ><figcaption>What is left for x₁ to explain, and its curve f₁</figcaption
+      ><canvas
+        class="short"
+        id="am-1"
+        role="img"
+        aria-label="Partial residuals against the first input with its fitted curve"
+      ></canvas
+    ></figure>
+    <figure class="fig"
+      ><figcaption>What is left for x₂ to explain, and its curve f₂</figcaption
+      ><canvas
+        class="short"
+        id="am-2"
+        role="img"
+        aria-label="Partial residuals against the second input with its fitted curve"
+      ></canvas></figure
+  ></div>
+  <div class="controls"
+    ><template data-label="Animation" data-control="group"
+      ><div class="row"
+        ><button class="btn go" id="am-play" type="button">Run backfitting</button
+        ><button class="btn" id="am-step" type="button">One turn</button
+        ><button class="btn" id="am-reset" type="button">Start over</button></div
+      ><template data-unit="turns" data-id="am" data-control="run-limit"></template
+    ></template>
+    <template data-label="The model" data-control="group"
+      ><template
+        data-value="4"
+        data-step="1"
+        data-max="10"
+        data-min="0"
+        data-label="Flexibility of each curve (knots)"
+        data-id="am-k"
+        data-control="slider"
+      ></template
+    ></template>
+    <template data-label="The data" data-control="group"
+      ><label class="ctl" for="am-f"
+        ><span>True relationship</span
+        ><select id="am-f"
+          ><option value="a">Wave in x₁ plus bowl in x₂</option
+          ><option value="b">V shape plus cubic</option
+          ><option value="c">A product, x₁ × x₂ (not additive)</option></select
+        ></label
+      ><template
+        data-value="0.3"
+        data-step="0.01"
+        data-max="1"
+        data-min="0"
+        data-label="Noise σ"
+        data-id="am-s"
+        data-control="slider"
+      ></template
+      ><template
+        data-value="0"
+        data-step="0.01"
+        data-max="0.9"
+        data-min="-0.9"
+        data-label="Correlation between inputs"
+        data-id="am-r"
+        data-control="slider"
+      ></template
+      ><template
+        data-value="160"
+        data-step="1"
+        data-max="400"
+        data-min="40"
+        data-label="Number of points"
+        data-id="am-n"
+        data-control="slider"
+      ></template
+      ><div class="row"
+        ><button class="btn" id="am-new" type="button">New random sample</button></div
+      ></template
+    ></div
+  >
+  <dl class="read"
+    ><template data-label="Turns taken" data-key="it" data-control="readout"></template
+    ><template
+      data-class="hl3"
+      data-label="Train error (MSE)"
+      data-key="tr"
+      data-control="readout"
+    ></template
+    ><template
+      data-class="hl2"
+      data-label="Test error (MSE)"
+      data-key="te"
+      data-control="readout"
+    ></template
+    ><template
+      data-label="Test error of a flat plane, for comparison"
+      data-key="lin"
+      data-control="readout"
+    ></template
+    ><template
+      data-class="hl"
+      data-label="Noise level σ² (best possible)"
+      data-key="s2"
+      data-control="readout"
+    ></template></dl
+></template>
+
+<template data-part="tryit"
+  >Press “Start over” and take one turn at a time. After the first turn f₁ is rough because f₂ is
+  still flat. How many turns until nothing changes? Then choose the product x₁ × x₂ and see what an
+  additive model cannot do.</template
+>
+
+<template data-part="math"
+  ><h4>The model</h4>$$y=\alpha+f_1(x_1)+f_2(x_2)+\dots+f_p(x_p)+\varepsilon$$<p
+    >Linear regression is the special case \(f_j(x_j)=\beta_jx_j\). Each \(f_j\) here is a natural
+    cubic spline, though any smoother from the previous lessons would do. Since a constant can be
+    moved between the curves freely, each \(f_j\) is centred to average zero and the level is
+    carried by \(\alpha=\bar y\).</p
+  >
+  <h4>Backfitting</h4
+  ><p
+    >If \(f_2\) were known, finding \(f_1\) would be a one-dimensional smoothing problem: subtract
+    what \(f_2\) explains and smooth the remainder against \(x_1\). Neither is known, so take
+    turns:</p
+  >$$r_{i}^{(1)}=y_i-\alpha-f_2(x_{i2}),\qquad f_1\leftarrow\operatorname{smooth}\big(r^{(1)}\
+  \text{against}\ x_1\big)$$$$r_{i}^{(2)}=y_i-\alpha-f_1(x_{i1}),\qquad
+  f_2\leftarrow\operatorname{smooth}\big(r^{(2)}\ \text{against}\ x_2\big)$$<p
+    >and repeat until the curves stop moving. The dots in each picture are these
+    <b>partial residuals</b>: the part of \(y\) not yet explained by the other input. This is
+    coordinate descent, the same idea used for the lasso, with whole functions in place of single
+    coefficients.</p
+  >
+  <h4>Why it takes several turns</h4
+  ><p
+    >If the inputs are unrelated, one turn each is nearly enough. When they are correlated, part of
+    the effect of \(x_2\) leaks into \(f_1\) on the first turn and has to be handed back on later
+    turns. Raise the correlation and count the turns.</p
+  >
+  <h4>What it cannot do</h4
+  ><p
+    >A product such as \(y=x_1x_2\) has no additive part at all: averaged over \(x_2\), the effect
+    of \(x_1\) is zero. The curves come out flat and the error stays high. Interactions must be
+    added by hand as extra terms \(f_{12}(x_1,x_2)\), or left to models that find them on their own,
+    such as trees and neural networks.</p
+  ></template
+>
+
+<template data-part="question"
+  >An additive model fits well and f₁ is a clear U shape. What can you say that you could not say
+  from a neural network with the same accuracy?</template
+>
+
+<template data-part="answer"
+  >You can state the effect of x₁ directly: holding the other inputs fixed, the prediction falls and
+  then rises as x₁ increases, by the amounts shown on the curve. That reading is exact for an
+  additive model. A neural network has no such single curve, because the effect of x₁ may differ for
+  every value of the other inputs.</template
+>

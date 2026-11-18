@@ -1,0 +1,583 @@
+/* Manifold. © 2026 Bahman Moraffah. All rights reserved. */
+import {
+  $,
+  Anim,
+  prefersReducedMotion,
+  readThemeColors,
+  bind,
+  clamp,
+  ellPath,
+  eqShow,
+  erf,
+  f2,
+  f3,
+  prepareCanvas,
+  mix,
+  playBtn,
+  attachRunLimit,
+  setReadout,
+} from '../../../js/core/shared.js';
+import {
+  canvasXY,
+  dotAt,
+  segBind,
+  highlightLessonStep,
+  drawSeriesChart,
+  uView,
+} from '../../unsupervised/shared.js';
+import { g2Note } from '../../generative/shared.js';
+import { pct } from '../../ensembles/shared.js';
+
+export default {
+  init(root) {
+    const c = $('#vb-c', root),
+      cr = $('#vb-r', root),
+      live = $('#vb-live', root),
+      eq = $('#vb-eq', root),
+      settings = { tg: 'corr', f: 'mf', sp: 2 },
+      GW = 64,
+      GH = 48,
+      XR = 4,
+      YR = 3,
+      NB = 32,
+      K = 128;
+    const LP = {
+      corr: (x, y) =>
+        (-(x * x - (2 * 0.85 * x * y) / 0.9 + (y * y) / 0.81) / (2 * (1 - 0.85 * 0.85))) * 0.8,
+      banana: (x, y) => -((x * x) / 4.5 + 2.2 * (y + 0.9 - 0.35 * x * x) ** 2),
+      two: (x, y) =>
+        Math.log(
+          Math.exp(-((x + 1.9) ** 2 + (y + 0.2) ** 2) / 0.55) +
+            Math.exp(-((x - 1.9) ** 2 + (y - 0.2) ** 2) / 0.55) +
+            1e-300,
+        ),
+    };
+    const LAM = (() => {
+        const k = 0.8 / (1 - 0.85 * 0.85);
+        return [k, (-k * 0.85) / 0.9, k / 0.81];
+      })(),
+      ZS = (() => {
+        const h = (i, b) => {
+            let f = 1,
+              r = 0;
+            while (i > 0) {
+              f /= b;
+              r += f * (i % b);
+              i = Math.floor(i / b);
+            }
+            return r;
+          },
+          o = [];
+        for (let i = 1; i <= K; i++) {
+          const u = h(i, 2),
+            v = h(i, 3),
+            R = Math.sqrt(-2 * Math.log(u));
+          o.push([R * Math.cos(2 * Math.PI * v), R * Math.sin(2 * Math.PI * v)]);
+        }
+        return o;
+      })();
+    let lp,
+      dens,
+      dmax = 1,
+      targetMarginalX,
+      lz = 0,
+      targetMean = [0, 0],
+      targetCovariance = [1, 0, 1],
+      targetRightMass = 0,
+      th = [0, 0, 0, 0, 0],
+      path = [],
+      hist = [],
+      it = 0,
+      fin = false,
+      msg = '',
+      activeStepIndex = 0,
+      playback,
+      checkRunStop = () => false,
+      P = null,
+      ad = null,
+      smallGainStreak = 0,
+      start = [-2.6, 1.6],
+      frameCount = 0;
+    const setup = () => {
+      lp = LP[settings.tg];
+      dens = new Float64Array(GW * GH);
+      targetMarginalX = new Float64Array(NB);
+      let tot = 0,
+        sx = 0,
+        sy = 0,
+        sxx = 0,
+        sxy = 0,
+        syy = 0,
+        rr = 0;
+      const da = ((2 * XR) / GW) * ((2 * YR) / GH);
+      for (let r = 0; r < GH; r++)
+        for (let q = 0; q < GW; q++) {
+          const px = -XR + (2 * XR * (q + 0.5)) / GW,
+            py = YR - (2 * YR * (r + 0.5)) / GH,
+            d = Math.exp(lp(px, py));
+          dens[r * GW + q] = d;
+          tot += d;
+          sx += d * px;
+          sy += d * py;
+          sxx += d * px * px;
+          sxy += d * px * py;
+          syy += d * py * py;
+          if (px > 0) rr += d;
+          targetMarginalX[Math.min(NB - 1, Math.floor(((px + XR) / (2 * XR)) * NB))] += d;
+        }
+      dmax = Math.max(...dens);
+      for (let i = 0; i < NB; i++) targetMarginalX[i] /= tot;
+      lz = Math.log(tot * da);
+      targetMean = [sx / tot, sy / tot];
+      targetCovariance = [
+        sxx / tot - targetMean[0] ** 2,
+        sxy / tot - targetMean[0] * targetMean[1],
+        syy / tot - targetMean[1] ** 2,
+      ];
+      targetRightMass = rr / tot;
+    };
+    const cov = (t) => {
+      const a = Math.exp(t[2]),
+        b = t[4],
+        cc = Math.exp(t[3]);
+      return [a * a, a * b, b * b + cc * cc];
+    };
+    const elbo = (t) => {
+      const a = Math.exp(t[2]),
+        b = t[4],
+        cc = Math.exp(t[3]);
+      let s = 0;
+      for (const z of ZS) s += lp(t[0] + a * z[0], t[1] + b * z[0] + cc * z[1]);
+      return s / K + t[2] + t[3] + 1 + Math.log(2 * Math.PI);
+    };
+    const exact = () => settings.tg === 'corr' && settings.f === 'mf';
+    const reset = () => {
+      th = [
+        start[0],
+        start[1],
+        Math.log(exact() ? 1 / Math.sqrt(LAM[0]) : 0.6),
+        Math.log(exact() ? 1 / Math.sqrt(LAM[2]) : 0.6),
+        0,
+      ];
+      path = [[th[0], th[1]]];
+      it = 0;
+      fin = false;
+      ad = null;
+      smallGainStreak = 0;
+      activeStepIndex = 1;
+      hist = [elbo(th)];
+      if (settings.f === 'fwd') {
+        const L11 = Math.sqrt(targetCovariance[0]),
+          L21 = targetCovariance[1] / L11,
+          L22 = Math.sqrt(Math.max(1e-9, targetCovariance[2] - L21 * L21));
+        th = [targetMean[0], targetMean[1], Math.log(L11), Math.log(L22), L21];
+        path = [[th[0], th[1]]];
+        hist = [elbo(th)];
+        fin = true;
+        activeStepIndex = 5;
+        msg =
+          'Moment matching needs no iterations: the bell is given the mean and covariance of the true belief, computed here from the grid. It covers everything the truth covers' +
+          (settings.tg === 'two'
+            ? ', including the empty gap between the islands, where it puts its peak.'
+            : settings.tg === 'banana'
+              ? ', and a good deal of empty space inside the curve of the banana.'
+              : ', and for a bell-shaped truth that is the exact answer.');
+        eqShow(
+          eq,
+          [
+            'mean of the truth: (' + f2(targetMean[0]) + ', ' + f2(targetMean[1]) + ')',
+            'variances: ' +
+              f2(targetCovariance[0]) +
+              ' left-right, ' +
+              f2(targetCovariance[2]) +
+              ' up-down; covariance ' +
+              f2(targetCovariance[1]),
+            'q is the bell with exactly these moments. This minimizes KL(p ‖ q).',
+          ],
+          0,
+        );
+        return;
+      }
+      msg =
+        'The approximation starts at (' +
+        f2(th[0]) +
+        ', ' +
+        f2(th[1]) +
+        '). ' +
+        (exact()
+          ? 'Each step will update one coordinate exactly.'
+          : 'Each step is one gradient step on the ELBO.') +
+        ' Press One step or Run.';
+      eqShow(eq, ['No steps yet.'], 0);
+    };
+    const step = () => {
+      if (fin) return;
+      const e0 = hist[hist.length - 1];
+      if (exact()) {
+        const j = it % 2,
+          old = th[j],
+          o = th[1 - j],
+          nv = (-LAM[1] / (j ? LAM[2] : LAM[0])) * o;
+        th[j] = nv;
+        eqShow(
+          eq,
+          [
+            'Step ' +
+              (it + 1) +
+              ': update the ' +
+              (j ? 'up-down' : 'left-right') +
+              ' coordinate, holding the other at ' +
+              f3(o) +
+              '.',
+            'm' +
+              (j + 1) +
+              ' ← μ' +
+              (j + 1) +
+              ' − (Λ₁₂ ÷ Λ' +
+              (j + 1) +
+              (j + 1) +
+              ') × (m' +
+              (2 - j) +
+              ' − μ' +
+              (2 - j) +
+              ') = 0 − (' +
+              f3(LAM[1]) +
+              ' ÷ ' +
+              f3(j ? LAM[2] : LAM[0]) +
+              ') × ' +
+              f3(o) +
+              ' = <b>' +
+              f3(nv) +
+              '</b>',
+            'its spread stays at 1 ÷ √Λ' +
+              (j + 1) +
+              (j + 1) +
+              ' = <b>' +
+              f3(1 / Math.sqrt(j ? LAM[2] : LAM[0])) +
+              '</b> (the true spread is ' +
+              f3(Math.sqrt(j ? targetCovariance[2] : targetCovariance[0])) +
+              ')',
+            'the centre moved by ' + f3(Math.abs(nv - old)),
+          ],
+          0,
+        );
+      } else {
+        if (!ad) ad = { m: [0, 0, 0, 0, 0], v: [0, 0, 0, 0, 0], t: 0 };
+        const np = settings.f === 'full' ? 5 : 4,
+          g = [0, 0, 0, 0, 0];
+        for (let i = 0; i < np; i++) {
+          const a = th.slice(),
+            b = th.slice();
+          a[i] += 1e-4;
+          b[i] -= 1e-4;
+          g[i] = (elbo(a) - elbo(b)) / 2e-4;
+        }
+        ad.t++;
+        const lr = 0.06 / (1 + ad.t / 150);
+        for (let i = 0; i < np; i++) {
+          ad.m[i] = 0.85 * ad.m[i] + 0.15 * g[i];
+          ad.v[i] = 0.99 * ad.v[i] + 0.01 * g[i] * g[i];
+          th[i] +=
+            (lr * (ad.m[i] / (1 - 0.85 ** ad.t))) /
+            (Math.sqrt(ad.v[i] / (1 - 0.99 ** ad.t)) + 1e-8);
+        }
+        th[2] = clamp(th[2], -4, 1.5);
+        th[3] = clamp(th[3], -4, 1.5);
+        if (it % 3 === 0 || !anim.on)
+          eqShow(
+            eq,
+            [
+              'Step ' +
+                (it + 1) +
+                ': slope of the ELBO with respect to the centre: (' +
+                f3(g[0]) +
+                ', ' +
+                f3(g[1]) +
+                ')',
+              'slope with respect to the log-spreads: (' +
+                f3(g[2]) +
+                ', ' +
+                f3(g[3]) +
+                ')' +
+                (settings.f === 'full' ? ', and to the tilt: ' + f3(g[4]) : ''),
+              'centre → (' +
+                f3(th[0]) +
+                ', ' +
+                f3(th[1]) +
+                '), spreads → ' +
+                f3(Math.sqrt(cov(th)[0])) +
+                ' and ' +
+                f3(Math.sqrt(cov(th)[2])),
+            ],
+            0,
+          );
+      }
+      it++;
+      path.push([th[0], th[1]]);
+      const e1 = elbo(th);
+      hist.push(e1);
+      activeStepIndex = exact() ? 3 : 3;
+      const gain = e1 - e0;
+      smallGainStreak = Math.abs(gain) < 1e-5 ? smallGainStreak + 1 : 0;
+      msg =
+        'Step ' +
+        it +
+        ': ELBO ' +
+        f3(e1) +
+        ' (' +
+        (gain >= 0 ? '+' : '') +
+        (Math.abs(gain) < 1e-3 ? gain.toExponential(1) : f3(gain)) +
+        '). Gap to the true log evidence: ' +
+        f3(Math.max(0, lz - e1)) +
+        '.';
+      if (smallGainStreak >= (exact() ? 2 : 10) || it >= 2500) {
+        fin = true;
+        activeStepIndex = 5;
+        const C = cov(th),
+          rx = Math.sqrt(C[0] / targetCovariance[0]),
+          ry = Math.sqrt(C[2] / targetCovariance[2]);
+        msg =
+          'Stopped after ' +
+          it +
+          ' steps: the ELBO has stopped rising at ' +
+          f3(e1) +
+          ', ' +
+          f3(Math.max(0, lz - e1)) +
+          ' below the true log evidence. ' +
+          (settings.tg === 'two'
+            ? 'The approximation has settled on the ' +
+              (th[0] < 0 ? 'left' : 'right') +
+              ' island and ignores the other, which holds half of the probability.'
+            : rx < 0.8 || ry < 0.8
+              ? 'Its spread is ' +
+                pct(rx) +
+                ' of the truth left-to-right and ' +
+                pct(ry) +
+                ' up-down: too confident.'
+              : 'Its spread matches the truth (' + pct(rx) + ' and ' + pct(ry) + ').');
+      }
+    };
+    const qDens = (x, y) => {
+      const C = cov(th),
+        dt = C[0] * C[2] - C[1] * C[1],
+        dx = x - th[0],
+        dy = y - th[1];
+      return (
+        Math.exp((-0.5 * (C[2] * dx * dx - 2 * C[1] * dx * dy + C[0] * dy * dy)) / dt) /
+        (2 * Math.PI * Math.sqrt(dt))
+      );
+    };
+    const draw = () => {
+      const colors = readThemeColors(),
+        C = cov(th);
+      {
+        const V = uView(c),
+          { g, w, h, X, Y } = V;
+        P = V;
+        for (let r = 0; r < GH; r++)
+          for (let q = 0; q < GW; q++) {
+            const v = dens[r * GW + q] / dmax;
+            if (v < 0.01) continue;
+            g.fillStyle = mix(
+              colors.accent,
+              colors.accent,
+              0,
+              Math.min(0.85, Math.pow(v, 0.55) * 0.8),
+            );
+            const xa = Math.round(X(-XR + (2 * XR * q) / GW)),
+              xb = Math.round(X(-XR + (2 * XR * (q + 1)) / GW)),
+              ya = Math.round(Y(YR - (2 * YR * r) / GH)),
+              yb = Math.round(Y(YR - (2 * YR * (r + 1)) / GH));
+            g.fillRect(xa, ya, xb - xa, yb - ya);
+          }
+        g.strokeStyle = mix(colors.gold, colors.gold, 0, 0.7);
+        g.lineWidth = 1.4;
+        g.beginPath();
+        path.forEach((p, i) => (i ? g.lineTo(X(p[0]), Y(p[1])) : g.moveTo(X(p[0]), Y(p[1]))));
+        g.stroke();
+        g.strokeStyle = colors.gold;
+        for (const r of [1, 2]) {
+          g.lineWidth = r === 1 ? 2.8 : 1.6;
+          ellPath(g, X, Y, th[0], th[1], C[0], C[1], C[2], r);
+          g.stroke();
+        }
+        g.lineWidth = 2;
+        dotAt(g, X(th[0]), Y(th[1]), 5, colors.gold, colors.bg);
+        g2Note(
+          g,
+          colors,
+          h,
+          settings.f === 'mf'
+            ? 'mean-field: the ellipse must stay upright'
+            : settings.f === 'full'
+              ? 'full bell: the ellipse may tilt'
+              : 'moment matching: same mean and covariance as the truth',
+        );
+      }
+      {
+        const { g: ctx, w, h } = prepareCanvas(cr),
+          h1 = h * 0.5,
+          qm = Array.from({ length: NB }, (_, i) => {
+            const x = -XR + (2 * XR * (i + 0.5)) / NB;
+            return (
+              (Math.exp((-0.5 * (x - th[0]) ** 2) / C[0]) / Math.sqrt(2 * Math.PI * C[0])) *
+              ((2 * XR) / NB)
+            );
+          }),
+          ym = Math.max(...targetMarginalX, ...qm) * 1.08,
+          A = drawSeriesChart(ctx, colors, 0, 0, w, h1, [], {
+            title: 'left-to-right spread: truth (line), approximation (filled)',
+            n: NB,
+            ym,
+            y1: 0,
+          });
+        ctx.fillStyle = mix(colors.gold, colors.gold, 0, 0.4);
+        ctx.beginPath();
+        ctx.moveTo(A.X(0), A.Y(0));
+        qm.forEach((v, i) => ctx.lineTo(A.X(i), A.Y(v)));
+        ctx.lineTo(A.X(NB - 1), A.Y(0));
+        ctx.fill();
+        ctx.strokeStyle = colors.accent;
+        ctx.lineWidth = 2.2;
+        ctx.beginPath();
+        for (let i = 0; i < NB; i++)
+          i
+            ? ctx.lineTo(A.X(i), A.Y(targetMarginalX[i]))
+            : ctx.moveTo(A.X(i), A.Y(targetMarginalX[i]));
+        ctx.stroke();
+        const lo = Math.max(Math.min(...hist), lz - 6),
+          hi = lz + 0.15,
+          B = drawSeriesChart(ctx, colors, 0, h1, w, h - h1, hist, {
+            title: 'ELBO (solid) and its ceiling, the true log evidence (dashed)',
+            n: Math.max(20, hist.length),
+            y1: lo - 0.1,
+            ym: hi,
+          });
+        ctx.strokeStyle = colors.cut;
+        ctx.setLineDash([6, 4]);
+        ctx.lineWidth = 1.6;
+        ctx.beginPath();
+        ctx.moveTo(B.X(0), B.Y(lz));
+        ctx.lineTo(B.X(Math.max(20, hist.length) - 1), B.Y(lz));
+        ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(0, h1 + 16, w, h - h1 - 34);
+        ctx.clip();
+        ctx.strokeStyle = colors.accent;
+        ctx.lineWidth = 2.2;
+        ctx.beginPath();
+        hist.forEach((v, i) => (i ? ctx.lineTo(B.X(i), B.Y(v)) : ctx.moveTo(B.X(i), B.Y(v))));
+        ctx.stroke();
+        ctx.restore();
+        if (hist.length === 1) dotAt(ctx, B.X(0), B.Y(Math.max(lo, hist[0])), 4, colors.accent);
+      }
+      const e = hist[hist.length - 1],
+        rq = 0.5 * (1 + erf(th[0] / Math.sqrt(2 * C[0])));
+      live.textContent = msg;
+      highlightLessonStep(root, 'vb', activeStepIndex);
+      setReadout(root, 'it', settings.f === 'fwd' ? 'none needed' : it + (fin ? ' (stopped)' : ''));
+      setReadout(root, 'elbo', f3(e));
+      setReadout(root, 'lz', f3(lz));
+      setReadout(
+        root,
+        'kl',
+        settings.f === 'fwd'
+          ? f3(Math.max(0, lz - e)) + ' (not what this method minimizes)'
+          : f3(Math.max(0, lz - e)),
+      );
+      setReadout(
+        root,
+        'sx',
+        f2(Math.sqrt(C[0] / targetCovariance[0])) +
+          ', ' +
+          f2(Math.sqrt(C[2] / targetCovariance[2])),
+      );
+      setReadout(root, 'isl', pct(rq) + ' / ' + pct(targetRightMass));
+    };
+    setup();
+    reset();
+    if (prefersReducedMotion) {
+      while (!fin) step();
+    }
+    const anim = Anim(() => {
+      if (fin) {
+        playback.stop();
+        return;
+      }
+      frameCount++;
+      if (exact() || settings.sp === 1) {
+        if (frameCount % (settings.sp === 3 ? 8 : settings.sp === 2 ? 22 : 40)) return;
+        step();
+      } else {
+        const k = settings.sp === 2 ? 2 : 8;
+        for (let i = 0; i < k && !fin && checkRunStop.remaining() > 0; i++) step();
+      }
+      draw();
+      checkRunStop();
+    });
+    playback = playBtn($('#vb-play', root), anim);
+    checkRunStop = attachRunLimit(playback, root, 'vb', {
+      done: () => fin,
+      restart: reset,
+      count: () => it,
+      what: 'steps',
+    });
+    const go = () => {
+      playback.stop();
+      reset();
+      draw();
+      if (settings.f !== 'fwd') {
+        frameCount = 0;
+        playback.start();
+      }
+    };
+    $('#vb-step', root).onclick = () => {
+      playback.stop();
+      if (fin) reset();
+      else step();
+      draw();
+    };
+    $('#vb-reset', root).onclick = () => {
+      playback.stop();
+      reset();
+      draw();
+    };
+    bind(
+      root,
+      'vb-sp',
+      (v) => {
+        settings.sp = v;
+      },
+      (v) => ['', 'slow', 'steady', 'fast'][+v],
+    );
+    segBind(root, 'vb-tg', settings.tg, (v) => {
+      settings.tg = v;
+      start = v === 'two' ? [-1, 0.9] : [-2.6, 1.6];
+      setup();
+      go();
+    });
+    segBind(root, 'vb-f', settings.f, (v) => {
+      settings.f = v;
+      go();
+    });
+    c.style.cursor = 'crosshair';
+    c.addEventListener('click', (e) => {
+      if (!P) return;
+      const [x, y] = canvasXY(c, P, e);
+      start = [clamp(x, -XR, XR), clamp(y, -YR, YR)];
+      go();
+    });
+    return {
+      draw,
+      stop: () => playback.stop(),
+      auto: () => {
+        reset();
+        draw();
+        frameCount = 0;
+        if (settings.f !== 'fwd') playback.start();
+      },
+    };
+  },
+};

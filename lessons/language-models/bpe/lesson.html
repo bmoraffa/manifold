@@ -1,0 +1,221 @@
+<template data-part="lede"
+  >A language model never sees letters or words. It sees a list of numbered pieces called tokens.
+  The pieces are chosen by a simple and slightly surprising procedure: start with single characters,
+  find the pair that sits side by side most often, glue it into one new piece, and repeat. Common
+  words end up as one token, rare words as several. Watch the vocabulary being built, then type your
+  own sentence and see how it is cut.</template
+>
+
+<template data-part="intro"
+  ><p
+    >Imagine taking notes by hand in a lecture. At first you write every letter. Soon you notice
+    that you keep writing "t-h-e" and invent one squiggle for it. Then one for "ing", one for
+    "tion", and later one for a whole word that the lecturer cannot stop saying. You never decided
+    on a list of abbreviations in advance: each one appeared because writing it out again and again
+    was wasteful. Words you meet once you still spell out in full, and you can still write any word
+    at all. Byte pair encoding builds a shorthand in exactly this way, by counting.</p
+  >
+</template>
+
+<template data-part="stage"
+  ><figure class="fig" style="margin:0 0 18px"
+    ><figcaption
+      >The start of the training text, cut into its current tokens. An underscore marks the start of
+      a word. The newest token has a gold frame</figcaption
+    ><div class="chips" id="bp-chips" aria-live="off"></div
+  ></figure>
+  <div class="stage"
+    ><figure class="fig"
+      ><figcaption
+        >The pairs of neighbouring tokens that occur most often right now. The gold one is merged
+        next</figcaption
+      ><canvas
+        class="short"
+        id="bp-c"
+        role="img"
+        aria-label="Most frequent pairs of neighbouring tokens"
+      ></canvas
+    ></figure>
+    <figure class="fig"
+      ><figcaption
+        >Top: how many tokens the whole text needs. Bottom: how many different tokens
+        exist</figcaption
+      ><canvas
+        class="short"
+        id="bp-r"
+        role="img"
+        aria-label="Number of tokens in the text and size of the vocabulary, by merge"
+      ></canvas></figure
+  ></div>
+  <figure class="fig" style="margin-top:20px"
+    ><figcaption>The merge rules learned so far, in order. This list is the tokenizer</figcaption
+    ><div class="ctab" id="bp-tab"></div
+  ></figure>
+  <div class="howto"
+    ><div
+      ><h3>How it works, step by step</h3
+      ><ol id="bp-steps"
+        ><li
+          >Split the text into words and every word into single characters. Those characters are the
+          first vocabulary.</li
+        ><li>Count every pair of neighbouring tokens inside the words.</li
+        ><li
+          >Take the pair that occurs most often and glue it into one new token. Add it to the
+          vocabulary and write the rule down.</li
+        ><li>Replace that pair everywhere in the text. The text now needs fewer tokens.</li
+        ><li
+          >Repeat from step 2 until no pair occurs more than once, or until the vocabulary is as
+          large as you want.</li
+        ></ol
+      ></div
+    ><div><h3>What just happened</h3><p class="live" id="bp-live" role="status"></p></div
+  ></div>
+  <div class="controls"
+    ><template data-label="Animation" data-control="group"
+      ><div class="row"
+        ><button class="btn go" id="bp-play" type="button">Run</button
+        ><button class="btn" id="bp-step" type="button">One merge</button
+        ><button class="btn" id="bp-reset" type="button">Start over</button></div
+      ><template data-unit="merges" data-id="bp" data-control="run-limit"></template
+    ></template>
+    <template data-label="Try the tokenizer" data-control="group"
+      ><label class="ctl" for="bp-try"
+        ><span>Your sentence</span
+        ><input
+          type="text"
+          class="num"
+          id="bp-try"
+          value="the slowest walker jumped lower"
+          autocomplete="off"
+          spellcheck="false" /></label
+      ><div class="chips" id="bp-tryout" style="min-height:2.2em;margin:8px 0 4px"></div
+      ><p class="tpout" id="bp-tryst" role="status"></p
+    ></template>
+    <template data-label="The text it learns from" data-control="group">
+      <textarea
+        id="bp-text"
+        rows="5"
+        style="width:100%;font:inherit;font-size:.85rem;border:1px solid var(--line);background:none;color:inherit;padding:6px"
+        aria-label="Training text"
+      ></textarea
+      ><div class="row"
+        ><button class="btn" id="bp-use" type="button">Learn From This Text</button></div
+      ><p class="status" id="bp-st" role="status"></p></template
+  ></div>
+  <dl class="read"
+    ><template data-label="Merges learned" data-key="m" data-control="readout"></template
+    ><template
+      data-label="Different tokens in the vocabulary"
+      data-key="v"
+      data-control="readout"
+    ></template
+    ><template
+      data-class="hl"
+      data-label="Tokens needed for the training text"
+      data-key="n"
+      data-control="readout"
+    ></template
+    ><template
+      data-class="hl2"
+      data-label="Characters per token, on average"
+      data-key="cpt"
+      data-control="readout"
+    ></template
+    ><template data-label="Newest token" data-key="last" data-control="readout"></template
+    ><template
+      data-label="Longest token so far"
+      data-key="long"
+      data-control="readout"
+    ></template></dl
+></template>
+
+<template data-part="tryit"
+  >Press One merge a few times and read the “what just happened” line: which pair wins first, and
+  why that one? Keep going and watch whole endings such as “er”, “est” and “ing” become single
+  tokens before most whole words do. Then press Run and let it finish. Now type sentences in the
+  box. Try a word that is in the training text, a word that is not but is built from familiar parts
+  (“slowest”, “talker”), and a word with nothing familiar in it (“zebra”). How many tokens does each
+  cost? Use the stop box to halt after 20 merges and type the same sentences again. Finally paste a
+  paragraph in another language into the training text and see what its first merges are.</template
+>
+
+<template data-part="math"
+  ><h4>Why not letters, and why not words?</h4
+  ><p
+    >A model could read one character at a time. The vocabulary would be tiny, but every sentence
+    would become a very long list, and the model would have to rediscover spelling before it could
+    learn anything else. It could instead read whole words. Sentences would be short, but the
+    vocabulary would need every word in every language, every name, every typo, and any word not on
+    the list could not be read at all. Subword tokens sit between the two: frequent words are one
+    token, and any other string can still be spelled out of smaller pieces. Nothing is ever "out of
+    vocabulary".</p
+  >
+  <h4>The algorithm</h4
+  ><p
+    >Let the text be split into words, and each word into a sequence of symbols, at first single
+    characters. Let \(c(a,b)\) be the number of times symbol \(a\) is immediately followed by symbol
+    \(b\). One step of byte pair encoding is</p
+  >$$(a^\star,b^\star)=\arg\max_{(a,b)}\,c(a,b),\qquad\text{then replace every }a^\star
+  b^\star\text{ by the new symbol }a^\star b^\star .$$<p
+    >Each step adds exactly one token to the vocabulary and removes \(c(a^\star,b^\star)\) tokens
+    from the text. After \(M\) merges the vocabulary holds the starting characters plus \(M\) new
+    tokens. \(M\) is the only setting. Sennrich, Haddow and Birch (2016) introduced this for machine
+    translation, borrowing a data compression method from 1994.</p
+  >
+  <h4>Using the tokenizer on new text</h4
+  ><p
+    >The result of training is an ordered list of merge rules. To cut a new sentence, split it into
+    characters and apply the rules in the order they were learned. A word that was common in
+    training passes through many rules and comes out as one token. An unfamiliar word passes through
+    only the early, general rules and comes out as several pieces: "slowest" might become "_slow"
+    and "est" even if that exact word was never seen. Each final piece is then replaced by its
+    number in the vocabulary, and those numbers are what the model receives.</p
+  >
+  <h4>Why the greedy choice works</h4
+  ><p
+    >Merging the most frequent pair is the single step that shortens the text the most, so the
+    procedure is a greedy form of compression. Frequent pairs tend to be meaningful: word endings,
+    prefixes, common short words. Nobody tells the algorithm about grammar. It finds "ing" for the
+    same reason your shorthand did.</p
+  >
+  <h4>What real tokenizers add</h4
+  ><p
+    >Production tokenizers start from the 256 possible bytes, not from letters, so any text in any
+    script, and even emoji, can be represented. They learn tens of thousands of merges, to reach
+    vocabularies of roughly 30,000 to 200,000 tokens, from many gigabytes of text. The space is
+    glued to the start of the following word, as the underscore shows here. WordPiece and unigram
+    tokenizers, used by some models, choose their pieces by a likelihood score instead of a raw
+    count, and the result looks much the same.</p
+  >
+  <h4>Consequences worth knowing</h4
+  ><p
+    >Prices and length limits of language models are counted in tokens, not words. For ordinary
+    English a token is on average a little under one word, around four characters. Text in languages
+    that were rarer in the tokenizer's training data, and unusual strings such as code or long
+    numbers, are cut into more pieces and so cost more. And because the model sees "strawberry" as
+    two or three opaque pieces and not as ten letters, questions about spelling or counting letters
+    are harder for it than they look.</p
+  >
+  <h4>What this page does</h4
+  ><p
+    >It runs the algorithm exactly as described on the text in the box, lower-cased, with
+    punctuation marks treated as words of their own. Ties are broken in favour of the pair that
+    appears first. It stops by itself when no pair occurs more than once, since after that every
+    further merge would only memorise a single word.</p
+  ></template
+>
+
+<template data-part="question"
+  >After training, the word “lowest” is a single token but “slowest” is cut into two. A classmate
+  concludes that the tokenizer “knows” lowest and “does not know” slowest. What is a more accurate
+  description?</template
+>
+
+<template data-part="answer"
+  >The tokenizer knows nothing about meaning. It only records which neighbouring pieces were
+  frequent enough to be glued together. “lowest” happened to occur often enough in the training text
+  for its pieces to be merged all the way into one token. “slowest” did not, so it is represented by
+  pieces that were merged for other reasons, such as “_slow” and “est”. Both words are represented
+  exactly and without loss. The model that reads the tokens later can still learn what “slowest”
+  means, and the shared piece “est” even helps it.</template
+>

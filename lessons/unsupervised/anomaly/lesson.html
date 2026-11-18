@@ -1,0 +1,220 @@
+<template data-part="lede"
+  >A fraudulent card payment, a failing engine bearing, a typing error in a database. Nobody hands
+  you labelled examples of what is wrong, and there are too few of them to learn from anyway.
+  Anomaly detection works from the other end: learn what normal looks like, and flag whatever is far
+  from it. Three ways of measuring "far" live on this page, and they do not always agree.</template
+>
+
+<template data-part="intro"
+  ><p
+    >Play twenty questions to single out one person in a crowd. For someone ordinary you need many
+    questions, because whatever you ask, plenty of others give the same answer. For the one person
+    wearing a diving suit you need one. Being easy to describe apart from everyone else is what it
+    means to be unusual. An isolation forest plays this game with random questions, many times over,
+    and counts how quickly each point ends up alone.</p
+  >
+</template>
+
+<template data-part="stage"
+  ><div class="row seg" id="an-d" role="group" aria-label="Data"
+    ><button class="btn" type="button" data-v="blob">One Cloud</button
+    ><button class="btn" type="button" data-v="two">Two Clouds</button
+    ><button class="btn" type="button" data-v="arc">A Curved Band</button></div
+  >
+  <div class="row seg" id="an-m" role="group" aria-label="Method" style="margin-top:8px"
+    ><button class="btn" type="button" data-v="iso">Isolation Forest</button
+    ><button class="btn" type="button" data-v="knn">Distance to Neighbours</button
+    ><button class="btn" type="button" data-v="gauss">Distance from the Centre</button></div
+  >
+  <div class="stage"
+    ><figure class="fig"
+      ><figcaption
+        >Shading: how unusual each place is, darker for more unusual. Ringed dots: flagged. Crosses:
+        the anomalies that were planted (the method is never told). Straight lines: the random cuts
+        one tree used to isolate your point. Click anywhere to move your point</figcaption
+      ><canvas
+        class="short"
+        id="an-c"
+        role="img"
+        aria-label="Data with anomaly score field"
+      ></canvas
+    ></figure>
+    <figure class="fig"
+      ><figcaption
+        >Top: every point’s score, sorted from most to least unusual, with the cut-off for flagging.
+        Planted anomalies are amber. Bottom: how many random cuts it took to isolate your point in
+        each tree so far, against a typical point</figcaption
+      ><canvas
+        class="short"
+        id="an-r"
+        role="img"
+        aria-label="Sorted scores and path lengths"
+      ></canvas></figure
+  ></div>
+  <div class="howto"
+    ><div
+      ><h3>How it works, step by step</h3
+      ><ol id="an-steps"
+        ><li>Take a random handful of the data.</li
+        ><li
+          >Pick a feature at random and a cut point at random between its smallest and largest
+          value. That splits the handful in two.</li
+        ><li>Keep cutting each part the same way until every point is alone. This is one tree.</li
+        ><li
+          >Count how many cuts it took to isolate each point. A point far from the rest is cut off
+          early.</li
+        ><li>Build many trees and average the counts.</li
+        ><li
+          >Short average path = easy to isolate = anomaly. Flag the points with the shortest
+          paths.</li
+        ></ol
+      ></div
+    ><div><h3>What just happened</h3><p class="live" id="an-live" role="status"></p></div
+  ></div>
+  <div class="controls"
+    ><template data-label="Animation" data-control="group"
+      ><div class="row"
+        ><button class="btn go" id="an-play" type="button">Run</button
+        ><button class="btn" id="an-step" type="button">Add one tree</button
+        ><button class="btn" id="an-reset" type="button">Start over</button></div
+      ><template data-unit="trees" data-id="an" data-control="run-limit"></template
+    ></template>
+    <template data-label="Flagging" data-control="group"
+      ><template
+        data-value="6"
+        data-step="1"
+        data-max="20"
+        data-min="1"
+        data-label="Share of points to flag"
+        data-id="an-q"
+        data-control="slider"
+      ></template
+      ><template
+        data-value="5"
+        data-step="1"
+        data-max="15"
+        data-min="1"
+        data-label="Neighbours used by the neighbour method"
+        data-id="an-k"
+        data-control="slider"
+      ></template
+    ></template>
+    <template data-label="Data" data-control="group"
+      ><div class="row"><button class="btn" id="an-new" type="button">New data</button></div
+      ><template data-id="an" data-control="xy-upload"></template></template
+  ></div>
+  <dl class="read"
+    ><template data-label="Trees in the forest" data-key="tr" data-control="readout"></template
+    ><template data-label="Points flagged" data-key="fl" data-control="readout"></template
+    ><template
+      data-class="hl"
+      data-label="Planted anomalies caught"
+      data-key="hit"
+      data-control="readout"
+    ></template
+    ><template
+      data-class="hl2"
+      data-label="Normal points flagged by mistake"
+      data-key="fa"
+      data-control="readout"
+    ></template
+    ><template
+      data-class="hl"
+      data-label="Ranking quality (1 = every anomaly ranked above every normal point)"
+      data-key="auc"
+      data-control="readout"
+    ></template></dl
+></template>
+
+<template data-part="tryit"
+  >Press Add one tree a few times and watch the cuts that isolate your point. Click far from the
+  data, then in the middle of a cloud, and compare the number of cuts. Now press Run and watch the
+  shading settle as trees are added. On A Curved Band, switch between the three methods. One of them
+  shades the hollow inside the curve as perfectly normal, one flags it firmly, and one is unsure.
+  Which is which, and why? On Two Clouds, compare how the three treat the gap between the clouds.
+  Then drag the flagging slider: the method ranks points, and you decide where to draw the
+  line.</template
+>
+
+<template data-part="math"
+  ><h4>The setting</h4
+  ><p
+    >We have data \(\mathbf x_1,\dots,\mathbf x_n\), mostly normal, with no labels. The goal is a
+    score \(s(\mathbf x)\) that is high for points unlike the bulk. A threshold on the score, or a
+    fixed share of points to flag, turns the ranking into decisions. Where to put the threshold is a
+    judgement about costs: a missed fraud against a blocked customer.</p
+  >
+  <h4>Distance from the centre</h4
+  ><p
+    >Fit one Gaussian to all the data and measure how many standard deviations away each point is,
+    allowing for the shape of the cloud. This is the <b>Mahalanobis distance</b>:</p
+  >$$s(\mathbf x)=\sqrt{(\mathbf x-\boldsymbol\mu)^{\top}\boldsymbol\Sigma^{-1}(\mathbf
+  x-\boldsymbol\mu)}.$$<p
+    >It is fast and easy to explain, and it assumes that normal data form a single elliptical cloud.
+    When they do not, the centre may be an empty place that the method considers the most normal of
+    all.</p
+  >
+  <h4>Distance to neighbours</h4
+  ><p>Score each point by the distance to its \(k\)-th nearest neighbour:</p>$$s(\mathbf
+  x)=\lVert\mathbf x-\mathbf x_{(k)}\rVert.$$<p
+    >Normal points have close neighbours and anomalies do not. This follows any shape, since it is
+    purely local. It needs a meaningful distance, costs \(O(n)\) per query without an index, and
+    depends on \(k\): with \(k=1\), two anomalies that happen to sit side by side hide each
+    other.</p
+  >
+  <h4>Isolation forest</h4
+  ><p
+    >Each tree is built on a random subsample of \(\psi\) points by recursive random cuts (Liu, Ting
+    and Zhou, 2008). Let \(h(\mathbf x)\) be the number of cuts on the path that isolates \(\mathbf
+    x\). The score compares its average over the trees with the average path length in a random tree
+    of \(\psi\) points:</p
+  >$$s(\mathbf x)=2^{-\mathbb E[h(\mathbf x)]/c(\psi)},\qquad
+  c(\psi)=2H(\psi-1)-\frac{2(\psi-1)}{\psi},\qquad H(i)\approx\ln i+0.5772.$$<p
+    >Scores near 1 are anomalies, scores well below 0.5 are ordinary, and if every score is near 0.5
+    there are no clear anomalies. No distances are computed, which keeps the method fast in many
+    dimensions, and small subsamples work well because anomalies are isolated early in any case.
+    Here \(\psi=64\). The cuts are parallel to the axes, and that is a real weakness. A point in the
+    hollow of a curve, or in the gap between two clouds, has data on both sides of it along every
+    single coordinate, so random cuts do not isolate it quickly, and the forest is less sure about
+    it than the neighbour method is.</p
+  >
+  <h4>Judging a detector</h4
+  ><p
+    >The page planted a few anomalies so that the result can be checked. The
+    <b>ranking quality</b> readout is the area under the ROC curve: the probability that a randomly
+    chosen planted anomaly scores higher than a randomly chosen normal point. It does not depend on
+    the threshold. In real use there are no planted answers, and evaluation is the hardest part of
+    the problem.</p
+  >
+  <h4>When the run stops</h4
+  ><p
+    >The forest keeps growing until the set of flagged points has not changed for 25 trees in a row,
+    with at least 40 trees, or until it reaches 200.</p
+  >
+  <h4>Things that go wrong</h4
+  ><p
+    >Features on very different scales distort every distance, so standardize first. In many
+    dimensions distances concentrate and everything looks equally far from everything else. If
+    anomalies are common enough to form their own cluster, they stop being isolated and look normal.
+    And a point can be unusual without being wrong: the detector raises a flag, and a person or a
+    second system has to decide what it means.</p
+  ></template
+>
+
+<template data-part="question"
+  >On A Curved Band, the distance-from-the-centre method rates a point in the hollow of the curve as
+  completely normal, the neighbour method flags it firmly, and the isolation forest is somewhere in
+  between. No data point is anywhere near it. What explains the three answers?</template
+>
+
+<template data-part="answer"
+  >The Mahalanobis distance assumes the normal data form one elliptical cloud around their mean. For
+  a curved band the mean lies in the hollow, where there are no data at all, and the fitted ellipse
+  covers the hollow and the band alike. So the emptiest region gets the best score. The neighbour
+  method makes no assumption about overall shape. It asks only whether there are data points nearby,
+  and in the hollow there are none, so it flags the point. The isolation forest asks how quickly
+  random cuts parallel to the axes leave the point alone. The hollow has data to its left, to its
+  right and above it, so a cut in either coordinate usually leaves some of the band on the same
+  side, and the point takes longer to isolate than a true outsider would. Its score rises, but not
+  as far.</template
+>

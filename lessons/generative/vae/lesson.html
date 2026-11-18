@@ -1,0 +1,189 @@
+<template data-part="lede"
+  >An ordinary autoencoder gives each picture a spot on a map, but the space between the spots is
+  no-man’s-land: decode a random point and you get rubbish. A variational autoencoder makes two
+  changes. Each picture becomes a small cloud instead of a point, and all the clouds are pulled
+  toward the centre. The map fills in, and now any point you pick decodes to something sensible.
+  That makes it a generator.</template
+>
+
+<template data-part="intro"
+  ><p
+    >Imagine a library where every book has a shelf position. In a badly run library each book sits
+    at an exact spot and the gaps between them are empty: reach in at random and you grab air. In a
+    well-run library each book has a small zone, the zones are packed side by side around the
+    entrance, and similar books are neighbours. Now any spot you reach for holds a book, and walking
+    along a shelf takes you smoothly from one subject to the next. A variational autoencoder (VAE)
+    trains the librarian to shelve like that.</p
+  >
+</template>
+
+<template data-part="stage"
+  ><div class="stage"
+    ><figure class="fig"
+      ><figcaption
+        >The map of codes. Each letter is where one picture’s cloud is centred; the rings mark where
+        random draws will come from. Faint pictures show what every region decodes to. Drag the
+        diamond</figcaption
+      ><canvas
+        class="short"
+        id="va-c"
+        role="img"
+        aria-label="Latent space of the variational autoencoder"
+      ></canvas
+    ></figure>
+    <figure class="fig"
+      ><figcaption
+        >Top: originals and what comes back. Middle: brand-new pictures decoded from random points
+        inside the rings. Bottom: the two parts of the loss</figcaption
+      ><canvas
+        class="short"
+        id="va-r"
+        role="img"
+        aria-label="Reconstructions, generated samples and the loss terms"
+      ></canvas></figure
+  ></div>
+  <div class="howto"
+    ><div
+      ><h3>How it works, step by step</h3
+      ><ol id="va-steps"
+        ><li
+          >Encoder: turn a picture into a cloud on the map: a centre and a width for each of the two
+          code numbers.</li
+        ><li>Draw one random point from that cloud.</li
+        ><li>Decoder: turn that point back into a picture.</li
+        ><li
+          >Loss, part 1: how different is the output from the original? Part 2: how far is the cloud
+          from a standard bell at the centre of the map?</li
+        ><li
+          >Adjust all weights to lower the sum, and repeat. To generate, skip the encoder: pick a
+          random point from the standard bell and decode it.</li
+        ></ol
+      ></div
+    ><div><h3>What just happened</h3><p class="live" id="va-live" role="status"></p></div
+  ></div>
+  <div class="controls"
+    ><template data-label="Animation" data-control="group"
+      ><div class="row"
+        ><button class="btn go" id="va-play" type="button">Train</button
+        ><button class="btn" id="va-step" type="button">Ten epochs</button
+        ><button class="btn" id="va-reset" type="button">Start over</button></div
+      ><template data-unit="epochs" data-id="va" data-control="run-limit"></template
+    ></template>
+    <template data-label="The model" data-control="group"
+      ><template
+        data-value="1"
+        data-step="0.1"
+        data-max="6"
+        data-min="0"
+        data-label="Weight β on keeping the clouds near the centre"
+        data-id="va-beta"
+        data-control="slider"
+      ></template
+      ><div class="row"
+        ><button class="btn" id="va-samp" type="button">Draw New Random Pictures</button></div
+      ></template
+    >
+    <template data-label="The data" data-control="group"
+      ><template
+        data-value="0.04"
+        data-step="0.01"
+        data-max="0.2"
+        data-min="0"
+        data-label="Noise: chance that a pixel is flipped"
+        data-id="va-flip"
+        data-control="slider"
+      ></template
+      ><label class="check"
+        ><input type="checkbox" id="va-col" checked /> Show the true letter (the model never sees
+        it)</label
+      ></template
+    ></div
+  >
+  <dl class="read"
+    ><template data-label="Epochs" data-key="ep" data-control="readout"></template
+    ><template
+      data-class="hl2"
+      data-label="Reconstruction error per picture"
+      data-key="rec"
+      data-control="readout"
+    ></template
+    ><template
+      data-class="hl3"
+      data-label="Distance of the clouds from the centre (KL)"
+      data-key="kl"
+      data-control="readout"
+    ></template
+    ><template
+      data-class="hl"
+      data-label="Codes that fall inside the outer ring"
+      data-key="in"
+      data-control="readout"
+    ></template
+    ><template data-label="Status" data-key="st" data-control="readout"></template></dl
+></template>
+
+<template data-part="tryit"
+  >Train with β = 1 and look at the row of generated pictures: most are recognisable letters. Set β
+  to 0 and train again. That is a plain autoencoder: the codes fly far outside the rings, and random
+  draws decode to smudges. Now set β to 6: the clouds collapse onto the centre, everything decodes
+  to the same blur. Somewhere between, the map is both organised and full. That tension is the whole
+  idea.</template
+>
+
+<template data-part="math"
+  ><h4>The model</h4
+  ><p
+    >The encoder maps a picture \(\mathbf x\) to the parameters of a Gaussian over codes, and one
+    code is sampled from it:</p
+  >$$q(\mathbf z\mid\mathbf x)=\mathcal N\big(\boldsymbol\mu(\mathbf
+  x),\operatorname{diag}\boldsymbol\sigma^2(\mathbf x)\big),\qquad\mathbf
+  z=\boldsymbol\mu+\boldsymbol\sigma\odot\boldsymbol\varepsilon,\quad\boldsymbol\varepsilon\sim\mathcal
+  N(\mathbf 0,\mathbf I).$$<p
+    >Writing the sample as \(\boldsymbol\mu+\boldsymbol\sigma\odot\boldsymbol\varepsilon\) is the
+    <b>reparameterisation trick</b>: the randomness sits in \(\boldsymbol\varepsilon\), outside the
+    network, so gradients can pass through \(\boldsymbol\mu\) and \(\boldsymbol\sigma\). The decoder
+    maps \(\mathbf z\) to a picture.</p
+  >
+  <h4>The loss</h4>$$\mathcal L=\underbrace{-\mathbb E_{q}\big[\log p(\mathbf x\mid\mathbf
+  z)\big]}_{\text{reconstruction}}+\beta\,\underbrace{\mathrm{KL}\big(q(\mathbf z\mid\mathbf
+  x)\,\Vert\,\mathcal N(\mathbf 0,\mathbf I)\big)}_{\text{keep the clouds near the
+  centre}},\qquad\mathrm{KL}=\tfrac12\sum_j\big(\mu_j^2+\sigma_j^2-\log\sigma_j^2-1\big).$$<p
+    >The first term wants each picture's cloud to be small and far from the others, so that pictures
+    can be told apart. The second wants every cloud to be the same standard bell at the centre.
+    Neither wins. The compromise is clouds that overlap a little and together fill the bell, which
+    is what makes random draws from \(\mathcal N(\mathbf 0,\mathbf I)\) decode well. With
+    \(\beta=1\) the negative of \(\mathcal L\) is the <b>evidence lower bound</b> (ELBO) on \(\log
+    p(\mathbf x)\).</p
+  >
+  <h4>Generating</h4
+  ><p
+    >Draw \(\mathbf z\sim\mathcal N(\mathbf 0,\mathbf I)\) and run the decoder. No picture is needed
+    as input. Because neighbouring codes decode to similar pictures, moving along a line in code
+    space morphs one picture into another.</p
+  >
+  <h4>The trade-off, and what came next</h4
+  ><p
+    >VAE samples tend to be blurry: the decoder hedges across everything a code might mean. Raising
+    \(\beta\) organises the map but loses detail; lowering it does the reverse. VAEs are still
+    everywhere, mostly as compressors: latent diffusion models such as Stable Diffusion run their
+    diffusion inside the code space of a VAE, and decode at the end.</p
+  >
+  <h4>What this page trains</h4
+  ><p
+    >A real VAE on 150 letter pictures of 35 pixels, with a two-number code, encoder
+    \(35\to24\to(\boldsymbol\mu,\log\boldsymbol\sigma^2)\) and decoder \(2\to24\to35\), trained by
+    backpropagation with Adam until the loss stops falling.</p
+  ></template
+>
+
+<template data-part="question"
+  >With β = 0 the reconstruction error is lower than with β = 1. Why would anyone accept the higher
+  error?</template
+>
+
+<template data-part="answer"
+  >Because the purpose is to generate, not to copy. With β = 0 nothing ties the codes to the centre,
+  so they spread wherever is convenient and leave gaps. A random draw from the standard bell then
+  lands where the decoder was never trained, and decodes to rubbish. The KL term costs some
+  reconstruction accuracy and buys a code space in which every region means something.</template
+>

@@ -1,0 +1,233 @@
+<template data-part="lede"
+  >One big model that does everything must use all of itself for every input. A mixture of experts
+  splits the work: several small models, each good at one kind of input, and a router that looks at
+  each input and decides whose answer to use. Nobody assigns the specialities. The experts and the
+  router are trained together and the division of labour appears by itself. Large language models
+  use this idea to grow much bigger without becoming much slower. Here the experts are as simple as
+  they can be, straight lines, so that you can watch each one find its job.</template
+>
+
+<template data-part="intro"
+  ><p
+    >A hospital does not send every patient to every doctor. A receptionist looks at each patient
+    and sends them to cardiology, orthopaedics or dermatology. Each department sees only its own
+    kind of case and becomes good at it. Adding a department makes the hospital more capable without
+    making any single visit slower, because a patient still sees one or two doctors, not all of
+    them. The interesting part is that in a mixture of experts nobody draws up the departments. The
+    receptionist and the doctors start out knowing nothing and sort it out between them from results
+    alone.</p
+  >
+</template>
+
+<template data-part="stage"
+  ><div class="stage"
+    ><figure class="fig"
+      ><figcaption
+        >Dots: the data. Coloured lines: one per expert, drawn strongly where the router trusts it
+        and faintly elsewhere. Thick line through the dots: the answer of the whole
+        mixture</figcaption
+      ><canvas
+        class="short"
+        id="me-c"
+        role="img"
+        aria-label="Data, each expert's line and the combined prediction"
+      ></canvas
+    ></figure>
+    <figure class="fig"
+      ><figcaption
+        >Top: the router’s decision at every input, as shares that add up to one. Middle: how much
+        of the data each expert ends up handling. Bottom: the error during training</figcaption
+      ><canvas
+        class="short"
+        id="me-r"
+        role="img"
+        aria-label="Router shares across the input, load per expert and the loss"
+      ></canvas></figure
+  ></div>
+  <div class="howto"
+    ><div
+      ><h3>How it works, step by step</h3
+      ><ol id="me-steps"
+        ><li
+          >Start with K experts, each a random straight line, and a router that splits every input
+          almost evenly between them.</li
+        ><li
+          >For each data point the router gives every expert a share between 0 and 1. The mixture’s
+          answer is the experts’ answers weighted by those shares.</li
+        ><li>Measure the error of the mixture’s answer.</li
+        ><li
+          >Update the experts: each one is corrected in proportion to its share, so it learns mostly
+          from the points it is responsible for.</li
+        ><li
+          >Update the router: it shifts more of each point to whichever expert was closer to the
+          truth there.</li
+        ><li>Repeat until the error stops falling. Each expert now owns a region.</li></ol
+      ></div
+    ><div><h3>What just happened</h3><p class="live" id="me-live" role="status"></p></div
+  ></div>
+  <div class="controls"
+    ><template data-label="Animation" data-control="group"
+      ><div class="row"
+        ><button class="btn go" id="me-play" type="button">Run</button
+        ><button class="btn" id="me-step" type="button">One step</button
+        ><button class="btn" id="me-reset" type="button">Start over</button></div
+      ><template data-unit="training steps" data-id="me" data-control="run-limit"></template
+    ></template>
+    <template data-label="The model" data-control="group"
+      ><template
+        data-value="3"
+        data-step="1"
+        data-max="8"
+        data-min="1"
+        data-label="Number of experts K"
+        data-id="me-K"
+        data-control="slider"
+      ></template
+      ><div class="row seg" id="me-rt" role="group" aria-label="How the answer is formed"
+        ><button class="btn" type="button" data-v="soft">Blend All Experts</button
+        ><button class="btn" type="button" data-v="hard">Top Expert Only</button></div
+      ></template
+    >
+    <template data-label="The data" data-control="group"
+      ><label class="ctl" for="me-ds"
+        ><span>Shape to fit</span
+        ><select id="me-ds"
+          ><option value="three">Three straight pieces</option
+          ><option value="step">A jump, then a slope</option
+          ><option value="zig">A zigzag with six pieces</option
+          ><option value="wave">A smooth wave</option></select
+        ></label
+      ><div class="row"
+        ><button class="btn" id="me-new" type="button">New random sample</button></div
+      ></template
+    ></div
+  >
+  <dl class="read"
+    ><template data-label="Training steps" data-key="ts" data-control="readout"></template
+    ><template
+      data-class="hl"
+      data-label="Error when all experts are blended"
+      data-key="e"
+      data-control="readout"
+    ></template
+    ><template
+      data-class="hl2"
+      data-label="Error when only the top expert answers"
+      data-key="eh"
+      data-control="readout"
+    ></template
+    ><template
+      data-label="Error of one straight line alone"
+      data-key="e1"
+      data-control="readout"
+    ></template
+    ><template
+      data-label="Experts handling at least 5% of the data"
+      data-key="act"
+      data-control="readout"
+    ></template
+    ><template
+      data-label="Share of the expert weights used for one input, top expert only"
+      data-key="fr"
+      data-control="readout"
+    ></template></dl
+></template>
+
+<template data-part="tryit"
+  >Press Run with three experts on Three Straight Pieces and watch the bands in the top-right
+  picture: they begin as an even blur and sharpen into three territories. Did anyone tell expert 2
+  to take the middle? Switch between Blend All Experts and Top Expert Only: how much accuracy is
+  lost by letting a single expert answer each input, and how much computing is saved? Now set K to
+  1, then 2, then 6 on the same data. With six experts, how many are doing real work? Try the zigzag
+  with 3 experts and with 6. Then choose the smooth wave and compare the two error readouts:
+  blended, the fit is good, and with the top expert alone it is terrible. Look at the individual
+  lines to see why. Finally type in your own x and read which expert answers it.</template
+>
+
+<template data-part="math"
+  ><h4>The model</h4
+  ><p
+    >There are \(K\) experts \(f_1,\dots,f_K\) and a router, also called a gate. For an input \(x\)
+    the router produces one score per expert and turns the scores into shares with a softmax:</p
+  >$$g_k(x)=\frac{e^{u_k(x)}}{\sum_j e^{u_j(x)}},\qquad \hat y(x)=\sum_{k=1}^{K}g_k(x)\,f_k(x).$$<p
+    >On this page each expert is a line, \(f_k(x)=a_kx+b_k\), and each router score is a line too,
+    \(u_k(x)=c_kx+d_k\). A single line cannot follow data with a bend in it. \(K\) lines, each used
+    in its own region, can.</p
+  >
+  <h4>How the division of labour emerges</h4
+  ><p
+    >Train everything together on the squared error \(\tfrac12(\hat y-y)^2\). With \(\delta=\hat
+    y-y\), the gradients are</p
+  >$$\frac{\partial L}{\partial f_k}=\delta\,g_k,\qquad \frac{\partial L}{\partial
+  u_k}=\delta\,g_k\,\big(f_k-\hat y\big).$$<p
+    >The first says an expert is corrected in proportion to its share \(g_k\): it learns from the
+    points it is trusted with and hardly at all from the others. The second says the router raises
+    an expert's share where that expert's answer would pull the mixture toward the truth, and lowers
+    it where it would pull away. The two feed each other. An expert that is slightly better in some
+    region gets more of it, learns it better, and gets more still. That loop is what turns an even
+    blur into sharp territories (Jacobs, Jordan, Nowlan and Hinton, 1991).</p
+  >
+  <h4>Blending against routing</h4
+  ><p
+    >Blending every expert's answer uses all \(K\) experts for every input, so nothing is saved.
+    Once the territories are sharp, the shares are close to 0 or 1 and little is lost by asking only
+    the expert with the largest share:</p
+  >$$\hat y_{\text{top}}(x)=f_{k^\star}(x),\qquad k^\star=\arg\max_k g_k(x).$$<p
+    >Now each input costs one expert, however many exist. The two error readouts show how much this
+    costs. The cost is highest near the boundaries, where two experts are both partly right.</p
+  ><p
+    >This only works if each expert can stand on its own. On the smooth wave the mixture on this
+    page finds a different solution: no line fits a curve, so it produces the curve by blending
+    several lines, none of which is close to the data by itself. Remove the blending and the answer
+    collapses. Large models avoid this by routing each input to its top few experts during training
+    as well, so that every expert is forced to give a usable answer alone.</p
+  >
+  <h4>In large language models</h4
+  ><p
+    >In a Transformer, most of the weights sit in the feed-forward part of each layer. A
+    mixture-of-experts model replaces that part with several feed-forward networks, for instance 8,
+    and a small router that sends each token to the best 2. The model holds the knowledge of all 8,
+    and each token pays for 2. This is called a sparse mixture of experts (Shazeer and others,
+    2017), and it is how some open and commercial models reach very large sizes at a moderate
+    running cost. The experts are not tidy human specialities such as "maths" or "French": what each
+    one takes on is whatever division happened to lower the error.</p
+  >
+  <h4>What goes wrong</h4
+  ><p
+    >The reinforcing loop can run away. One expert gets ahead early, receives everything, and the
+    others receive no data and never improve: these are dead experts. Watch the middle picture with
+    a large \(K\). Large models add a load-balancing term to the loss that penalises uneven use, and
+    often add noise to the router's scores during training. The opposite failure also occurs: the
+    router never commits, every expert does a little of everything, and the model is an expensive
+    average.</p
+  >
+  <h4>Not the same as an ensemble</h4
+  ><p
+    >An ensemble, as in the Ensembles module, runs every model on every input and averages. Its
+    members are trained to solve the whole problem and it gains from their errors cancelling. A
+    mixture of experts trains its members to solve different parts of the problem and gains from
+    sending each input to the right one.</p
+  >
+  <h4>What this page trains</h4
+  ><p
+    >\(K\) lines and a router with \(2K\) numbers, trained together with Adam on all 160 points at
+    every step. Training stops when the error has changed by less than one part in a thousand over
+    100 steps, or after 4,000 steps.</p
+  ></template
+>
+
+<template data-part="question"
+  >With six experts on the three-piece data, some experts end up handling almost none of the data.
+  Is the model with idle experts worse than a model trained with three experts from the
+  start?</template
+>
+
+<template data-part="answer"
+  >Not in accuracy: the working experts fit the three pieces just as a three-expert model would, and
+  the idle ones contribute almost nothing to the answer because their shares are near zero. What is
+  lost is efficiency. The idle experts still take up memory and were paid for in training. In a
+  large model that is a serious waste, which is why a load-balancing penalty is added to push the
+  router into using every expert. On this data there are only three pieces to find, so there is
+  nothing useful for the extra experts to do, and leaving them idle is the sensible
+  outcome.</template
+>

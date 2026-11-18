@@ -1,0 +1,158 @@
+<template data-part="lede"
+  >Fit a Gaussian hill to each class and assign every point to the taller hill. If the hills are
+  forced to have the same shape, the line where they cross is straight (LDA). If each keeps its own
+  shape, the crossing is a curve (QDA).</template
+>
+
+<template data-part="intro"
+  ><p
+    >In the Gaussian module you fitted one hill to a cloud of points. Now fit one hill to each
+    class. A new point belongs to whichever class's hill is higher above it, after weighting each
+    hill by how common the class is. The boundary is the line on the ground directly below where the
+    two hills cross. Whether that line is straight or curved depends on one decision: must the hills
+    have the same shape?</p
+  >
+</template>
+
+<template data-part="left-caption"
+  >The data, and what the model predicts everywhere (click to add a point, drag to move
+  one)</template
+>
+
+<template data-part="right-figure"
+  ><figure class="fig"
+    ><figcaption>The two fitted hills: each point goes to the taller one</figcaption
+    ><canvas
+      class="d3"
+      id="lda-r"
+      role="img"
+      aria-label="The two fitted hills: each point goes to the taller one"
+    ></canvas
+    ><template data-control="rotation"></template></figure
+></template>
+
+<template data-part="steps"
+  ><li>Split the training points by class and compute each class’s mean.</li
+  ><li>Compute the covariance of each class. For LDA, average them into one shared covariance.</li
+  ><li>Record the share of each class (the prior).</li
+  ><li
+    >To predict: evaluate each class’s Gaussian at the new point, times its prior. The taller one
+    wins.</li
+  ></template
+>
+
+<template data-part="animation-controls"
+  ><div class="row"
+    ><button class="btn go" id="lda-play" type="button">Change the spread of class B</button
+    ><button class="btn" id="lda-reset" type="button">Start over</button></div
+  ><p class="status" id="lda-note" role="status"></p
+></template>
+
+<template data-part="model-controls"
+  ><div class="row seg" id="lda-kind"
+    ><button class="btn" type="button" data-k="lda">LDA: One Shared Shape</button
+    ><button class="btn" type="button" data-k="qda">QDA: A Shape per Class</button></div
+  ></template
+>
+
+<template data-part="datasets"
+  ><option value="blobs">Two clouds</option><option value="overlap">Two overlapping clouds</option
+  ><option value="moons">Two moons</option
+  ><option value="circles">Ring around a core</option></template
+>
+
+<template data-part="point-count"
+  ><template
+    data-value="120"
+    data-step="2"
+    data-max="300"
+    data-min="20"
+    data-label="Number of points"
+    data-id="lda-n"
+    data-control="slider"
+  ></template
+></template>
+
+<template data-part="dataset-extra"
+  ><template
+    data-value="1"
+    data-step="0.02"
+    data-max="2.4"
+    data-min="0.4"
+    data-label="Spread of class B, relative to A"
+    data-id="lda-sb"
+    data-control="slider"
+  ></template
+  ><template
+    data-value="0.5"
+    data-step="0.01"
+    data-max="0.9"
+    data-min="-0.9"
+    data-label="Tilt of the clouds"
+    data-id="lda-corr"
+    data-control="slider"
+  ></template
+></template>
+
+<template data-part="readouts"
+  ><template
+    data-class="hl"
+    data-label="Numbers the model had to estimate"
+    data-key="np"
+    data-control="readout"
+  ></template
+  ><div><dt>Test accuracy of the other method</dt><dd data-r="ot">–</dd></div></template
+>
+
+<template data-part="tryit"
+  >With equal spreads LDA and QDA give nearly the same boundary. Make class B much more spread out
+  than A and switch between the two. Then try the ring around a core: which one can handle it, and
+  why?</template
+>
+
+<template data-part="math"
+  ><h4>The model</h4>$$p(\mathbf x\mid c)=N(\mathbf x;\ \boldsymbol\mu_c,\ \Sigma_c),\qquad \hat
+  y=\arg\max_c\ \delta_c(\mathbf x),\qquad \delta_c(\mathbf x)=\ln\pi_c+\ln p(\mathbf x\mid c)$$<p
+    >with \(\pi_c\) the class share. It is Naive Bayes without the naive assumption: the covariance
+    is allowed to tilt.</p
+  >
+  <h4>QDA: each class has its own covariance</h4>$$\delta_c(\mathbf
+  x)=\ln\pi_c-\tfrac12\ln|\Sigma_c|-\tfrac12(\mathbf x-\boldsymbol\mu_c)^{\top}\Sigma_c^{-1}(\mathbf
+  x-\boldsymbol\mu_c)$$<p
+    >Setting \(\delta_A=\delta_B\) leaves terms in \(\mathbf
+    x^{\top}(\Sigma_A^{-1}-\Sigma_B^{-1})\mathbf x\): a quadratic. The boundary is a conic: an
+    ellipse, parabola or hyperbola. A tight class surrounded by a wide one gets a closed curve
+    around it.</p
+  >
+  <h4>LDA: one covariance shared by all</h4
+  ><p
+    >If \(\Sigma_A=\Sigma_B=\Sigma\), the quadratic terms cancel and what remains is linear in
+    \(\mathbf x\):</p
+  >$$\delta_c(\mathbf x)=\mathbf
+  x^{\top}\Sigma^{-1}\boldsymbol\mu_c-\tfrac12\boldsymbol\mu_c^{\top}\Sigma^{-1}\boldsymbol\mu_c+\ln\pi_c$$<p
+    >The boundary is a straight line, perpendicular to
+    \(\Sigma^{-1}(\boldsymbol\mu_B-\boldsymbol\mu_A)\). Equivalently: assign each point to the class
+    whose mean is nearest in Mahalanobis distance. \(\Sigma\) is estimated by pooling both
+    classes.</p
+  >
+  <h4>Which to use</h4
+  ><p
+    >In \(d\) dimensions with \(K\) classes, LDA estimates one covariance (\(d(d+1)/2\) numbers),
+    QDA \(K\) of them. QDA is more flexible and needs more data; LDA is stiffer and steadier. It is
+    the bias–variance trade again. LDA and logistic regression both give straight boundaries; LDA
+    assumes Gaussian classes and is more efficient when that is true, logistic regression assumes
+    less and is safer when it is not.</p
+  ></template
+>
+
+<template data-part="question"
+  >LDA and logistic regression both draw a straight line. When would they give different
+  lines?</template
+>
+
+<template data-part="answer"
+  >When the classes are not Gaussian with equal covariance, for example when there are outliers far
+  from the boundary. LDA uses every point to estimate means and covariance, so distant points move
+  the line. Logistic regression is driven mainly by points near the boundary and is less
+  affected.</template
+>

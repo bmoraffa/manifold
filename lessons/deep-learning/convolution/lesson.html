@@ -1,0 +1,177 @@
+<template data-part="lede"
+  >A network that looks at pictures does not study every pixel separately. It slides a small window
+  across the picture and, at each stop, asks one question: does this patch look like the pattern I
+  am searching for? The answers form a new picture that lights up wherever the pattern was found.
+  Draw on the picture, pick a pattern, and watch the window work.</template
+>
+
+<template data-part="intro"
+  ><p
+    >Imagine looking for your keys in a dark room with a small torch. You do not light the whole
+    room at once. You sweep the torch across it and, wherever the beam lands, ask the same question:
+    "does this look like keys?" The torch is small, the question never changes, and it works
+    wherever the keys happen to be. A convolutional layer does this with a picture. The window is
+    the torch beam, the kernel is the question, and the output is a map of where the answer was
+    yes.</p
+  >
+</template>
+
+<template data-part="stage"
+  ><div class="row seg" id="cv-k" role="group" aria-label="Pattern to search for"
+    ><button class="btn" type="button" data-v="vert">Vertical Edges</button
+    ><button class="btn" type="button" data-v="horiz">Horizontal Edges</button
+    ><button class="btn" type="button" data-v="outline">Outlines</button
+    ><button class="btn" type="button" data-v="blur">Blur</button
+    ><button class="btn" type="button" data-v="sharp">Sharpen</button></div
+  >
+  <div class="stage one"
+    ><figure class="fig"
+      ><figcaption
+        >Left: the picture, with the window. Middle: the patch under the window, the pattern
+        (kernel), and their products. Right: the answers so far, and below them the pooled summary.
+        Drag on the picture to draw</figcaption
+      ><canvas
+        class="wide"
+        id="cv-c"
+        role="img"
+        aria-label="Input picture with a sliding window, the kernel, the feature map and the pooled map"
+      ></canvas
+      ><div class="eq" id="cv-eq" role="status"></div></figure
+  ></div>
+  <div class="howto"
+    ><div
+      ><h3>How it works, step by step</h3
+      ><ol id="cv-steps"
+        ><li>Place the 3 × 3 window on the top-left corner of the picture.</li
+        ><li
+          >Multiply each of the nine pixels under the window by the matching number in the kernel,
+          and add the nine products.</li
+        ><li
+          >Write the sum into the matching cell of the output. If ReLU is on, write 0 for a negative
+          sum.</li
+        ><li
+          >Slide the window one pixel and repeat, row by row, until the whole picture is
+          covered.</li
+        ><li
+          >Pooling: cut the output into 2 × 2 blocks and keep only the largest number in each. The
+          result is a quarter of the size.</li
+        ></ol
+      ></div
+    ><div><h3>What just happened</h3><p class="live" id="cv-live" role="status"></p></div
+  ></div>
+  <div class="controls"
+    ><template data-label="Animation" data-control="group"
+      ><div class="row"
+        ><button class="btn go" id="cv-play" type="button">Slide the window</button
+        ><button class="btn" id="cv-step" type="button">One position</button
+        ><button class="btn" id="cv-reset" type="button">Start over</button></div
+      ></template
+    >
+    <template data-label="The picture" data-control="group"
+      ><label class="ctl" for="cv-img"
+        ><span>Picture</span
+        ><select id="cv-img"
+          ><option value="seven">The digit 7</option
+          ><option value="box">A square</option
+          ><option value="cross">A cross</option
+          ><option value="face">A smiling face</option
+          ><option value="diag">A diagonal stripe</option></select
+        ></label
+      ><div class="row"
+        ><button class="btn" id="cv-clear" type="button">Clear the picture</button></div
+      ></template
+    >
+    <template data-label="The layer" data-control="group"
+      ><label class="check"
+        ><input type="checkbox" id="cv-relu" checked /> Apply ReLU: keep only positive
+        answers</label
+      ></template
+    ></div
+  >
+  <dl class="read"
+    ><template data-label="Window position" data-key="pos" data-control="readout"></template
+    ><template
+      data-class="hl"
+      data-label="Sum at this position"
+      data-key="sum"
+      data-control="readout"
+    ></template
+    ><template
+      data-label="Sizes: picture → output → pooled"
+      data-key="sz"
+      data-control="readout"
+    ></template
+    ><template
+      data-label="Numbers this layer learns"
+      data-key="np"
+      data-control="readout"
+    ></template
+    ><template data-label="Status" data-key="st" data-control="readout"></template></dl
+></template>
+
+<template data-part="tryit"
+  >With the digit 7 and Vertical Edges, watch the output: it lights up on the upright stroke and
+  stays dark on the flat top. Switch to Horizontal Edges and the opposite happens. Clear the picture
+  and draw a single vertical line: where is the answer positive, where negative, and what does ReLU
+  do to it? Then look at the pooled picture: move your line one pixel sideways and see how little
+  the pooled picture changes.</template
+>
+
+<template data-part="math"
+  ><h4>The operation</h4
+  ><p
+    >Let \(X\) be the picture and \(K\) a \(3\times3\) kernel. The output at row \(i\), column \(j\)
+    is</p
+  >$$Y_{ij}=\sum_{a=0}^{2}\sum_{b=0}^{2}K_{ab}\,X_{i+a,\;j+b}\;+\;\text{bias}.$$<p
+    >It is a dot product between the kernel and the patch of picture under it: large and positive
+    when the patch resembles the kernel, near zero when it does not, negative when it is the
+    reverse. An \(n\times n\) picture and a \(k\times k\) kernel give an output of size
+    \((n-k+1)\times(n-k+1)\): here \(18\to16\). (This is strictly cross-correlation; deep learning
+    libraries call it convolution.)</p
+  >
+  <h4>Why the kernels look as they do</h4
+  ><p
+    >The vertical-edge kernel has negative numbers on the left and positive on the right, so it adds
+    up "right minus left". On a flat area the two cancel to zero. Where the picture changes from
+    dark to bright going rightward the sum is large. The blur kernel is nine equal weights, an
+    average. In a trained network nobody writes the kernels: they are the weights, and gradient
+    descent learns them. First-layer kernels of real networks do turn out to be edge and colour-blob
+    detectors much like these.</p
+  >
+  <h4>Two ideas that make it work</h4
+  ><p
+    ><b>Local connections.</b> Each output looks at only nine pixels, not all 324. Nearby pixels are
+    what form edges and corners. <b>Shared weights.</b> The same nine numbers are used at every
+    position, so the layer has 9 weights and 1 bias whatever the size of the picture, and a pattern
+    learned in one place is recognised everywhere. A fully connected layer from 324 pixels to 256
+    outputs would have 83,200 weights.</p
+  >
+  <h4>ReLU and pooling</h4
+  ><p
+    >ReLU keeps positive answers and sets negative ones to zero: "the pattern is here" matters, "its
+    opposite is here" is dropped. <b>Max pooling</b> then keeps the largest value in each
+    \(2\times2\) block,</p
+  >$$P_{ij}=\max\big(Y_{2i,2j},\,Y_{2i,2j+1},\,Y_{2i+1,2j},\,Y_{2i+1,2j+1}\big),$$<p
+    >halving the width and height. It records that the pattern was found somewhere in the block
+    without recording exactly where, which makes the result insensitive to small shifts and cuts the
+    work for later layers by four.</p
+  >
+  <h4>Stacking layers</h4
+  ><p
+    >A real convolutional network has many kernels per layer, each producing its own output map, and
+    several layers in a row. A second layer slides its windows over the maps of the first, so it
+    combines edges into corners and curves. Each layer sees a larger area of the original picture
+    (its <b>receptive field</b>): edges, then parts, then whole objects.</p
+  ></template
+>
+
+<template data-part="question"
+  >A convolutional layer with a 3 × 3 kernel is applied to a 1000 × 1000 picture instead of an 18 ×
+  18 one. How many weights does the layer have now?</template
+>
+
+<template data-part="answer"
+  >Still nine, plus one bias. The kernel is the layer, and the same nine numbers are reused at every
+  position. Only the amount of computation and the size of the output grow with the picture. This is
+  why convolutional networks can handle large images with few parameters.</template
+>
